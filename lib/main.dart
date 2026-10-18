@@ -1,6 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:jobmate/features/auth/auth_gate.dart'; 
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  const supabaseKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY',);
+
+  if (supabaseUrl.isEmpty || supabaseKey.isEmpty) {
+    throw Exception('Missing Supabase configuration.' 'Run with --dart-define-from-file=.env');
+  }
+
+  await Supabase.initialize(
+    url: supabaseUrl,
+    publishableKey: supabaseKey,
+  );
+
   runApp(const MyApp());
 }
 
@@ -11,7 +27,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Home Page',
       theme: ThemeData(
         // This is the theme of your application.
         //
@@ -30,7 +46,7 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: .fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const AuthGate(),
     );
   }
 }

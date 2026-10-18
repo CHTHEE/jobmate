@@ -46,3 +46,11 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Local environment configuration
+.env
+.env.*
+!.env.example
+
+#Temporary local working files
+/tmp/
