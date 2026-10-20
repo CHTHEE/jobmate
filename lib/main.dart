@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:jobmate/features/auth/auth_gate.dart'; 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
 
-  const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-  const supabaseKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY',);
+  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+  final supabaseKey = dotenv.env['SUPABASE_PUBLISHABLE_KEY'] ?? '';
 
   if (supabaseUrl.isEmpty || supabaseKey.isEmpty) {
     throw Exception('Missing Supabase configuration.' 'Run with --dart-define-from-file=.env');

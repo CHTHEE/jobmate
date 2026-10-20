@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'sign_up_page.dart';
 import '../../shared/widgets/auth_layout.dart';
+import '../../shared/widgets/loading_overlay.dart';
+import 'verify_email_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -24,50 +27,55 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('JobMate')),
-      body: AuthLayout(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('Log in', style: TextStyle(fontSize: 24)),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(),
+    return LoadingOverlay(
+      isLoading: _isLoading,
+      message: 'Logging in...',
+      child: Scaffold(
+        appBar: AppBar(title: const Text('JobMate')),
+        body: AuthLayout(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Log in', style: TextStyle(fontSize: 24)),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
               ),
-              keyboardType: TextInputType.emailAddress,
-            ),
 
-            const SizedBox(height: 16),
-            TextField(
-              controller: _passwordController,
-              decoration: const InputDecoration(
-                labelText: 'Password',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
               ),
-              obscureText: true,
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _isLoading ? null : _handleLogin,
-              child: Text(_isLoading ? 'Logging in...' : 'Log in'),
-            ),
-            TextButton(
-              onPressed: _isLoading
-                  ? null
-                  : () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (context) => const SignUpPage()),
-                );
-              },
-              child: const Text('Don\'t have an account? Sign up'),
-            ),
-          ],
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _isLoading ? null : _handleLogin,
+                child: const Text('Log in'),
+              ),
+              TextButton(
+                onPressed: _isLoading
+                    ? null
+                    : () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (context) => const SignUpPage(),
+                          ),
+                        );
+                      },
+                child: const Text('Don\'t have an account? Sign up'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -79,10 +87,11 @@ class _LoginPageState extends State<LoginPage> {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
-    if(email.isEmpty || password.isEmpty) {
+    if (email.isEmpty || password.isEmpty) {
       _showMessage('Please enter both email and password.');
       return;
     }
+    FocusScope.of(context).unfocus();
 
     setState(() {
       _isLoading = true;
@@ -100,7 +109,19 @@ class _LoginPageState extends State<LoginPage> {
         _showMessage('No session was returned. Please try again.');
       }
     } on AuthException catch (error) {
-      _showMessage(error.message);
+      if(error.code == 'email_not_confirmed') {
+        if(!mounted) return;
+
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (context) => VerifyEmailPage(
+            email: email, 
+            startWithCooldown: false,
+          ),
+          ),
+        );
+      }else {
+        _showMessage(error.message);
+      }
     } catch (_) {
       _showMessage('Unable to log in. Please try again.');
     } finally {

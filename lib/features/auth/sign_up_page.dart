@@ -2,6 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/auth_layout.dart';
+import '../../shared/widgets/loading_overlay.dart';
+import 'verify_email_page.dart';
+
+enum SignUpRole {
+  jobSeeker('job_seeker'),
+  employer('employer');
+
+  const SignUpRole(this.databaseValue);
+
+  final String databaseValue;
+}
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -11,51 +22,96 @@ class SignUpPage extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignUpPage> {
+  final _nameCrontroller = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  SignUpRole _selectedRole = SignUpRole.jobSeeker;
   bool _isLoading = false;
 
   @override
   void dispose() {
+    _nameCrontroller.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('JobMate')),
-      body: AuthLayout(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('Create Account', style: TextStyle(fontSize: 24)),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(),
+    return LoadingOverlay(
+      isLoading: _isLoading,
+      message: 'Signing up...',
+      child: Scaffold(
+        appBar: AppBar(title: const Text('JobMate')),
+        body: AuthLayout(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Create Account', style: TextStyle(fontSize: 24)),
+              const SizedBox(height: 24),
+              const Text('Register as:'),
+              const SizedBox(height: 8),
+              SegmentedButton<SignUpRole>(
+                segments: const [
+                  ButtonSegment<SignUpRole>(
+                    value: SignUpRole.jobSeeker,
+                    label: Text('Job Seeker'),
+                  ),
+                  ButtonSegment<SignUpRole>(
+                    value: SignUpRole.employer,
+                    label: Text('Employer'),
+                  ),
+                ],
+                selected: {_selectedRole},
+                multiSelectionEnabled: false,
+                emptySelectionAllowed: false,
+                onSelectionChanged: _isLoading
+                    ? null
+                    : (selection) {
+                        setState(() {
+                          _selectedRole = selection.first;
+                        });
+                      },
               ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _passwordController,
-              decoration: const InputDecoration(
-                labelText: 'Password',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _nameCrontroller,
+                decoration: const InputDecoration(
+                  labelText: 'Full Name',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.name,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.next,
+                maxLength: 100,
               ),
-              obscureText: true,
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _isLoading ? null : _handleSignUp,
-              child: Text(_isLoading ? 'Signing up...' : 'Sign Up'),
-            ),
-          ],
+              const SizedBox(height: 16),
+              TextField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _isLoading ? null : _handleSignUp,
+                child: Text(_isLoading ? 'Signing up...' : 'Sign Up'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -64,8 +120,18 @@ class _SignUpPageState extends State<SignUpPage> {
   Future<void> _handleSignUp() async {
     if (_isLoading) return;
 
+    final name = _nameCrontroller.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
+
+    if (name.isEmpty) {
+      _showMessage('Please enter your full name');
+      return;
+    }
+    if (name.length > 100) {
+      _showMessage('Full name must not exceed 100 characters');
+      return;
+    }
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -91,14 +157,18 @@ class _SignUpPageState extends State<SignUpPage> {
       final response = await Supabase.instance.client.auth.signUp(
         password: password,
         email: email,
+        data: {'name': name, 'role': _selectedRole.databaseValue},
       );
 
       if (response.session != null) {
         if (!mounted) return;
-
         Navigator.of(context).popUntil((route) => route.isFirst);
       } else {
-        _showMessage('Check your email to confirm your account. Then log in.');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (context) => VerifyEmailPage(email: email),
+          ),
+        );
       }
     } on AuthException catch (e) {
       _showMessage(e.message);
