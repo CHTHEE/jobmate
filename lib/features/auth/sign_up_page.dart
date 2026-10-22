@@ -160,13 +160,18 @@ class _SignUpPageState extends State<SignUpPage> {
         data: {'name': name, 'role': _selectedRole.databaseValue},
       );
 
-      if (response.session != null) {
-        if (!mounted) return;
-        Navigator.of(context).popUntil((route) => route.isFirst);
+      if (!mounted) return;
+      
+      if (response.session != null) {  
+        Navigator.of(context).popUntil(
+          (route) => route.isFirst
+          );
       } else {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
-            builder: (context) => VerifyEmailPage(email: email),
+            builder: (context) => VerifyEmailPage(
+              email: email
+              ),
           ),
         );
       }

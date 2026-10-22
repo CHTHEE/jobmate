@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/loading_overlay.dart';
+import '../profile/profile_page.dart';
 
 class HomePage extends StatefulWidget {
   final String email;
@@ -23,6 +24,19 @@ class _HomePageState extends State<HomePage> {
         appBar: AppBar(
           title: const Text('JobMate'),
           actions: [
+            IconButton(
+              tooltip: 'My profile',
+              icon: const Icon(Icons.person_outline),
+              onPressed: _isLoadingOut
+                  ? null
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => const ProfilePage(),
+                        ),
+                      );
+                    },
+            ),
             TextButton(
               onPressed: _isLoadingOut ? null : _handleLogout,
               child: const Text('Log out'),

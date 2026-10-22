@@ -182,7 +182,7 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
       _cooldownTimer = Timer.periodic(
         const Duration(seconds:1),
         (timer){
-          if(mounted) {
+          if(!mounted) {
             timer.cancel();
             return;
           }
