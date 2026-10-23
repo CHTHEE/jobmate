@@ -25,6 +25,7 @@ class _SignUpPageState extends State<SignUpPage> {
   final _nameCrontroller = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   SignUpRole _selectedRole = SignUpRole.jobSeeker;
   bool _isLoading = false;
 
@@ -33,6 +34,7 @@ class _SignUpPageState extends State<SignUpPage> {
     _nameCrontroller.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
 
     super.dispose();
   }
@@ -105,6 +107,15 @@ class _SignUpPageState extends State<SignUpPage> {
                 ),
                 obscureText: true,
               ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _confirmPasswordController,
+                decoration: const InputDecoration(
+                  labelText: 'Confirm Password',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+              ),
               const SizedBox(height: 24),
               FilledButton(
                 onPressed: _isLoading ? null : _handleSignUp,
@@ -123,6 +134,7 @@ class _SignUpPageState extends State<SignUpPage> {
     final name = _nameCrontroller.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
 
     if (name.isEmpty) {
       _showMessage('Please enter your full name');
@@ -133,9 +145,9 @@ class _SignUpPageState extends State<SignUpPage> {
       return;
     }
 
-    if (email.isEmpty || password.isEmpty) {
+    if (email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter both email and password')),
+        const SnackBar(content: Text('Please fill  in all email and password fields')),
       );
       return;
     }
@@ -144,6 +156,15 @@ class _SignUpPageState extends State<SignUpPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Password must be at least 8 characters long'),
+        ),
+      );
+      return;
+    }
+
+    if (password != confirmPassword){
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Passwords does not match'),
         ),
       );
       return;
