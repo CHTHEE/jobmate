@@ -3,7 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/auth_layout.dart';
-import 'change_password_page.dart';
+import 'verify_password_page.dart';
+import 'document_submission_page.dart';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
@@ -23,7 +24,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isEditing = false;
 
+  String _savedName = '';
+  String _savedPhone = '';
   String? _loadError;
   String _email = '';
   String _accountStatus = '';
@@ -81,6 +85,9 @@ class _ProfilePageState extends State<ProfilePage> {
       _phoneController.text = (profile['phone_num'] as String?) ?? '';
 
       setState(() {
+        _savedName = _nameController.text;
+        _savedPhone = _phoneController.text;
+        _isEditing = false;
         _email = user.email ?? '';
         _accountStatus = (profile['status'] as String?) ?? '';
         _role = (profile['role'] as String?) ?? '';
@@ -111,7 +118,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _saveProfile() async {
-    if (!_canEdit) return;
+    if (!_canEdit || !_isEditing) return;
 
     final name = _nameController.text.trim();
     final phone = _phoneController.text.trim();
@@ -153,7 +160,10 @@ class _ProfilePageState extends State<ProfilePage> {
       _phoneController.text = (saved['phone_num'] as String?) ?? '';
 
       setState(() {
+        _savedName = _nameController.text;
+        _savedPhone = _phoneController.text;
         _updatedAt = DateTime.tryParse((saved['updated_at'] as String?) ?? '');
+        _isEditing = false;
       });
 
       _showMessage('Profile saved.');
@@ -324,11 +334,299 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Widget _buildProfileHeader() {
+    final colors = Theme.of(context).colorScheme;
+    final avatarUrl = _avatarUrl;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Tooltip(
+          message: _canEdit ? 'Change profile photo' : 'Profile photo',
+          child: SizedBox(
+            width: 120,
+            height: 120,
+            child: Stack(
+              children: [
+                ClipOval(
+                  child: avatarUrl == null || avatarUrl.isEmpty
+                      ? Container(
+                          width: 120,
+                          height: 120,
+                          color: colors.surfaceContainerHighest,
+                          child: const Icon(Icons.person_outline, size: 64),
+                        )
+                      : Image.network(
+                          avatarUrl,
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
+                          // BoxFit.contain: 显示完整图片，可能留白。
+                          // BoxFit.fill: 填满，可能变形。
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: 120,
+                              height: 120,
+                              color: colors.surfaceContainerHighest,
+                              child: const Icon(
+                                Icons.broken_image_outlined,
+                                size: 48,
+                              ),
+                            );
+                          },
+                        ),
+                ),
+
+                Positioned(
+                  left: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _canEdit
+                          ? colors.primary
+                          : colors.surfaceContainerHighest,
+                      border: Border.all(color: colors.surface, width: 2),
+                    ),
+                    child: Icon(
+                      Icons.camera_alt_outlined,
+                      size: 20,
+                      color: _canEdit
+                          ? colors.onPrimary
+                          : colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+
+                Positioned.fill(
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(60),
+                      onTap: _canEdit ? _pickAvatar : null,
+                      // GestureDetector 也能处理点击；
+                      // InkWell 提供 Material 点击反馈。
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            Chip(
+              avatar: const Icon(Icons.account_circle_outlined, size: 18),
+              label: Text('Account: ${_displayLabel(_accountStatus)}'),
+            ),
+            Chip(
+              avatar: Icon(
+                _verificationStatus == 'verified'
+                    ? Icons.verified_outlined
+                    : Icons.pending_outlined,
+                size: 18,
+              ),
+              label: Text(
+                'Verification: '
+                '${_displayLabel(_verificationStatus)}',
+              ),
+            ),
+            Chip(
+              avatar: const Icon(Icons.badge_outlined, size: 18),
+              label: Text('Role: ${_displayLabel(_role)}'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _startEditing() {
+    if (!_canEdit) return;
+
+    _nameController.text = _savedName;
+    _phoneController.text = _savedPhone;
+
+    setState(() {
+      _isEditing = true;
+    });
+  }
+
+  void _cancelEditing() {
+    if (_isBusy) return;
+
+    FocusScope.of(context).unfocus();
+
+    _nameController.text = _savedName;
+    _phoneController.text = _savedPhone;
+
+    setState(() {
+      _isEditing = false;
+    });
+  }
+
+  void _openPasswordVerification() {
+    if (!_canEdit) return;
+
+    final hasUnsavedChanges =
+        _nameController.text.trim() != _savedName ||
+        _phoneController.text.trim() != _savedPhone;
+
+    if (hasUnsavedChanges) {
+      _showMessage('Save or cancel your profile changes first.');
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (context) => const VerifyPasswordPage()),
+    );
+  }
+
+  Widget _buildPersonalDetails() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            const Expanded(
+              child: Text('Personal Details', style: TextStyle(fontSize: 24)),
+            ),
+
+            if (!_isEditing)
+              IconButton(
+                tooltip: 'Edit personal details',
+                onPressed: _canEdit ? _startEditing : null,
+                icon: const Icon(Icons.edit_outlined),
+              ),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+
+        const Text('Email'),
+        Text(_email),
+
+        const SizedBox(height: 16),
+
+        if (_isEditing) ...[
+          TextField(
+            controller: _nameController,
+            enabled: _canEdit,
+            decoration: const InputDecoration(
+              labelText: 'Full Name',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.name,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
+            maxLength: 100,
+          ),
+
+          const SizedBox(height: 16),
+
+          TextField(
+            controller: _phoneController,
+            enabled: _canEdit,
+            decoration: const InputDecoration(
+              labelText: 'Phone Number (optional)',
+              hintText: '+60123456789',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.done,
+            maxLength: 20,
+          ),
+
+          const SizedBox(height: 20),
+
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _isBusy ? null : _cancelEditing,
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _canEdit ? _saveProfile : null,
+                  child: const Text('Save Changes'),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          OutlinedButton.icon(
+            onPressed: _canEdit ? _openPasswordVerification : null,
+            icon: const Icon(Icons.lock_outline),
+            label: const Text('Change password'),
+          ),
+        ] else ...[
+          _infoRow(
+            'Full Name',
+            _savedName.isEmpty ? 'Not provided' : _savedName,
+          ),
+          _infoRow(
+            'Phone Number',
+            _savedPhone.isEmpty ? 'Not provided' : _savedPhone,
+          ),
+        ],
+
+        if (_accountStatus != 'active')
+          const Padding(
+            padding: EdgeInsets.only(top: 16),
+            child: Text(
+              'Your account currently cannot edit '
+              'profile details.',
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _openDocumentSubmission() async {
+    if (!_canEdit) return;
+
+    final hasUnsavedChanges =
+        _nameController.text.trim() != _savedName ||
+        _phoneController.text.trim() != _savedPhone;
+
+    if (_isEditing && hasUnsavedChanges) {
+      _showMessage('Save or cancel your profile changes first.');
+      return;
+    }
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => const DocumentSubmissionPage(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    // 回到 Profile 后，重新读取最新的 verification_status。
+    await _loadProfile();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return LoadingOverlay(
       isLoading: _isBusy,
-      message: _isSaving
+      message: _isUploading
           ? 'Uploading photo...'
           : _isSaving
           ? 'Saving profile...'
@@ -336,136 +634,98 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Scaffold(
         appBar: AppBar(title: const Text('My Profile')),
         body: AuthLayout(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (_loadError != null) ...[
-                Text(_loadError ?? ''),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: _isBusy ? null : _loadProfile,
-                  child: const Text('Try again'),
-                ),
-              ] else ...[
-                const Text('Personal Details', style: TextStyle(fontSize: 24)),
-                const SizedBox(height: 16),
-
-                Center(
-                  child: ClipOval(
-                    child: _avatarUrl == null || _avatarUrl!.isEmpty
-                        ? const SizedBox(
-                            width: 100,
-                            height: 100,
-                            child: Icon(Icons.person, size: 64),
-                          )
-                        : Image.network(
-                            _avatarUrl!,
-                            width: 100,
-                            height: 100,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return const SizedBox(
-                                width: 100,
-                                height: 100,
-                                child: Icon(
-                                  Icons.broken_image_outlined,
-                                  size: 48,
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ),
-
-                TextButton.icon(
-                  onPressed: _canEdit ? _pickAvatar : null,
-                  icon: const Icon(Icons.photo_library_outlined),
-                  label: const Text('Change photo'),
-                ),
-
-                const SizedBox(height: 24),
-
-                _infoRow('Role', _displayLabel(_role)),
-
-                _infoRow('Account status', _displayLabel(_accountStatus)),
-
-                _infoRow('Verification', _displayLabel(_verificationStatus)),
-
-                const SizedBox(height: 16),
-                const Text('Email'),
-                Text(_email),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: _nameController,
-                  enabled: _canEdit,
-                  decoration: const InputDecoration(
-                    labelText: 'Full Name',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.name,
-                  textCapitalization: TextCapitalization.words,
-                  textInputAction: TextInputAction.next,
-                  maxLength: 100,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _phoneController,
-                  enabled: _canEdit,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number (optional)',
-                    hintText: '+60123456789',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.phone,
-                  textInputAction: TextInputAction.done,
-                  maxLength: 20,
-                ),
-                const SizedBox(height: 20),
-                if (_accountStatus != 'active')
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 16),
-                    child: Text(
-                      'Your account currently cannot edit'
-                      'profile details.',
+          child: Card.outlined(
+            margin: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(color: colors.outlineVariant),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_loadError != null) ...[
+                    Text(_loadError ?? ''),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: _isBusy ? null : _loadProfile,
+                      child: const Text('Try again'),
                     ),
-                  ),
-                FilledButton(
-                  onPressed: _canEdit ? _saveProfile : null,
-                  child: const Text('Save Changes'),
-                ),
+                  ] else ...[
+                    _buildProfileHeader(),
 
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _isBusy
-                      ? null
-                      : () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (context) => const ChangePasswordPage(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.lock_outline),
-                        label:const Text('Change password'),
-                ),
+                    const SizedBox(height: 24),
+                    const Divider(),
+                    const SizedBox(height: 16),
 
-                const SizedBox(height: 16),
+                    _buildPersonalDetails(),
 
-                Text(
-                  'Last updated: ${_formatDate(_updatedAt)}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                    const SizedBox(height: 24),
 
-                ExpansionTile(
-                  tilePadding: EdgeInsets.zero,
-                  title: const Text('Account details'),
-                  children: [
-                    _infoRow('Account created', _formatDate(_createdAt)),
+                    if (_role == 'job_seeker' || _role == 'employer') ...[
+                      Card.outlined(
+                        margin: EdgeInsets.zero,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                'Verification Documents',
+                                style: TextStyle(fontSize: 20),
+                              ),
+                              const SizedBox(height: 8),
+
+                              Text(
+                                _role == 'employer'
+                                    ? 'Submit your company supporting document.'
+                                    : 'Submit your resume for review.',
+                              ),
+                              const SizedBox(height: 8),
+
+                              Text(
+                                'Status: ${_displayLabel(_verificationStatus)}',
+                              ),
+                              const SizedBox(height: 16),
+
+                              OutlinedButton.icon(
+                                onPressed: _canEdit
+                                    ? _openDocumentSubmission
+                                    : null,
+                                icon: const Icon(Icons.upload_file_outlined),
+                                label: Text(
+                                  _verificationStatus == 'pending' ||
+                                          _verificationStatus == 'verified'
+                                      ? 'View submissions'
+                                      : 'Submit documents',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+                    ],
+
+                    Text(
+                      'Last updated: ${_formatDate(_updatedAt)}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text('Account details'),
+                      children: [
+                        _infoRow('Account created', _formatDate(_createdAt)),
+                      ],
+                    ),
                   ],
-                ),
-              ],
-            ],
+                ],
+              ),
+            ),
           ),
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'sign_up_page.dart';
+import '../profile/verify_password_page.dart';
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import 'verify_email_page.dart';
@@ -62,6 +63,24 @@ class _LoginPageState extends State<LoginPage> {
                 onPressed: _isLoading ? null : _handleLogin,
                 child: const Text('Log in'),
               ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (context) => VerifyPasswordPage(
+                                isForgorPassword: true,
+                                initialEmail: _emailController.text.trim(),
+                              ),
+                            ),
+                          );
+                        },
+                  child: const Text('Forgot Password?'),
+                ),
+              ),
               TextButton(
                 onPressed: _isLoading
                     ? null
@@ -109,17 +128,16 @@ class _LoginPageState extends State<LoginPage> {
         _showMessage('No session was returned. Please try again.');
       }
     } on AuthException catch (error) {
-      if(error.code == 'email_not_confirmed') {
-        if(!mounted) return;
+      if (error.code == 'email_not_confirmed') {
+        if (!mounted) return;
 
         Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (context) => VerifyEmailPage(
-            email: email, 
-            startWithCooldown: false,
-          ),
+          MaterialPageRoute<void>(
+            builder: (context) =>
+                VerifyEmailPage(email: email, startWithCooldown: false),
           ),
         );
-      }else {
+      } else {
         _showMessage(error.message);
       }
     } catch (_) {
