@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/loading_overlay.dart';
 import '../profile/profile_page.dart';
+import '../company/create_company_page.dart';
 
 class HomePage extends StatefulWidget {
   final String email;
@@ -33,6 +34,19 @@ class _HomePageState extends State<HomePage> {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (context) => const ProfilePage(),
+                        ),
+                      );
+                    },
+            ),
+            IconButton(
+              tooltip: 'My company',
+              icon: const Icon(Icons.business_outlined),
+              onPressed: _isLoadingOut
+                  ? null
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (context) => const CreateCompanyPage(),
                         ),
                       );
                     },

@@ -432,7 +432,7 @@ class _DocumentSubmissionPageState
                     title: Text(
                       _statusLabel(
                         (request['status'] as String?) ?? '',
-                      ),
+                      ),  
                     ),
                     subtitle: Text(
                       '${_formatDate(request['submitted_at'])}\n'

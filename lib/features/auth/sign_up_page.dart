@@ -5,15 +5,6 @@ import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import 'verify_email_page.dart';
 
-enum SignUpRole {
-  jobSeeker('job_seeker'),
-  employer('employer');
-
-  const SignUpRole(this.databaseValue);
-
-  final String databaseValue;
-}
-
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
 
@@ -26,7 +17,6 @@ class _SignUpPageState extends State<SignUpPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  SignUpRole _selectedRole = SignUpRole.jobSeeker;
   bool _isLoading = false;
 
   @override
@@ -52,31 +42,6 @@ class _SignUpPageState extends State<SignUpPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text('Create Account', style: TextStyle(fontSize: 24)),
-              const SizedBox(height: 24),
-              const Text('Register as:'),
-              const SizedBox(height: 8),
-              SegmentedButton<SignUpRole>(
-                segments: const [
-                  ButtonSegment<SignUpRole>(
-                    value: SignUpRole.jobSeeker,
-                    label: Text('Job Seeker'),
-                  ),
-                  ButtonSegment<SignUpRole>(
-                    value: SignUpRole.employer,
-                    label: Text('Employer'),
-                  ),
-                ],
-                selected: {_selectedRole},
-                multiSelectionEnabled: false,
-                emptySelectionAllowed: false,
-                onSelectionChanged: _isLoading
-                    ? null
-                    : (selection) {
-                        setState(() {
-                          _selectedRole = selection.first;
-                        });
-                      },
-              ),
               const SizedBox(height: 24),
               TextField(
                 controller: _nameCrontroller,
@@ -164,7 +129,7 @@ class _SignUpPageState extends State<SignUpPage> {
     if (password != confirmPassword){
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Passwords does not match'),
+          content: Text('Passwords do not match'),
         ),
       );
       return;
@@ -178,7 +143,7 @@ class _SignUpPageState extends State<SignUpPage> {
       final response = await Supabase.instance.client.auth.signUp(
         password: password,
         email: email,
-        data: {'name': name, 'role': _selectedRole.databaseValue},
+        data: {'name': name},
       );
 
       if (!mounted) return;
