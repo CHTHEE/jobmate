@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'login_page.dart';
-import '../home/home_page.dart';
+import '../admin/admin_invitation_gate.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -48,7 +48,9 @@ class _AuthGateState extends State<AuthGate> {
           return const LoginPage();
         }
 
-        return HomePage(
+        return AdminInvitationGate(
+          key: ValueKey(session.user.id),
+          userId: session.user.id,
           email: session.user.email ?? 'No email available',
         );
       },
