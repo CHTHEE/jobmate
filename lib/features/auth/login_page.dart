@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'sign_up_page.dart';
 import '../profile/verify_password_page.dart';
 import '../../shared/widgets/auth_layout.dart';
+import '../../shared/widgets/auth_style.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import 'verify_email_page.dart';
 
@@ -32,36 +33,27 @@ class _LoginPageState extends State<LoginPage> {
       isLoading: _isLoading,
       message: 'Logging in...',
       child: Scaffold(
-        appBar: AppBar(title: const Text('JobMate')),
         body: AuthLayout(
+          branded: true,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Log in', style: TextStyle(fontSize: 24)),
-              const SizedBox(height: 24),
-              TextField(
+              const Text('Welcome back', style: AuthStyle.title),
+              const SizedBox(height: 8),
+              const Text('Sign in to your JobMate account.'),
+              const SizedBox(height: 32),
+              AuthField(
+                label: 'Email',
                 controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                ),
                 keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.username],
               ),
-
-              const SizedBox(height: 16),
-              TextField(
+              AuthField(
+                label: 'Password',
                 controller: _passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
-                ),
-                obscureText: true,
-              ),
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: _isLoading ? null : _handleLogin,
-                child: const Text('Log in'),
+                password: true,
+                autofillHints: const [AutofillHints.password],
               ),
               Align(
                 alignment: Alignment.centerRight,
@@ -81,6 +73,12 @@ class _LoginPageState extends State<LoginPage> {
                   child: const Text('Forgot Password?'),
                 ),
               ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _isLoading ? null : _handleLogin,
+                child: Text(_isLoading ? 'Signing in...' : 'Sign In'),
+              ),
+              const SizedBox(height: 16),
               TextButton(
                 onPressed: _isLoading
                     ? null

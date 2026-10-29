@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/auth_layout.dart';
+import '../../shared/widgets/auth_style.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import 'verify_email_page.dart';
 
@@ -18,6 +19,7 @@ class _SignUpPageState extends State<SignUpPage> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
+  bool _acceptedTerms = false;
 
   @override
   void dispose() {
@@ -31,60 +33,96 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
+    final password = _passwordController.text;
+    final strength = [
+      password.length >= 8,
+      RegExp(r'[A-Z]').hasMatch(password),
+      RegExp(r'[0-9]').hasMatch(password),
+      RegExp(r'[^a-zA-Z0-9]').hasMatch(password),
+    ].where((met) => met).length;
     return LoadingOverlay(
       isLoading: _isLoading,
       message: 'Signing up...',
       child: Scaffold(
-        appBar: AppBar(title: const Text('JobMate')),
         body: AuthLayout(
+          branded: true,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Create Account', style: TextStyle(fontSize: 24)),
-              const SizedBox(height: 24),
-              TextField(
+              const Text('Create your account', style: AuthStyle.title),
+              const SizedBox(height: 8),
+              const Text('Start your journey with JobMate.'),
+              const SizedBox(height: 32),
+              AuthField(
+                label: 'Full Name',
                 controller: _nameCrontroller,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  border: OutlineInputBorder(),
-                ),
                 keyboardType: TextInputType.name,
-                textCapitalization: TextCapitalization.words,
-                textInputAction: TextInputAction.next,
                 maxLength: 100,
+                autofillHints: const [AutofillHints.name],
               ),
-              const SizedBox(height: 16),
-              TextField(
+              AuthField(
+                label: 'Email',
                 controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                ),
                 keyboardType: TextInputType.emailAddress,
+                autofillHints: const [AutofillHints.email],
               ),
-              const SizedBox(height: 16),
-              TextField(
+              AuthField(
+                label: 'Password',
                 controller: _passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(),
+                password: true,
+                autofillHints: const [AutofillHints.newPassword],
+                onChanged: (_) => setState(() {}),
+              ),
+              if (password.isNotEmpty) ...[
+                Semantics(
+                  label:
+                      'Password strength: ${['Very weak', 'Weak', 'Fair', 'Good', 'Strong'][strength]}',
+                  child: LinearProgressIndicator(
+                    value: strength / 4,
+                    color: strength < 2 ? AuthStyle.error : AuthStyle.teal,
+                    backgroundColor: AuthStyle.border,
+                    minHeight: 4,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
-                obscureText: true,
+                const SizedBox(height: 8),
+                Text(
+                  'Password strength: ${['Very weak', 'Weak', 'Fair', 'Good', 'Strong'][strength]}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                const SizedBox(height: 16),
+              ],
+              AuthField(
+                label: 'Confirm Password',
+                controller: _confirmPasswordController,
+                password: true,
+                autofillHints: const [AutofillHints.newPassword],
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: _acceptedTerms,
+                onChanged: _isLoading
+                    ? null
+                    : (value) =>
+                          setState(() => _acceptedTerms = value ?? false),
+                title: const Text(
+                  'I agree to the Terms and Privacy Policy',
+                  style: TextStyle(fontSize: 14),
+                ),
               ),
               const SizedBox(height: 16),
-              TextField(
-                controller: _confirmPasswordController,
-                decoration: const InputDecoration(
-                  labelText: 'Confirm Password',
-                  border: OutlineInputBorder(),
-                ),
-                obscureText: true,
-              ),
-              const SizedBox(height: 24),
               FilledButton(
-                onPressed: _isLoading ? null : _handleSignUp,
-                child: Text(_isLoading ? 'Signing up...' : 'Sign Up'),
+                onPressed: _isLoading || !_acceptedTerms ? null : _handleSignUp,
+                child: Text(_isLoading ? 'Signing up...' : 'Create Account'),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: _isLoading
+                    ? null
+                    : () => Navigator.of(context).pop(),
+                child: const Text('Already have an account? Sign in'),
               ),
             ],
           ),
@@ -112,7 +150,9 @@ class _SignUpPageState extends State<SignUpPage> {
 
     if (email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill  in all email and password fields')),
+        const SnackBar(
+          content: Text('Please fill  in all email and password fields'),
+        ),
       );
       return;
     }
@@ -126,12 +166,10 @@ class _SignUpPageState extends State<SignUpPage> {
       return;
     }
 
-    if (password != confirmPassword){
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Passwords do not match'),
-        ),
-      );
+    if (password != confirmPassword) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
       return;
     }
 
@@ -147,17 +185,13 @@ class _SignUpPageState extends State<SignUpPage> {
       );
 
       if (!mounted) return;
-      
-      if (response.session != null) {  
-        Navigator.of(context).popUntil(
-          (route) => route.isFirst
-          );
+
+      if (response.session != null) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
       } else {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
-            builder: (context) => VerifyEmailPage(
-              email: email
-              ),
+            builder: (context) => VerifyEmailPage(email: email),
           ),
         );
       }

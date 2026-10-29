@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/auth_layout.dart';
+import '../../shared/widgets/auth_style.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import 'change_password_page.dart';
 
@@ -10,7 +11,11 @@ class VerifyPasswordPage extends StatefulWidget {
   final bool isForgorPassword;
   final String initialEmail;
 
-  const VerifyPasswordPage({super.key, this.isForgorPassword = false, this.initialEmail = ''});
+  const VerifyPasswordPage({
+    super.key,
+    this.isForgorPassword = false,
+    this.initialEmail = '',
+  });
 
   @override
   State<VerifyPasswordPage> createState() => _VerifyPasswordPageState();
@@ -27,13 +32,14 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
 
   bool _isBusy = false;
   bool _codeSent = false;
+  bool _showOtp = false;
 
   String? _sentToEmail;
   DateTime? _lastSendAt;
   String _loadingMessage = 'Please Wait...';
 
   @override
-  void initState(){
+  void initState() {
     super.initState();
     _emailController.text = widget.initialEmail.trim();
   }
@@ -48,15 +54,17 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
   Future<void> _sendCode() async {
     if (_isBusy) return;
 
-    final email = widget.isForgorPassword ? _emailController.text.trim() : (_initialUser?.email ?? '');
+    final email = widget.isForgorPassword
+        ? _emailController.text.trim()
+        : (_initialUser?.email ?? '');
 
-    if(email.isEmpty) {
+    if (email.isEmpty) {
       _showMessage('Please enter your email');
       return;
     }
 
-    if(!widget.isForgorPassword){
-      if(_initialUser == null || _auth.currentUser?.id != _initialUser.id) {
+    if (!widget.isForgorPassword) {
+      if (_initialUser == null || _auth.currentUser?.id != _initialUser.id) {
         _showMessage('Please log in again');
         return;
       }
@@ -93,8 +101,10 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
         _lastSendAt = DateTime.now();
       });
 
-      _showMessage('If this email is registered, a verification code '
-      'will be sent. Please check your inbox');
+      _showMessage(
+        'If this email is registered, a verification code '
+        'will be sent. Please check your inbox',
+      );
     } on AuthException catch (error) {
       _showMessage(error.message);
     } catch (_) {
@@ -124,8 +134,8 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
       return;
     }
 
-    if(!widget.isForgorPassword){
-      if(_initialUser == null || _auth.currentUser?.id != _initialUser.id) {
+    if (!widget.isForgorPassword) {
+      if (_initialUser == null || _auth.currentUser?.id != _initialUser.id) {
         _showMessage('Please log in again.');
         return;
       }
@@ -151,7 +161,7 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
         throw const AuthException('Unable to verify this account.');
       }
 
-      if(!widget.isForgorPassword && session.user.id != _initialUser?.id) {
+      if (!widget.isForgorPassword && session.user.id != _initialUser?.id) {
         throw const AuthException('The verified account does not match.');
       }
 
@@ -159,9 +169,8 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (context) => ChangePasswordPage(
-            expectedUserId: session.user.id,
-          ),
+          builder: (context) =>
+              ChangePasswordPage(expectedUserId: session.user.id),
         ),
       );
     } on AuthException catch (error) {
@@ -177,8 +186,8 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
     }
   }
 
-  void _changeEmail(){
-    if(_isBusy) return;
+  void _changeEmail() {
+    if (_isBusy) return;
 
     _codeController.clear();
 
@@ -195,39 +204,127 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildForgotPassword() {
     return LoadingOverlay(
       isLoading: _isBusy,
       message: _loadingMessage,
       child: Scaffold(
-        appBar: AppBar(title: Text(widget.isForgorPassword ? 'Forgot Password' : 'Verify Your Email')),
+        body: AuthLayout(
+          branded: true,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_codeSent) ...[
+                const Icon(
+                  Icons.check_circle_outline_rounded,
+                  size: 56,
+                  color: AuthStyle.success,
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Check your email',
+                  style: AuthStyle.title,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'If $_sentToEmail is registered, password recovery instructions have been sent. Check your inbox and spam folder.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                TextButton(
+                  onPressed: _isBusy ? null : _sendCode,
+                  child: const Text('Resend link'),
+                ),
+                TextButton(
+                  onPressed: _isBusy
+                      ? null
+                      : () => setState(() => _showOtp = true),
+                  child: const Text('Enter verification code'),
+                ),
+                TextButton(
+                  onPressed: _isBusy ? null : _changeEmail,
+                  child: const Text('Use another email'),
+                ),
+              ] else ...[
+                const Text('Forgot password?', style: AuthStyle.title),
+                const SizedBox(height: 8),
+                const Text(
+                  'Enter your email to receive password recovery instructions.',
+                ),
+                const SizedBox(height: 32),
+                AuthField(
+                  label: 'Email',
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email],
+                ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: _isBusy ? null : _sendCode,
+                  child: const Text('Send Reset Link'),
+                ),
+              ],
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: _isBusy
+                    ? null
+                    : () =>
+                          Navigator.of(context)
+                              .popUntil((route) => route.isFirst),
+                child: const Text('Back to login'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isForgorPassword && !_showOtp) return _buildForgotPassword();
+    return LoadingOverlay(
+      isLoading: _isBusy,
+      message: _loadingMessage,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.isForgorPassword ? 'Forgot Password' : 'Verify Your Email',
+          ),
+        ),
         body: AuthLayout(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(widget.isForgorPassword ? 'Reset your password' :
-                'Verify before changing your password',
+              Text(
+                widget.isForgorPassword
+                    ? 'Reset your password'
+                    : 'Verify before changing your password',
                 style: TextStyle(fontSize: 24),
               ),
               const SizedBox(height: 16),
 
-              if(widget.isForgorPassword)...[
+              if (widget.isForgorPassword) ...[
                 TextField(
                   controller: _emailController,
                   enabled: !_isBusy && !_codeSent,
                   keyboardType: TextInputType.emailAddress,
-                  autofillHints: const[AutofillHints.email],
+                  autofillHints: const [AutofillHints.email],
                   decoration: const InputDecoration(
                     labelText: 'Registered email',
                     border: OutlineInputBorder(),
                   ),
                 ),
 
-                if(_codeSent)
-                  TextButton(onPressed: _isBusy ? null : _changeEmail, child: const Text('Use another email'),),
-              ]else 
+                if (_codeSent)
+                  TextButton(
+                    onPressed: _isBusy ? null : _changeEmail,
+                    child: const Text('Use another email'),
+                  ),
+              ] else
                 Text(
                   'Send a verification code to '
                   '${_initialUser?.email ?? 'your email'}.',
