@@ -1,26 +1,44 @@
 import 'package:flutter/material.dart';
 
 import 'auth_style.dart';
+import 'mobile_back_action.dart';
 
 class AuthLayout extends StatelessWidget {
   final Widget child;
   final bool branded;
-  const AuthLayout({super.key, required this.child, this.branded = false});
+  final bool showMobileBackButton;
+  final double contentMaxWidth;
+
+  const AuthLayout({
+    super.key,
+    required this.child,
+    this.branded = false,
+    this.showMobileBackButton = false,
+    this.contentMaxWidth = 384,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (!branded) {
-      return Align(
-        alignment: Alignment.center,
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: child,
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 600;
+          return Align(
+            alignment: Alignment.topCenter,
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? 16 : 32,
+                  vertical: compact ? 16 : 32,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  child: child,
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       );
     }
     return Theme(
@@ -81,15 +99,20 @@ class AuthLayout extends StatelessWidget {
                           vertical: 40,
                         ),
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 384),
+                          constraints: BoxConstraints(maxWidth: contentMaxWidth),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               if (!desktop) ...[
-                                const Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: AuthWordmark(),
+                                Row(
+                                  children: [
+                                    if (showMobileBackButton) ...[
+                                      const MobileBackAction(),
+                                      const SizedBox(width: 8),
+                                    ],
+                                    const AuthWordmark(),
+                                  ],
                                 ),
                                 const SizedBox(height: 40),
                               ],

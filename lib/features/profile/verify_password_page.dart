@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/auth_style.dart';
 import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/widgets/mobile_back_action.dart';
 import 'change_password_page.dart';
 
 class VerifyPasswordPage extends StatefulWidget {
@@ -211,6 +212,7 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
       child: Scaffold(
         body: AuthLayout(
           branded: true,
+          showMobileBackButton: true,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -290,6 +292,8 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
       message: _loadingMessage,
       child: Scaffold(
         appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leading: mobileBackLeading(context),
           title: Text(
             widget.isForgorPassword ? 'Forgot Password' : 'Verify Your Email',
           ),

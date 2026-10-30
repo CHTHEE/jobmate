@@ -107,6 +107,8 @@ class AuthField extends StatefulWidget {
     required this.controller,
     this.password = false,
     this.keyboardType,
+    this.hintText,
+    this.showCounter = true,
     this.onChanged,
     this.maxLength,
     this.autofillHints,
@@ -115,6 +117,8 @@ class AuthField extends StatefulWidget {
   final TextEditingController controller;
   final bool password;
   final TextInputType? keyboardType;
+  final String? hintText;
+  final bool showCounter;
   final ValueChanged<String>? onChanged;
   final int? maxLength;
   final Iterable<String>? autofillHints;
@@ -143,16 +147,23 @@ class _AuthFieldState extends State<AuthField> {
           controller: widget.controller,
           obscureText: widget.password && _hidden,
           keyboardType: widget.keyboardType,
+          textCapitalization: widget.keyboardType == TextInputType.name
+              ? TextCapitalization.words
+              : TextCapitalization.none,
           autofillHints: widget.autofillHints,
-          autocorrect: !widget.password,
-          enableSuggestions: !widget.password,
+          autocorrect:
+              !widget.password &&
+              widget.keyboardType != TextInputType.emailAddress,
+          enableSuggestions:
+              !widget.password &&
+              widget.keyboardType != TextInputType.emailAddress,
           maxLength: widget.maxLength,
           onChanged: widget.onChanged,
           textInputAction: TextInputAction.next,
           style: const TextStyle(fontSize: 14, color: AuthStyle.heading),
           decoration: InputDecoration(
-            labelText: widget.label,
-            floatingLabelBehavior: FloatingLabelBehavior.never,
+            hintText: widget.hintText,
+            counterText: widget.showCounter ? null : '',
             suffixIcon: widget.password
                 ? IconButton(
                     tooltip: _hidden ? 'Show password' : 'Hide password',

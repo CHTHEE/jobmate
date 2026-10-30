@@ -1,9 +1,11 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter/material.dart';
 import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/auth_layout.dart';
+import '../../shared/widgets/mobile_back_action.dart';
 import '../../shared/widgets/loading_overlay.dart';
 
 class VerifyEmailPage extends StatefulWidget {
@@ -51,7 +53,11 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
       isLoading: _isLoading,
       message: _loadingMessage,
       child: Scaffold(
-        appBar: AppBar(title: const Text('Verify Email')),
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leading: mobileBackLeading(context),
+          title: const Text('Verify Email'),
+        ),
         body: AuthLayout(
           child: Column(
             mainAxisSize: MainAxisSize.min,

@@ -21,11 +21,14 @@ class _HomePageState extends State<HomePage> {
   bool _canInviteAdmins = false;
   bool _checkingAdminAccess = false;
   bool _canManageAdminPermissions = false;
+  String _accountRole = '';
+  bool _hasCompanyMembership = false;
 
   @override
   void initState() {
     super.initState();
     _checkAdminAccess(showMessage: false);
+    _loadAccountRole();
   }
 
   @override
@@ -35,6 +38,7 @@ class _HomePageState extends State<HomePage> {
       message: 'Logging out...',
       child: Scaffold(
         appBar: AppBar(
+          automaticallyImplyLeading: false,
           title: const Text('JobMate'),
           actions: [
             IconButton(
@@ -50,90 +54,160 @@ class _HomePageState extends State<HomePage> {
                       );
                     },
             ),
-            IconButton(
-              tooltip: 'My company',
-              icon: const Icon(Icons.business_outlined),
-              onPressed: _isLoadingOut
-                  ? null
-                  : () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (context) => const CreateCompanyPage(),
-                        ),
-                      );
-                    },
-            ),
+            if (_accountRole == 'employer')
+              IconButton(
+                tooltip: 'My company',
+                icon: const Icon(Icons.business_outlined),
+                onPressed: _isLoadingOut ? null : _openCompanyPage,
+              ),
             TextButton(
               onPressed: _isLoadingOut ? null : _handleLogout,
               child: const Text('Log out'),
             ),
           ],
         ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Welcome to JobMate!\n${widget.email}',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                OutlinedButton(
-                  onPressed: _isLoadingOut || _checkingAdminAccess
-                      ? null
-                      : () => _checkAdminAccess(),
-                  child: Text(
-                    _checkingAdminAccess
-                        ? 'Checking access...'
-                        : 'Check admin access',
-                  ),
-                ),
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 600;
 
-                if (_canInviteAdmins) ...[
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: _isLoadingOut
-                        ? null
-                        : () async {
-                            await Navigator.of(context).push<void>(
-                              MaterialPageRoute<void>(
-                                builder: (context) => const InviteAdminPage(),
-                              ),
-                            );
-
-                            if (!mounted) return;
-
-                            await _checkAdminAccess(showMessage: false);
-                          },
-                    icon: const Icon(Icons.person_add_alt_1_outlined),
-                    label: const Text('Invite administrator'),
-                  ),
-                  if (_canManageAdminPermissions) ...[
-                    const SizedBox(height: 16),
-                    OutlinedButton.icon(
-                      onPressed: _isLoadingOut
-                          ? null
-                          : () async {
-                              await Navigator.of(context).push<void>(
-                                MaterialPageRoute<void>(
-                                  builder: (context) =>
-                                      const AdminPermissionsPage(),
+              return SingleChildScrollView(
+                padding: EdgeInsets.all(compact ? 16 : 32),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 760),
+                    child: Card.outlined(
+                      child: Padding(
+                        padding: EdgeInsets.all(compact ? 20 : 32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Welcome to JobMate!',
+                              style: Theme.of(context).textTheme.headlineMedium,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(widget.email, textAlign: TextAlign.center),
+                            const SizedBox(height: 24),
+                            if (_accountRole == 'employer' &&
+                                !_hasCompanyMembership) ...[
+                              Card.outlined(
+                                margin: EdgeInsets.zero,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(18),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      const Row(
+                                        children: [
+                                          Icon(Icons.business_outlined),
+                                          SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              'Next step: set up your Company',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      const Text(
+                                        'Enter your Company details and submit '
+                                        'a supporting document for administrator '
+                                        'review. Your account will be its '
+                                        'permanent Owner.',
+                                      ),
+                                      const SizedBox(height: 16),
+                                      FilledButton.icon(
+                                        onPressed: _isLoadingOut
+                                            ? null
+                                            : _openCompanyPage,
+                                        icon: const Icon(
+                                          Icons.business_center_outlined,
+                                        ),
+                                        label: const Text('Set up Company'),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              );
+                              ),
+                              const SizedBox(height: 20),
+                            ],
+                            OutlinedButton(
+                              onPressed: _isLoadingOut || _checkingAdminAccess
+                                  ? null
+                                  : () => _checkAdminAccess(),
+                              child: Text(
+                                _checkingAdminAccess
+                                    ? 'Checking access...'
+                                    : 'Check admin access',
+                              ),
+                            ),
+                            if (_canInviteAdmins) ...[
+                              const SizedBox(height: 12),
+                              FilledButton.icon(
+                                onPressed: _isLoadingOut
+                                    ? null
+                                    : () async {
+                                        await Navigator.of(context).push<void>(
+                                          MaterialPageRoute<void>(
+                                            builder: (context) =>
+                                                const InviteAdminPage(),
+                                          ),
+                                        );
 
-                              if (!mounted) return;
+                                        if (!mounted) return;
 
-                              await _checkAdminAccess(showMessage: false);
-                            },
-                      icon: const Icon(Icons.admin_panel_settings_outlined),
-                      label: const Text('Manage admin permissions'),
+                                        await _checkAdminAccess(
+                                          showMessage: false,
+                                        );
+                                      },
+                                icon: const Icon(
+                                  Icons.person_add_alt_1_outlined,
+                                ),
+                                label: const Text('Invite administrator'),
+                              ),
+                              if (_canManageAdminPermissions) ...[
+                                const SizedBox(height: 12),
+                                OutlinedButton.icon(
+                                  onPressed: _isLoadingOut
+                                      ? null
+                                      : () async {
+                                          await Navigator.of(context).push<void>(
+                                            MaterialPageRoute<void>(
+                                              builder: (context) =>
+                                                  const AdminPermissionsPage(),
+                                            ),
+                                          );
+
+                                          if (!mounted) return;
+
+                                          await _checkAdminAccess(
+                                            showMessage: false,
+                                          );
+                                        },
+                                  icon: const Icon(
+                                    Icons.admin_panel_settings_outlined,
+                                  ),
+                                  label: const Text(
+                                    'Manage admin permissions',
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
-                  ],
-                ],
-              ],
-            ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -201,6 +275,64 @@ class _HomePageState extends State<HomePage> {
         });
       }
     }
+  }
+
+  Future<void> _loadAccountRole() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+
+    if (userId == null) return;
+
+    try {
+      final client = Supabase.instance.client;
+      final profile = await client
+          .from('users')
+          .select('role')
+          .eq('user_id', userId)
+          .single();
+
+      if (!mounted || Supabase.instance.client.auth.currentUser?.id != userId) {
+        return;
+      }
+
+      final role = profile['role'];
+
+      if (role is! String) {
+        throw const FormatException('Unexpected account role.');
+      }
+
+      var hasCompanyMembership = false;
+
+      if (role == 'employer') {
+        final membership = await client
+            .from('company_memberships')
+            .select('company_id')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        if (!mounted || client.auth.currentUser?.id != userId) return;
+
+        hasCompanyMembership = membership != null;
+      }
+
+      setState(() {
+        _accountRole = role;
+        _hasCompanyMembership = hasCompanyMembership;
+      });
+    } catch (error) {
+      debugPrint('Account role load failed: $error');
+    }
+  }
+
+  Future<void> _openCompanyPage() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => const CreateCompanyPage(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    await _loadAccountRole();
   }
 
   void _showMessage(String message) {

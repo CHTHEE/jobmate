@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:jobmate/features/auth/auth_gate.dart'; 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'shared/widgets/jobmate_scroll_behavior.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
@@ -30,6 +32,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Home Page',
+      scrollBehavior: const JobMateScrollBehavior(),
       theme: ThemeData(
         // This is the theme of your application.
         //
@@ -47,6 +50,9 @@ class MyApp extends StatelessWidget {
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
         colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        appBarTheme: AppBarTheme(
+          centerTitle: false,
+        ),
       ),
       home: const AuthGate(),
     );

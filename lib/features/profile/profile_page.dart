@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/auth_layout.dart';
+import '../../shared/widgets/mobile_back_action.dart';
+import '../company/create_company_page.dart';
 import 'verify_password_page.dart';
 import 'document_submission_page.dart';
 
@@ -632,7 +634,11 @@ class _ProfilePageState extends State<ProfilePage> {
           ? 'Saving profile...'
           : 'Loading profile...',
       child: Scaffold(
-        appBar: AppBar(title: const Text('My Profile')),
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leading: mobileBackLeading(context),
+          title: const Text('My Profile'),
+        ),
         body: AuthLayout(
           child: Card.outlined(
             margin: EdgeInsets.zero,
@@ -664,7 +670,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     const SizedBox(height: 24),
 
-                    if (_role == 'job_seeker' || _role == 'employer') ...[
+                    if (_role == 'job_seeker') ...[
                       Card.outlined(
                         margin: EdgeInsets.zero,
                         child: Padding(
@@ -707,6 +713,46 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ),
 
+                      const SizedBox(height: 24),
+                    ],
+
+                    if (_role == 'employer') ...[
+                      Card.outlined(
+                        margin: EdgeInsets.zero,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                'Company registration',
+                                style: TextStyle(fontSize: 20),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Submit your Company details and supporting '
+                                'document from the Company page. Your account '
+                                'will be its permanent Owner.',
+                              ),
+                              const SizedBox(height: 16),
+                              OutlinedButton.icon(
+                                onPressed: _canEdit
+                                    ? () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute<void>(
+                                            builder: (context) =>
+                                                const CreateCompanyPage(),
+                                          ),
+                                        );
+                                      }
+                                    : null,
+                                icon: const Icon(Icons.business_outlined),
+                                label: const Text('Open Company page'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 24),
                     ],
 

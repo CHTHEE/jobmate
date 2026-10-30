@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/widgets/mobile_back_action.dart';
 
 class ChangePasswordPage extends StatefulWidget {
   final String expectedUserId;
@@ -125,7 +126,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         isLoading: _isBusy,
         message: _passwordChanged ? 'Signing out...' : 'Changing password...',
         child: Scaffold(
-          appBar: AppBar(title: const Text('Change Password')),
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            leading: mobileBackLeading(context),
+            title: const Text('Change Password'),
+          ),
           body: AuthLayout(
             child: Column(
               mainAxisSize: MainAxisSize.min,

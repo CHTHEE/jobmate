@@ -9,6 +9,7 @@ import 'package:mime/mime.dart';
 
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/widgets/mobile_back_action.dart';
 
 class CreateCompanyPage extends StatefulWidget {
   const CreateCompanyPage({super.key});
@@ -108,12 +109,18 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
 
       final profile = await _supabase
           .from('users')
-          .select('status')
+          .select('role, status')
           .eq('user_id', user.id)
           .single();
 
       if (profile['status'] != 'active') {
         throw const FormatException('Your account is not active.');
+      }
+
+      if (profile['role'] != 'employer') {
+        throw const FormatException(
+          'Company registration is available only to Employer accounts.',
+        );
       }
 
       final membership = await _supabase
@@ -809,6 +816,8 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
       message: _isWorking ? _message : 'Loading company details...',
       child: Scaffold(
         appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leading: mobileBackLeading(context),
           title: const Text('Company registration'),
           actions: [
             IconButton(
@@ -836,6 +845,15 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
                   style: const TextStyle(fontSize: 24),
                 ),
                 const SizedBox(height: 16),
+
+                if (_company == null) ...[
+                  const Text(
+                    'Submitting a Company document creates your Company '
+                    'registration. Your Employer account becomes the permanent '
+                    'Company Owner.',
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
                 _buildLogo(),
                 if (_company != null) ...[

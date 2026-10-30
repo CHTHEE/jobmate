@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/widgets/mobile_back_action.dart';
 
 class DocumentSubmissionPage extends StatefulWidget {
   const DocumentSubmissionPage({super.key});
@@ -326,6 +327,8 @@ class _DocumentSubmissionPageState
           : 'Loading submissions...',
       child: Scaffold(
         appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leading: mobileBackLeading(context),
           title: const Text('Verification Documents'),
           actions: [
             IconButton(

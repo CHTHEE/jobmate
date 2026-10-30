@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/widgets/mobile_back_action.dart';
 
 class AcceptAdminInvitationPage extends StatefulWidget {
   final String userId;
@@ -163,6 +164,8 @@ class _AcceptAdminInvitationPageState extends State<AcceptAdminInvitationPage> {
           : 'Setting up your account...',
       child: Scaffold(
         appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leading: mobileBackLeading(context),
           title: const Text('Accept admin invitation'),
           actions: [
             TextButton(

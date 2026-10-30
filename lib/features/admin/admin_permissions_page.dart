@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/widgets/mobile_back_action.dart';
 
 class AdminPermissionsPage extends StatefulWidget {
   const AdminPermissionsPage({super.key});
@@ -316,6 +317,8 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
       message: 'Updating invitation permission...',
       child: Scaffold(
         appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leading: mobileBackLeading(context),
           title: const Text('Admin permissions'),
           actions: [
             IconButton(

@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/widgets/mobile_back_action.dart';
 
 class InviteAdminPage extends StatefulWidget {
   const InviteAdminPage({super.key});
@@ -336,7 +337,11 @@ class _InviteAdminPageState extends State<InviteAdminPage> {
       isLoading: _isSending,
       message: 'Sending invitation...',
       child: Scaffold(
-        appBar: AppBar(title: const Text('Admin invitation')),
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          leading: mobileBackLeading(context),
+          title: const Text('Admin invitation'),
+        ),
         body: AuthLayout(child: _sent ? _buildSuccess() : _buildForm()),
       ),
     );
