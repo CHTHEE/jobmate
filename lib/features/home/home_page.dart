@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/widgets/app_workspace.dart';
+import 'dashboard_content.dart';
 import '../../shared/navigation/app_routes.dart';
 
 class HomePage extends StatefulWidget {
@@ -20,7 +22,12 @@ class _HomePageState extends State<HomePage> {
   bool _checkingAdminAccess = false;
   bool _canManageAdminPermissions = false;
   String _accountRole = '';
-  bool _hasCompanyMembership = false;
+  Map<String, dynamic>? _profile;
+  Map<String, dynamic>? _company;
+  String _memberRole = '';
+  bool _loading = true;
+  String? _loadError;
+  String? _companyError;
 
   @override
   void initState() {
@@ -29,182 +36,136 @@ class _HomePageState extends State<HomePage> {
     _loadAccountRole();
   }
 
+  Future<void> _openSection(String path) async {
+    if (path == AppRoutes.home) return;
+    await context.push<void>(path);
+    if (!mounted) return;
+    await _loadAccountRole();
+  }
+
   @override
   Widget build(BuildContext context) {
     return LoadingOverlay(
       isLoading: _isLoadingOut,
       message: 'Logging out...',
-      child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          title: const Text('JobMate'),
-          actions: [
-            IconButton(
-              tooltip: 'Notifications',
-              icon: const Icon(Icons.notifications_none_outlined),
-              onPressed: _isLoadingOut
-                  ? null
-                  : () => context.push<void>(AppRoutes.notifications),
-            ),
-            IconButton(
-              tooltip: 'My profile',
-              icon: const Icon(Icons.person_outline),
-              onPressed: _isLoadingOut
-                  ? null
-                  : () {
-                      context.push<void>(AppRoutes.profile);
-                    },
-            ),
-            if (_accountRole == 'employer')
-              IconButton(
-                tooltip: 'My company',
-                icon: const Icon(Icons.business_outlined),
-                onPressed: _isLoadingOut ? null : _openCompanyPage,
-              ),
-            TextButton(
-              onPressed: _isLoadingOut ? null : _handleLogout,
-              child: const Text('Log out'),
-            ),
-          ],
-        ),
-        body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 600;
-
-              return SingleChildScrollView(
-                padding: EdgeInsets.all(compact ? 16 : 32),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 760),
-                    child: Card.outlined(
-                      child: Padding(
-                        padding: EdgeInsets.all(compact ? 20 : 32),
+      child: AppWorkspace(
+        title: 'Dashboard',
+        path: AppRoutes.home,
+        role: _accountRole,
+        onNavigate: _openSection,
+        navigationLocked: _isLoadingOut,
+        actions: [
+          IconButton(
+            tooltip: 'Notifications',
+            onPressed: _isLoadingOut
+                ? null
+                : () => context.push<void>(AppRoutes.notifications),
+            icon: const Icon(Icons.notifications_none_outlined),
+          ),
+          TextButton(
+            onPressed: _isLoadingOut ? null : _handleLogout,
+            child: const Text('Log out'),
+          ),
+        ],
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : WorkspaceContent(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: _loadAccountRole,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Refresh'),
+                      ),
+                    ),
+                    if (_loadError != null)
+                      WorkspaceCard(
+                        title: 'Workspace unavailable',
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              'Welcome to JobMate!',
-                              style: Theme.of(context).textTheme.headlineMedium,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(widget.email, textAlign: TextAlign.center),
-                            const SizedBox(height: 24),
-                            if (_accountRole == 'employer' &&
-                                !_hasCompanyMembership) ...[
-                              Card.outlined(
-                                margin: EdgeInsets.zero,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(18),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      const Row(
-                                        children: [
-                                          Icon(Icons.business_outlined),
-                                          SizedBox(width: 10),
-                                          Expanded(
-                                            child: Text(
-                                              'Next step: set up your Company',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      const Text(
-                                        'Enter your Company details and submit '
-                                        'a supporting document for administrator '
-                                        'review. Your account will be its '
-                                        'permanent Owner.',
-                                      ),
-                                      const SizedBox(height: 16),
-                                      FilledButton.icon(
-                                        onPressed: _isLoadingOut
-                                            ? null
-                                            : _openCompanyPage,
-                                        icon: const Icon(
-                                          Icons.business_center_outlined,
-                                        ),
-                                        label: const Text('Set up Company'),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                            ],
+                            Text(_loadError!),
+                            const SizedBox(height: 16),
                             OutlinedButton(
-                              onPressed: _isLoadingOut || _checkingAdminAccess
-                                  ? null
-                                  : () => _checkAdminAccess(),
-                              child: Text(
-                                _checkingAdminAccess
-                                    ? 'Checking access...'
-                                    : 'Check admin access',
-                              ),
+                              onPressed: _loadAccountRole,
+                              child: const Text('Try again'),
                             ),
-                            if (_canInviteAdmins) ...[
+                          ],
+                        ),
+                      )
+                    else if (_profile != null)
+                      DashboardContent(
+                        profile: _profile!,
+                        email: widget.email,
+                        company: _company,
+                        companyError: _companyError,
+                        memberRole: _memberRole,
+                        onProfile: () => _openSection(AppRoutes.profile),
+                        onCompany: _openCompanyPage,
+                        onVerification: () =>
+                            _openSection(AppRoutes.documentSubmission),
+                        onRetry: _loadAccountRole,
+                      ),
+                    const SizedBox(height: 20),
+                    WorkspaceCard(
+                      title: 'Administrator access',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          OutlinedButton(
+                            onPressed: _isLoadingOut || _checkingAdminAccess
+                                ? null
+                                : () => _checkAdminAccess(),
+                            child: Text(
+                              _checkingAdminAccess
+                                  ? 'Checking access...'
+                                  : 'Check admin access',
+                            ),
+                          ),
+                          if (_canInviteAdmins) ...[
+                            const SizedBox(height: 12),
+                            FilledButton(
+                              onPressed: _isLoadingOut
+                                  ? null
+                                  : () async {
+                                      await context.push<void>(
+                                        AppRoutes.inviteAdmin,
+                                      );
+                                      if (mounted) {
+                                        await _checkAdminAccess(
+                                          showMessage: false,
+                                        );
+                                      }
+                                    },
+                              child: const Text('Invite administrator'),
+                            ),
+                            if (_canManageAdminPermissions) ...[
                               const SizedBox(height: 12),
-                              FilledButton.icon(
+                              OutlinedButton(
                                 onPressed: _isLoadingOut
                                     ? null
                                     : () async {
                                         await context.push<void>(
-                                          AppRoutes.inviteAdmin,
+                                          AppRoutes.adminPermissions,
                                         );
-
-                                        if (!mounted) return;
-
-                                        await _checkAdminAccess(
-                                          showMessage: false,
-                                        );
-                                      },
-                                icon: const Icon(
-                                  Icons.person_add_alt_1_outlined,
-                                ),
-                                label: const Text('Invite administrator'),
-                              ),
-                              if (_canManageAdminPermissions) ...[
-                                const SizedBox(height: 12),
-                                OutlinedButton.icon(
-                                  onPressed: _isLoadingOut
-                                      ? null
-                                      : () async {
-                                          await context.push<void>(
-                                            AppRoutes.adminPermissions,
-                                          );
-
-                                          if (!mounted) return;
-
+                                        if (mounted) {
                                           await _checkAdminAccess(
                                             showMessage: false,
                                           );
-                                        },
-                                  icon: const Icon(
-                                    Icons.admin_panel_settings_outlined,
-                                  ),
-                                  label: const Text(
-                                    'Manage admin permissions',
-                                  ),
-                                ),
-                              ],
+                                        }
+                                      },
+                                child: const Text('Manage admin permissions'),
+                              ),
                             ],
                           ],
-                        ),
+                        ],
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              );
-            },
-          ),
-        ),
+              ),
       ),
     );
   }
@@ -273,48 +234,69 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadAccountRole() async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-
+    final client = Supabase.instance.client;
+    final userId = client.auth.currentUser?.id;
     if (userId == null) return;
-
+    setState(() {
+      _loading = true;
+      _loadError = null;
+      _companyError = null;
+    });
     try {
-      final client = Supabase.instance.client;
       final profile = await client
           .from('users')
-          .select('role')
+          .select(
+            'role, name, phone_num, status, verification_status, profile_image_url',
+          )
           .eq('user_id', userId)
           .single();
-
-      if (!mounted || Supabase.instance.client.auth.currentUser?.id != userId) {
-        return;
-      }
-
+      if (!mounted || client.auth.currentUser?.id != userId) return;
       final role = profile['role'];
-
       if (role is! String) {
         throw const FormatException('Unexpected account role.');
       }
-
-      var hasCompanyMembership = false;
-
+      Map<String, dynamic>? company;
+      String memberRole = '';
+      String? companyError;
       if (role == 'employer') {
-        final membership = await client
-            .from('company_memberships')
-            .select('company_id')
-            .eq('user_id', userId)
-            .maybeSingle();
-
-        if (!mounted || client.auth.currentUser?.id != userId) return;
-
-        hasCompanyMembership = membership != null;
+        try {
+          final membership = await client
+              .from('company_memberships')
+              .select('company_id, member_role')
+              .eq('user_id', userId)
+              .maybeSingle();
+          if (membership != null) {
+            memberRole = membership['member_role'] as String? ?? '';
+            company = await client
+                .from('companies')
+                .select(
+                  'company_id, company_name, industry, location, verification_status',
+                )
+                .eq('company_id', membership['company_id'])
+                .single();
+          }
+        } catch (_) {
+          companyError = 'Unable to load company information. Retry or open Company profile from navigation.';
+        }
       }
-
+      if (!mounted || client.auth.currentUser?.id != userId) return;
       setState(() {
+        _profile = profile;
         _accountRole = role;
-        _hasCompanyMembership = hasCompanyMembership;
+        _company = company;
+        _memberRole = memberRole;
+        _companyError = companyError;
       });
     } catch (error) {
-      debugPrint('Account role load failed: $error');
+      debugPrint('Dashboard load failed: $error');
+      if (mounted && client.auth.currentUser?.id == userId) {
+        setState(
+          () => _loadError =
+              'Your profile could not be loaded. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 

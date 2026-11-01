@@ -4,8 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/navigation/app_routes.dart';
-import '../../shared/widgets/auth_layout.dart';
-import '../../shared/widgets/mobile_back_action.dart';
+import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/auth_style.dart';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
@@ -202,13 +202,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return labels[value] ?? 'Unknown';
   }
 
-  Widget _infoRow(String title, String value) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(title),
-      subtitle: Text(value),
-    );
-  }
+  Widget _infoRow(String title, String value) => WorkspaceInfo(title, value);
 
   String _formatDate(DateTime? value) {
     if (value == null) return 'Not available';
@@ -419,6 +413,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
         const SizedBox(height: 16),
 
+        Text(
+          _savedName.isEmpty ? 'Personal profile' : _savedName,
+          style: AuthStyle.title,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(_email, textAlign: TextAlign.center),
+        const SizedBox(height: 16),
         Wrap(
           alignment: WrapAlignment.center,
           spacing: 8,
@@ -566,12 +568,6 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
 
           const SizedBox(height: 12),
-
-          OutlinedButton.icon(
-            onPressed: _canEdit ? _openPasswordVerification : null,
-            icon: const Icon(Icons.lock_outline),
-            label: const Text('Change password'),
-          ),
         ] else ...[
           _infoRow(
             'Full Name',
@@ -617,8 +613,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
+    final identity = WorkspaceCard(
+      title: 'Account overview',
+      child: _buildProfileHeader(),
+    );
+    final details = Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: _buildPersonalDetails(),
+      ),
+    );
     return LoadingOverlay(
       isLoading: _isBusy,
       message: _isUploading
@@ -626,140 +631,113 @@ class _ProfilePageState extends State<ProfilePage> {
           : _isSaving
           ? 'Saving profile...'
           : 'Loading profile...',
-      child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          leading: mobileBackLeading(context),
-          title: const Text('My Profile'),
-        ),
-        body: AuthLayout(
-          child: Card.outlined(
-            margin: EdgeInsets.zero,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: BorderSide(color: colors.outlineVariant),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_loadError != null) ...[
-                    Text(_loadError ?? ''),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: _isBusy ? null : _loadProfile,
-                      child: const Text('Try again'),
-                    ),
-                  ] else ...[
-                    _buildProfileHeader(),
-
-                    const SizedBox(height: 24),
-                    const Divider(),
-                    const SizedBox(height: 16),
-
-                    _buildPersonalDetails(),
-
-                    const SizedBox(height: 24),
-
-                    if (_role == 'job_seeker') ...[
-                      Card.outlined(
-                        margin: EdgeInsets.zero,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Text(
-                                'Verification Documents',
-                                style: TextStyle(fontSize: 20),
-                              ),
-                              const SizedBox(height: 8),
-
-                              Text(
-                                _role == 'employer'
-                                    ? 'Submit your company supporting document.'
-                                    : 'Submit your resume for review.',
-                              ),
-                              const SizedBox(height: 8),
-
-                              Text(
-                                'Status: ${_displayLabel(_verificationStatus)}',
-                              ),
-                              const SizedBox(height: 16),
-
-                              OutlinedButton.icon(
-                                onPressed: _canEdit
-                                    ? _openDocumentSubmission
-                                    : null,
-                                icon: const Icon(Icons.upload_file_outlined),
-                                label: Text(
-                                  _verificationStatus == 'pending' ||
-                                          _verificationStatus == 'verified'
-                                      ? 'View submissions'
-                                      : 'Submit documents',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+      child: AppWorkspace(
+        title: 'Personal profile',
+        path: AppRoutes.profile,
+        role: _role,
+        navigationLocked: _isBusy || _isEditing,
+        child: WorkspaceContent(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Your personal profile', style: AuthStyle.title),
+              const SizedBox(height: 8),
+              const Text(
+                'Keep your personal details up to date. Company information is managed separately.',
+              ),
+              const SizedBox(height: 24),
+              if (_loadError != null)
+                WorkspaceCard(
+                  title: 'Profile unavailable',
+                  child: Column(
+                    children: [
+                      Text(_loadError!),
+                      const SizedBox(height: 16),
+                      OutlinedButton(
+                        onPressed: _isBusy ? null : _loadProfile,
+                        child: const Text('Try again'),
                       ),
-
-                      const SizedBox(height: 24),
                     ],
-
-                    if (_role == 'employer') ...[
-                      Card.outlined(
-                        margin: EdgeInsets.zero,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Text(
-                                'Company registration',
-                                style: TextStyle(fontSize: 20),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Submit your Company details and supporting '
-                                'document from the Company page. Your account '
-                                'will be its permanent Owner.',
-                              ),
-                              const SizedBox(height: 16),
-                              OutlinedButton.icon(
-                                onPressed: _canEdit
-                                    ? () {
-                                        context.push<void>(AppRoutes.company);
-                                      }
-                                    : null,
-                                icon: const Icon(Icons.business_outlined),
-                                label: const Text('Open Company page'),
-                              ),
-                            ],
-                          ),
+                  ),
+                )
+              else ...[
+                LayoutBuilder(
+                  builder: (context, constraints) => constraints.maxWidth >= 800
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: identity),
+                            const SizedBox(width: 20),
+                            Expanded(child: details),
+                          ],
+                        )
+                      : Column(
+                          children: [
+                            identity,
+                            const SizedBox(height: 20),
+                            details,
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-
-                    Text(
-                      'Last updated: ${_formatDate(_updatedAt)}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-
-                    ExpansionTile(
-                      tilePadding: EdgeInsets.zero,
-                      title: const Text('Account details'),
+                ),
+                const SizedBox(height: 20),
+                WorkspaceCard(
+                  title: 'Account security',
+                  subtitle: 'Verify your email before setting a new password.',
+                  child: OutlinedButton.icon(
+                    onPressed: _canEdit ? _openPasswordVerification : null,
+                    icon: const Icon(Icons.lock_outline),
+                    label: const Text('Change password'),
+                  ),
+                ),
+                if (_role == 'job_seeker' || _role == 'employer') ...[
+                  const SizedBox(height: 20),
+                  WorkspaceCard(
+                    title: 'Personal verification',
+                    subtitle: 'Personal documents and history are separate from company verification.',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _infoRow('Account created', _formatDate(_createdAt)),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: WorkspaceStatus(_verificationStatus),
+                        ),
+                        const SizedBox(height: 16),
+                        OutlinedButton.icon(
+                          onPressed: _canEdit ? _openDocumentSubmission : null,
+                          icon: const Icon(Icons.folder_outlined),
+                          label: const Text('Documents & submission history'),
+                        ),
                       ],
                     ),
-                  ],
+                  ),
                 ],
-              ),
-            ),
+                if (_role == 'employer') ...[
+                  const SizedBox(height: 20),
+                  WorkspaceCard(
+                    title: 'Company profile',
+                    subtitle: 'View your company details, membership and company verification on the Company page.',
+                    child: OutlinedButton.icon(
+                      onPressed: _canEdit && !_isEditing
+                          ? () => context.push<void>(AppRoutes.company)
+                          : null,
+                      icon: const Icon(Icons.business_outlined),
+                      label: const Text('Open company profile'),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                WorkspaceCard(
+                  title: 'Account details',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _infoRow('Created', _formatDate(_createdAt)),
+                      _infoRow('Last updated', _formatDate(_updatedAt)),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
