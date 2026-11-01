@@ -54,7 +54,7 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
       _checkSession();
 
       final data = await _supabase.rpc(
-        'list_admin_accounts',
+        'list_admin_accounts_v2',
         params: {'p_limit': _pageSize + 1, 'p_offset': _offset},
       );
 
@@ -101,25 +101,33 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
 
   Future<void> _changePermission(
     Map<String, dynamic> admin,
+    String permission,
     bool enabled,
   ) async {
     if (_isBusy) return;
 
     final name = admin['name'] as String? ?? 'this administrator';
 
+    final isReviewPermission = permission == 'can_review_companies';
+    final permissionName = isReviewPermission
+        ? 'Company review permission'
+        : 'Invitation permission';
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(
-          enabled
-              ? 'Grant invitation permission?'
-              : 'Revoke invitation permission?',
+          '${enabled ? 'Grant' : 'Revoke'} $permissionName?',
         ),
         content: Text(
           enabled
-              ? 'Allow $name to send administrator invitations?'
-              : '$name will no longer be able to send invitations. '
-                    'Their unaccepted invitations will be permanently revoked.',
+              ? isReviewPermission
+                    ? 'Allow $name to review Company documents?'
+                    : 'Allow $name to send administrator invitations?'
+              : isReviewPermission
+                    ? 'Remove $name\'s access to Company review documents?'
+                    : '$name will no longer be able to send invitations. '
+                          'Their unaccepted invitations will be revoked.',
         ),
         actions: [
           TextButton(
@@ -150,17 +158,29 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
       _checkSession();
 
       await _supabase.rpc(
-        'set_admin_invitation_permission',
-        params: {'p_target_user_id': admin['user_id'], 'p_can_invite': enabled},
+        'set_admin_permissions',
+        params: {
+          'p_target_user_id': admin['user_id'],
+          'p_can_invite_admins': permission == 'can_invite_admins'
+              ? enabled
+              : admin['can_invite_admins'] == true,
+          'p_can_review_companies': permission == 'can_review_companies'
+              ? enabled
+              : admin['can_review_companies'] == true,
+        },
       );
 
       if (!mounted) return;
 
       _checkSession();
 
-      message = enabled
+      message = isReviewPermission
+          ? enabled
+                ? 'Company review permission granted.'
+                : 'Company review permission revoked.'
+          : enabled
           ? 'Invitation permission granted.'
-          : 'Permission revoked. Unaccepted invitations were revoked.';
+          : 'Invitation permission revoked. Unaccepted invitations were revoked.';
     } on PostgrestException catch (error) {
       message = error.message;
     } on StateError catch (error) {
@@ -207,7 +227,9 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
     final status = admin['account_status'] as String? ?? 'unknown';
 
     final canInvite = admin['can_invite_admins'] == true;
+    final canReviewCompanies = admin['can_review_companies'] == true;
     final isManager = admin['can_manage_admin_permissions'] == true;
+    final isCurrentAdmin = admin['user_id'] == _actorId;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -225,19 +247,40 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
               runSpacing: 4,
               children: [
                 Chip(label: Text(status)),
-                if (isManager) const Chip(label: Text('Permission manager')),
+                if (isManager) const Chip(label: Text('Superadmin')),
               ],
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Invitation permission'),
-              subtitle: const Text(
-                'Sending invitations also requires an active account.',
+              subtitle: Text(
+                isCurrentAdmin
+                    ? 'You cannot change your own administrator permissions.'
+                    : 'Sending invitations also requires an active account.',
               ),
               value: canInvite,
-              onChanged: _isBusy
+              onChanged: _isBusy || isCurrentAdmin
                   ? null
-                  : (value) => _changePermission(admin, value),
+                  : (value) => _changePermission(
+                      admin,
+                      'can_invite_admins',
+                      value,
+                    ),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Company review permission'),
+              subtitle: const Text(
+                'Allows reviewing submitted Company documents.',
+              ),
+              value: canReviewCompanies,
+              onChanged: _isBusy || isCurrentAdmin
+                  ? null
+                  : (value) => _changePermission(
+                      admin,
+                      'can_review_companies',
+                      value,
+                    ),
             ),
           ],
         ),
@@ -277,11 +320,14 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
           padding: const EdgeInsets.all(24),
           children: [
             const Text(
-              'Administrator invitation permissions',
+              'Administrator permissions',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            const Text('Choose which administrators may send invitations.'),
+            const Text(
+              'The Superadmin assigns invitation and Company review access. '
+              'Administrators cannot change their own permissions.',
+            ),
             const SizedBox(height: 24),
             if (_admins.isEmpty) const Text('No administrators on this page.'),
             for (final admin in _admins) _buildAdminCard(admin),

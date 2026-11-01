@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/auth_style.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/mobile_back_action.dart';
-import 'change_password_page.dart';
+import '../../shared/navigation/app_routes.dart';
 
 class VerifyPasswordPage extends StatefulWidget {
   final bool isForgorPassword;
@@ -168,12 +169,7 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
 
       if (!mounted) return;
 
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
-          builder: (context) =>
-              ChangePasswordPage(expectedUserId: session.user.id),
-        ),
-      );
+      context.pushReplacement(AppRoutes.changePassword);
     } on AuthException catch (error) {
       _showMessage(error.message);
     } catch (_) {
@@ -272,9 +268,7 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
               TextButton(
                 onPressed: _isBusy
                     ? null
-                    : () =>
-                          Navigator.of(context)
-                              .popUntil((route) => route.isFirst),
+                    : () => context.go(AppRoutes.home),
                 child: const Text('Back to login'),
               ),
             ],

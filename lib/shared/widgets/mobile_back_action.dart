@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Shows a back action in native mobile apps when a route can pop.
+/// On the web, the empty widget prevents AppBar from inserting its own arrow.
 class MobileBackAction extends StatelessWidget {
   const MobileBackAction({super.key});
 
@@ -21,7 +22,11 @@ class MobileBackAction extends StatelessWidget {
 
 /// Returns a back button only when this native app route can go back.
 Widget? mobileBackLeading(BuildContext context) {
-  if (kIsWeb || !Navigator.of(context).canPop()) {
+  if (kIsWeb) {
+    return const SizedBox.shrink();
+  }
+
+  if (!Navigator.of(context).canPop()) {
     return null;
   }
 

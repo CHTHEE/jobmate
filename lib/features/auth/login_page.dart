@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'sign_up_page.dart';
-import '../profile/verify_password_page.dart';
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/auth_style.dart';
 import '../../shared/widgets/loading_overlay.dart';
-import 'verify_email_page.dart';
+import '../../shared/navigation/app_routes.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -61,14 +60,9 @@ class _LoginPageState extends State<LoginPage> {
                   onPressed: _isLoading
                       ? null
                       : () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (context) => VerifyPasswordPage(
-                                isForgorPassword: true,
-                                initialEmail: _emailController.text.trim(),
-                              ),
-                            ),
-                          );
+                          AppRoutes.pendingAuthEmail =
+                              _emailController.text.trim();
+                          context.push<void>(AppRoutes.forgotPassword);
                         },
                   child: const Text('Forgot Password?'),
                 ),
@@ -83,11 +77,7 @@ class _LoginPageState extends State<LoginPage> {
                 onPressed: _isLoading
                     ? null
                     : () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (context) => const SignUpPage(),
-                          ),
-                        );
+                        context.push<void>(AppRoutes.signUp);
                       },
                 child: const Text('Don\'t have an account? Sign up'),
               ),
@@ -129,12 +119,9 @@ class _LoginPageState extends State<LoginPage> {
       if (error.code == 'email_not_confirmed') {
         if (!mounted) return;
 
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (context) =>
-                VerifyEmailPage(email: email, startWithCooldown: false),
-          ),
-        );
+        AppRoutes.pendingAuthEmail = email;
+        AppRoutes.pendingEmailCooldown = false;
+        context.push<void>(AppRoutes.verifyEmail);
       } else {
         _showMessage(error.message);
       }

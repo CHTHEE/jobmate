@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'admin_dashboard_page.dart';
 import '../home/home_page.dart';
 import 'accept_admin_invitation_page.dart';
 
@@ -22,11 +23,31 @@ class _AdminInvitationGateState extends State<AdminInvitationGate> {
   final _supabase = Supabase.instance.client;
 
   late Future<Map<String, dynamic>?> _invitationFuture;
+  late Future<Map<String, dynamic>> _accountFuture;
 
   @override
   void initState() {
     super.initState();
     _invitationFuture = _loadInvitation();
+    _accountFuture = _loadAccount();
+  }
+
+  Future<Map<String, dynamic>> _loadAccount() async {
+    if (_supabase.auth.currentUser?.id != widget.userId) {
+      throw StateError('The signed-in account has changed.');
+    }
+
+    final account = await _supabase
+        .from('users')
+        .select('role, status')
+        .eq('user_id', widget.userId)
+        .single();
+
+    if (_supabase.auth.currentUser?.id != widget.userId) {
+      throw StateError('The signed-in account has changed.');
+    }
+
+    return Map<String, dynamic>.from(account);
   }
 
   Future<Map<String, dynamic>?> _loadInvitation() async {
@@ -61,7 +82,38 @@ class _AdminInvitationGateState extends State<AdminInvitationGate> {
 
     setState(() {
       _invitationFuture = _loadInvitation();
+      _accountFuture = _loadAccount();
     });
+  }
+
+  Widget _signedInPage() {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _accountFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError || snapshot.data == null) {
+          return _statusPage('Unable to load your account. Please retry.');
+        }
+
+        final account = snapshot.data!;
+        if (account['role'] == 'administrator') {
+          if (account['status'] != 'active') {
+            return _statusPage(
+              'This administrator account is not active. Contact the '
+              'Superadmin for help.',
+            );
+          }
+          return AdminDashboardPage(email: widget.email);
+        }
+
+        return HomePage(email: widget.email);
+      },
+    );
   }
 
   Future<void> _signOut() async {
@@ -136,9 +188,9 @@ class _AdminInvitationGateState extends State<AdminInvitationGate> {
           );
         }
 
-        // 没有待接受的邀请，继续现有 HomePage。
-        // 已接受、过期或撤销，不会在这里重新授予权限。
-        return HomePage(email: widget.email);
+        // Invitation acceptance and administrator role are checked separately.
+        // An email link by itself never grants administrator access.
+        return _signedInPage();
       },
     );
   }

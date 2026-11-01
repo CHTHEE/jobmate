@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/mobile_back_action.dart';
+import '../../shared/navigation/app_routes.dart';
 
 class ChangePasswordPage extends StatefulWidget {
   final String expectedUserId;
@@ -83,7 +85,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
       final message = ScaffoldMessenger.of(context);
 
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      context.go(AppRoutes.home);
 
       message.showSnackBar(
         const SnackBar(content: Text('Password change. Please log in again.')),

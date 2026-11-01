@@ -1,9 +1,30 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:jobmate/features/auth/auth_gate.dart'; 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'features/admin/admin_permissions_page.dart';
+import 'features/admin/admin_users_page.dart';
+import 'features/admin/company_review_page.dart';
+import 'features/admin/invite_admin_page.dart';
+import 'features/auth/auth_gate.dart';
+import 'features/auth/sign_up_page.dart';
+import 'features/auth/terms_privacy_page.dart';
+import 'features/auth/verify_email_page.dart';
+import 'features/company/create_company_page.dart';
+import 'features/profile/change_password_page.dart';
+import 'features/profile/document_submission_page.dart';
+import 'features/profile/profile_page.dart';
+import 'features/profile/verify_password_page.dart';
+import 'features/notifications/notifications_page.dart';
+import 'shared/navigation/app_routes.dart';
 import 'shared/widgets/jobmate_scroll_behavior.dart';
+
+late final _AuthRouterRefresh _authRouterRefresh;
+late final GoRouter _appRouter;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +42,155 @@ Future<void> main() async {
     publishableKey: supabaseKey,
   );
 
+  _authRouterRefresh = _AuthRouterRefresh();
+  _appRouter = _createRouter();
+
   runApp(const MyApp());
+}
+
+GoRouter _createRouter() {
+  return GoRouter(
+    initialLocation: AppRoutes.home,
+    refreshListenable: _authRouterRefresh,
+    redirect: (context, state) {
+      final isSignedIn =
+          Supabase.instance.client.auth.currentSession != null;
+      final path = state.uri.path;
+      final publicPaths = {
+        AppRoutes.home,
+        AppRoutes.signUp,
+        AppRoutes.verifyEmail,
+        AppRoutes.forgotPassword,
+        AppRoutes.terms,
+        AppRoutes.privacy,
+      };
+      final guestOnlyPaths = {
+        AppRoutes.signUp,
+        AppRoutes.verifyEmail,
+      };
+
+      if (!isSignedIn && !publicPaths.contains(path)) return AppRoutes.home;
+      if (isSignedIn && guestOnlyPaths.contains(path)) {
+        return AppRoutes.home;
+      }
+      return null;
+    },
+    routes: [
+      _appRoute(AppRoutes.home, (context, state) => const AuthGate()),
+      _appRoute(AppRoutes.signUp, (context, state) => const SignUpPage()),
+      _appRoute(
+        AppRoutes.verifyEmail,
+        (context, state) => VerifyEmailPage(
+          email: AppRoutes.pendingAuthEmail,
+          startWithCooldown: AppRoutes.pendingEmailCooldown,
+        ),
+      ),
+      _appRoute(
+        AppRoutes.forgotPassword,
+        (context, state) => VerifyPasswordPage(
+          isForgorPassword: true,
+          initialEmail: AppRoutes.pendingAuthEmail,
+        ),
+      ),
+      _appRoute(
+        AppRoutes.verifyPassword,
+        (context, state) => const VerifyPasswordPage(),
+      ),
+      _appRoute(
+        AppRoutes.changePassword,
+        (context, state) => ChangePasswordPage(
+          expectedUserId:
+              Supabase.instance.client.auth.currentUser?.id ?? '',
+        ),
+      ),
+      _appRoute(
+        AppRoutes.terms,
+        (context, state) => const TermsAndPrivacyPage(
+          initialSection: PolicySection.terms,
+        ),
+      ),
+      _appRoute(
+        AppRoutes.privacy,
+        (context, state) => const TermsAndPrivacyPage(
+          initialSection: PolicySection.privacy,
+        ),
+      ),
+      _appRoute(AppRoutes.profile, (context, state) => const ProfilePage()),
+      _appRoute(
+        AppRoutes.company,
+        (context, state) => const CreateCompanyPage(),
+      ),
+      _appRoute(
+        AppRoutes.documentSubmission,
+        (context, state) => const DocumentSubmissionPage(),
+      ),
+      _appRoute(
+        AppRoutes.inviteAdmin,
+        (context, state) => const InviteAdminPage(),
+      ),
+      _appRoute(
+        AppRoutes.adminPermissions,
+        (context, state) => const AdminPermissionsPage(),
+      ),
+      _appRoute(
+        AppRoutes.adminUsers,
+        (context, state) => const AdminUsersPage(),
+      ),
+      _appRoute(
+        AppRoutes.companyReviews,
+        (context, state) => const CompanyReviewPage(),
+      ),
+      _appRoute(
+        AppRoutes.notifications,
+        (context, state) => const NotificationsPage(),
+      ),
+    ],
+  );
+}
+
+GoRoute _appRoute(
+  String path,
+  Widget Function(BuildContext, GoRouterState) buildPage,
+) {
+  return GoRoute(
+    path: path,
+    pageBuilder: (context, state) => _appPage(
+      state,
+      buildPage(context, state),
+    ),
+  );
+}
+
+Page<void> _appPage(GoRouterState state, Widget child) {
+  if (!kIsWeb) {
+    return MaterialPage<void>(key: state.pageKey, child: child);
+  }
+
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 220),
+    reverseTransitionDuration: const Duration(milliseconds: 220),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return FadeTransition(opacity: animation, child: child);
+    },
+  );
+}
+
+class _AuthRouterRefresh extends ChangeNotifier {
+  late final StreamSubscription<AuthState> _subscription;
+
+  _AuthRouterRefresh() {
+    _subscription = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -30,7 +199,7 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'Home Page',
       scrollBehavior: const JobMateScrollBehavior(),
       theme: ThemeData(
@@ -49,12 +218,21 @@ class MyApp extends StatelessWidget {
         //
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-        appBarTheme: AppBarTheme(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0F766E),
+          surface: const Color(0xFFF5F8FA),
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF5F8FA),
+        cardColor: Colors.white,
+        appBarTheme: const AppBarTheme(
           centerTitle: false,
+          backgroundColor: Colors.white,
+          foregroundColor: Color(0xFF172B3A),
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
         ),
       ),
-      home: const AuthGate(),
+      routerConfig: _appRouter,
     );
   }
 }

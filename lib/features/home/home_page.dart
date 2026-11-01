@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/loading_overlay.dart';
-import '../profile/profile_page.dart';
-import '../company/create_company_page.dart';
-import '../admin/invite_admin_page.dart';
-import '../admin/admin_permissions_page.dart';
+import '../../shared/navigation/app_routes.dart';
 
 class HomePage extends StatefulWidget {
   final String email;
@@ -42,16 +40,19 @@ class _HomePageState extends State<HomePage> {
           title: const Text('JobMate'),
           actions: [
             IconButton(
+              tooltip: 'Notifications',
+              icon: const Icon(Icons.notifications_none_outlined),
+              onPressed: _isLoadingOut
+                  ? null
+                  : () => context.push<void>(AppRoutes.notifications),
+            ),
+            IconButton(
               tooltip: 'My profile',
               icon: const Icon(Icons.person_outline),
               onPressed: _isLoadingOut
                   ? null
                   : () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (context) => const ProfilePage(),
-                        ),
-                      );
+                      context.push<void>(AppRoutes.profile);
                     },
             ),
             if (_accountRole == 'employer')
@@ -154,11 +155,8 @@ class _HomePageState extends State<HomePage> {
                                 onPressed: _isLoadingOut
                                     ? null
                                     : () async {
-                                        await Navigator.of(context).push<void>(
-                                          MaterialPageRoute<void>(
-                                            builder: (context) =>
-                                                const InviteAdminPage(),
-                                          ),
+                                        await context.push<void>(
+                                          AppRoutes.inviteAdmin,
                                         );
 
                                         if (!mounted) return;
@@ -178,11 +176,8 @@ class _HomePageState extends State<HomePage> {
                                   onPressed: _isLoadingOut
                                       ? null
                                       : () async {
-                                          await Navigator.of(context).push<void>(
-                                            MaterialPageRoute<void>(
-                                              builder: (context) =>
-                                                  const AdminPermissionsPage(),
-                                            ),
+                                          await context.push<void>(
+                                            AppRoutes.adminPermissions,
                                           );
 
                                           if (!mounted) return;
@@ -324,11 +319,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openCompanyPage() async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (context) => const CreateCompanyPage(),
-      ),
-    );
+    await context.push<void>(AppRoutes.company);
 
     if (!mounted) return;
 

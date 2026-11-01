@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/mobile_back_action.dart';
 import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/navigation/app_routes.dart';
 
 class VerifyEmailPage extends StatefulWidget {
   final String email;
@@ -129,9 +131,7 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
         return;
       }
 
-      Navigator.of(context).popUntil(
-        (route) => route.isFirst,
-      );
+      context.go(AppRoutes.home);
     } on AuthException catch (error){
       _showMessage(error.message);
     } catch(_) {

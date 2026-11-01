@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/auth_style.dart';
 import '../../shared/widgets/loading_overlay.dart';
-import 'verify_email_page.dart';
+import '../../shared/navigation/app_routes.dart';
 import 'terms_privacy_page.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -239,7 +240,7 @@ class _SignUpPageState extends State<SignUpPage> {
               TextButton(
                 onPressed: _isLoading
                     ? null
-                    : () => Navigator.of(context).pop(),
+                    : () => context.pop(),
                 child: const Text('Already have an account? Sign in'),
               ),
             ],
@@ -290,11 +291,10 @@ class _SignUpPageState extends State<SignUpPage> {
       onPressed: _isLoading
           ? null
           : () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (context) =>
-                      TermsAndPrivacyPage(initialSection: section),
-                ),
+              context.push<void>(
+                section == PolicySection.terms
+                    ? AppRoutes.terms
+                    : AppRoutes.privacy,
               );
             },
       child: Text(label),
@@ -522,13 +522,11 @@ class _SignUpPageState extends State<SignUpPage> {
       if (!mounted) return;
 
       if (response.session != null) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        context.go(AppRoutes.home);
       } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(
-            builder: (context) => VerifyEmailPage(email: email),
-          ),
-        );
+        AppRoutes.pendingAuthEmail = email;
+        AppRoutes.pendingEmailCooldown = true;
+        context.pushReplacement(AppRoutes.verifyEmail);
       }
     } on AuthException catch (e) {
       _showMessage(e.message);

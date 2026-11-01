@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/mobile_back_action.dart';
-import '../company/create_company_page.dart';
-import 'verify_password_page.dart';
-import 'document_submission_page.dart';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
@@ -487,9 +486,7 @@ class _ProfilePageState extends State<ProfilePage> {
       return;
     }
 
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (context) => const VerifyPasswordPage()),
-    );
+    context.push<void>(AppRoutes.verifyPassword);
   }
 
   Widget _buildPersonalDetails() {
@@ -610,11 +607,7 @@ class _ProfilePageState extends State<ProfilePage> {
       return;
     }
 
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (context) => const DocumentSubmissionPage(),
-      ),
-    );
+    await context.push<void>(AppRoutes.documentSubmission);
 
     if (!mounted) return;
 
@@ -738,12 +731,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               OutlinedButton.icon(
                                 onPressed: _canEdit
                                     ? () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute<void>(
-                                            builder: (context) =>
-                                                const CreateCompanyPage(),
-                                          ),
-                                        );
+                                        context.push<void>(AppRoutes.company);
                                       }
                                     : null,
                                 icon: const Icon(Icons.business_outlined),
