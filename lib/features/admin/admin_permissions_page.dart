@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/mobile_back_action.dart';
+import '../../shared/widgets/responsive_layout.dart';
 
 class AdminPermissionsPage extends StatefulWidget {
   const AdminPermissionsPage({super.key});
@@ -288,7 +289,7 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(BuildContext context) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -312,12 +313,10 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
       );
     }
 
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 840),
-        child: ListView(
-          padding: const EdgeInsets.all(24),
+    return ResponsiveContent(
+      maxWidth: 840,
+      child: ListView(
+          padding: ResponsiveLayout.pagePadding(context),
           children: [
             const Text(
               'Administrator permissions',
@@ -351,7 +350,6 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
               ],
             ),
           ],
-        ),
       ),
     );
   }
@@ -374,7 +372,7 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
             ),
           ],
         ),
-        body: _buildBody(),
+        body: SafeArea(child: _buildBody(context)),
       ),
     );
   }

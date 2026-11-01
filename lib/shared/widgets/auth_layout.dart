@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'auth_style.dart';
 import 'mobile_back_action.dart';
+import 'responsive_layout.dart';
 
 class AuthLayout extends StatelessWidget {
   final Widget child;
@@ -22,15 +23,14 @@ class AuthLayout extends StatelessWidget {
     if (!branded) {
       return LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 600;
+          final padding = ResponsiveLayout.pagePaddingForWidth(
+            constraints.maxWidth,
+          );
           return Align(
             alignment: Alignment.topCenter,
             child: SingleChildScrollView(
               child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: compact ? 16 : 32,
-                  vertical: compact ? 16 : 32,
-                ),
+                padding: padding,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 640),
                   child: child,
@@ -48,7 +48,12 @@ class AuthLayout extends StatelessWidget {
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final desktop = constraints.maxWidth >= 1024;
+              final desktop =
+                  ResponsiveLayout.forWidth(constraints.maxWidth) ==
+                  JobMateScreenSize.expanded;
+              final pagePadding = ResponsiveLayout.pagePaddingForWidth(
+                constraints.maxWidth,
+              );
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -94,9 +99,9 @@ class AuthLayout extends StatelessWidget {
                   Expanded(
                     child: Center(
                       child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 40,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: pagePadding.horizontal,
+                          vertical: desktop ? 40 : pagePadding.vertical + 16,
                         ),
                         child: ConstrainedBox(
                           constraints: BoxConstraints(maxWidth: contentMaxWidth),

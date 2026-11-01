@@ -3,8 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
+import '../../shared/widgets/responsive_layout.dart';
 
-enum _AdminProfileAction { profile, signOut }
+enum _AdminProfileAction { profile, refresh, signOut }
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key, required this.email});
@@ -189,10 +190,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    // A phone has considerably less room in the AppBar than a tablet or web.
+    // Keep the account actions available, but use a concise title on phones.
+    final narrowPhone = MediaQuery.sizeOf(context).width < 420;
+
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Text('JobMate Admin'),
+        title: Text(narrowPhone ? 'Admin' : 'JobMate Admin'),
         actions: [
           IconButton(
             tooltip: 'Notifications',
@@ -209,6 +214,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             onSelected: (action) {
               if (action == _AdminProfileAction.profile) {
                 context.push<void>(AppRoutes.profile);
+              } else if (action == _AdminProfileAction.refresh) {
+                _loadAccess();
               } else {
                 _signOut();
               }
@@ -221,6 +228,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     Icon(Icons.person_outline),
                     SizedBox(width: 12),
                     Text('My profile'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: _AdminProfileAction.refresh,
+                child: Row(
+                  children: [
+                    Icon(Icons.refresh),
+                    SizedBox(width: 12),
+                    Text('Refresh dashboard'),
                   ],
                 ),
               ),
@@ -283,7 +300,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           color: const Color(0xFFF4F7FA),
           child: LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxWidth < 760;
+            final compact =
+                ResponsiveLayout.forWidth(constraints.maxWidth) !=
+                JobMateScreenSize.expanded;
             return Row(
               children: [
                 if (!compact) _buildSidebar(context),
@@ -293,7 +312,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 1200),
                       child: ListView(
-                        padding: EdgeInsets.all(compact ? 20 : 32),
+                        padding: ResponsiveLayout.pagePaddingForWidth(
+                          constraints.maxWidth,
+                        ),
                         children: [
                           Text(
                             'Platform overview',
@@ -443,12 +464,23 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             : constraints.maxWidth >= 560
             ? 2
             : 1;
-        final ratio = columns == 1 ? 2.0 : 2.15;
+        if (columns == 1) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var index = 0; index < cards.length; index++) ...[
+                _OverviewCard(item: cards[index], loading: _loadingAccess),
+                if (index != cards.length - 1) const SizedBox(height: 16),
+              ],
+            ],
+          );
+        }
+
         return GridView.count(
           crossAxisCount: columns,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: ratio,
+          mainAxisExtent: 210,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
@@ -520,11 +552,23 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = compact ? 1 : constraints.maxWidth >= 850 ? 2 : 1;
+        if (columns == 1) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var index = 0; index < actions.length; index++) ...[
+                actions[index],
+                if (index != actions.length - 1) const SizedBox(height: 16),
+              ],
+            ],
+          );
+        }
+
         return GridView.count(
           crossAxisCount: columns,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: columns == 1 ? 4.2 : 2.7,
+          mainAxisExtent: 120,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: actions,
@@ -598,8 +642,9 @@ class _OverviewCard extends StatelessWidget {
               ),
               child: Icon(item.icon, color: item.accent),
             ),
-            const Spacer(),
+            const SizedBox(height: 16),
             Text(item.title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
             Text(
               loading ? '...' : item.value,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -607,6 +652,7 @@ class _OverviewCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
             ),
+            const SizedBox(height: 4),
             Text(item.detail, maxLines: 2, overflow: TextOverflow.ellipsis),
           ],
         ),

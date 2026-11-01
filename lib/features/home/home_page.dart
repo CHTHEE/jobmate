@@ -6,6 +6,9 @@ import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/app_workspace.dart';
 import 'dashboard_content.dart';
 import '../../shared/navigation/app_routes.dart';
+import '../../shared/widgets/responsive_layout.dart';
+
+enum _HomeMenuAction { profile, company, signOut }
 
 class HomePage extends StatefulWidget {
   final String email;
@@ -45,6 +48,8 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final compact = ResponsiveLayout.isCompact(context);
+
     return LoadingOverlay(
       isLoading: _isLoadingOut,
       message: 'Logging out...',
