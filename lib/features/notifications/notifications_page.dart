@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/mobile_back_action.dart';
+import '../../shared/widgets/responsive_layout.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
@@ -98,10 +99,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
           ),
         ],
       ),
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
+      body: SafeArea(
+        child: ResponsiveContent(
+          maxWidth: 900,
           child: _loading
               ? const Center(child: CircularProgressIndicator())
               : _error != null
@@ -124,7 +124,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
               : _notifications.isEmpty
               ? const Center(child: Text('You do not have any notifications yet.'))
               : ListView.builder(
-                  padding: const EdgeInsets.all(20),
+                  padding: ResponsiveLayout.pagePadding(context),
                   itemCount: _notifications.length,
                   itemBuilder: (context, index) {
                     final item = _notifications[index];

@@ -4,6 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/navigation/app_routes.dart';
+import '../../shared/widgets/responsive_layout.dart';
+
+enum _HomeMenuAction { profile, company, signOut }
 
 class HomePage extends StatefulWidget {
   final String email;
@@ -31,6 +34,8 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final compact = ResponsiveLayout.isCompact(context);
+
     return LoadingOverlay(
       isLoading: _isLoadingOut,
       message: 'Logging out...',
@@ -46,40 +51,82 @@ class _HomePageState extends State<HomePage> {
                   ? null
                   : () => context.push<void>(AppRoutes.notifications),
             ),
-            IconButton(
-              tooltip: 'My profile',
-              icon: const Icon(Icons.person_outline),
-              onPressed: _isLoadingOut
-                  ? null
-                  : () {
+            if (compact)
+              PopupMenuButton<_HomeMenuAction>(
+                enabled: !_isLoadingOut,
+                tooltip: 'Account menu',
+                icon: const Icon(Icons.account_circle_outlined),
+                onSelected: (action) {
+                  switch (action) {
+                    case _HomeMenuAction.profile:
                       context.push<void>(AppRoutes.profile);
-                    },
-            ),
-            if (_accountRole == 'employer')
+                      break;
+                    case _HomeMenuAction.company:
+                      _openCompanyPage();
+                      break;
+                    case _HomeMenuAction.signOut:
+                      _handleLogout();
+                      break;
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: _HomeMenuAction.profile,
+                    child: Text('My profile'),
+                  ),
+                  if (_accountRole == 'employer')
+                    const PopupMenuItem(
+                      value: _HomeMenuAction.company,
+                      child: Text('My company'),
+                    ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(
+                    value: _HomeMenuAction.signOut,
+                    child: Text('Log out'),
+                  ),
+                ],
+              )
+            else ...[
               IconButton(
-                tooltip: 'My company',
-                icon: const Icon(Icons.business_outlined),
-                onPressed: _isLoadingOut ? null : _openCompanyPage,
+                tooltip: 'My profile',
+                icon: const Icon(Icons.person_outline),
+                onPressed: _isLoadingOut
+                    ? null
+                    : () {
+                        context.push<void>(AppRoutes.profile);
+                      },
               ),
-            TextButton(
-              onPressed: _isLoadingOut ? null : _handleLogout,
-              child: const Text('Log out'),
-            ),
+              if (_accountRole == 'employer')
+                IconButton(
+                  tooltip: 'My company',
+                  icon: const Icon(Icons.business_outlined),
+                  onPressed: _isLoadingOut ? null : _openCompanyPage,
+                ),
+              TextButton(
+                onPressed: _isLoadingOut ? null : _handleLogout,
+                child: const Text('Log out'),
+              ),
+            ],
           ],
         ),
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final compact = constraints.maxWidth < 600;
-
               return SingleChildScrollView(
-                padding: EdgeInsets.all(compact ? 16 : 32),
+                padding: ResponsiveLayout.pagePaddingForWidth(
+                  constraints.maxWidth,
+                ),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 760),
                     child: Card.outlined(
                       child: Padding(
-                        padding: EdgeInsets.all(compact ? 20 : 32),
+                        padding: EdgeInsets.all(
+                          ResponsiveLayout.forWidth(constraints.maxWidth) ==
+                                  JobMateScreenSize.compact
+                              ? 20
+                              : 32,
+                        ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,

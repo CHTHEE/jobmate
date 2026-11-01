@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/mobile_back_action.dart';
+import '../../shared/widgets/responsive_layout.dart';
 
 class AdminUsersPage extends StatefulWidget {
   const AdminUsersPage({super.key});
@@ -136,6 +137,55 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     );
   }
 
+  Widget _buildFilters(BuildContext context) {
+    final compact = ResponsiveLayout.isCompact(context);
+    final roleSelector = DropdownButtonFormField<String>(
+      initialValue: _role,
+      decoration: const InputDecoration(labelText: 'Role'),
+      items: const [
+        DropdownMenuItem(value: 'all', child: Text('All users')),
+        DropdownMenuItem(value: 'job_seeker', child: Text('Job seeker')),
+        DropdownMenuItem(value: 'employer', child: Text('Employer')),
+      ],
+      onChanged: _loading
+          ? null
+          : (value) {
+              if (value != null) _changeFilter(role: value);
+            },
+    );
+    final statusSelector = DropdownButtonFormField<String>(
+      initialValue: _status,
+      decoration: const InputDecoration(labelText: 'Account status'),
+      items: const [
+        DropdownMenuItem(value: 'all', child: Text('All statuses')),
+        DropdownMenuItem(value: 'active', child: Text('Active')),
+        DropdownMenuItem(value: 'suspended', child: Text('Suspended')),
+        DropdownMenuItem(value: 'deactivated', child: Text('Deactivated')),
+      ],
+      onChanged: _loading
+          ? null
+          : (value) {
+              if (value != null) _changeFilter(status: value);
+            },
+    );
+
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [roleSelector, const SizedBox(height: 12), statusSelector],
+      );
+    }
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        SizedBox(width: 210, child: roleSelector),
+        SizedBox(width: 210, child: statusSelector),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -150,55 +200,19 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
           ),
         ],
       ),
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1100),
+      body: SafeArea(
+        child: ResponsiveContent(
+          maxWidth: 1100,
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                child: Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
-                  children: [
-                    SizedBox(
-                      width: 210,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _role,
-                        decoration: const InputDecoration(labelText: 'Role'),
-                        items: const [
-                          DropdownMenuItem(value: 'all', child: Text('All users')),
-                          DropdownMenuItem(value: 'job_seeker', child: Text('Job seeker')),
-                          DropdownMenuItem(value: 'employer', child: Text('Employer')),
-                        ],
-                        onChanged: _loading
-                            ? null
-                            : (value) {
-                                if (value != null) _changeFilter(role: value);
-                              },
-                      ),
-                    ),
-                    SizedBox(
-                      width: 210,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _status,
-                        decoration: const InputDecoration(labelText: 'Account status'),
-                        items: const [
-                          DropdownMenuItem(value: 'all', child: Text('All statuses')),
-                          DropdownMenuItem(value: 'active', child: Text('Active')),
-                          DropdownMenuItem(value: 'suspended', child: Text('Suspended')),
-                          DropdownMenuItem(value: 'deactivated', child: Text('Deactivated')),
-                        ],
-                        onChanged: _loading
-                            ? null
-                            : (value) {
-                                if (value != null) _changeFilter(status: value);
-                              },
-                      ),
-                    ),
-                  ],
+                padding: EdgeInsets.fromLTRB(
+                  ResponsiveLayout.pagePadding(context).horizontal,
+                  ResponsiveLayout.pagePadding(context).vertical,
+                  ResponsiveLayout.pagePadding(context).horizontal,
+                  8,
                 ),
+                child: _buildFilters(context),
               ),
               Expanded(
                 child: _loading
@@ -223,14 +237,21 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                     : _users.isEmpty
                     ? const Center(child: Text('No users match these filters.'))
                     : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                        padding: EdgeInsets.fromLTRB(
+                          ResponsiveLayout.pagePadding(context).horizontal,
+                          8,
+                          ResponsiveLayout.pagePadding(context).horizontal,
+                          8,
+                        ),
                         itemCount: _users.length,
                         itemBuilder: (context, index) =>
                             _buildUserCard(_users[index]),
                       ),
               ),
               Padding(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(
+                  ResponsiveLayout.isCompact(context) ? 8 : 12,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [

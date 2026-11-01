@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../shared/widgets/mobile_back_action.dart';
+import '../../shared/widgets/responsive_layout.dart';
 
 enum PolicySection {
   terms,
@@ -28,11 +29,10 @@ class TermsAndPrivacyPage extends StatelessWidget {
         title: Text(title),
       ),
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
+        child: ResponsiveContent(
+          maxWidth: 760,
             child: ListView(
-              padding: const EdgeInsets.all(24),
+              padding: ResponsiveLayout.pagePadding(context),
               children: [
                 const Text(
                   'JobMate General Policy',
@@ -75,7 +75,6 @@ class TermsAndPrivacyPage extends StatelessWidget {
                 ),
               ],
             ),
-          ),
         ),
       ),
     );

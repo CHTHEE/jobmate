@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../shared/widgets/mobile_back_action.dart';
+import '../../shared/widgets/responsive_layout.dart';
 
 class CompanyReviewPage extends StatefulWidget {
   const CompanyReviewPage({super.key});
@@ -241,8 +242,8 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(request['company_name'] as String? ?? 'Company details'),
-        content: SizedBox(
-          width: 520,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -363,12 +364,11 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1050),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            ResponsiveContent(
+              maxWidth: 1050,
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _error != null
@@ -391,7 +391,7 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
                   : _requests.isEmpty
                   ? const Center(child: Text('No Company applications are waiting for review.'))
                   : ListView(
-                      padding: const EdgeInsets.all(20),
+                      padding: ResponsiveLayout.pagePadding(context),
                       children: [
                         Text(
                           'Pending Company applications',
@@ -421,13 +421,13 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
                       ],
                     ),
             ),
-          ),
-          if (_working)
-            const ColoredBox(
-              color: Color(0x55000000),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-        ],
+            if (_working)
+              const ColoredBox(
+                color: Color(0x55000000),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+          ],
+        ),
       ),
     );
   }
