@@ -22,30 +22,42 @@ import 'features/profile/verify_password_page.dart';
 import 'features/notifications/notifications_page.dart';
 import 'shared/navigation/app_routes.dart';
 import 'shared/widgets/jobmate_scroll_behavior.dart';
+import 'shared/widgets/app_startup.dart';
 
 late final _AuthRouterRefresh _authRouterRefresh;
 late final GoRouter _appRouter;
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: '.env');
+  runApp(AppStartup(initialize: _initializeApp, builder: (_) => const MyApp()));
+}
+
+Future<void> _initializeApp() async {
+  try {
+    await dotenv.load(fileName: '.env');
+  } on FileNotFoundError {
+    throw const AppStartupException(
+      'The local .env configuration file could not be loaded. Restore it and restart the app.',
+    );
+  } on EmptyEnvFileError {
+    throw const AppStartupException(
+      'The local .env configuration file is empty. Restore the configuration and retry.',
+    );
+  }
 
   final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
   final supabaseKey = dotenv.env['SUPABASE_PUBLISHABLE_KEY'] ?? '';
 
   if (supabaseUrl.isEmpty || supabaseKey.isEmpty) {
-    throw Exception('Missing Supabase configuration.' 'Run with --dart-define-from-file=.env');
+    throw const AppStartupException(
+      'Missing SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY in .env. Check the configuration and retry.',
+    );
   }
 
-  await Supabase.initialize(
-    url: supabaseUrl,
-    publishableKey: supabaseKey,
-  );
+  await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
 
   _authRouterRefresh = _AuthRouterRefresh();
   _appRouter = _createRouter();
-
-  runApp(const MyApp());
 }
 
 GoRouter _createRouter() {

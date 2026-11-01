@@ -35,6 +35,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     _loadAdminProfile();
   }
 
+  Future<void> _openCompanyReviews() async {
+    if (_loadingAccess || !_canReviewCompanies) return;
+    await context.push<void>(AppRoutes.companyReviews);
+    if (mounted) await _loadAccess();
+  }
   Future<void> _loadAdminProfile() async {
     final client = Supabase.instance.client;
     final actorId = client.auth.currentUser?.id;
@@ -70,6 +75,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
     setState(() {
       _loadingAccess = true;
+      _canReviewCompanies = false;
       _error = null;
     });
 
@@ -383,8 +389,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             if (_canReviewCompanies)
               ListTile(
                 leading: const Icon(Icons.business_outlined),
-                title: const Text('Company reviews'),
-                onTap: () => context.push<void>(AppRoutes.companyReviews),
+                title: const Text('Company Verification'),
+                onTap: _openCompanyReviews,
               ),
             if (_canManageAdminPermissions)
               ListTile(
@@ -416,8 +422,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           if (_canReviewCompanies)
             ListTile(
               leading: const Icon(Icons.business_outlined),
-              title: const Text('Company reviews'),
-              onTap: () => context.push<void>(AppRoutes.companyReviews),
+              title: const Text('Company Verification'),
+              onTap: _openCompanyReviews,
             ),
           if (_canManageAdminPermissions)
             ListTile(
@@ -516,9 +522,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       actions.add(
         _ToolCard(
           icon: Icons.business_outlined,
-          title: 'Review Companies',
+          title: 'Company Verification',
           description: 'Check submitted Company details and supporting documents.',
-          onTap: () => context.push<void>(AppRoutes.companyReviews),
+          onTap: _openCompanyReviews,
         ),
       );
     }

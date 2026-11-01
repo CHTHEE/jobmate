@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../shared/widgets/mobile_back_action.dart';
 import '../../shared/widgets/responsive_layout.dart';
+import 'company_rejection_dialog.dart';
+import 'company_review_details.dart';
+import 'company_review_gateway.dart';
 
 class CompanyReviewPage extends StatefulWidget {
-  const CompanyReviewPage({super.key});
+  const CompanyReviewPage({super.key, this.gateway});
+  final CompanyReviewGateway? gateway;
 
   @override
   State<CompanyReviewPage> createState() => _CompanyReviewPageState();
@@ -14,352 +17,203 @@ class CompanyReviewPage extends StatefulWidget {
 
 class _CompanyReviewPageState extends State<CompanyReviewPage> {
   static const _pageSize = 20;
-  final _supabase = Supabase.instance.client;
-  final _actorId = Supabase.instance.client.auth.currentUser?.id;
-
+  late final CompanyReviewGateway _gateway;
   List<Map<String, dynamic>> _requests = [];
   bool _loading = false;
   bool _working = false;
+  bool _confirming = false;
   bool _hasMore = false;
   int _offset = 0;
   String? _error;
+  bool get _busy => _loading || _working || _confirming;
 
   @override
   void initState() {
     super.initState();
+    _gateway =
+        widget.gateway ??
+        SupabaseCompanyReviewGateway(Supabase.instance.client);
     _loadRequests();
   }
 
+  String _message(Object error) {
+    if (error is PostgrestException) return error.message;
+    if (error is StateError) return error.message.toString();
+    if (error is FormatException) return error.message;
+    return 'Unable to confirm the result. Refresh the queue and try again.';
+  }
+
   Future<void> _loadRequests() async {
-    if (_loading || _working) return;
+    if (_busy) return;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      if (_actorId == null || _supabase.auth.currentUser?.id != _actorId) {
-        throw StateError('Your signed-in account has changed.');
-      }
-      final data = await _supabase.rpc(
-        'list_company_review_requests',
-        params: {'p_limit': _pageSize + 1, 'p_offset': _offset},
+      final rows = await _gateway.pending(
+        limit: _pageSize + 1,
+        offset: _offset,
       );
       if (!mounted) return;
-      if (_supabase.auth.currentUser?.id != _actorId) {
-        throw StateError('Your signed-in account has changed.');
-      }
-      if (data is! List) {
-        throw const FormatException('Unexpected Company review response.');
-      }
-      final rows = data
-          .map((row) => Map<String, dynamic>.from(row as Map))
-          .toList();
       setState(() {
         _requests = rows.take(_pageSize).toList();
         _hasMore = rows.length > _pageSize;
       });
-    } on PostgrestException catch (error) {
-      if (!mounted) return;
-      setState(() => _error = error.message);
     } catch (error) {
-      debugPrint('Company review queue load failed: $error');
-      if (!mounted) return;
-      setState(() {
-        _error = error is StateError
-            ? error.message.toString()
-            : 'Unable to load Company review requests. Please retry.';
-      });
+      if (mounted) {
+        setState(() {
+          _requests = [];
+          _hasMore = false;
+          _error = _message(error);
+        });
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  String _label(String key) {
-    return key
-        .replaceAll('_', ' ')
-        .split(' ')
-        .where((part) => part.isNotEmpty)
-        .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
-        .join(' ');
-  }
-
-  Future<void> _openDocument(Map<String, dynamic> request) async {
-    if (_working) return;
-    final path = request['storage_path'] as String?;
-    if (path == null || path.isEmpty) {
-      _showMessage('This request does not have a document path.');
-      return;
-    }
-    setState(() => _working = true);
+  Future<void> _showDetails(Map<String, dynamic> request) async {
+    if (_busy) return;
+    setState(() => _confirming = true);
     try {
-      if (_supabase.auth.currentUser?.id != _actorId) {
-        throw StateError('Your signed-in account has changed.');
-      }
-      final url = await _supabase.storage
-          .from('jobmate-company-verification')
-          .createSignedUrl(path, 60);
-      final opened = await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
+      _gateway.checkSession();
+      await showDialog<void>(
+        context: context,
+        builder: (_) =>
+            CompanyReviewDetails(request: request, gateway: _gateway),
       );
-      if (!opened) throw StateError('Unable to open the document.');
     } catch (error) {
-      debugPrint('Company document open failed: $error');
-      if (mounted) {
-        _showMessage(
-          error is StateError
-              ? error.message.toString()
-              : 'Unable to open the private PDF. Check your review permission and retry.',
-        );
-      }
+      _showMessage(_message(error));
     } finally {
-      if (mounted) setState(() => _working = false);
+      if (mounted) setState(() => _confirming = false);
     }
-  }
-
-  Future<String?> _askRejectionReason() async {
-    final controller = TextEditingController();
-    String? validationMessage;
-    final result = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Reject Company application'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('The Company owner will see this reason.'),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                minLines: 3,
-                maxLines: 6,
-                maxLength: 2000,
-                decoration: InputDecoration(
-                  labelText: 'Rejection reason',
-                  errorText: validationMessage,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final reason = controller.text.trim();
-                if (reason.isEmpty) {
-                  setDialogState(
-                    () => validationMessage = 'Enter a reason to continue.',
-                  );
-                  return;
-                }
-                Navigator.pop(dialogContext, reason);
-              },
-              child: const Text('Reject'),
-            ),
-          ],
-        ),
-      ),
-    );
-    controller.dispose();
-    return result;
   }
 
   Future<void> _review(
     Map<String, dynamic> request, {
     required bool approve,
   }) async {
-    if (_working) return;
-    final String? comment;
-    if (approve) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Approve Company?'),
-          content: const Text(
-            'This marks the Company as verified and allows its owner to continue.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Approve'),
-            ),
-          ],
-        ),
-      );
-      if (!mounted || confirmed != true) return;
-      comment = null;
-    } else {
-      comment = await _askRejectionReason();
-      if (!mounted || comment == null) return;
-    }
-
-    setState(() => _working = true);
+    if (_busy) return;
+    setState(() => _confirming = true);
     try {
-      if (_actorId == null || _supabase.auth.currentUser?.id != _actorId) {
-        throw StateError('Your signed-in account has changed.');
-      }
-      await _supabase.rpc(
-        'review_company_request',
-        params: {
-          'p_request_id': request['request_id'],
-          'p_decision': approve ? 'verified' : 'rejected',
-          'p_review_comment': comment,
-        },
+      _gateway.checkSession();
+      final comment = await showDialog<String>(
+        context: context,
+        builder: (_) => CompanyRejectionDialog(approve: approve),
+      );
+      if (!mounted || comment == null) return;
+      setState(() {
+        _confirming = false;
+        _working = true;
+      });
+      await _gateway.review(
+        requestId: request['request_id'] as String,
+        decision: approve ? 'verified' : 'rejected',
+        comment: comment,
       );
       if (!mounted) return;
-      _showMessage(approve ? 'Company approved.' : 'Company rejected.');
+      _showMessage(
+        approve
+            ? 'Company approved.'
+            : 'Company rejected. The reason has been saved for the owner.',
+      );
+      if (_requests.length == 1 && _offset > 0) _offset -= _pageSize;
       setState(() => _working = false);
       await _loadRequests();
-    } on PostgrestException catch (error) {
-      if (mounted) _showMessage(error.message);
     } catch (error) {
-      debugPrint('Company review action failed: $error');
-      if (mounted) {
-        _showMessage('Unable to save the review. Refresh and try again.');
-      }
+      if (!mounted) return;
+      _showMessage(_message(error));
+      // Reload on stale/permission/network errors rather than allowing a blind
+      // retry against a request that may already have been reviewed.
+      setState(() {
+        _working = false;
+        _confirming = false;
+      });
+      await _loadRequests();
     } finally {
-      if (mounted) setState(() => _working = false);
+      if (mounted) {
+        setState(() {
+          _working = false;
+          _confirming = false;
+        });
+      }
     }
-  }
-
-  void _showDetails(Map<String, dynamic> request) {
-    final snapshot = request['profile_snapshot'];
-    final details = snapshot is Map
-        ? Map<String, dynamic>.from(snapshot)
-        : <String, dynamic>{};
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(request['company_name'] as String? ?? 'Company details'),
-        content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final entry in details.entries)
-                  if (entry.value != null && entry.value.toString().isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _label(entry.key),
-                            style: Theme.of(context).textTheme.labelLarge,
-                          ),
-                          const SizedBox(height: 2),
-                          SelectableText(entry.value.toString()),
-                        ],
-                      ),
-                    ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  onPressed: _working ? null : () => _openDocument(request),
-                  icon: const Icon(Icons.picture_as_pdf_outlined),
-                  label: Text(
-                    request['original_name'] as String? ?? 'Open supporting PDF',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showMessage(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   void _changePage(int amount) {
-    if (_loading || _working) return;
-    final next = _offset + amount;
-    if (next < 0 || (amount > 0 && !_hasMore)) return;
+    if (_busy || _offset + amount < 0 || (amount > 0 && !_hasMore)) return;
     setState(() {
-      _offset = next;
+      _offset += amount;
       _requests = [];
     });
     _loadRequests();
   }
 
-  Widget _buildRequestCard(Map<String, dynamic> request) {
-    final companyName =
-        request['company_name'] as String? ?? 'Company application';
-    final submittedAt = request['submitted_at']?.toString();
-    final filename = request['original_name'] as String? ?? 'Supporting PDF';
-    return Card.outlined(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(companyName, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 6),
-            Text('Submitted: ${submittedAt ?? 'Unknown'}'),
-            Text('Document: $filename'),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _working ? null : () => _showDetails(request),
-                  icon: const Icon(Icons.fact_check_outlined),
-                  label: const Text('Review details'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _working
-                      ? null
-                      : () => _review(request, approve: false),
-                  child: const Text('Reject'),
-                ),
-                FilledButton.icon(
-                  onPressed: _working
-                      ? null
-                      : () => _review(request, approve: true),
-                  icon: const Icon(Icons.check),
-                  label: const Text('Approve'),
-                ),
-              ],
-            ),
-          ],
-        ),
+  Widget _requestCard(Map<String, dynamic> request) => Card.outlined(
+    child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            request['company_name'] as String? ?? 'Company application',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Submitted: ${companySubmissionDate(context, request['submitted_at'])}',
+          ),
+          Text('Document: ${request['original_name'] ?? 'Not available'}'),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Chip(label: Text('Pending review')),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _busy ? null : () => _showDetails(request),
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const Text('View Details'),
+              ),
+              FilledButton.tonal(
+                onPressed: _busy
+                    ? null
+                    : () => _review(request, approve: false),
+                child: const Text('Reject'),
+              ),
+              FilledButton.icon(
+                onPressed: _busy ? null : () => _review(request, approve: true),
+                icon: const Icon(Icons.check),
+                label: const Text('Approve'),
+              ),
+            ],
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_working,
+    child: Scaffold(
       appBar: AppBar(
         leading: mobileBackLeading(context),
-        title: const Text('Company reviews'),
+        title: const Text('Company Verification'),
         actions: [
           IconButton(
             tooltip: 'Refresh',
-            onPressed: _loading || _working ? null : _loadRequests,
+            onPressed: _busy ? null : _loadRequests,
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -371,64 +225,97 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
               maxWidth: 1050,
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(_error!, textAlign: TextAlign.center),
+                  : RefreshIndicator(
+                      onRefresh: _loadRequests,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: ResponsiveLayout.pagePadding(context),
+                        children: [
+                          Text(
+                            'Pending company applications',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Review the submitted details and private supporting PDF before making a decision.',
+                          ),
+                          const SizedBox(height: 20),
+                          if (_error != null) ...[
+                            Text(
+                              _error!,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
                             const SizedBox(height: 12),
-                            FilledButton(
-                              onPressed: _loadRequests,
+                            OutlinedButton(
+                              onPressed: _busy ? null : _loadRequests,
                               child: const Text('Retry'),
                             ),
-                          ],
-                        ),
+                          ] else if (_requests.isEmpty) ...[
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Icon(Icons.task_alt, size: 48),
+                            ),
+                            const Text(
+                              'No company applications are waiting on this page.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ] else
+                            for (final request in _requests)
+                              _requestCard(request),
+                          const SizedBox(height: 20),
+                          if (_error == null || _offset > 0)
+                            Wrap(
+                              alignment: WrapAlignment.spaceBetween,
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                TextButton(
+                                  onPressed: _busy || _offset == 0
+                                      ? null
+                                      : () => _changePage(-_pageSize),
+                                  child: const Text('Previous'),
+                                ),
+                                Text('Page ${_offset ~/ _pageSize + 1}'),
+                                TextButton(
+                                  onPressed: _busy || !_hasMore
+                                      ? null
+                                      : () => _changePage(_pageSize),
+                                  child: const Text('Next'),
+                                ),
+                              ],
+                            ),
+                        ],
                       ),
-                    )
-                  : _requests.isEmpty
-                  ? const Center(child: Text('No Company applications are waiting for review.'))
-                  : ListView(
-                      padding: ResponsiveLayout.pagePadding(context),
-                      children: [
-                        Text(
-                          'Pending Company applications',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                        const SizedBox(height: 16),
-                        for (final request in _requests)
-                          _buildRequestCard(request),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            TextButton(
-                              onPressed: _offset == 0
-                                  ? null
-                                  : () => _changePage(-_pageSize),
-                              child: const Text('Previous'),
-                            ),
-                            Text('Page ${_offset ~/ _pageSize + 1}'),
-                            TextButton(
-                              onPressed: _hasMore
-                                  ? () => _changePage(_pageSize)
-                                  : null,
-                              child: const Text('Next'),
-                            ),
-                          ],
-                        ),
-                      ],
                     ),
             ),
             if (_working)
-              const ColoredBox(
-                color: Color(0x55000000),
-                child: Center(child: CircularProgressIndicator()),
+              const Positioned.fill(
+                child: Stack(
+                  children: [
+                    ModalBarrier(dismissible: false, color: Color(0x55000000)),
+                    Center(
+                      child: Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 16),
+                              Text('Saving company review...'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }

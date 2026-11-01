@@ -31,8 +31,22 @@
 
   <title>jobmate</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    html, body { margin: 0; background: #F8FAFC; }
+    #jobmate-loading { position: fixed; inset: 0; display: grid; place-content: center;
+      text-align: center; font-family: system-ui, sans-serif; color: #0F172A; }
+    #jobmate-loading h1 { color: #0F766E; font-size: 28px; }
+    #jobmate-loading p { color: #64748B; padding: 0 24px; }
+    #jobmate-loading button { padding: 12px 24px; border: 0; border-radius: 12px;
+      background: #0D9488; color: white; cursor: pointer; }
+  </style>
 </head>
 <body>
+  <div id="jobmate-loading" role="status" aria-live="polite">
+    <h1>JobMate</h1>
+    <p id="jobmate-startup-message">Loading JobMate…</p>
+    <button id="jobmate-reload" hidden onclick="window.location.reload()">Reload</button>
+  </div>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
@@ -41,6 +55,6 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="flutter_bootstrap.js" async></script>
+  <script src="flutter_bootstrap.js" async onerror="document.getElementById('jobmate-startup-message').textContent='Unable to load JobMate. Check your connection and reload.'; document.getElementById('jobmate-reload').hidden=false;"></script>
 </body>
 </html>
