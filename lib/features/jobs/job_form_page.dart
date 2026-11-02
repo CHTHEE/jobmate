@@ -1,9 +1,15 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/auth_style.dart';
+import '../../shared/widgets/loading_overlay.dart';
 import 'job_postings_repository.dart';
 import 'job_preview.dart';
 import 'job_display.dart';
@@ -16,10 +22,10 @@ class JobFormPage extends StatefulWidget {
   final String? jobId;
   final JobPostingsRepository? repository;
   @override
-  State<JobFormPage> createState() => _JobFormPageState();
+  State<JobFormPage> createState() => JobFormPageState();
 }
 
-class _JobFormPageState extends State<JobFormPage> {
+class JobFormPageState extends State<JobFormPage> {
   late final repo =
       widget.repository ?? JobPostingsRepository(Supabase.instance.client);
   final form = GlobalKey<FormState>();
@@ -67,6 +73,69 @@ class _JobFormPageState extends State<JobFormPage> {
   String? aiError;
   String status = 'draft';
   Map<String, dynamic>? savedJob;
+  String? _savedSnapshot;
+  Future<bool>? _exitConfirmation;
+  String get _snapshot => jsonEncode({
+    for (final entry in fields.entries) entry.key: entry.value.text,
+    ...selected,
+    'salary_visible': salaryVisible,
+    'ai_assisted': aiAssisted,
+  });
+
+  Future<bool> confirmExit() async {
+    if (busy) return false;
+    if (_savedSnapshot == null || _snapshot == _savedSnapshot) return true;
+    if (_exitConfirmation != null) return _exitConfirmation!;
+    final confirmation = showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Discard unsaved changes?'),
+        content: const Text(
+          'Your changes have not been saved. Leave this job form?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep editing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Discard changes'),
+          ),
+        ],
+      ),
+    ).then((result) => result == true);
+    _exitConfirmation = confirmation;
+    try {
+      final leave = await confirmation;
+      if (leave && mounted) _savedSnapshot = _snapshot;
+      return leave;
+    } finally {
+      _exitConfirmation = null;
+    }
+  }
+
+  Future<void> _backToPostings() async {
+    if (!await confirmExit() || !mounted) return;
+    if (GoRouterState.of(context).extra == 'job-list' && context.canPop()) {
+      context.pop();
+    } else {
+      context.go('${AppRoutes.jobPostings}?status=$status');
+    }
+  }
+
+  Future<void> _navigate(String destination) async {
+    final baseline = _savedSnapshot;
+    if (!await confirmExit() || !mounted) return;
+    if (destination == AppRoutes.home) {
+      context.go(destination);
+    } else {
+      await context.push<void>(destination);
+      // A pushed workspace page leaves this form in the route stack.
+      if (mounted) _savedSnapshot = baseline;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -122,7 +191,10 @@ class _JobFormPageState extends State<JobFormPage> {
     } catch (e) {
       error = jobError(e);
     }
-    if (mounted) setState(() => loading = false);
+    if (mounted) {
+      _savedSnapshot = _snapshot;
+      setState(() => loading = false);
+    }
   }
 
   Map<String, dynamic> validationValues() => {
@@ -202,6 +274,8 @@ class _JobFormPageState extends State<JobFormPage> {
       setState(() {
         jobId = saved['job_id'].toString();
         status = saved['status'] as String;
+        _savedSnapshot = _snapshot;
+        busy = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -274,8 +348,11 @@ class _JobFormPageState extends State<JobFormPage> {
         if (confirmed != true || !mounted) return;
       }
       if (!mounted) return;
+      FocusManager.instance.primaryFocus?.unfocus();
       setState(() => aiFormatting = true);
-      final generated = await repo.formatDescription(description);
+      final generated = await repo
+          .formatDescription(description)
+          .timeout(const Duration(seconds: 60));
       if (!mounted) return;
       for (final key in targets) {
         fields[key]!.text = generated[key]!;
@@ -284,12 +361,18 @@ class _JobFormPageState extends State<JobFormPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'AI formatting applied. Review and edit the text before saving or publishing.',
+            'Job description formatted! Please review the generated content.',
           ),
         ),
       );
     } catch (error) {
-      if (mounted) setState(() => aiError = jobFormattingError(error));
+      if (!mounted) return;
+      final message = error is TimeoutException
+          ? 'AI formatting took too long. Your text has been preserved. Please try again.'
+          : jobFormattingError(error);
+      setState(() => aiError = message);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) {
         setState(() {
@@ -320,11 +403,50 @@ class _JobFormPageState extends State<JobFormPage> {
   }
 
   @override
-  Widget build(BuildContext context) => AppWorkspace(
+  Widget build(BuildContext context) => Theme(
+    data: AuthStyle.theme(context),
+    child: LoadingOverlay(
+      isLoading: aiFormatting,
+      message: 'Formatting your job description...',
+      description: 'AI is organizing your content into Role Overview, Responsibilities, Requirements and Benefits.',
+      note: 'This may take a few moments.',
+      child: _buildWorkspace(),
+    ),
+  );
+
+  Widget _buildWorkspace() => AppWorkspace(
     title: jobId == null ? 'Create Job' : 'Job details',
     path: AppRoutes.createJob,
     role: 'employer',
     navigationLocked: busy,
+    onNavigate: _navigate,
+    leading: kIsWeb
+        ? Builder(
+            builder: (context) => MediaQuery.sizeOf(context).width < 1024
+                ? IconButton(
+                    tooltip: 'Open navigation menu',
+                    onPressed: busy
+                        ? null
+                        : () => Scaffold.of(context).openDrawer(),
+                    icon: const Icon(Icons.menu),
+                  )
+                : const SizedBox.shrink(),
+          )
+        : BackButton(onPressed: busy ? null : _backToPostings),
+    actions: [
+      if (!kIsWeb)
+        Builder(
+          builder: (context) => MediaQuery.sizeOf(context).width < 1024
+              ? IconButton(
+                  tooltip: 'Open navigation menu',
+                  onPressed: busy
+                      ? null
+                      : () => Scaffold.of(context).openDrawer(),
+                  icon: const Icon(Icons.menu),
+                )
+              : const SizedBox.shrink(),
+        ),
+    ],
     child: loading
         ? const Center(child: CircularProgressIndicator())
         : WorkspaceContent(
@@ -468,7 +590,7 @@ class _JobFormPageState extends State<JobFormPage> {
                                             jobLabel(entry.key),
                                           ),
                                           hintText: jobExamples[entry.key],
-                                          helperMaxLines: 3,
+                                          helperMaxLines: 5,
                                           suffixIcon:
                                               entry.key ==
                                                   'application_deadline'
@@ -494,10 +616,10 @@ class _JobFormPageState extends State<JobFormPage> {
                                               : entry.key ==
                                                     'application_deadline'
                                               ? 'YYYY-MM-DD. Choose a future date before publishing.'
-                                              : [
-                                                  'original_description',
-                                                  'role_overview',
-                                                ].contains(entry.key)
+                                              : entry.key ==
+                                                    'original_description'
+                                              ? 'Describe duties, requirements, working arrangements and benefits in normal sentences.'
+                                              : entry.key == 'role_overview'
                                               ? 'You can write multiple sentences or paragraphs. Press Enter to start a new line.'
                                               : entry.key == 'location'
                                               ? 'Enter the workplace for on-site/hybrid jobs, or the work region for remote jobs.'
@@ -514,6 +636,26 @@ class _JobFormPageState extends State<JobFormPage> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
+                                            const Text(
+                                              'Format with AI generates Role Overview, Responsibilities, Requirements and Benefits. Your Original Description stays unchanged. Review and edit the generated text before publishing.',
+                                            ),
+                                            const ExpansionTile(
+                                              tilePadding: EdgeInsets.zero,
+                                              title: Text(
+                                                'View example description',
+                                              ),
+                                              children: [
+                                                Padding(
+                                                  padding: EdgeInsets.only(
+                                                    bottom: 16,
+                                                  ),
+                                                  child: Text(
+                                                    'We are looking for part-time café crew at our café in Shah Alam. You will take orders, serve drinks and light meals, handle payments and keep the counter and tables clean. You should communicate politely with customers and work well in a team. No café experience is needed; training is provided. This is an on-site role with weekend shifts, around 16 hours per week. Staff receive a meal during each shift and a staff discount.',
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
                                             OutlinedButton(
                                               onPressed:
                                                   busy || status == 'closed'
@@ -642,10 +784,8 @@ class _JobFormPageState extends State<JobFormPage> {
                                 child: const Text('Preview'),
                               ),
                               TextButton(
-                                onPressed: busy
-                                    ? null
-                                    : () => context.go(AppRoutes.jobPostings),
-                                child: const Text('My Job Postings'),
+                                onPressed: busy ? null : _backToPostings,
+                                child: const Text('Back to Job Postings'),
                               ),
                             ],
                           ),

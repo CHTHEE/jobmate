@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -22,6 +23,7 @@ class AppWorkspace extends StatelessWidget {
     required this.role,
     required this.child,
     this.actions = const [],
+    this.leading,
     this.onNavigate,
     this.navigationLocked = false,
   });
@@ -30,6 +32,7 @@ class AppWorkspace extends StatelessWidget {
   final String role;
   final Widget child;
   final List<Widget> actions;
+  final Widget? leading;
   final ValueChanged<String>? onNavigate;
   final bool navigationLocked;
 
@@ -164,6 +167,20 @@ class AppWorkspace extends StatelessWidget {
             drawer: desktop ? null : Drawer(child: navigation),
             drawerEnableOpenDragGesture: !navigationLocked,
             appBar: AppBar(
+              automaticallyImplyLeading: !kIsWeb,
+              leading:
+                  leading ??
+                  (kIsWeb && !desktop
+                      ? Builder(
+                          builder: (context) => IconButton(
+                            tooltip: 'Open navigation menu',
+                            onPressed: navigationLocked
+                                ? null
+                                : () => Scaffold.of(context).openDrawer(),
+                            icon: const Icon(Icons.menu),
+                          ),
+                        )
+                      : null),
               title: Text(
                 title,
                 style: const TextStyle(

@@ -1,10 +1,79 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:jobmate/features/home/dashboard_content.dart';
 import 'package:jobmate/shared/navigation/app_routes.dart';
 import 'package:jobmate/shared/widgets/app_workspace.dart';
 
 void main() {
+  for (final width in [320.0, 1440.0]) {
+    for (final destination in [
+      (AppRoutes.profile, 'Personal profile'),
+      (AppRoutes.company, 'Company profile'),
+      (AppRoutes.jobPostings, 'My Job Postings'),
+    ]) {
+      testWidgets(
+        '${destination.$2} platform leading and direct navigation at $width',
+        (tester) async {
+          tester.view.physicalSize = Size(width, 1000);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final router = GoRouter(
+            initialLocation: destination.$1,
+            routes: [
+              GoRoute(
+                path: '/',
+                builder: (_, _) => const Scaffold(body: Text('Dashboard root')),
+              ),
+              GoRoute(
+                path: destination.$1,
+                builder: (_, _) => AppWorkspace(
+                  title: destination.$2,
+                  path: destination.$1,
+                  role: 'employer',
+                  child: const Text('Page content'),
+                ),
+              ),
+            ],
+          );
+          addTearDown(router.dispose);
+          await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+          await tester.pumpAndSettle();
+          expect(router.canPop(), false);
+          expect(
+            tester
+                .widget<AppBar>(find.byType(AppBar))
+                .automaticallyImplyLeading,
+            !kIsWeb,
+          );
+          expect(find.byType(BackButton), findsNothing);
+          if (width < 1024) {
+            await tester.tap(find.byTooltip('Open navigation menu'));
+            await tester.pumpAndSettle();
+          }
+          await tester.tap(find.widgetWithText(ListTile, 'Dashboard'));
+          await tester.pumpAndSettle();
+          expect(find.text('Dashboard root'), findsOneWidget);
+          router.push(destination.$1);
+          await tester.pumpAndSettle();
+          expect(router.canPop(), true);
+          expect(
+            find.byType(BackButton),
+            !kIsWeb && width >= 1024 ? findsOneWidget : findsNothing,
+          );
+          expect(find.text('Page content'), findsOneWidget);
+          // Back remains routed even when Web omits the visual arrow.
+          await tester.binding.handlePopRoute();
+          await tester.pumpAndSettle();
+          expect(find.text('Dashboard root'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
   testWidgets('Planned modules have no navigation actions', (tester) async {
     tester.view.physicalSize = const Size(1440, 1000);
     tester.view.devicePixelRatio = 1;

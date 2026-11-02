@@ -9,8 +9,10 @@ import 'dart:convert';
 import 'package:jobmate/features/company/company_logo.dart';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jobmate/shared/navigation/app_routes.dart';
+import 'package:jobmate/shared/widgets/loading_overlay.dart';
 import 'package:jobmate/features/jobs/job_preview.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jobmate/features/jobs/job_form_page.dart';
@@ -90,34 +92,41 @@ TextEditingController field(WidgetTester tester, String label) => tester
     .firstWhere((f) => inputLabel(f) == label)
     .controller!;
 
-GoRouter testRouter(TestJobs repo, {bool dashboard = false, String? initial}) =>
-    GoRouter(
-      initialLocation: initial ?? (dashboard ? '/' : AppRoutes.jobPostings),
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (_, _) => const Scaffold(body: Text('Dashboard root')),
+GoRouter testRouter(TestJobs repo, {bool dashboard = false, String? initial}) {
+  final createKey = GlobalKey<JobFormPageState>();
+  final editKey = GlobalKey<JobFormPageState>();
+  return GoRouter(
+    initialLocation: initial ?? (dashboard ? '/' : AppRoutes.jobPostings),
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (_, _) => const Scaffold(body: Text('Dashboard root')),
+      ),
+      GoRoute(
+        path: AppRoutes.jobPostings,
+        builder: (_, state) => JobPostingsPage(
+          repository: repo,
+          initialStatus: state.uri.queryParameters['status'] ?? 'draft',
         ),
-        GoRoute(
-          path: AppRoutes.jobPostings,
-          builder: (_, state) => JobPostingsPage(
-            repository: repo,
-            initialStatus: state.uri.queryParameters['status'] ?? 'draft',
-          ),
+      ),
+      GoRoute(
+        path: AppRoutes.createJob,
+        builder: (_, _) => JobFormPage(key: createKey, repository: repo),
+        onExit: (_, _) => createKey.currentState?.confirmExit() ?? true,
+      ),
+      GoRoute(
+        path: '${AppRoutes.jobPostings}/:jobId/edit',
+        builder: (_, state) => JobFormPage(
+          key: editKey,
+          repository: repo,
+          jobId: state.pathParameters['jobId'],
         ),
-        GoRoute(
-          path: AppRoutes.createJob,
-          builder: (_, _) => JobFormPage(repository: repo),
-        ),
-        GoRoute(
-          path: '${AppRoutes.jobPostings}/:jobId/edit',
-          builder: (_, state) => JobFormPage(
-            repository: repo,
-            jobId: state.pathParameters['jobId'],
-          ),
-        ),
-      ],
-    );
+        onExit: (_, _) => editKey.currentState?.confirmExit() ?? true,
+      ),
+    ],
+  );
+}
+
 String? inputLabel(TextField field) =>
     field.decoration?.labelText ??
     (field.decoration?.label is Text
@@ -171,6 +180,241 @@ void completeForm(WidgetTester tester) {
 }
 
 void main() {
+  test('AI errors do not expose unexpected server details', () {
+    const details = 'private server diagnostics';
+    expect(jobFormattingError(StateError(details)), isNot(contains(details)));
+    expect(
+      jobFormattingError(FunctionException(status: 500, details: details)),
+      isNot(contains(details)),
+    );
+    expect(
+      jobFormattingError(StateError('Sign in to use AI formatting.')),
+      'Sign in to use AI formatting.',
+    );
+  });
+  testWidgets('AI completion after disposal does not update disposed fields', (
+    tester,
+  ) async {
+    final pending = Completer<void>();
+    final repo = TestJobs()..formatPending = pending;
+    await tester.pumpWidget(MaterialApp(home: JobFormPage(repository: repo)));
+    await tester.pumpAndSettle();
+    field(tester, 'Original description').text =
+        'A sufficiently detailed description for this job.';
+    final state = tester.state<JobFormPageState>(find.byType(JobFormPage));
+    final request = state.formatWithAi();
+    await tester.pump();
+    expect(find.text('Formatting your job description...'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    pending.complete();
+    await request;
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final width in [320.0, 1440.0]) {
+    testWidgets(
+      'AI overlay covers workspace and timeout preserves edit values at $width',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 700);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final pending = Completer<void>();
+        final repo = TestJobs()
+          ..formatPending = pending
+          ..records = [
+            {...completeJob(), 'job_id': 'draft', 'status': 'draft'},
+          ];
+        final router = testRouter(
+          repo,
+          initial: '${AppRoutes.jobPostings}/draft/edit',
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+        await tester.pumpAndSettle();
+        field(tester, 'Job title').text = 'Unsaved title';
+        final state = tester.state<JobFormPageState>(find.byType(JobFormPage));
+        final before = jsonEncode(state.values());
+        final request = state.formatWithAi();
+        await tester.pumpAndSettle();
+        expect(find.text('Formatting your job description...'), findsNothing);
+        await tester.tap(find.text('Replace with AI'));
+        await tester.pump();
+        expect(find.text('Formatting your job description...'), findsOneWidget);
+        expect(find.text('This may take a few moments.'), findsOneWidget);
+        expect(
+          find.text(
+            'AI is organizing your content into Role Overview, Responsibilities, Requirements and Benefits.',
+          ),
+          findsOneWidget,
+        );
+        final overlay = find.byType(LoadingOverlay);
+        final barrier = find.descendant(
+          of: overlay,
+          matching: find.byType(ModalBarrier),
+        );
+        expect(tester.getRect(barrier), Rect.fromLTWH(0, 0, width, 700));
+        final blocking = find.descendant(
+          of: overlay,
+          matching: find.byType(AbsorbPointer),
+        );
+        expect(tester.widget<AbsorbPointer>(blocking.first).absorbing, true);
+        expect(tester.takeException(), isNull);
+        await tester.pump(const Duration(seconds: 60));
+        await request;
+        await tester.pumpAndSettle();
+        expect(find.text('Formatting your job description...'), findsNothing);
+        expect(
+          find.textContaining('AI formatting took too long.'),
+          findsWidgets,
+        );
+        expect(jsonEncode(state.values()), before);
+        // A late response cannot overwrite the preserved input after timeout.
+        pending.complete();
+        await tester.pumpAndSettle();
+        expect(jsonEncode(state.values()), before);
+        repo.formatPending = null;
+        final retry = state.formatWithAi();
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Replace with AI'));
+        await retry;
+        await tester.pumpAndSettle();
+        expect(repo.formats, 2);
+        expect(state.values()['ai_assisted'], true);
+        expect(state.values()['title'], 'Unsaved title');
+        expect(
+          state.values()['original_description'],
+          completeJob()['original_description'],
+        );
+      },
+    );
+  }
+
+  for (final width in [320.0, 1440.0]) {
+    testWidgets('Platform back controls and example fit at $width', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 1100);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final router = testRouter(TestJobs(), initial: AppRoutes.createJob);
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      expect(find.byType(BackButton), kIsWeb ? findsNothing : findsOneWidget);
+      final example = find.text('View example description');
+      await tester.ensureVisible(example);
+      await tester.tap(example);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final back = find.text('Back to Job Postings');
+      await tester.ensureVisible(back);
+      await tester.tap(back);
+      await tester.pumpAndSettle();
+      expect(find.byType(JobFormPage), findsNothing);
+      expect(find.text('Discard unsaved changes?'), findsNothing);
+    });
+  }
+
+  testWidgets(
+    'Loaded edit baseline is clean and salary visibility changes are guarded',
+    (tester) async {
+      final repo = TestJobs()
+        ..records = [
+          {...completeJob(), 'job_id': 'draft', 'status': 'draft'},
+        ];
+      final router = testRouter(
+        repo,
+        initial: '${AppRoutes.jobPostings}/draft/edit',
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      final state = tester.state<JobFormPageState>(find.byType(JobFormPage));
+      expect(await state.confirmExit(), true);
+      final salary = find.byType(SwitchListTile);
+      await tester.ensureVisible(salary);
+      await tester.tap(salary);
+      await tester.pumpAndSettle();
+      router.go(AppRoutes.jobPostings);
+      await tester.pumpAndSettle();
+      expect(find.text('Discard unsaved changes?'), findsOneWidget);
+      await tester.tap(find.text('Keep editing'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<SwitchListTile>(salary).value, false);
+    },
+  );
+
+  testWidgets('Guidance expands without replacing employer input', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: JobFormPage(repository: TestJobs())),
+    );
+    await tester.pumpAndSettle();
+    field(tester, 'Original description').text = 'My own description';
+    final example = find.text('View example description');
+    await tester.ensureVisible(example);
+    await tester.tap(example);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('We are looking for part-time'), findsOneWidget);
+    expect(field(tester, 'Original description').text, 'My own description');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Direct route exit confirms changes and keeps text when cancelled',
+    (tester) async {
+      final router = testRouter(TestJobs(), initial: AppRoutes.createJob);
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      field(tester, 'Job title').text = 'Unsaved role';
+      router.go(AppRoutes.jobPostings);
+      await tester.pumpAndSettle();
+      expect(find.text('Discard unsaved changes?'), findsOneWidget);
+      await tester.tap(find.text('Keep editing'));
+      await tester.pumpAndSettle();
+      expect(field(tester, 'Job title').text, 'Unsaved role');
+      final back = find.text('Back to Job Postings');
+      await tester.ensureVisible(back);
+      await tester.tap(back);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard changes'));
+      await tester.pumpAndSettle();
+      expect(find.byType(JobFormPage), findsNothing);
+    },
+  );
+
+  testWidgets('Pushed route Back asks before discarding edits', (tester) async {
+    final router = testRouter(TestJobs());
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    router.push(AppRoutes.createJob, extra: 'job-list');
+    await tester.pumpAndSettle();
+    field(tester, 'Job title').text = 'Unsaved role';
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Discard unsaved changes?'), findsOneWidget);
+    await tester.tap(find.text('Keep editing'));
+    await tester.pumpAndSettle();
+    expect(find.byType(JobFormPage), findsOneWidget);
+    if (kIsWeb) {
+      expect(find.byType(BackButton), findsNothing);
+      final back = find.text('Back to Job Postings');
+      await tester.ensureVisible(back);
+      await tester.tap(back);
+    } else {
+      await tester.tap(find.byTooltip('Back').first);
+    }
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard changes'));
+    await tester.pumpAndSettle();
+    expect(find.byType(JobFormPage), findsNothing);
+  });
   test('AI response parsing is strict and preserves structured lines', () {
     expect(
       parseJobFormatting({
@@ -235,6 +479,20 @@ void main() {
       await tester.tap(ai);
       await tester.pump();
       expect(repo.formats, 1);
+      expect(find.text('Formatting your job description...'), findsOneWidget);
+      final state = tester.state<JobFormPageState>(find.byType(JobFormPage));
+      await state.formatWithAi();
+      await state.save(false);
+      await state.save(true);
+      expect(await state.confirmExit(), false);
+      expect(repo.formats, 1);
+      expect(repo.saves, 0);
+      router.go(AppRoutes.jobPostings);
+      await tester.pump();
+      expect(find.byType(JobFormPage), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(find.text('Formatting your job description...'), findsOneWidget);
       expect(find.text('Formatting…'), findsOneWidget);
       expect(
         tester
@@ -255,6 +513,13 @@ void main() {
       repo.formatPending!.complete();
       await tester.pumpAndSettle();
       expect(repo.formattedDescription, original.trim());
+      expect(find.text('Formatting your job description...'), findsNothing);
+      expect(
+        find.text(
+          'Job description formatted! Please review the generated content.',
+        ),
+        findsOneWidget,
+      );
       expect(field(tester, 'Original description').text, original);
       expect(
         field(tester, 'Role overview').text,
@@ -282,7 +547,8 @@ void main() {
       'AI $status failure preserves manual fields and allows saving',
       (tester) async {
         final repo = TestJobs()
-          ..formatError = FunctionException(status: status);
+          ..formatError = FunctionException(status: status)
+          ..formatPending = Completer<void>();
         final router = testRouter(repo, initial: AppRoutes.createJob);
         addTearDown(router.dispose);
         await tester.pumpWidget(MaterialApp.router(routerConfig: router));
@@ -300,10 +566,14 @@ void main() {
         await tester.tap(ai);
         await tester.pumpAndSettle();
         await tester.tap(find.text('Replace with AI'));
+        await tester.pump();
+        expect(find.text('Formatting your job description...'), findsOneWidget);
+        repo.formatPending!.complete();
         await tester.pumpAndSettle();
+        expect(find.text('Formatting your job description...'), findsNothing);
         expect(
           find.text(jobFormattingError(FunctionException(status: status))),
-          findsOneWidget,
+          findsWidgets,
         );
         expect(field(tester, 'Role overview').text, before);
         expect(field(tester, 'Responsibilities').text, 'Help customers');

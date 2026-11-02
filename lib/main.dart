@@ -63,6 +63,8 @@ Future<void> _initializeApp() async {
 }
 
 GoRouter _createRouter() {
+  final createJobKey = GlobalKey<JobFormPageState>();
+  final editJobKey = GlobalKey<JobFormPageState>();
   return GoRouter(
     initialLocation: AppRoutes.home,
     refreshListenable: _authRouterRefresh,
@@ -128,10 +130,16 @@ GoRouter _createRouter() {
           initialStatus: state.uri.queryParameters['status'] ?? 'draft',
         ),
       ),
-      _appRoute(AppRoutes.createJob, (context, state) => const JobFormPage()),
+      _appRoute(
+        AppRoutes.createJob,
+        (context, state) => JobFormPage(key: createJobKey),
+        onExit: (_, _) => createJobKey.currentState?.confirmExit() ?? true,
+      ),
       _appRoute(
         '${AppRoutes.jobPostings}/:jobId/edit',
-        (context, state) => JobFormPage(jobId: state.pathParameters['jobId']),
+        (context, state) =>
+            JobFormPage(key: editJobKey, jobId: state.pathParameters['jobId']),
+        onExit: (_, _) => editJobKey.currentState?.confirmExit() ?? true,
       ),
       _appRoute(AppRoutes.profile, (context, state) => const ProfilePage()),
       _appRoute(
@@ -168,10 +176,12 @@ GoRouter _createRouter() {
 
 GoRoute _appRoute(
   String path,
-  Widget Function(BuildContext, GoRouterState) buildPage,
-) {
+  Widget Function(BuildContext, GoRouterState) buildPage, {
+  ExitCallback? onExit,
+}) {
   return GoRoute(
     path: path,
+    onExit: onExit,
     pageBuilder: (context, state) => _appPage(state, buildPage(context, state)),
   );
 }

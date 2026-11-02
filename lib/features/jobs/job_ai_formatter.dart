@@ -37,6 +37,13 @@ String jobFormattingError(Object error) {
   if (error is FormatException) {
     return 'AI returned an unexpected response. Your text has been preserved. Please try again.';
   }
-  if (error is StateError) return error.message.toString();
+  if (error is StateError) {
+    // Only known user-facing session messages may cross this boundary.
+    switch (error.message) {
+      case 'Sign in to use AI formatting.':
+      case 'Your session changed. Sign in again to use AI formatting.':
+        return error.message.toString();
+    }
+  }
   return 'Unable to connect to AI formatting. Your text has been preserved. You can continue editing manually.';
 }
