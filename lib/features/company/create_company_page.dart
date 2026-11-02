@@ -11,6 +11,7 @@ import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/auth_style.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/loading_overlay.dart';
+import 'company_logo.dart';
 
 class CreateCompanyPage extends StatefulWidget {
   const CreateCompanyPage({super.key});
@@ -156,9 +157,7 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
 
         if (logoPath != null && logoPath.isNotEmpty) {
           try {
-            savedLogoBytes = await _supabase.storage
-                .from('jobmate-company-logos')
-                .download(logoPath);
+            savedLogoBytes = await loadCompanyLogo(_supabase, logoPath);
           } catch (error) {
             debugPrint('Company logo download failed: $error');
             logoLoadFailed = true;

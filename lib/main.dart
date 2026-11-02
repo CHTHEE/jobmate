@@ -15,6 +15,8 @@ import 'features/auth/sign_up_page.dart';
 import 'features/auth/terms_privacy_page.dart';
 import 'features/auth/verify_email_page.dart';
 import 'features/company/create_company_page.dart';
+import 'features/jobs/job_form_page.dart';
+import 'features/jobs/job_postings_page.dart';
 import 'features/profile/change_password_page.dart';
 import 'features/profile/document_submission_page.dart';
 import 'features/profile/profile_page.dart';
@@ -65,8 +67,7 @@ GoRouter _createRouter() {
     initialLocation: AppRoutes.home,
     refreshListenable: _authRouterRefresh,
     redirect: (context, state) {
-      final isSignedIn =
-          Supabase.instance.client.auth.currentSession != null;
+      final isSignedIn = Supabase.instance.client.auth.currentSession != null;
       final path = state.uri.path;
       final publicPaths = {
         AppRoutes.home,
@@ -76,10 +77,7 @@ GoRouter _createRouter() {
         AppRoutes.terms,
         AppRoutes.privacy,
       };
-      final guestOnlyPaths = {
-        AppRoutes.signUp,
-        AppRoutes.verifyEmail,
-      };
+      final guestOnlyPaths = {AppRoutes.signUp, AppRoutes.verifyEmail};
 
       if (!isSignedIn && !publicPaths.contains(path)) return AppRoutes.home;
       if (isSignedIn && guestOnlyPaths.contains(path)) {
@@ -111,21 +109,29 @@ GoRouter _createRouter() {
       _appRoute(
         AppRoutes.changePassword,
         (context, state) => ChangePasswordPage(
-          expectedUserId:
-              Supabase.instance.client.auth.currentUser?.id ?? '',
+          expectedUserId: Supabase.instance.client.auth.currentUser?.id ?? '',
         ),
       ),
       _appRoute(
         AppRoutes.terms,
-        (context, state) => const TermsAndPrivacyPage(
-          initialSection: PolicySection.terms,
-        ),
+        (context, state) =>
+            const TermsAndPrivacyPage(initialSection: PolicySection.terms),
       ),
       _appRoute(
         AppRoutes.privacy,
-        (context, state) => const TermsAndPrivacyPage(
-          initialSection: PolicySection.privacy,
+        (context, state) =>
+            const TermsAndPrivacyPage(initialSection: PolicySection.privacy),
+      ),
+      _appRoute(
+        AppRoutes.jobPostings,
+        (context, state) => JobPostingsPage(
+          initialStatus: state.uri.queryParameters['status'] ?? 'draft',
         ),
+      ),
+      _appRoute(AppRoutes.createJob, (context, state) => const JobFormPage()),
+      _appRoute(
+        '${AppRoutes.jobPostings}/:jobId/edit',
+        (context, state) => JobFormPage(jobId: state.pathParameters['jobId']),
       ),
       _appRoute(AppRoutes.profile, (context, state) => const ProfilePage()),
       _appRoute(
@@ -166,10 +172,7 @@ GoRoute _appRoute(
 ) {
   return GoRoute(
     path: path,
-    pageBuilder: (context, state) => _appPage(
-      state,
-      buildPage(context, state),
-    ),
+    pageBuilder: (context, state) => _appPage(state, buildPage(context, state)),
   );
 }
 

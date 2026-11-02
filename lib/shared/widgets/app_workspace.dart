@@ -104,6 +104,18 @@ class AppWorkspace extends StatelessWidget {
                         'Company profile',
                         Icons.business_outlined,
                       ),
+                    if (role == 'employer')
+                      (
+                        AppRoutes.jobPostings,
+                        'My Job Postings',
+                        Icons.work_outline,
+                      ),
+                    if (role == 'employer')
+                      (
+                        AppRoutes.createJob,
+                        'Create Job',
+                        Icons.add_circle_outline,
+                      ),
                   ])
                     Padding(
                       padding: const EdgeInsets.only(bottom: 6),
@@ -130,7 +142,9 @@ class AppWorkspace extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  for (final module in upcomingModules)
+                  for (final module in upcomingModules.where(
+                    (m) => role != 'employer' || m.$1 != 'Job Posting',
+                  ))
                     ListTile(
                       enabled: false,
                       contentPadding: const EdgeInsets.symmetric(

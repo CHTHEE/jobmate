@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../shared/navigation/app_routes.dart';
 
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/auth_style.dart';
@@ -175,6 +178,41 @@ class DashboardContent extends StatelessWidget {
         if (role == 'employer') ...[
           const SizedBox(height: 20),
           WorkspaceCard(
+            title: 'Job postings',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (companyError != null ||
+                    company?['verification_status'] != 'verified')
+                  const Text(
+                    'Job creation requires a verified company. Review your status in Company profile.',
+                  ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => context.push(AppRoutes.jobPostings),
+                      child: const Text('My Job Postings'),
+                    ),
+                    FilledButton(
+                      onPressed:
+                          companyError == null &&
+                              company?['verification_status'] == 'verified' &&
+                              profile['status'] == 'active' &&
+                              ['owner', 'employer'].contains(memberRole)
+                          ? () => context.push(AppRoutes.createJob)
+                          : null,
+                      child: const Text('Create Job'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          WorkspaceCard(
             title: companyError != null
                 ? 'Company unavailable'
                 : company == null
@@ -249,7 +287,9 @@ class DashboardContent extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final module in upcomingModules)
+              for (final module in upcomingModules.where(
+                (m) => role != 'employer' || m.$1 != 'Job Posting',
+              ))
                 Chip(avatar: Icon(module.$2, size: 16), label: Text(module.$1)),
             ],
           ),
