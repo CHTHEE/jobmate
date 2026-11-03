@@ -276,28 +276,36 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     backgroundColor: const Color(0xFFCCFBF1),
                     child: _buildAdminAvatar(),
                   ),
-                  if (MediaQuery.sizeOf(context).width >= 650) ...[
+                  if (ResponsiveLayout.usesSidebar(
+                        MediaQuery.sizeOf(context).width,
+                      ) &&
+                      MediaQuery.textScalerOf(context).scale(14) <= 18) ...[
                     const SizedBox(width: 10),
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Admin - $_adminName',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            height: 1.2,
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 240),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Admin - $_adminName',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              height: 1.2,
+                            ),
                           ),
-                        ),
-                        const Text(
-                          'System Administrator',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF64748B),
-                            height: 1.2,
+                          const Text(
+                            'System Administrator',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                              height: 1.2,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                   const SizedBox(width: 4),
@@ -314,7 +322,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           color: const Color(0xFFF8FAFC),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final compact = constraints.maxWidth < 768;
+              final compact = !ResponsiveLayout.usesSidebar(
+                constraints.maxWidth,
+              );
               return Row(
                 children: [
                   if (!compact) _buildSidebar(context),
@@ -532,38 +542,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       ),
     ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 900
-            ? 3
-            : constraints.maxWidth >= 560
-            ? 2
-            : 1;
-        if (columns == 1) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var index = 0; index < cards.length; index++) ...[
-                _OverviewCard(item: cards[index], loading: _loadingAccess),
-                if (index != cards.length - 1) const SizedBox(height: 16),
-              ],
-            ],
-          );
-        }
-
-        return GridView.count(
-          crossAxisCount: columns,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          mainAxisExtent: 220,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            for (final item in cards)
-              _OverviewCard(item: item, loading: _loadingAccess),
-          ],
-        );
-      },
+    return ResponsiveGrid(
+      minItemWidth: 240,
+      children: [
+        for (final item in cards)
+          _OverviewCard(item: item, loading: _loadingAccess),
+      ],
     );
   }
 
@@ -643,36 +627,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = compact
-            ? 1
-            : constraints.maxWidth >= 850
-            ? 2
-            : 1;
-        if (columns == 1) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var index = 0; index < actions.length; index++) ...[
-                actions[index],
-                if (index != actions.length - 1) const SizedBox(height: 16),
-              ],
-            ],
-          );
-        }
-
-        return GridView.count(
-          crossAxisCount: columns,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          mainAxisExtent: 120,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: actions,
-        );
-      },
-    );
+    return ResponsiveGrid(minItemWidth: 360, maxColumns: 2, children: actions);
   }
 
   Widget _buildError(BuildContext context) {
@@ -749,7 +704,7 @@ class _OverviewCard extends StatelessWidget {
                   ?.copyWith(color: item.accent, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 4),
-            Text(item.detail, maxLines: 2, overflow: TextOverflow.ellipsis),
+            Text(item.detail),
           ],
         ),
       ),
@@ -799,11 +754,7 @@ class _ToolCard extends StatelessWidget {
                   children: [
                     Text(title, style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 4),
-                    Text(
-                      description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    Text(description),
                   ],
                 ),
               ),

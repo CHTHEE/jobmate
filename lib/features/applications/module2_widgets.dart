@@ -6,6 +6,8 @@ import '../../shared/navigation/app_routes.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
+import '../../shared/widgets/mobile_back_action.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import 'module2_repository.dart';
 
 class Module2Gate extends StatefulWidget {
@@ -45,11 +47,14 @@ class _Module2GateState extends State<Module2Gate> {
     builder: (context, snapshot) {
       if (snapshot.data == true) return widget.child;
       return Scaffold(
-        appBar: AppBar(title: const Text('JobMate')),
+        appBar: const ResponsivePageAppBar(
+          title: Text('JobMate'),
+          showReturnAction: false,
+        ),
         body: Center(
           child: SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: ResponsiveLayout.pagePadding(context),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -161,28 +166,23 @@ class ModuleSelect extends StatelessWidget {
   final Map<String, String> options;
   final ValueChanged<String> onChanged;
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) => SizedBox(
-      width: MediaQuery.sizeOf(context).width < 600
-          ? constraints.maxWidth
-          : 220,
-      child: DropdownButtonFormField<String>(
-        key: ValueKey('$label:$value'),
-        initialValue: value,
-        isExpanded: true,
-        decoration: InputDecoration(labelText: label),
-        items: options.entries
-            .map(
-              (e) => DropdownMenuItem(
-                value: e.key,
-                child: Text(e.value, overflow: TextOverflow.ellipsis),
-              ),
-            )
-            .toList(),
-        onChanged: (v) {
-          if (v != null) onChanged(v);
-        },
-      ),
+  Widget build(BuildContext context) => ResponsiveFilter(
+    child: DropdownButtonFormField<String>(
+      key: ValueKey('$label:$value'),
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(labelText: label),
+      items: options.entries
+          .map(
+            (e) => DropdownMenuItem(
+              value: e.key,
+              child: Text(e.value, overflow: TextOverflow.ellipsis),
+            ),
+          )
+          .toList(),
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      },
     ),
   );
 }
@@ -193,7 +193,7 @@ Future<T?> moduleModal<T>(
   double maxWidth = 448,
   double heightFraction = .85,
 }) {
-  if (MediaQuery.sizeOf(context).width < 600) {
+  if (ResponsiveLayout.isCompact(context)) {
     return showModalBottomSheet<T>(
       context: context,
       isScrollControlled: true,

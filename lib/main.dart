@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -40,6 +39,7 @@ import 'features/profile/profile_page.dart';
 import 'features/profile/verify_password_page.dart';
 import 'features/notifications/notifications_page.dart';
 import 'shared/navigation/app_routes.dart';
+import 'shared/navigation/app_page.dart';
 import 'shared/theme/jobmate_theme.dart';
 import 'shared/widgets/jobmate_scroll_behavior.dart';
 import 'shared/widgets/app_startup.dart';
@@ -525,23 +525,7 @@ GoRoute _appRoute(
   return GoRoute(
     path: path,
     onExit: onExit,
-    pageBuilder: (context, state) => _appPage(state, buildPage(context, state)),
-  );
-}
-
-Page<void> _appPage(GoRouterState state, Widget child) {
-  if (!kIsWeb) {
-    return MaterialPage<void>(key: state.pageKey, child: child);
-  }
-
-  return CustomTransitionPage<void>(
-    key: state.pageKey,
-    child: child,
-    transitionDuration: const Duration(milliseconds: 220),
-    reverseTransitionDuration: const Duration(milliseconds: 220),
-    transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      return FadeTransition(opacity: animation, child: child);
-    },
+    pageBuilder: (context, state) => appPage(state, buildPage(context, state)),
   );
 }
 

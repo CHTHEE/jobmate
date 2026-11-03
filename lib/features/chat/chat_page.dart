@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import '../applications/module2_widgets.dart';
 import '../demo_work/demo_widgets.dart';
@@ -131,6 +132,7 @@ class _ChatPageState extends State<ChatPage> {
               message: 'These are fictional, job-specific conversations. No real private messages are accessed.',
             )
           : Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Wrap(
@@ -160,7 +162,8 @@ class _ChatPageState extends State<ChatPage> {
                       : null,
                   child: const Text('Advance simulated delivery/read receipts'),
                 ),
-                Expanded(
+                Flexible(
+                  fit: FlexFit.loose,
                   child: c.messages.isEmpty
                       ? const Center(
                           child: Text(
@@ -168,6 +171,8 @@ class _ChatPageState extends State<ChatPage> {
                           ),
                         )
                       : ListView.builder(
+                          shrinkWrap: true,
+                          primary: false,
                           reverse: true,
                           itemCount: c.messages.length,
                           itemBuilder: (context, index) {
@@ -253,9 +258,13 @@ class _ChatPageState extends State<ChatPage> {
             : null,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final split = constraints.maxWidth >= 720;
+            final padding = ResponsiveLayout.pagePaddingForWidth(
+              constraints.maxWidth,
+            );
+            final availableWidth = constraints.maxWidth - padding.horizontal;
+            final split = availableWidth >= 720;
             return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              padding: padding,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -269,15 +278,20 @@ class _ChatPageState extends State<ChatPage> {
                       border: Border.all(color: JobMateTheme.divider),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    height: math.max(520, constraints.maxHeight - 180),
+                    height: !split && widget.conversationId != null
+                        ? null
+                        : math.max(
+                            520 *
+                                (MediaQuery.textScalerOf(context).scale(14) /
+                                    14),
+                            constraints.maxHeight - 180,
+                          ),
                     child: split
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               SizedBox(
-                                width: MediaQuery.sizeOf(context).width >= 1024
-                                    ? 320
-                                    : 288,
+                                width: availableWidth >= 900 ? 320 : 288,
                                 child: Padding(
                                   padding: const EdgeInsets.all(12),
                                   child: list,

@@ -53,7 +53,7 @@ class DemoPage extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 onPressed: () => moduleBack(context, back!),
-                icon: const Icon(Icons.arrow_back),
+                icon: kIsWeb ? null : const Icon(Icons.arrow_back),
                 label: const Text('Back'),
               ),
             ),

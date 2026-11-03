@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../shared/widgets/auth_layout.dart';
+
 import 'admin_dashboard_page.dart';
 import '../home/home_page.dart';
 import 'accept_admin_invitation_page.dart';
@@ -133,18 +135,15 @@ class _AdminInvitationGateState extends State<AdminInvitationGate> {
 
   Widget _statusPage(String message) {
     return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(message, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(onPressed: _reload, child: const Text('Retry')),
-              TextButton(onPressed: _signOut, child: const Text('Sign out')),
-            ],
-          ),
+      body: AuthLayout(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton(onPressed: _reload, child: const Text('Retry')),
+            TextButton(onPressed: _signOut, child: const Text('Sign out')),
+          ],
         ),
       ),
     );

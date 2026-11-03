@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/auth_style.dart';
 import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/widgets/mobile_back_action.dart';
 import '../../shared/navigation/app_routes.dart';
 import 'terms_privacy_page.dart';
 
@@ -16,7 +17,8 @@ class SignUpPage extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignUpPage> {
-  static const _allowedPasswordSymbols = r"""!@#$%^&*()_+-=[]{};':"\|<>?,./`~""";
+  static const _allowedPasswordSymbols =
+      r"""!@#$%^&*()_+-=[]{};':"\|<>?,./`~""";
 
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -204,15 +206,9 @@ class _SignUpPageState extends State<SignUpPage> {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           const Text('I agree to the'),
-                          _policyLink(
-                            'Terms of Service',
-                            PolicySection.terms,
-                          ),
+                          _policyLink('Terms of Service', PolicySection.terms),
                           const Text('and'),
-                          _policyLink(
-                            'Privacy Policy',
-                            PolicySection.privacy,
-                          ),
+                          _policyLink('Privacy Policy', PolicySection.privacy),
                           const Text('.'),
                         ],
                       ),
@@ -240,7 +236,7 @@ class _SignUpPageState extends State<SignUpPage> {
               TextButton(
                 onPressed: _isLoading
                     ? null
-                    : () => context.pop(),
+                    : () => returnToPage(context, AppRoutes.home),
                 child: const Text('Already have an account? Sign in'),
               ),
             ],
@@ -325,7 +321,10 @@ class _SignUpPageState extends State<SignUpPage> {
         selected: selected,
         activeColor: AuthStyle.teal,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        secondary: Icon(icon, color: selected ? AuthStyle.teal : colors.outline),
+        secondary: Icon(
+          icon,
+          color: selected ? AuthStyle.teal : colors.outline,
+        ),
         title: Text(
           title,
           style: const TextStyle(
@@ -442,16 +441,20 @@ class _SignUpPageState extends State<SignUpPage> {
                       ? Icons.check_circle
                       : Icons.radio_button_unchecked,
                   size: 16,
-                  color: requirement.value ? AuthStyle.success : AuthStyle.muted,
+                  color: requirement.value
+                      ? AuthStyle.success
+                      : AuthStyle.muted,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  requirement.key,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: requirement.value
-                        ? AuthStyle.success
-                        : AuthStyle.body,
+                Expanded(
+                  child: Text(
+                    requirement.key,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: requirement.value
+                          ? AuthStyle.success
+                          : AuthStyle.body,
+                    ),
                   ),
                 ),
               ],
@@ -513,10 +516,7 @@ class _SignUpPageState extends State<SignUpPage> {
       final response = await Supabase.instance.client.auth.signUp(
         password: password,
         email: email,
-        data: {
-          'name': name,
-          'requested_role': _selectedRole,
-        },
+        data: {'name': name, 'requested_role': _selectedRole},
       );
 
       if (!mounted) return;

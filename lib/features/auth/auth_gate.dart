@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../shared/widgets/auth_layout.dart';
+
 import 'login_page.dart';
 import '../admin/admin_invitation_gate.dart';
 
@@ -33,7 +35,7 @@ class _AuthGateState extends State<AuthGate> {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return const Scaffold(
-            body: Center(
+            body: AuthLayout(
               child: Text(
                 'Unable to update authentication status. '
                 'Check your connection and restart the app.',

@@ -163,9 +163,8 @@ class _AcceptAdminInvitationPageState extends State<AcceptAdminInvitationPage> {
           ? 'Accepting invitation...'
           : 'Setting up your account...',
       child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          leading: mobileBackLeading(context),
+        appBar: ResponsivePageAppBar(
+          showReturnAction: false,
           title: const Text('Accept admin invitation'),
           actions: [
             TextButton(

@@ -13,12 +13,10 @@ class DocumentSubmissionPage extends StatefulWidget {
   const DocumentSubmissionPage({super.key});
 
   @override
-  State<DocumentSubmissionPage> createState() =>
-      _DocumentSubmissionPageState();
+  State<DocumentSubmissionPage> createState() => _DocumentSubmissionPageState();
 }
 
-class _DocumentSubmissionPageState
-    extends State<DocumentSubmissionPage> {
+class _DocumentSubmissionPageState extends State<DocumentSubmissionPage> {
   final _supabase = Supabase.instance.client;
   final _user = Supabase.instance.client.auth.currentUser;
 
@@ -49,13 +47,10 @@ class _DocumentSubmissionPageState
       (_verificationStatus == 'not_submitted' ||
           _verificationStatus == 'rejected');
 
-  bool get _canSubmit =>
-      _canChoose && _fileBytes != null;
+  bool get _canSubmit => _canChoose && _fileBytes != null;
 
   String get _documentTitle =>
-      _role == 'employer'
-          ? 'Company Supporting Document'
-          : 'Resume';
+      _role == 'employer' ? 'Company Supporting Document' : 'Resume';
 
   @override
   void initState() {
@@ -72,8 +67,7 @@ class _DocumentSubmissionPageState
     try {
       final user = _user;
 
-      if (user == null ||
-          _supabase.auth.currentUser?.id != user.id) {
+      if (user == null || _supabase.auth.currentUser?.id != user.id) {
         throw StateError('Please log in again.');
       }
 
@@ -85,9 +79,7 @@ class _DocumentSubmissionPageState
 
       final history = await _supabase
           .from('verification_requests')
-          .select(
-            'request_id, status, submitted_at, review_comment',
-          )
+          .select('request_id, status, submitted_at, review_comment')
           .eq('user_id', user.id)
           .order('submitted_at', ascending: false)
           .limit(5);
@@ -96,10 +88,8 @@ class _DocumentSubmissionPageState
 
       setState(() {
         _role = (profile['role'] as String?) ?? '';
-        _accountStatus =
-            (profile['status'] as String?) ?? '';
-        _verificationStatus =
-            (profile['verification_status'] as String?) ?? '';
+        _accountStatus = (profile['status'] as String?) ?? '';
+        _verificationStatus = (profile['verification_status'] as String?) ?? '';
 
         _history = List<Map<String, dynamic>>.from(history);
       });
@@ -109,8 +99,7 @@ class _DocumentSubmissionPageState
       if (!mounted) return;
 
       setState(() {
-        _loadError =
-            'Unable to load submissions. Please try again.';
+        _loadError = 'Unable to load submissions. Please try again.';
       });
     } finally {
       if (mounted) {
@@ -137,33 +126,25 @@ class _DocumentSubmissionPageState
         uniformTypeIdentifiers: ['com.adobe.pdf'],
       );
 
-      final file = await openFile(
-        acceptedTypeGroups: [pdfType],
-      );
+      final file = await openFile(acceptedTypeGroups: [pdfType]);
 
       if (file == null) return;
 
       final size = await file.length();
 
       if (size == 0 || size > 5 * 1024 * 1024) {
-        throw const FormatException(
-          'Choose a non-empty PDF below 5 MiB.',
-        );
+        throw const FormatException('Choose a non-empty PDF below 5 MiB.');
       }
 
       if (file.name.runes.length > 255) {
-        throw const FormatException(
-          'Please shorten the filename.',
-        );
+        throw const FormatException('Please shorten the filename.');
       }
 
       final bytes = await file.readAsBytes();
 
       // 基础 PDF header 检查，不是完整文件内容验证。
       if (String.fromCharCodes(bytes.take(5)) != '%PDF-') {
-        throw const FormatException(
-          'This file does not appear to be a PDF.',
-        );
+        throw const FormatException('This file does not appear to be a PDF.');
       }
 
       if (!mounted) return;
@@ -196,20 +177,16 @@ class _DocumentSubmissionPageState
     final filename = _fileName;
     final requestId = _requestId;
 
-    if (user == null ||
-        _supabase.auth.currentUser?.id != user.id) {
+    if (user == null || _supabase.auth.currentUser?.id != user.id) {
       _showMessage('Please log in again.');
       return;
     }
 
-    if (bytes == null ||
-        filename == null ||
-        requestId == null) {
+    if (bytes == null || filename == null || requestId == null) {
       return;
     }
 
-    final path =
-        '${user.id}/$requestId/document.pdf';
+    final path = '${user.id}/$requestId/document.pdf';
 
     setState(() {
       _isWorking = true;
@@ -295,40 +272,32 @@ class _DocumentSubmissionPageState
   }
 
   String _formatDate(Object? value) {
-    final date = DateTime.tryParse(
-      value?.toString() ?? '',
-    )?.toLocal();
+    final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
 
     if (date == null) return 'Not available';
 
     final formatter = MaterialLocalizations.of(context);
 
     return '${formatter.formatMediumDate(date)}, '
-        '${formatter.formatTimeOfDay(
-          TimeOfDay.fromDateTime(date),
-          alwaysUse24HourFormat: true,
-        )}';
+        '${formatter.formatTimeOfDay(TimeOfDay.fromDateTime(date), alwaysUse24HourFormat: true)}';
   }
 
   void _showMessage(String message) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     return LoadingOverlay(
       isLoading: _isBusy,
-      message: _isWorking
-          ? _loadingMessage
-          : 'Loading submissions...',
+      message: _isWorking ? _loadingMessage : 'Loading submissions...',
       child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          leading: mobileBackLeading(context),
+        appBar: ResponsivePageAppBar(
+          enabled: !_isBusy,
+          hasUnsavedChanges: () => _fileBytes != null,
           title: const Text('Verification Documents'),
           actions: [
             IconButton(
@@ -351,10 +320,7 @@ class _DocumentSubmissionPageState
                   child: const Text('Try again'),
                 ),
               ] else ...[
-                Text(
-                  _documentTitle,
-                  style: const TextStyle(fontSize: 24),
-                ),
+                Text(_documentTitle, style: const TextStyle(fontSize: 24)),
                 const SizedBox(height: 12),
 
                 Text(
@@ -373,9 +339,7 @@ class _DocumentSubmissionPageState
                   onPressed: _canChoose ? _choosePdf : null,
                   icon: const Icon(Icons.attach_file),
                   label: Text(
-                    _fileBytes == null
-                        ? 'Choose PDF'
-                        : 'Replace selected PDF',
+                    _fileBytes == null ? 'Choose PDF' : 'Replace selected PDF',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -383,35 +347,27 @@ class _DocumentSubmissionPageState
                 Text(_fileName ?? 'No file selected'),
 
                 if (_fileBytes != null)
-                  Text(
-                    '${(_fileBytes!.length / 1024).toStringAsFixed(0)} KiB',
-                  ),
+                  Text('${(_fileBytes!.length / 1024).toStringAsFixed(0)} KiB'),
 
                 const SizedBox(height: 20),
 
                 FilledButton(
                   onPressed: _canSubmit ? _submit : null,
                   child: Text(
-                    _fileUploaded
-                        ? 'Retry submission'
-                        : 'Submit for review',
+                    _fileUploaded ? 'Retry submission' : 'Submit for review',
                   ),
                 ),
 
                 if (_verificationStatus == 'pending')
                   const Padding(
                     padding: EdgeInsets.only(top: 16),
-                    child: Text(
-                      'Your documents are awaiting review.',
-                    ),
+                    child: Text('Your documents are awaiting review.'),
                   ),
 
                 if (_verificationStatus == 'verified')
                   const Padding(
                     padding: EdgeInsets.only(top: 16),
-                    child: Text(
-                      'Your account has been verified.',
-                    ),
+                    child: Text('Your account has been verified.'),
                   ),
 
                 const SizedBox(height: 28),
@@ -433,9 +389,7 @@ class _DocumentSubmissionPageState
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(
-                      _statusLabel(
-                        (request['status'] as String?) ?? '',
-                      ),  
+                      _statusLabel((request['status'] as String?) ?? ''),
                     ),
                     subtitle: Text(
                       '${_formatDate(request['submitted_at'])}\n'

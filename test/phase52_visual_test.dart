@@ -54,7 +54,14 @@ void main() {
     }
   });
 
-  for (final width in [390.0, 1440.0]) {
+  for (final scenario in [
+    (const Size(390, 1000), 1.0),
+    (const Size(1440, 1000), 1.0),
+    (const Size(320, 720), 1.6),
+    (const Size(568, 320), 1.3),
+  ]) {
+    final width = scenario.$1.width;
+    final scale = scenario.$2;
     for (final screen in [
       'browse',
       'job-detail',
@@ -82,8 +89,10 @@ void main() {
       'admin-reports',
       'settings',
     ]) {
-      testWidgets('Phase 5.2 $screen at $width', (tester) async {
-        tester.view.physicalSize = Size(width, 1000);
+      testWidgets('Phase 5.2 $screen at ${scenario.$1} / text $scale', (
+        tester,
+      ) async {
+        tester.view.physicalSize = scenario.$1;
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
@@ -174,6 +183,11 @@ void main() {
           RepaintBoundary(
             key: boundaryKey,
             child: MaterialApp.router(
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: TextScaler.linear(scale)),
+                child: child!,
+              ),
               debugShowCheckedModeBanner: false,
               theme: JobMateTheme.light(),
               routerConfig: router,
@@ -192,7 +206,7 @@ void main() {
           final image = await boundary.toImage(pixelRatio: 1);
           final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
           final file = File(
-            'build/phase52-review/$screen-${width.toInt()}.png',
+            'build/phase52-review/$screen-${width.toInt()}-text-$scale.png',
           );
           await file.parent.create(recursive: true);
           await file.writeAsBytes(bytes!.buffer.asUint8List());

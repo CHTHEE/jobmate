@@ -78,9 +78,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
       await _loadNotifications();
     } on PostgrestException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
       }
     }
   }
@@ -88,8 +87,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: mobileBackLeading(context),
+      appBar: ResponsivePageAppBar(
         title: const Text('Notifications'),
         actions: [
           IconButton(
@@ -122,7 +120,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   ),
                 )
               : _notifications.isEmpty
-              ? const Center(child: Text('You do not have any notifications yet.'))
+              ? const Center(
+                  child: Text('You do not have any notifications yet.'),
+                )
               : ListView.builder(
                   padding: ResponsiveLayout.pagePadding(context),
                   itemCount: _notifications.length,
@@ -149,7 +149,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
                               Text(item['message'] as String? ?? ''),
                               if (createdAt != null) ...[
                                 const SizedBox(height: 6),
-                                Text(createdAt.replaceFirst('T', ' ').split('.').first),
+                                Text(
+                                  createdAt
+                                      .replaceFirst('T', ' ')
+                                      .split('.')
+                                      .first,
+                                ),
                               ],
                             ],
                           ),

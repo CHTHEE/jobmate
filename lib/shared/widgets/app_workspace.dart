@@ -7,6 +7,7 @@ import '../navigation/app_routes.dart';
 import 'auth_style.dart';
 import '../theme/jobmate_theme.dart';
 import '../navigation/workspace_destinations.dart';
+import 'responsive_layout.dart';
 
 const upcomingModules = <(String, IconData)>[];
 
@@ -39,7 +40,7 @@ class AppWorkspace extends StatelessWidget {
       data: base,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final desktop = constraints.maxWidth >= 768;
+          final desktop = ResponsiveLayout.usesSidebar(constraints.maxWidth);
           void navigate(String destination, {bool closeDrawer = false}) {
             if (navigationLocked) return;
             if (closeDrawer && !desktop) Navigator.of(context).pop();
@@ -274,7 +275,19 @@ class AppWorkspace extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              actions: actions,
+              actions: [
+                if (!kIsWeb && !desktop && leading != null)
+                  Builder(
+                    builder: (context) => IconButton(
+                      tooltip: 'Open navigation menu',
+                      onPressed: navigationLocked
+                          ? null
+                          : () => Scaffold.of(context).openDrawer(),
+                      icon: const Icon(Icons.menu),
+                    ),
+                  ),
+                ...actions,
+              ],
             ),
             body: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -295,16 +308,10 @@ class WorkspaceContent extends StatelessWidget {
   final Widget child;
   final double maxWidth;
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    padding: EdgeInsets.symmetric(
-      horizontal: MediaQuery.sizeOf(context).width >= 768 ? 24 : 16,
-      vertical: MediaQuery.sizeOf(context).width >= 768 ? 32 : 24,
-    ),
-    child: Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: SizedBox(width: double.infinity, child: child),
-      ),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => SingleChildScrollView(
+      padding: ResponsiveLayout.pagePaddingForWidth(constraints.maxWidth),
+      child: ResponsiveContent(maxWidth: maxWidth, child: child),
     ),
   );
 }

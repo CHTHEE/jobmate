@@ -141,7 +141,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   }
 
   Widget _buildFilters(BuildContext context) {
-    final compact = ResponsiveLayout.isCompact(context);
     final roleSelector = DropdownButtonFormField<String>(
       initialValue: _role,
       decoration: const InputDecoration(labelText: 'Role'),
@@ -172,19 +171,12 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
             },
     );
 
-    if (compact) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [roleSelector, const SizedBox(height: 12), statusSelector],
-      );
-    }
-
     return Wrap(
       spacing: 12,
       runSpacing: 12,
       children: [
-        SizedBox(width: 210, child: roleSelector),
-        SizedBox(width: 210, child: statusSelector),
+        ResponsiveFilter(width: 210, child: roleSelector),
+        ResponsiveFilter(width: 210, child: statusSelector),
       ],
     );
   }
@@ -205,79 +197,54 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       child: SafeArea(
         child: ResponsiveContent(
           maxWidth: 896,
-          child: Column(
+          child: ListView(
+            padding: ResponsiveLayout.pagePadding(context),
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(24, 24, 24, 0),
-                child: PageHeading(
-                  title: 'User management',
-                  description: 'Review real account records using the existing administrator permissions.',
-                ),
+              const PageHeading(
+                title: 'User management',
+                description: 'Review real account records using the existing administrator permissions.',
               ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  ResponsiveLayout.pagePadding(context).horizontal,
-                  ResponsiveLayout.pagePadding(context).vertical,
-                  ResponsiveLayout.pagePadding(context).horizontal,
-                  8,
-                ),
-                child: _buildFilters(context),
-              ),
-              Expanded(
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _error != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(_error!, textAlign: TextAlign.center),
-                              const SizedBox(height: 12),
-                              FilledButton(
-                                onPressed: _loadUsers,
-                                child: const Text('Retry'),
-                              ),
-                            ],
-                          ),
+              _buildFilters(context),
+              const SizedBox(height: 20),
+              _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_error!, textAlign: TextAlign.center),
+                            const SizedBox(height: 12),
+                            FilledButton(
+                              onPressed: _loadUsers,
+                              child: const Text('Retry'),
+                            ),
+                          ],
                         ),
-                      )
-                    : _users.isEmpty
-                    ? const Center(child: Text('No users match these filters.'))
-                    : ListView.builder(
-                        padding: EdgeInsets.fromLTRB(
-                          ResponsiveLayout.pagePadding(context).horizontal,
-                          8,
-                          ResponsiveLayout.pagePadding(context).horizontal,
-                          8,
-                        ),
-                        itemCount: _users.length,
-                        itemBuilder: (context, index) =>
-                            _buildUserCard(_users[index]),
                       ),
-              ),
+                    )
+                  : _users.isEmpty
+                  ? const Center(child: Text('No users match these filters.'))
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final user in _users) _buildUserCard(user),
+                      ],
+                    ),
               Padding(
                 padding: EdgeInsets.all(
                   ResponsiveLayout.isCompact(context) ? 8 : 12,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TextButton(
-                      onPressed: _loading || _offset == 0
-                          ? null
-                          : () => _changePage(-_pageSize),
-                      child: const Text('Previous'),
-                    ),
-                    Text('Page ${_offset ~/ _pageSize + 1}'),
-                    TextButton(
-                      onPressed: _loading || !_hasMore
-                          ? null
-                          : () => _changePage(_pageSize),
-                      child: const Text('Next'),
-                    ),
-                  ],
+                child: ResponsivePagination(
+                  page: _offset ~/ _pageSize + 1,
+                  onPrevious: _loading || _offset == 0
+                      ? null
+                      : () => _changePage(-_pageSize),
+                  onNext: _loading || !_hasMore
+                      ? null
+                      : () => _changePage(_pageSize),
                 ),
               ),
             ],

@@ -128,9 +128,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         isLoading: _isBusy,
         message: _passwordChanged ? 'Signing out...' : 'Changing password...',
         child: Scaffold(
-          appBar: AppBar(
-            automaticallyImplyLeading: false,
-            leading: mobileBackLeading(context),
+          appBar: ResponsivePageAppBar(
+            enabled: !_isBusy && !_passwordChanged,
+            hasUnsavedChanges: () =>
+                _passwordController.text.isNotEmpty ||
+                _confirmController.text.isNotEmpty,
             title: const Text('Change Password'),
           ),
           body: AuthLayout(

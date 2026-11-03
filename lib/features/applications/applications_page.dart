@@ -322,7 +322,7 @@ class ApplicationDetailsPage extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     onPressed: () => moduleBack(context, path),
-                    icon: const Icon(Icons.arrow_back),
+                    icon: kIsWeb ? null : const Icon(Icons.arrow_back),
                     label: const Text('Back to Applications'),
                   ),
                 ),

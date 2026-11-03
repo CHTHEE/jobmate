@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'responsive_layout.dart';
+
 class AppStartupException implements Exception {
   const AppStartupException(this.message);
   final String message;
@@ -48,8 +50,8 @@ class _AppStartupState extends State<AppStartup> {
             child: Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 440),
+                child: ResponsiveContent(
+                  maxWidth: 440,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [

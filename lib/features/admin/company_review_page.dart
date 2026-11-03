@@ -207,8 +207,8 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_working,
     child: Scaffold(
-      appBar: AppBar(
-        leading: mobileBackLeading(context),
+      appBar: ResponsivePageAppBar(
+        enabled: !_busy,
         title: const Text('Company Verification'),
         actions: [
           IconButton(
@@ -266,25 +266,14 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
                               _requestCard(request),
                           const SizedBox(height: 20),
                           if (_error == null || _offset > 0)
-                            Wrap(
-                              alignment: WrapAlignment.spaceBetween,
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                TextButton(
-                                  onPressed: _busy || _offset == 0
-                                      ? null
-                                      : () => _changePage(-_pageSize),
-                                  child: const Text('Previous'),
-                                ),
-                                Text('Page ${_offset ~/ _pageSize + 1}'),
-                                TextButton(
-                                  onPressed: _busy || !_hasMore
-                                      ? null
-                                      : () => _changePage(_pageSize),
-                                  child: const Text('Next'),
-                                ),
-                              ],
+                            ResponsivePagination(
+                              page: _offset ~/ _pageSize + 1,
+                              onPrevious: _busy || _offset == 0
+                                  ? null
+                                  : () => _changePage(-_pageSize),
+                              onNext: _busy || !_hasMore
+                                  ? null
+                                  : () => _changePage(_pageSize),
                             ),
                         ],
                       ),

@@ -337,9 +337,12 @@ class _InviteAdminPageState extends State<InviteAdminPage> {
       isLoading: _isSending,
       message: 'Sending invitation...',
       child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          leading: mobileBackLeading(context),
+        appBar: ResponsivePageAppBar(
+          enabled: !_isSending,
+          hasUnsavedChanges: () =>
+              !_sent &&
+              (_nameController.text.isNotEmpty ||
+                  _emailController.text.isNotEmpty),
           title: const Text('Admin invitation'),
         ),
         body: AuthLayout(child: _sent ? _buildSuccess() : _buildForm()),

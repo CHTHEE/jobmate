@@ -6,6 +6,7 @@ import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
+import '../../shared/widgets/responsive_layout.dart';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
@@ -556,20 +557,18 @@ class _ProfilePageState extends State<ProfilePage> {
 
           const SizedBox(height: 20),
 
-          Row(
+          ResponsiveGrid(
+            minItemWidth: 200,
+            maxColumns: 2,
+            spacing: 12,
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _isBusy ? null : _cancelEditing,
-                  child: const Text('Cancel'),
-                ),
+              OutlinedButton(
+                onPressed: _isBusy ? null : _cancelEditing,
+                child: const Text('Cancel'),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton(
-                  onPressed: _canEdit ? _saveProfile : null,
-                  child: const Text('Save Changes'),
-                ),
+              FilledButton(
+                onPressed: _canEdit ? _saveProfile : null,
+                child: const Text('Save Changes'),
               ),
             ],
           ),

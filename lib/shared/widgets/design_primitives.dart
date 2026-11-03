@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/jobmate_theme.dart';
+import 'responsive_layout.dart';
 
 /// A visual summary only: callers own the score, provenance and explanation.
 class ScoreRing extends StatelessWidget {
@@ -100,7 +101,7 @@ class PageHeading extends StatelessWidget {
             ],
           ],
         );
-        if (box.maxWidth < 600) {
+        if (ResponsiveLayout.isCompactWidth(box.maxWidth)) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -118,7 +119,9 @@ class PageHeading extends StatelessWidget {
             Expanded(child: heading),
             if (actions.isNotEmpty) ...[
               const SizedBox(width: 24),
-              Wrap(spacing: 12, runSpacing: 12, children: actions),
+              Flexible(
+                child: Wrap(spacing: 12, runSpacing: 12, children: actions),
+              ),
             ],
           ],
         );
@@ -213,29 +216,8 @@ class StatGrid extends StatelessWidget {
   const StatGrid({super.key, required this.children});
   final List<Widget> children;
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, box) {
-      final maximum =
-          MediaQuery.sizeOf(context).width >= 768 && box.maxWidth >= 400
-          ? 4
-          : box.maxWidth >= 280
-          ? 2
-          : 1;
-      if (children.isEmpty) return const SizedBox.shrink();
-      final columns = children.length < maximum ? children.length : maximum;
-      return Wrap(
-        spacing: 16,
-        runSpacing: 16,
-        children: [
-          for (final child in children)
-            SizedBox(
-              width: (box.maxWidth - 16 * (columns - 1)) / columns,
-              child: child,
-            ),
-        ],
-      );
-    },
-  );
+  Widget build(BuildContext context) =>
+      ResponsiveGrid(minItemWidth: 140, maxColumns: 4, children: children);
 }
 
 class BrandPanel extends StatelessWidget {

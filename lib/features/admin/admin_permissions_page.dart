@@ -117,18 +117,16 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(
-          '${enabled ? 'Grant' : 'Revoke'} $permissionName?',
-        ),
+        title: Text('${enabled ? 'Grant' : 'Revoke'} $permissionName?'),
         content: Text(
           enabled
               ? isReviewPermission
                     ? 'Allow $name to review Company documents?'
                     : 'Allow $name to send administrator invitations?'
               : isReviewPermission
-                    ? 'Remove $name\'s access to Company review documents?'
-                    : '$name will no longer be able to send invitations. '
-                          'Their unaccepted invitations will be revoked.',
+              ? 'Remove $name\'s access to Company review documents?'
+              : '$name will no longer be able to send invitations. '
+                    'Their unaccepted invitations will be revoked.',
         ),
         actions: [
           TextButton(
@@ -262,11 +260,8 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
               value: canInvite,
               onChanged: _isBusy || isCurrentAdmin
                   ? null
-                  : (value) => _changePermission(
-                      admin,
-                      'can_invite_admins',
-                      value,
-                    ),
+                  : (value) =>
+                        _changePermission(admin, 'can_invite_admins', value),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -277,11 +272,8 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
               value: canReviewCompanies,
               onChanged: _isBusy || isCurrentAdmin
                   ? null
-                  : (value) => _changePermission(
-                      admin,
-                      'can_review_companies',
-                      value,
-                    ),
+                  : (value) =>
+                        _changePermission(admin, 'can_review_companies', value),
             ),
           ],
         ),
@@ -316,40 +308,29 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
     return ResponsiveContent(
       maxWidth: 840,
       child: ListView(
-          padding: ResponsiveLayout.pagePadding(context),
-          children: [
-            const Text(
-              'Administrator permissions',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'The Superadmin assigns invitation and Company review access. '
-              'Administrators cannot change their own permissions.',
-            ),
-            const SizedBox(height: 24),
-            if (_admins.isEmpty) const Text('No administrators on this page.'),
-            for (final admin in _admins) _buildAdminCard(admin),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  onPressed: _isBusy || _offset == 0
-                      ? null
-                      : () => _changePage(-_pageSize),
-                  child: const Text('Previous'),
-                ),
-                Text('Page ${_offset ~/ _pageSize + 1}'),
-                TextButton(
-                  onPressed: _isBusy || !_hasMore
-                      ? null
-                      : () => _changePage(_pageSize),
-                  child: const Text('Next'),
-                ),
-              ],
-            ),
-          ],
+        padding: ResponsiveLayout.pagePadding(context),
+        children: [
+          const Text(
+            'Administrator permissions',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'The Superadmin assigns invitation and Company review access. '
+            'Administrators cannot change their own permissions.',
+          ),
+          const SizedBox(height: 24),
+          if (_admins.isEmpty) const Text('No administrators on this page.'),
+          for (final admin in _admins) _buildAdminCard(admin),
+          const SizedBox(height: 8),
+          ResponsivePagination(
+            page: _offset ~/ _pageSize + 1,
+            onPrevious: _isBusy || _offset == 0
+                ? null
+                : () => _changePage(-_pageSize),
+            onNext: _isBusy || !_hasMore ? null : () => _changePage(_pageSize),
+          ),
+        ],
       ),
     );
   }
@@ -360,9 +341,8 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
       isLoading: _isUpdating,
       message: 'Updating invitation permission...',
       child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          leading: mobileBackLeading(context),
+        appBar: ResponsivePageAppBar(
+          enabled: !_isBusy,
           title: const Text('Admin permissions'),
           actions: [
             IconButton(

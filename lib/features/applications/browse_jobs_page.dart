@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import '../jobs/job_display.dart';
 import 'module2_repository.dart';
 import 'module2_widgets.dart';
@@ -101,10 +102,7 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                     },
                     onChanged: (v) => setState(() => arrangement = v),
                   ),
-                  SizedBox(
-                    width: MediaQuery.sizeOf(context).width < 600
-                        ? MediaQuery.sizeOf(context).width - 32
-                        : 220,
+                  ResponsiveFilter(
                     child: TextField(
                       controller: location,
                       onChanged: (_) => setState(() {}),

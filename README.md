@@ -94,7 +94,7 @@ These are mandatory development conventions, not a claim that every existing scr
 
 - Share business logic, validation, authentication and the Supabase backend across platforms. Keep branding, terminology, colors and functionality consistent.
 - Use `kIsWeb` for actual platform behavior; use responsive layout constraints for screen-size adaptation. A narrow screen does not mean Android; a wide screen does not mean Web.
-- Reuse `LayoutBuilder`, `ResponsiveLayout`, `ResponsiveContent` and existing workspace patterns where appropriate. Shared responsive breakpoints are 600 and 1024 logical pixels; `AppWorkspace` switches between sidebar and drawer at 1024.
+- Reuse `LayoutBuilder`, `ResponsiveLayout`, `ResponsiveContent` and existing workspace patterns where appropriate. Shared content breakpoints are 600 and 1024 logical pixels; the current workspace/sidebar breakpoint is separately defined as 768 in `ResponsiveLayout.navigationBreakpoint` (the Phase 5.1 convention).
 - Avoid horizontal overflow and inaccessible controls.
 
 ### Web requirements
@@ -856,6 +856,61 @@ required. No commit or push was made.
 - Other presentation: `lib/features/chat/chat_page.dart`, `lib/features/location/location_pages.dart`, `lib/features/admin/admin_users_page.dart`, `lib/features/phase4/{evaluation_pages,reputation_page,admin_preview_pages}.dart`. Payment pages inherit updated shared summaries and modals.
 - Documentation/verification: new `APPLICATION_MANAGEMENT_INTEGRATION_PLAN.md`, `PHASE52_SCREEN_AUDIT.md`, `test/phase52_visual_test.dart`, and this README.
 - Prior Phase 5.1 edits/assets remain uncommitted and preserved. No new package dependency.
+
+## Responsive layout and navigation audit (November 2026)
+
+All routed screen families share the existing responsive containers. A page does
+not need to duplicate breakpoints or import the helper when its `AuthLayout`,
+`WorkspaceContent` or `DemoPage` already supplies it:
+
+| Screen family | Shared responsive entry |
+| --- | --- |
+| Login, registration, email verification, password recovery/change, administrator invitation/acceptance | `AuthLayout` |
+| Home, personal profile, company registration/profile, employer posting list/create/edit | `AppWorkspace` + `WorkspaceContent` |
+| Job browsing/details, applications/applicants, account settings | `AppWorkspace` + `WorkspaceContent` |
+| Recommendations, attendance/evidence/history/report, workers, location, evaluations, reputation, payment records, extended profile previews and admin sandbox | `DemoPage` + `WorkspaceContent` |
+| Chat | `AppWorkspace` + content-constrained split/list layout and responsive padding |
+| Real admin dashboard | `ResponsiveLayout` + content-height `ResponsiveGrid` |
+| Real admin directory/permissions/company verification, notifications, policies | `ResponsiveContent` + scrollable lists and responsive padding |
+| Startup/auth/invitation failure states | Shared responsive content/auth containers; loading-only spinners need no multi-column layout |
+
+Content padding follows available width: 16 px below 600, 24 px below 1024,
+otherwise 32 px. Navigation retains the existing 768 px sidebar/drawer switch;
+both the shell and job form now use that single rule. `WorkspaceContent` measures
+the content region after the sidebar is removed. `ResponsiveGrid` calculates
+column widths and lets each card grow with its content; it reduces columns as
+text scaling grows. `ResponsiveFilter` sizes from parent constraints rather than
+subtracting guessed padding from the full viewport. Pagination can stack on a
+narrow screen. The real Users page scrolls headings, filters, records and paging
+together so short screens and keyboards do not squeeze a fixed-height column.
+
+Web routed pages use the shared `appPage` factory's `NoTransitionPage`; native
+pages retain `MaterialPage` transitions. No browser history API is replaced.
+Workspace pages keep sidebar/drawer exits and hide inferred Web back arrows.
+Standalone pages use `ResponsivePageAppBar`: no Web arrow/empty leading gap, a
+text return action, and native Back with a safe fallback for direct URLs.
+Detail-page return links keep their text without an arrow on Web. App return
+actions preserve existing `PopScope`/GoRouter exit checks; newly added form exits
+confirm before losing entered data. Existing job dirty-form guards and profile/
+company edit locks are retained. This does not add universal protection against
+browser refresh/tab closing or extend dirty checking to every system Back path.
+
+`test/responsive_navigation_test.dart` covers portrait/landscape/tablet/desktop,
+1.6x text scaling, content-height cards, keyboard insets, direct-route fallback,
+discard cancellation and platform page/arrow behavior. The existing Phase 5.2
+25-screen fixtures additionally cover 320 px / 1.6x text and 568x320 landscape /
+1.3x text. These are local fixtures, not live Supabase acceptance tests. No
+dependencies, backend schema, RLS or Supabase Dashboard changes are required.
+
+Validation for this pass: the full suite reports 367 passing tests and the two
+previously documented failures (the obsolete registration `CheckboxListTile`
+finder and the router-uninitialized counter smoke test). All 21 new responsive/
+navigation tests and all 100 expanded Phase 5.2 screen scenarios pass. Analysis
+retains the eight existing diagnostics (deprecated radio properties and unused
+home/profile declarations), with no new errors. Formatting, whitespace checks
+and Web compilation pass. Chrome runtime tests stalled while loading and were
+stopped; browser history/direct-URL acceptance and native Android device behavior
+remain unverified. No Supabase mutation, migration, commit or push was performed.
 
 ## 5. Security and Collaboration
 

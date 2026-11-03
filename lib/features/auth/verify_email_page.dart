@@ -55,9 +55,10 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
       isLoading: _isLoading,
       message: _loadingMessage,
       child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          leading: mobileBackLeading(context),
+        appBar: ResponsivePageAppBar(
+          enabled: !_isLoading,
+          hasUnsavedChanges: () => _codeController.text.isNotEmpty,
+          returnLabel: 'Sign in',
           title: const Text('Verify Email'),
         ),
         body: AuthLayout(
@@ -67,8 +68,10 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
             children: [
               const Text('Check Your Email', style: TextStyle(fontSize: 24)),
               const SizedBox(height: 16),
-              Text('Enter the confirmation code for ${widget.email}.'
-              'You can request a new code below if you did not receive the email.'),
+              Text(
+                'Enter the confirmation code for ${widget.email}.'
+                'You can request a new code below if you did not receive the email.',
+              ),
               const SizedBox(height: 24),
               TextField(
                 controller: _codeController,
@@ -79,12 +82,8 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
                 ),
                 keyboardType: TextInputType.number,
                 textInputAction: TextInputAction.done,
-                autofillHints: const [
-                  AutofillHints.oneTimeCode,
-                ],
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                ],
+                autofillHints: const [AutofillHints.oneTimeCode],
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               ),
               const SizedBox(height: 24),
               FilledButton(
@@ -92,7 +91,16 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
                 child: const Text('Verify Email'),
               ),
               const SizedBox(height: 8),
-              TextButton(onPressed: _isLoading || _secondsRemaining > 0 ? null : _resendCode, child: Text(_secondsRemaining > 0 ? 'Resend in ${_secondsRemaining}s' : 'Resend code',))
+              TextButton(
+                onPressed: _isLoading || _secondsRemaining > 0
+                    ? null
+                    : _resendCode,
+                child: Text(
+                  _secondsRemaining > 0
+                      ? 'Resend in ${_secondsRemaining}s'
+                      : 'Resend code',
+                ),
+              ),
             ],
           ),
         ),
@@ -101,11 +109,11 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
   }
 
   Future<void> _verifyCode() async {
-    if(_isLoading) return;
+    if (_isLoading) return;
 
     final code = _codeController.text.trim();
 
-    if(code.isEmpty){
+    if (code.isEmpty) {
       _showMessage('Please enter the code from your email.');
       return;
     }
@@ -114,30 +122,30 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
 
     setState(() {
       _isLoading = true;
-      _loadingMessage = 'Verifying email...' ;
+      _loadingMessage = 'Verifying email...';
     });
 
     try {
       final response = await Supabase.instance.client.auth.verifyOTP(
-        email: widget.email, 
+        email: widget.email,
         token: code,
-        type: OtpType.email
-        );
+        type: OtpType.email,
+      );
 
-      if(!mounted) return;
+      if (!mounted) return;
 
-      if(response.session == null){
+      if (response.session == null) {
         _showMessage('No session returned. Plases try logging in.');
         return;
       }
 
       context.go(AppRoutes.home);
-    } on AuthException catch (error){
+    } on AuthException catch (error) {
       _showMessage(error.message);
-    } catch(_) {
+    } catch (_) {
       _showMessage('Unable to verify the code. Please try again.');
     } finally {
-      if (mounted){
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
@@ -145,71 +153,66 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
     }
   }
 
-    Future<void> _resendCode() async {
-      if(_isLoading || _secondsRemaining > 0 ) return;
+  Future<void> _resendCode() async {
+    if (_isLoading || _secondsRemaining > 0) return;
+
+    setState(() {
+      _isLoading = true;
+      _loadingMessage = 'Requesting a new code...';
+    });
+
+    try {
+      await Supabase.instance.client.auth.resend(
+        email: widget.email,
+        type: OtpType.signup,
+      );
+
+      if (!mounted) return;
+
+      _codeController.clear();
 
       setState(() {
-        _isLoading = true;
-        _loadingMessage = 'Requesting a new code...';
+        _secondsRemaining = 60;
       });
 
-      try{
-        await Supabase.instance.client.auth.resend(
-          email: widget.email,
-          type: OtpType.signup,
-        );
-      
-        if(!mounted) return;
-
-        _codeController.clear();
-
+      _startCountdown();
+      _showMessage('Check your email for a new code.');
+    } on AuthException catch (error) {
+      _showMessage(error.message);
+    } catch (_) {
+      _showMessage('Unable to resend the code. Please try again.');
+    } finally {
+      if (mounted) {
         setState(() {
-          _secondsRemaining = 60;
+          _isLoading = false;
         });
-
-        _startCountdown();
-        _showMessage('Check your email for a new code.');
-      } on AuthException catch (error){
-        _showMessage(error.message);
-      } catch(_) {
-        _showMessage('Unable to resend the code. Please try again.');
-      } finally {
-        if(mounted){
-            setState(() {
-            _isLoading = false;
-          });
-        }
       }
     }
+  }
 
-      void _startCountdown(){
-      _cooldownTimer?.cancel();
+  void _startCountdown() {
+    _cooldownTimer?.cancel();
 
-      _cooldownTimer = Timer.periodic(
-        const Duration(seconds:1),
-        (timer){
-          if(!mounted) {
-            timer.cancel();
-            return;
-          }
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
 
-          setState(() {
-            _secondsRemaining--;
-          });
+      setState(() {
+        _secondsRemaining--;
+      });
 
-          if(_secondsRemaining <= 0){
-            timer.cancel();
-          }
-        }
-      );
-    }
+      if (_secondsRemaining <= 0) {
+        timer.cancel();
+      }
+    });
+  }
 
-    void _showMessage(String message){
-      if(!mounted) return;
+  void _showMessage(String message) {
+    if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    }
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
 }
-

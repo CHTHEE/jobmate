@@ -266,9 +266,7 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
               ],
               const SizedBox(height: 16),
               TextButton(
-                onPressed: _isBusy
-                    ? null
-                    : () => context.go(AppRoutes.home),
+                onPressed: _isBusy ? null : () => context.go(AppRoutes.home),
                 child: const Text('Back to login'),
               ),
             ],
@@ -285,9 +283,13 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
       isLoading: _isBusy,
       message: _loadingMessage,
       child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          leading: mobileBackLeading(context),
+        appBar: ResponsivePageAppBar(
+          enabled: !_isBusy,
+          hasUnsavedChanges: () => _codeController.text.isNotEmpty,
+          fallback: widget.isForgorPassword
+              ? AppRoutes.home
+              : AppRoutes.profile,
+          returnLabel: widget.isForgorPassword ? 'Sign in' : 'My profile',
           title: Text(
             widget.isForgorPassword ? 'Forgot Password' : 'Verify Your Email',
           ),

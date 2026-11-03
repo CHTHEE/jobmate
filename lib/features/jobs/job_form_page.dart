@@ -422,32 +422,8 @@ class JobFormPageState extends State<JobFormPage> {
     navigationLocked: busy,
     onNavigate: _navigate,
     leading: kIsWeb
-        ? Builder(
-            builder: (context) => MediaQuery.sizeOf(context).width < 1024
-                ? IconButton(
-                    tooltip: 'Open navigation menu',
-                    onPressed: busy
-                        ? null
-                        : () => Scaffold.of(context).openDrawer(),
-                    icon: const Icon(Icons.menu),
-                  )
-                : const SizedBox.shrink(),
-          )
+        ? null
         : BackButton(onPressed: busy ? null : _backToPostings),
-    actions: [
-      if (!kIsWeb)
-        Builder(
-          builder: (context) => MediaQuery.sizeOf(context).width < 1024
-              ? IconButton(
-                  tooltip: 'Open navigation menu',
-                  onPressed: busy
-                      ? null
-                      : () => Scaffold.of(context).openDrawer(),
-                  icon: const Icon(Icons.menu),
-                )
-              : const SizedBox.shrink(),
-        ),
-    ],
     child: loading
         ? const Center(child: CircularProgressIndicator())
         : WorkspaceContent(

@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/mobile_back_action.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import '../applications/module2_widgets.dart';
 import '../demo_work/demo_widgets.dart';
 import '../demo_work/local_attachment.dart';
@@ -63,10 +65,13 @@ class _AdminPreviewGateState extends State<AdminPreviewGate> {
     builder: (context, snapshot) {
       if (snapshot.data == true) return widget.child;
       return Scaffold(
-        appBar: AppBar(title: const Text('Administrator access')),
+        appBar: const ResponsivePageAppBar(
+          title: Text('Administrator access'),
+          showReturnAction: false,
+        ),
         body: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: ResponsiveLayout.pagePadding(context),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

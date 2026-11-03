@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'auth_style.dart';
@@ -26,14 +27,16 @@ class AuthLayout extends StatelessWidget {
           final padding = ResponsiveLayout.pagePaddingForWidth(
             constraints.maxWidth,
           );
-          return Align(
-            alignment: Alignment.topCenter,
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: padding,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 640),
-                  child: child,
+          return SafeArea(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: padding,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 640),
+                    child: child,
+                  ),
                 ),
               ),
             ),
@@ -100,8 +103,8 @@ class AuthLayout extends StatelessWidget {
                     child: Center(
                       child: SingleChildScrollView(
                         padding: EdgeInsets.symmetric(
-                          horizontal: pagePadding.horizontal,
-                          vertical: desktop ? 40 : pagePadding.vertical + 16,
+                          horizontal: pagePadding.left,
+                          vertical: desktop ? 40 : pagePadding.top + 16,
                         ),
                         child: ConstrainedBox(
                           constraints: BoxConstraints(
@@ -111,17 +114,19 @@ class AuthLayout extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              if (!desktop) ...[
+                              if (!desktop ||
+                                  (showMobileBackButton && !kIsWeb)) ...[
                                 Row(
                                   children: [
-                                    if (showMobileBackButton) ...[
+                                    if (showMobileBackButton && !kIsWeb) ...[
                                       const MobileBackAction(),
                                       const SizedBox(width: 8),
                                     ],
-                                    const AuthWordmark(),
+                                    if (!desktop)
+                                      const Flexible(child: AuthWordmark()),
                                   ],
                                 ),
-                                const SizedBox(height: 40),
+                                SizedBox(height: desktop ? 16 : 40),
                               ],
                               child,
                             ],
