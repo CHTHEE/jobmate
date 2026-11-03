@@ -40,6 +40,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     await context.push<void>(AppRoutes.companyReviews);
     if (mounted) await _loadAccess();
   }
+
   Future<void> _loadAdminProfile() async {
     final client = Supabase.instance.client;
     final actorId = client.auth.currentUser?.id;
@@ -51,7 +52,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           .select('name, profile_image_url')
           .eq('user_id', actorId)
           .maybeSingle();
-      if (!mounted || client.auth.currentUser?.id != actorId || profile == null) {
+      if (!mounted ||
+          client.auth.currentUser?.id != actorId ||
+          profile == null) {
         return;
       }
 
@@ -107,15 +110,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       final summaryData = await client.rpc('get_admin_dashboard_summary');
 
       if (!mounted || client.auth.currentUser?.id != actorId) return;
-      if (summaryData is! List || summaryData.isEmpty || summaryData.first is! Map) {
+      if (summaryData is! List ||
+          summaryData.isEmpty ||
+          summaryData.first is! Map) {
         throw const FormatException('Unexpected dashboard summary data.');
       }
       final summary = Map<String, dynamic>.from(summaryData.first as Map);
 
       setState(() {
         _canInviteAdmins = data['canInviteAdmins'] == true;
-        _canManageAdminPermissions =
-            data['canManageAdminPermissions'] == true;
+        _canManageAdminPermissions = data['canManageAdminPermissions'] == true;
         _canReviewCompanies = ownPermissions['can_review_companies'] == true;
         _registeredUsers = _intValue(summary['registered_users']);
         _pendingCompanyReviews = _intValue(summary['pending_company_reviews']);
@@ -305,52 +309,52 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         child: ColoredBox(
           color: const Color(0xFFF4F7FA),
           child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact =
-                ResponsiveLayout.forWidth(constraints.maxWidth) !=
-                JobMateScreenSize.expanded;
-            return Row(
-              children: [
-                if (!compact) _buildSidebar(context),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1200),
-                      child: ListView(
-                        padding: ResponsiveLayout.pagePaddingForWidth(
-                          constraints.maxWidth,
-                        ),
-                        children: [
-                          Text(
-                            'Platform overview',
-                            style: Theme.of(context).textTheme.headlineMedium
-                                ?.copyWith(fontWeight: FontWeight.w700),
+            builder: (context, constraints) {
+              final compact =
+                  ResponsiveLayout.forWidth(constraints.maxWidth) !=
+                  JobMateScreenSize.expanded;
+              return Row(
+                children: [
+                  if (!compact) _buildSidebar(context),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1200),
+                        child: ListView(
+                          padding: ResponsiveLayout.pagePaddingForWidth(
+                            constraints.maxWidth,
                           ),
-                          const SizedBox(height: 8),
-                          Text('Signed in as ${widget.email}'),
-                          const SizedBox(height: 28),
-                          if (compact) ...[
-                            _buildMobileNavigation(context),
-                            const SizedBox(height: 20),
+                          children: [
+                            Text(
+                              'Platform overview',
+                              style: Theme.of(context).textTheme.headlineMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 8),
+                            Text('Signed in as ${widget.email}'),
+                            const SizedBox(height: 28),
+                            if (compact) ...[
+                              _buildMobileNavigation(context),
+                              const SizedBox(height: 20),
+                            ],
+                            if (_error != null) _buildError(context),
+                            _buildOverview(context),
+                            const SizedBox(height: 28),
+                            Text(
+                              'Admin tools',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildTools(context, compact),
                           ],
-                          if (_error != null) _buildError(context),
-                          _buildOverview(context),
-                          const SizedBox(height: 28),
-                          Text(
-                            'Admin tools',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildTools(context, compact),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            );
-          },
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -447,7 +451,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       ),
       _OverviewItem(
         title: 'Company reviews',
-        value: _pendingCompanyReviews?.toString() ??
+        value:
+            _pendingCompanyReviews?.toString() ??
             (_loadingAccess ? '...' : '--'),
         detail: 'Applications waiting for review',
         icon: Icons.business_outlined,
@@ -455,7 +460,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       ),
       _OverviewItem(
         title: 'Admin accounts',
-        value: _administratorAccounts?.toString() ??
+        value:
+            _administratorAccounts?.toString() ??
             (_loadingAccess ? '...' : '--'),
         detail: 'Administrator accounts',
         icon: Icons.admin_panel_settings_outlined,
@@ -500,6 +506,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Widget _buildTools(BuildContext context, bool compact) {
     final actions = <Widget>[];
+    if (!_loadingAccess && _error == null) {
+      actions.add(
+        _ToolCard(
+          icon: Icons.dashboard_customize_outlined,
+          title: 'UI Sandbox (demo)',
+          description: 'Preview missing account actions, job moderation, disputes and reports using fictional session data only.',
+          onTap: () => context.push<void>(AppRoutes.adminPreview),
+        ),
+      );
+      actions.add(
+        _ToolCard(
+          icon: Icons.settings_outlined,
+          title: 'Account Settings',
+          description: 'Existing account/security links and clearly separated settings presentation.',
+          onTap: () => context.push<void>(AppRoutes.adminSettings),
+        ),
+      );
+    }
     if (_canInviteAdmins) {
       actions.add(
         _ToolCard(
@@ -523,7 +547,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         _ToolCard(
           icon: Icons.business_outlined,
           title: 'Company Verification',
-          description: 'Check submitted Company details and supporting documents.',
+          description:
+              'Check submitted Company details and supporting documents.',
           onTap: _openCompanyReviews,
         ),
       );
@@ -557,7 +582,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = compact ? 1 : constraints.maxWidth >= 850 ? 2 : 1;
+        final columns = compact
+            ? 1
+            : constraints.maxWidth >= 850
+            ? 2
+            : 1;
         if (columns == 1) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -653,10 +682,8 @@ class _OverviewCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               loading ? '...' : item.value,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: item.accent,
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(context).textTheme.headlineMedium
+                  ?.copyWith(color: item.accent, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 4),
             Text(item.detail, maxLines: 2, overflow: TextOverflow.ellipsis),
@@ -696,7 +723,11 @@ class _ToolCard extends StatelessWidget {
           padding: const EdgeInsets.all(18),
           child: Row(
             children: [
-              Icon(icon, size: 30, color: Theme.of(context).colorScheme.primary),
+              Icon(
+                icon,
+                size: 30,
+                color: Theme.of(context).colorScheme.primary,
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -705,7 +736,11 @@ class _ToolCard extends StatelessWidget {
                   children: [
                     Text(title, style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 4),
-                    Text(description, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                 ),
               ),

@@ -6,12 +6,7 @@ import '../navigation/app_routes.dart';
 import 'auth_style.dart';
 import 'responsive_layout.dart';
 
-const upcomingModules = <(String, IconData)>[
-  ('AI Recommendations', Icons.auto_awesome_outlined),
-  ('Attendance', Icons.event_available_outlined),
-  ('Chat', Icons.chat_bubble_outline),
-  ('Location Discovery', Icons.map_outlined),
-];
+const upcomingModules = <(String, IconData)>[];
 
 /// A presentation shell around existing GoRouter pages; no auth or data writes.
 class AppWorkspace extends StatelessWidget {
@@ -79,6 +74,38 @@ class AppWorkspace extends StatelessWidget {
                   const SizedBox(height: 12),
                   for (final item in <(String, String, IconData)>[
                     (AppRoutes.home, 'Dashboard', Icons.grid_view_rounded),
+                    if (role == 'administrator') ...[
+                      (
+                        AppRoutes.adminUsers,
+                        'Real User Directory',
+                        Icons.people_outline,
+                      ),
+                      (
+                        AppRoutes.adminPreview,
+                        'UI Sandbox (demo)',
+                        Icons.dashboard_customize_outlined,
+                      ),
+                      (
+                        AppRoutes.adminDemoAccounts,
+                        'Account Actions (demo)',
+                        Icons.manage_accounts_outlined,
+                      ),
+                      (
+                        AppRoutes.adminDemoJobs,
+                        'Job Moderation (demo)',
+                        Icons.work_outline,
+                      ),
+                      (
+                        AppRoutes.adminDemoDisputes,
+                        'Disputes (demo)',
+                        Icons.gavel_outlined,
+                      ),
+                      (
+                        AppRoutes.adminDemoReports,
+                        'Reports (demo)',
+                        Icons.analytics_outlined,
+                      ),
+                    ],
                     if (role == 'job_seeker')
                       (AppRoutes.browseJobs, 'Browse Jobs', Icons.search),
                     if (role == 'job_seeker')
@@ -116,6 +143,76 @@ class AppWorkspace extends StatelessWidget {
                         'Create Job',
                         Icons.add_circle_outline,
                       ),
+                    if (role == 'job_seeker')
+                      (
+                        AppRoutes.recommendations,
+                        'For You (demo)',
+                        Icons.auto_awesome_outlined,
+                      ),
+                    if (role == 'job_seeker')
+                      (
+                        AppRoutes.nearbyJobs,
+                        'Nearby Jobs (demo)',
+                        Icons.map_outlined,
+                      ),
+                    if (role == 'job_seeker')
+                      (
+                        AppRoutes.attendance,
+                        'Attendance (demo)',
+                        Icons.event_available_outlined,
+                      ),
+                    if (role == 'employer')
+                      (
+                        AppRoutes.attendanceReview,
+                        'Attendance Review (demo)',
+                        Icons.fact_check_outlined,
+                      ),
+                    if (['job_seeker', 'employer'].contains(role))
+                      (
+                        role == 'employer'
+                            ? AppRoutes.employerMessages
+                            : AppRoutes.messages,
+                        'Messages (demo)',
+                        Icons.chat_bubble_outline,
+                      ),
+                    if (role == 'employer')
+                      (
+                        AppRoutes.jobLocationDemo,
+                        'Location Picker (demo)',
+                        Icons.add_location_alt_outlined,
+                      ),
+                    if (['job_seeker', 'employer'].contains(role)) ...[
+                      (
+                        role == 'employer'
+                            ? AppRoutes.employerEvaluations
+                            : AppRoutes.evaluations,
+                        'Evaluations (demo)',
+                        Icons.rate_review_outlined,
+                      ),
+                      (
+                        role == 'employer'
+                            ? AppRoutes.employerReputation
+                            : AppRoutes.reputation,
+                        'Reputation (demo)',
+                        Icons.stars_outlined,
+                      ),
+                      (
+                        role == 'employer'
+                            ? AppRoutes.employerPayments
+                            : AppRoutes.payments,
+                        'Payments (demo)',
+                        Icons.receipt_long_outlined,
+                      ),
+                    ],
+                    (
+                      role == 'employer'
+                          ? AppRoutes.employerSettings
+                          : role == 'administrator'
+                          ? AppRoutes.adminSettings
+                          : AppRoutes.settings,
+                      'Account Settings',
+                      Icons.settings_outlined,
+                    ),
                   ])
                     Padding(
                       padding: const EdgeInsets.only(bottom: 6),
@@ -132,32 +229,34 @@ class AppWorkspace extends StatelessWidget {
                         onTap: () => navigate(item.$1, closeDrawer: true),
                       ),
                     ),
-                  const Divider(height: 32),
-                  const Text(
-                    'COMING SOON',
-                    style: TextStyle(
-                      fontSize: 11,
-                      letterSpacing: 1.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  for (final module in upcomingModules.where(
-                    (m) =>
-                        !['employer', 'job_seeker'].contains(role) ||
-                        m.$1 != 'Job Posting',
-                  ))
-                    ListTile(
-                      enabled: false,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                      ),
-                      leading: Icon(module.$2, size: 20),
-                      title: Text(
-                        module.$1,
-                        style: const TextStyle(fontSize: 13),
+                  if (upcomingModules.isNotEmpty) ...[
+                    const Divider(height: 32),
+                    const Text(
+                      'COMING SOON',
+                      style: TextStyle(
+                        fontSize: 11,
+                        letterSpacing: 1.5,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    for (final module in upcomingModules.where(
+                      (m) =>
+                          !['employer', 'job_seeker'].contains(role) ||
+                          m.$1 != 'Job Posting',
+                    ))
+                      ListTile(
+                        enabled: false,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
+                        leading: Icon(module.$2, size: 20),
+                        title: Text(
+                          module.$1,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                  ],
                 ],
               ),
             ),

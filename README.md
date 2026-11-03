@@ -16,7 +16,13 @@ These are codebase capabilities, not confirmation that every workflow works agai
 
 ### Planned features
 
-Module 2 browsing and application screens now have an explicit demo environment (see below). AI Recommendations, Attendance, Chat and Location Discovery remain coming soon. Do not describe them as working features. Employer Job Posting remains connected to the existing Supabase workflow. Other platform folders exist, but the project targets Web and Android.
+Modules 2–10 now have explicitly labeled demo UI environments for the screens
+described below; these are not completed backend integrations. Phase 4 adds
+evaluations, reputation fixtures, external-payment records and an admin UI
+sandbox. Module 1 retains real account/verification flows with new settings and
+separate presentation previews. Employer Job Posting remains connected to the
+existing Supabase workflow. Other platform folders exist, but the project targets
+Web and Android.
 
 ### Structure and routing
 
@@ -245,6 +251,370 @@ state/history, reset, access states, responsive pages/modals, internal-note
 visibility and direct-route fallback. Run `flutter test test/module2_test.dart
 test/workspace_test.dart test/job_postings_test.dart`. Platform acceptance and
 live Supabase/AI behavior still require separate verification.
+
+### Phase 3 — Modules 3, 4, 5 and 10
+
+All screens below use **DEMO data only**, except the existing authentication and
+active-role check reused from `Module2Gate`. No new Supabase job/profile reads,
+mutations, uploads, AI calls, GPS calls, notifications or Realtime subscriptions
+are introduced. Existing login, company verification/logo, employer posting and
+Gemini formatting paths remain unchanged. No Dashboard steps are required.
+
+| Figma screen | Route / entry | Implemented presentation |
+| --- | --- | --- |
+| JS-05 | `/recommendations` | For You, transparency banner, deterministic match rings/labels, skill overlap/gaps, explanation, city/type/category/minimum-score filters and score/title sorting |
+| JS-06 | Apply on a recommendation | Existing Module 2 responsive Apply form, same saves, application checks and session repository |
+| JS-12 | `/attendance` | Sample active assignment, schedule, simulated location check, device clock, elapsed time and check-in/out |
+| JS-13 | Check In / Check Out | Explicit confirmation; duplicate/invalid transitions rejected |
+| JS-14 | `/attendance/evidence` | Required work description and 1–5 local PNG/JPEG/PDF files, picker, thumbnails/metadata preview, removal, draft retention, validation and demo submission |
+| JS-15 | `/attendance/history`, `/attendance/:recordId` | Search/job/status filters, completed/issues states, cards and connected attendance details |
+| EMP-12 | `/attendance-review` | Employer summary counts, pending/completed records, job/status filters and search |
+| EMP-13 | `/attendance-review/:recordId` | Worker schedule, device timestamps, evidence, note and sample review decision |
+| EMP-14 | Flag Work on a pending completed record | Required reason with retained draft and explicit confirmation; Verify requires evidence |
+| RPT-01 | `/attendance/:recordId/report`, `/attendance-review/:recordId/report` | Responsive report derived from that same session record, plus a separate printable HTML view on Web |
+| JS-22 | `/messages`, `/messages/:conversationId` | Conversation search/unread indicators, job context, grouped messages, local text/attachments and simulated receipts |
+| EMP-18 | `/employer-messages`, `/employer-messages/:conversationId` | Employer view of the same fictional conversation history |
+| JS-07 | `/nearby-jobs` | Map/list toggle, sample city filter, 2/5/10/25/50 demo km radius, type filter, markers, radius visualization and cards |
+| JS-08 | `/nearby-jobs/:jobId` | Fictional workplace address/distance, job facts, demo map and existing Module 2 View Job / Apply navigation |
+| EMP-06 | `/job-location-demo` | Standalone address input/sample suggestions, tap/drag marker, keyboard-accessible X/Y sliders and Confirm Location |
+
+New destinations are exposed through each role's existing sidebar/drawer. Compact
+bottom navigation and Profile/Company access remain. Main Web destinations omit
+inferred back arrows; nested pages have return actions and native contextual Back
+with direct-route fallbacks. Chat uses a split view when its available content
+width is at least 800 px; narrower layouts show the list or selected thread.
+Keyboard-open forms scroll with the existing shell/sheet patterns.
+
+`Phase3Store.session` is one in-memory `ChangeNotifier` for attendance, evidence,
+chat and the location sandbox. It resets alongside Module 2 on account changes
+and on app restart/refresh. Fictional assignments are independent of real users
+and Module 2 hiring decisions; no assignment is created by accepting a demo offer.
+Evidence and unsent chat text/files, flag reasons and the address draft survive
+in-app navigation for the session. Explicit evidence draft discard confirms
+first. Cancel on the flag dialog retains the reason draft. Local file reads show
+actual reading state, validate file size/header and expose recoverable errors;
+late picker results are ignored after disposal/account reset. Selection is capped
+at five files, each at most 5 MiB. Images have local previews; PDFs have metadata
+previews rather than an embedded PDF viewer. Files are never uploaded.
+
+The active-role gate supplies loading/error/retry/denied states. Local demo lists
+are synchronous rather than imitating a network delay. Empty/filter/unavailable
+states are implemented. Attendance uses the device clock, not an authoritative
+server timestamp; the 15-minute late grace is a **demo rule**. Simulation of a
+location check does not request GPS permission or prove presence. Employer
+Verified/Flagged labels are local review decisions and have no legal standing.
+Report printing opens a local escaped HTML document with print CSS and the
+browser's Print / Save as PDF action; blocked popups can be retried. Native
+printing/PDF export is unavailable and labeled accordingly.
+
+Recommendation scoring is deterministic: 70 × matched sample skills / required
+sample skills, plus 20 for the sample Shah Alam preference, plus 10 for part-time,
+rounded to a whole percentage. Sample skills are communication, willingness to
+learn and retail. Requirements are the demo job's skill-like requirements plus a
+documented category illustration (retail, Dart/Flutter, customer service or event
+setup); this is not an inferred production job-skills contract. Labels consistently
+use Excellent ≥90, Strong ≥75, Good ≥60, otherwise Fair. No protected attributes,
+real profile, work history or actual AI service is involved. Save and Apply reuse
+the Module 2 repository; existing application status mapping remains unchanged.
+No company rating/trust score is invented.
+
+Chat is between fictional role personas, not signed-in accounts. Enter sends and
+Shift+Enter inserts a newline; an explicit Send button supports touch. Attachment
+drafts and sent files stay in memory. Opening a thread marks sample incoming
+messages read; a labeled control advances Sent → Delivered → Read for sample
+outgoing messages. Every receipt is visibly simulated; there is no actual online
+presence or automated fake reply. Search, unread counts and messages share one
+source across both role views. No administrator chat interface is added.
+
+Nearby distance is Euclidean distance in a fixed fictional kilometre grid, not
+from a user's position. Radius changes update the same markers/list. The location
+input filters sample city names; it does not geocode. Remote jobs have no
+workplace marker and remain accessible in Browse Jobs. Closed jobs are excluded;
+expired jobs are labeled and Module 2 prevents applying. Current GPS location and
+directions controls explain that those services are unavailable. The employer
+picker uses **DEMO GRID X/Y out of 100**, never fictional geographic degrees.
+Its confirmed address/marker are isolated from `job_postings.location`,
+`latitude` and `longitude`; it cannot update a real posting.
+
+Figma inconsistencies resolved: percent-based map coordinates are no longer
+mislabeled latitude/longitude; placeholder View Job/Evidence/History actions now
+open actual local views; the static RPT-01 uses current session records instead
+of unrelated identities/dates; recommendation thresholds use one definition;
+fake online/GPS/legal-verification claims and reputation scores are omitted.
+Real feature logic takes precedence over prototype simulation. Existing fallback
+fonts and teal/slate/white Material styling are reused without dependencies.
+
+#### FUTURE BACKEND INTEGRATION — Module 3
+
+Needs agreed logical storage/contracts for recommendation runs, per-job scores,
+input snapshots, explanations and skill gaps; candidate-owned access and safe
+published-job reads with server-enforced salary privacy. Decide profile/skills
+consent, retention, model/provider, versioning, bias evaluation, cost/rate limits
+and fallback ranking. A separate authorized server-side recommendation service or
+Edge Function may call an approved AI provider. It must not repurpose or change
+the working `format-job-description` Gemini contract. No new secrets or endpoints
+are configured here; physical table/function names require schema review.
+
+#### FUTURE BACKEND INTEGRATION — Module 4
+
+Needs agreed assignment/shift, attendance event/location, evidence metadata,
+verification/flag and report entities. Enforce assigned-worker reads/writes and
+owning-employer review with RLS and server-side status transitions, immutable
+server timestamps, idempotency and correction/dispute rules. Evidence needs a
+private Storage bucket, owner/membership policies, signed URLs, type/size/content
+validation, scanning, retention/deletion and upload recovery. Location requires
+permission/accuracy/source capture and an agreed geofence/anti-spoofing policy;
+device timestamps cannot prove presence. Decide authoritative report generation,
+access control and PDF/signature requirements, potentially using an Edge Function.
+These are proposed logical needs, not existing schema or legally valid records.
+
+#### FUTURE BACKEND INTEGRATION — Module 5
+
+Needs conversation/participant, message, attachment, receipt and audited-access
+entities, server-created job-linked membership, participant-only RLS and Realtime
+authorization. Define pagination, retries/idempotency, offline handling, receipt
+permissions, presence semantics and notification consent. Attachments need private
+Storage with membership checks, signed access, scanning and retention. Any admin
+dispute access must be explicitly authorized and audited server-side; a UI warning
+alone is insufficient. No admin audit feature, Realtime channel or bucket is
+created here. Provider and physical schema decisions remain open.
+
+#### FUTURE BACKEND INTEGRATION — Module 10
+
+Needs approved job-location/preference/geocoding-cache contracts or verified use of
+existing posting location fields, owner-only writes, safe public workplace reads
+and location privacy/retention policies. Choose/configure Google Maps or another
+approved maps, geocoding and directions provider, API restrictions/billing and
+error/rate-limit handling. API credentials and any server proxy/Edge Function must
+be designed separately. Store genuine latitude/longitude/provider identifiers
+only after validating geocoding/manual selection, and calculate distances with
+an agreed geographic method. Browser location needs a secure context and consent;
+Android foreground approximate/precise permissions require explicit request and
+denial handling. No background tracking is implied. No keys, permissions,
+Supabase configuration or Dashboard steps are introduced in Phase 3.
+
+Phase 3 tests are in `test/phase3_test.dart`: deterministic scores, attendance and
+evidence transitions, flag validation, escaped report HTML, shared chat state,
+grid/radius semantics, reset and responsive screen coverage at 320/768/1440 px.
+Run with the existing Module 2/workspace/job-posting regression suites. Automated
+layout tests do not establish real-device, GPS, live backend or print-dialog
+acceptance. Modules 1, 6, 7, 8 and 9 remain outside Phase 3.
+
+Validation snapshot for this Phase 3 pass: all 49 new tests pass, including
+320/768/1440 px layouts and role navigation. The full suite has 158 passing tests
+and the same two pre-existing failures: the stale registration
+`CheckboxListTile` lookup and counter smoke test that omits router startup.
+`flutter analyze` reports the existing eight auth/home/profile diagnostics and
+none in the Phase 3 code. Formatting and local Web compilation pass. Chrome
+runtime tests stalled at startup and were stopped; no Android device is connected.
+Native pickers, browser print dialogs, device keyboard/system Back and deployed
+Supabase/Gemini acceptance still need manual verification.
+
+### Phase 4 — Account UI, Evaluations, Reputation, Admin and Payments
+
+#### Audit and teammate preservation
+
+The working tree already contained uncommitted Phase 3 screens/navigation/docs
+when Phase 4 began; they were retained. Inspection confirmed the actual Phase 3
+recommendation, attendance/report, chat and nearby/location-picker files exist.
+No teammate auth/profile/company/backend file was replaced with mock logic.
+
+Existing Module 1 UI already covers login, role selection/registration, email
+verification, forgot-password OTP, actual password reset/change, personal profile
+view/edit/avatar, personal documents/history, company onboarding/logo, review
+status/rejection/resubmission history, terms/privacy and sign-out. These are reused
+through navigation. Actual profile edits still update only the existing supported
+fields. Company editing remains available only during onboarding or rejected-owner
+resubmission under the existing `_eligible` rule; verified/pending companies do not
+gain new editing rights. KZ's admin dashboard, real user directory RPC, permissions,
+invitations and company-review gateway remain intact. Only two navigation tools
+were added to that dashboard (UI Sandbox and Account Settings), with formatter-only
+changes elsewhere in that file. No real admin metrics were replaced by samples.
+
+#### Screens and routes
+
+| Module / Figma | Route / entry | Real versus demo |
+| --- | --- | --- |
+| 1 / ACC-01–03 | `/settings`, `/employer-settings`, `/admin-settings` | Real own-account summary/completion and links to existing profile/company/password/terms/privacy flows; confirmed local Supabase sign-out is real |
+| 1 / ACC-04 | Notification switches within Job Seeker/Employer Settings | Session-only preference preview, explicitly no real delivery change |
+| 1 / ACC-05–06 | Account actions within Settings | Real sign-out confirmation; deletion information/disabled Delete action, no deletion endpoint |
+| 1 / JS-24 | `/profile-preview` | Fictional extended profile: display name, bio (250), location, availability, up to ten skills/five categories, optional local PDF resume |
+| 1 / EMP-20 | `/company-preview` | Fictional company presentation editor; no real company update or verification badge |
+| 6 / JS-16–21 | `/evaluations`, `/evaluations/:assignmentId/rate`, `/evaluations/:assignmentId` | Pending/history, rating form, success, given/received details and report modal; all demo |
+| 6 / EMP-21 | `/employer-evaluations` and corresponding detail/rate routes | Same local workflow with worker-specific criteria |
+| 7 / JS-25, EMP-22 | `/reputation`, `/employer-reputation` | Illustrative 0–100 score/factor/trend fixtures, visible demo evaluation average and insufficient-data view |
+| 8 / existing ADM-01–02 | Existing Dashboard and `/admin-users` | Existing real statistics and read-only account directory remain authoritative |
+| 8 / missing ADM-03–04 | `/admin-preview/accounts` | Separate fictional search/filter/detail and restrict/suspend/reactivate confirmation UI |
+| 8 / ADM-05–06 | `/admin-preview/jobs` | Fictional job search/filter/detail/removal; no actual publication/moderation |
+| 8 / ADM-07–11 | `/admin-preview/disputes`, `/admin-preview/disputes/:disputeId` | Linked demo cases, timeline, information request, resolution/rejection, evidence and internal remarks |
+| 8 / ADM-12 | `/admin-preview/reports` | Filtered session analytics and Web printable report; no live analytics/CSV service |
+| 8 / additive entry | `/admin-preview` | Demo sandbox overview with explicit links back to real administration |
+| 9 / EMP-15–17 | `/employer-payments/record`, `/employer-payments`, `/employer-payments/:paymentId` | External-payment form, local proof, confirmation/success, history and details; all demo |
+| 9 / JS-26 | `/payments`, `/payments/:paymentId` | Demo history/pending views, receipt confirmation and payment-issue case linkage |
+
+Sidebar/drawer destinations are role-specific; existing compact bottom navigation
+and Profile/Company access remain. Main Web destinations have no inferred back
+arrow. Nested screens reuse explicit/native contextual return controls and safe
+direct-route fallbacks. Existing forms retain their current navigation protections;
+the pre-existing company dirty-form and browser-refresh limitations are not fixed
+by this UI phase. The empty Coming Soon panel is hidden now that its three demo
+destinations are implemented.
+
+Settings completion derives from the same four real fields as the existing
+dashboard: name, auth email, phone and avatar (25% each). No demo field changes
+that percentage or real verification. Two-factor authentication, actual notification
+delivery and account deletion are explicitly not connected. Real company/profile
+edits use the existing pages; the preview editors never prefill or overwrite actual
+account/company identities. They are supplementary missing presentation fields,
+not replacements for completed teammate screens.
+
+#### Demo state, statuses and authorization
+
+`Phase4Store.session` is a shared in-memory `ChangeNotifier` containing fictional
+completed assignments, evaluations, payment records, sample moderation targets,
+disputes and local audit notes. It resets on refresh/restart/sign-out/account
+change, alongside Phase 2/3. Its sample assignments are independent of real work
+and of the separate Phase 3 attendance fixtures. Related Phase 4 screens share IDs
+and state: a payment issue marks the payment Disputed and creates a linked case;
+an evaluation report creates a linked case. Closing a case never silently changes
+payment confirmation or moves funds. The Job Seeker sample view excludes sample
+worker B's records; the employer preview can inspect all sample assignments.
+
+Evaluation criteria are exact:
+
+- Job Seeker rates Employer: Communication, Job Description Accuracy,
+  Professionalism, Payment Reliability, Work Environment, Respect Towards Workers.
+- Employer rates Worker: Communication, Responsibility, Teamwork, Professionalism,
+  Adaptability, Punctuality.
+
+All six ratings must be 1–5; optional feedback is capped at 300 characters. Only
+completed sample assignments are eligible; repeat submissions are rejected.
+Own feedback remains readable; received feedback is hidden until both local
+sample parties submit. A clearly named Simulate Counterpart action permits
+previewing the reveal without pretending another actual user submitted anything.
+Only revealed received evaluations can be reported once. No three-day moderation
+SLA is promised. Availability dates are illustrative; production expiry/editing/
+anonymity policies still need agreement.
+
+Reputation scores (worker 84/company 90), explanatory indicators and trends are
+fixed, explicitly labeled fixtures, not an arbitrary production scoring formula.
+They do not recalculate after actions. Only the displayed evaluation average is
+derived from revealed local evaluations. The insufficient-data scenario displays
+no score; no score is attached to the real account/company.
+
+Payment states: Pending and Overdue may become Confirmed via the sample recipient
+action, or Disputed via a required issue reason. Confirmed/Disputed have no further
+recipient transition in this preview. Overdue is a seeded scenario, not an
+implemented due-date engine. New employer-declared records start Pending. Amounts
+use integer cents after validating a positive RM amount with at most two decimal
+places, a completed assignment and a valid nonfuture date. Exact local duplicate
+records are rejected. Worker/assignment, date, method, reference/note and optional
+proof are captured. **JobMate records payments made outside the app: there is no
+checkout, card processing, money transfer, wallet or bank verification.**
+
+Dispute states are Open, Investigating, Pending Info, Resolved and Rejected.
+Nonterminal cases may be investigated, receive a required information request,
+or be resolved/rejected with a selected outcome/reason and explanation. Terminal
+cases cannot change again in the preview. Requests now actually change local
+status and append timeline entries, correcting the prototype no-op. Remarks are
+admin-view-only local data, not proof of secure storage. Account action states
+Active/Restricted/Suspended and job Removed are **sample-only**; the actual backend
+account-status contract is untouched. All demo mutation confirmations identify
+the operation as local; nothing invokes real moderation RPCs.
+
+New Job Seeker/Employer routes reuse the existing signed-in active-role gate.
+The admin sandbox and admin settings additionally call the existing deployed
+`admin-invitations` `check_access` contract after checking the signed-in
+`users.role/status`, require `isAdmin: true`, fail closed, handle denied/expired
+access and recheck actor identity after the request. There is no role switch or
+demo-login path into administration. This only authorizes access to a fictional
+UI preview; existing per-operation real admin/company-review permissions remain
+authoritative. Protected conversation access is explicitly unavailable: no RLS
+bypass, real private-message query or fabricated secure access audit is added.
+
+Form drafts (including rating selections, notes, payment worker/method/proof and
+case party/outcome choices) survive in-app navigation in memory. Discarding the
+payment draft confirms first. Resume/proof selection reuses the existing local
+file picker, basic header/size checks and previews (one PDF resume; one optional
+PNG/JPEG/PDF proof; up to 5 MiB). Nothing uploads. Late file-picker results are
+ignored after disposal/account reset. Native pickers/PDF rendering limitations
+from Phase 3 remain. Auth/role reads expose loading/error/retry/denied states;
+demo lists are synchronous and have filtering/empty/unavailable states rather
+than simulated network delays.
+
+#### FUTURE BACKEND INTEGRATION — Module 1
+
+Audit the existing schema before adding logical storage for supported bio,
+availability, skills/categories, resume metadata and notification preferences.
+Define own-account/company-owner RLS, company verified-edit/re-review rules,
+private resume Storage/signed access, retention and deletion handling. Account
+deletion requires identity re-verification, employer ownership and legal retention
+decisions. MFA and notification providers/permissions need separate approval.
+Existing Auth, registration, personal/company verification and storage policies
+must remain authoritative; no auth provider/rule changes are made here.
+
+#### FUTURE BACKEND INTEGRATION — Module 6
+
+Needs agreed evaluation request, submission, criterion rating, reveal/visibility
+and report entities; assignment-party RLS, verified completion, one-per-party
+constraints, server validation and atomic both-sides reveal. Define expiry,
+feedback disclosure/anonymity, editing, moderation, appeals and notifications.
+Client hiding is not privacy enforcement; unrevealed feedback must be inaccessible
+through the API. Link reports transactionally to authorized moderation cases.
+
+#### FUTURE BACKEND INTEGRATION — Module 7
+
+Needs verified assignment/completion/attendance, permitted evaluations, payment
+confirmation and dispute outcomes; approved scoring rules, minimum-data thresholds,
+formula versions, recalculation cadence, snapshots, explanations and auditability.
+Use server-side computation/authorized read projections, privacy rules and an
+appeal/correction policy. Removed/unrevealed evaluations and overturned disputes
+need defined treatment. No production trust algorithm or score table is created.
+
+#### FUTURE BACKEND INTEGRATION — Module 8
+
+Needs separately authorized account/job moderation capabilities, case/party/
+evidence/request/resolution/remark entities and immutable action/access logs.
+Enforce admin scopes, object ownership, reason requirements and transactional
+state changes with RLS plus server-checked RPCs/services. Internal notes, uploaded
+evidence and protected messages require private storage/signed access and explicit
+case-scoped permission with server-side audit; an acknowledgement dialog cannot
+grant access. Define appeals, notifications, retention, reporting/export services
+and financial/evaluation correction policies. Existing company-review/admin
+invitation/permission infrastructure must not be weakened or inferred to grant
+new production moderation permissions.
+
+#### FUTURE BACKEND INTEGRATION — Module 9
+
+Needs external payment declaration, proof metadata, recipient confirmation,
+revision history and dispute-link entities, completed-assignment/party RLS and
+server-validated amounts/dates/idempotency/status transitions. Use a private proof
+bucket with party-scoped signed access, validation/scanning and retention. Define
+overdue/due-date rules, corrections, disputes after confirmation and notification
+consent. A dispute resolution must not imply a bank refund or automatic receipt.
+No payment gateway or external money-transfer integration is part of JobMate's
+payment-record UI. Physical table/policy/bucket/function names must be agreed from
+the actual backend, not inferred from the React prototype.
+
+No tables, migrations, SQL, RLS, buckets, Edge Functions, secrets, API providers
+or Dashboard configuration are created/changed in Phase 4. Existing Gemini job
+formatting and all employer job posting behavior remain unchanged. All new phase
+code is additive under `lib/features/phase4/`; tests are in `test/phase4_test.dart`.
+Existing real admin directory search/details were not redesigned; missing sample
+search/details/moderation controls live in the distinctly named sandbox. Real
+extended-profile/company-edit integration, production scores/evaluations/payments/
+disputes, CSV export and native report export remain outside this UI pass.
+
+Phase 4 validation: all 76 new tests in `test/phase4_test.dart` pass (exact criteria,
+validation/duplicates, visibility, linked cases/statuses, admin denial/retry and
+23 screen scenarios at 320/768/1440 px). The full suite has 234 passing tests and
+the same two pre-existing failures: stale registration `CheckboxListTile` lookup
+and counter smoke test without router initialization. Analysis reports the same
+eight auth/home/profile diagnostics and none in new code. Formatting, diff checks
+and the local Web build pass. No Android device is connected. Browser/device
+interaction, native file pickers, printable popup dialogs, real Supabase sign-out,
+live admin access checks and deployed-backend acceptance remain unverified; widget
+tests exercise injected account/access fixtures, not actual server authorization.
 
 ## 5. Security and Collaboration
 

@@ -280,20 +280,24 @@ class DashboardContent extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 20),
-        WorkspaceCard(
-          title: 'Coming soon',
-          subtitle: 'These modules are planned and are not available yet.',
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final module in upcomingModules.where(
-                (m) => role != 'employer' || m.$1 != 'Job Posting',
-              ))
-                Chip(avatar: Icon(module.$2, size: 16), label: Text(module.$1)),
-            ],
+        if (upcomingModules.isNotEmpty)
+          WorkspaceCard(
+            title: 'Coming soon',
+            subtitle: 'These modules are planned and are not available yet.',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final module in upcomingModules.where(
+                  (m) => role != 'employer' || m.$1 != 'Job Posting',
+                ))
+                  Chip(
+                    avatar: Icon(module.$2, size: 16),
+                    label: Text(module.$1),
+                  ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }

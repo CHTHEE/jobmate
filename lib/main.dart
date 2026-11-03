@@ -21,6 +21,17 @@ import 'features/applications/module2_widgets.dart';
 import 'features/applications/browse_jobs_page.dart';
 import 'features/applications/job_details_page.dart';
 import 'features/applications/applications_page.dart';
+import 'features/demo_work/phase3_store.dart';
+import 'features/recommendations/recommendations_page.dart';
+import 'features/attendance/attendance_pages.dart';
+import 'features/chat/chat_page.dart';
+import 'features/location/location_pages.dart';
+import 'features/phase4/phase4_store.dart';
+import 'features/phase4/evaluation_pages.dart';
+import 'features/phase4/reputation_page.dart';
+import 'features/phase4/payment_pages.dart';
+import 'features/phase4/admin_preview_pages.dart';
+import 'features/phase4/account_settings_page.dart';
 import 'features/jobs/job_postings_page.dart';
 import 'features/profile/change_password_page.dart';
 import 'features/profile/document_submission_page.dart';
@@ -94,6 +105,281 @@ GoRouter _createRouter() {
       return null;
     },
     routes: [
+      _appRoute(
+        AppRoutes.settings,
+        (_, _) =>
+            const Module2Gate(role: 'job_seeker', child: AccountSettingsPage()),
+      ),
+      _appRoute(
+        AppRoutes.employerSettings,
+        (_, _) => const Module2Gate(
+          role: 'employer',
+          child: AccountSettingsPage(role: 'employer'),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.adminSettings,
+        (_, _) => const AdminPreviewGate(
+          child: AccountSettingsPage(role: 'administrator'),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.profilePreview,
+        (_, _) =>
+            const Module2Gate(role: 'job_seeker', child: ExtendedProfilePage()),
+      ),
+      _appRoute(
+        AppRoutes.companyPreview,
+        (_, _) => const Module2Gate(
+          role: 'employer',
+          child: ExtendedProfilePage(employer: true),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.evaluations,
+        (_, _) =>
+            const Module2Gate(role: 'job_seeker', child: EvaluationsPage()),
+      ),
+      _appRoute(
+        '${AppRoutes.evaluations}/:assignmentId/rate',
+        (_, state) => Module2Gate(
+          role: 'job_seeker',
+          child: EvaluationFormPage(
+            assignmentId: state.pathParameters['assignmentId']!,
+          ),
+        ),
+      ),
+      _appRoute(
+        '${AppRoutes.evaluations}/:assignmentId',
+        (_, state) => Module2Gate(
+          role: 'job_seeker',
+          child: EvaluationDetailPage(
+            assignmentId: state.pathParameters['assignmentId']!,
+          ),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.employerEvaluations,
+        (_, _) => const Module2Gate(
+          role: 'employer',
+          child: EvaluationsPage(employer: true),
+        ),
+      ),
+      _appRoute(
+        '${AppRoutes.employerEvaluations}/:assignmentId/rate',
+        (_, state) => Module2Gate(
+          role: 'employer',
+          child: EvaluationFormPage(
+            employer: true,
+            assignmentId: state.pathParameters['assignmentId']!,
+          ),
+        ),
+      ),
+      _appRoute(
+        '${AppRoutes.employerEvaluations}/:assignmentId',
+        (_, state) => Module2Gate(
+          role: 'employer',
+          child: EvaluationDetailPage(
+            employer: true,
+            assignmentId: state.pathParameters['assignmentId']!,
+          ),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.reputation,
+        (_, _) =>
+            const Module2Gate(role: 'job_seeker', child: ReputationPage()),
+      ),
+      _appRoute(
+        AppRoutes.employerReputation,
+        (_, _) => const Module2Gate(
+          role: 'employer',
+          child: ReputationPage(employer: true),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.recordPayment,
+        (_, _) =>
+            const Module2Gate(role: 'employer', child: PaymentRecordPage()),
+      ),
+      _appRoute(
+        AppRoutes.payments,
+        (_, _) =>
+            const Module2Gate(role: 'job_seeker', child: PaymentHistoryPage()),
+      ),
+      _appRoute(
+        '${AppRoutes.payments}/:paymentId',
+        (_, state) => Module2Gate(
+          role: 'job_seeker',
+          child: PaymentDetailPage(
+            paymentId: state.pathParameters['paymentId']!,
+          ),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.employerPayments,
+        (_, _) => const Module2Gate(
+          role: 'employer',
+          child: PaymentHistoryPage(employer: true),
+        ),
+      ),
+      _appRoute(
+        '${AppRoutes.employerPayments}/:paymentId',
+        (_, state) => Module2Gate(
+          role: 'employer',
+          child: PaymentDetailPage(
+            employer: true,
+            paymentId: state.pathParameters['paymentId']!,
+          ),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.adminPreview,
+        (_, _) => const AdminPreviewGate(child: AdminPreviewPage()),
+      ),
+      _appRoute(
+        AppRoutes.adminDemoAccounts,
+        (_, _) => const AdminPreviewGate(
+          child: AdminPreviewPage(section: 'Accounts'),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.adminDemoJobs,
+        (_, _) =>
+            const AdminPreviewGate(child: AdminPreviewPage(section: 'Jobs')),
+      ),
+      _appRoute(
+        AppRoutes.adminDemoDisputes,
+        (_, _) => const AdminPreviewGate(
+          child: AdminPreviewPage(section: 'Disputes'),
+        ),
+      ),
+      _appRoute(
+        '${AppRoutes.adminDemoDisputes}/:disputeId',
+        (_, state) => AdminPreviewGate(
+          child: DisputeDetailPage(
+            disputeId: state.pathParameters['disputeId']!,
+          ),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.adminDemoReports,
+        (_, _) =>
+            const AdminPreviewGate(child: AdminPreviewPage(section: 'Reports')),
+      ),
+      _appRoute(
+        AppRoutes.recommendations,
+        (_, _) =>
+            const Module2Gate(role: 'job_seeker', child: RecommendationsPage()),
+      ),
+      _appRoute(
+        AppRoutes.attendanceHistory,
+        (_, _) =>
+            const Module2Gate(role: 'job_seeker', child: AttendanceListPage()),
+      ),
+      _appRoute(
+        AppRoutes.workEvidence,
+        (_, _) => const Module2Gate(role: 'job_seeker', child: EvidencePage()),
+      ),
+      _appRoute(
+        AppRoutes.attendance,
+        (_, _) =>
+            const Module2Gate(role: 'job_seeker', child: AttendancePage()),
+      ),
+      _appRoute(
+        '${AppRoutes.attendance}/:recordId/report',
+        (_, state) => Module2Gate(
+          role: 'job_seeker',
+          child: AttendanceDetailPage(
+            recordId: state.pathParameters['recordId']!,
+            report: true,
+          ),
+        ),
+      ),
+      _appRoute(
+        '${AppRoutes.attendance}/:recordId',
+        (_, state) => Module2Gate(
+          role: 'job_seeker',
+          child: AttendanceDetailPage(
+            recordId: state.pathParameters['recordId']!,
+          ),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.attendanceReview,
+        (_, _) => const Module2Gate(
+          role: 'employer',
+          child: AttendanceListPage(employer: true),
+        ),
+      ),
+      _appRoute(
+        '${AppRoutes.attendanceReview}/:recordId/report',
+        (_, state) => Module2Gate(
+          role: 'employer',
+          child: AttendanceDetailPage(
+            recordId: state.pathParameters['recordId']!,
+            employer: true,
+            report: true,
+          ),
+        ),
+      ),
+      _appRoute(
+        '${AppRoutes.attendanceReview}/:recordId',
+        (_, state) => Module2Gate(
+          role: 'employer',
+          child: AttendanceDetailPage(
+            recordId: state.pathParameters['recordId']!,
+            employer: true,
+          ),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.messages,
+        (_, _) => const Module2Gate(role: 'job_seeker', child: ChatPage()),
+      ),
+      _appRoute(
+        '${AppRoutes.messages}/:conversationId',
+        (_, state) => Module2Gate(
+          role: 'job_seeker',
+          child: ChatPage(
+            conversationId: state.pathParameters['conversationId'],
+          ),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.employerMessages,
+        (_, _) => const Module2Gate(
+          role: 'employer',
+          child: ChatPage(employer: true),
+        ),
+      ),
+      _appRoute(
+        '${AppRoutes.employerMessages}/:conversationId',
+        (_, state) => Module2Gate(
+          role: 'employer',
+          child: ChatPage(
+            employer: true,
+            conversationId: state.pathParameters['conversationId'],
+          ),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.nearbyJobs,
+        (_, _) =>
+            const Module2Gate(role: 'job_seeker', child: NearbyJobsPage()),
+      ),
+      _appRoute(
+        '${AppRoutes.nearbyJobs}/:jobId',
+        (_, state) => Module2Gate(
+          role: 'job_seeker',
+          child: NearbyDetailPage(jobId: state.pathParameters['jobId']!),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.jobLocationDemo,
+        (_, _) =>
+            const Module2Gate(role: 'employer', child: JobLocationDemoPage()),
+      ),
       _appRoute(
         AppRoutes.browseJobs,
         (_, _) =>
@@ -263,6 +549,8 @@ class _AuthRouterRefresh extends ChangeNotifier {
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId != _demoUserId) {
         Module2Repository.session.reset();
+        Phase3Store.session.reset();
+        Phase4Store.session.reset();
         _demoUserId = userId;
       }
       notifyListeners();
