@@ -16,6 +16,11 @@ import 'features/auth/terms_privacy_page.dart';
 import 'features/auth/verify_email_page.dart';
 import 'features/company/create_company_page.dart';
 import 'features/jobs/job_form_page.dart';
+import 'features/applications/module2_repository.dart';
+import 'features/applications/module2_widgets.dart';
+import 'features/applications/browse_jobs_page.dart';
+import 'features/applications/job_details_page.dart';
+import 'features/applications/applications_page.dart';
 import 'features/jobs/job_postings_page.dart';
 import 'features/profile/change_password_page.dart';
 import 'features/profile/document_submission_page.dart';
@@ -23,6 +28,7 @@ import 'features/profile/profile_page.dart';
 import 'features/profile/verify_password_page.dart';
 import 'features/notifications/notifications_page.dart';
 import 'shared/navigation/app_routes.dart';
+import 'shared/theme/jobmate_theme.dart';
 import 'shared/widgets/jobmate_scroll_behavior.dart';
 import 'shared/widgets/app_startup.dart';
 
@@ -88,6 +94,52 @@ GoRouter _createRouter() {
       return null;
     },
     routes: [
+      _appRoute(
+        AppRoutes.browseJobs,
+        (_, _) =>
+            const Module2Gate(role: 'job_seeker', child: BrowseJobsPage()),
+      ),
+      _appRoute(
+        '${AppRoutes.browseJobs}/:jobId',
+        (_, state) => Module2Gate(
+          role: 'job_seeker',
+          child: JobDetailsPage(jobId: state.pathParameters['jobId']!),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.applications,
+        (_, _) =>
+            const Module2Gate(role: 'job_seeker', child: ApplicationsPage()),
+      ),
+      _appRoute(
+        '${AppRoutes.applications}/:applicationId',
+        (_, state) => Module2Gate(
+          role: 'job_seeker',
+          child: ApplicationDetailsPage(
+            applicationId: state.pathParameters['applicationId']!,
+          ),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.applicants,
+        (_, state) => Module2Gate(
+          role: 'employer',
+          child: ApplicationsPage(
+            employer: true,
+            postingId: state.uri.queryParameters['posting'],
+          ),
+        ),
+      ),
+      _appRoute(
+        '${AppRoutes.applicants}/:applicationId',
+        (_, state) => Module2Gate(
+          role: 'employer',
+          child: ApplicationDetailsPage(
+            employer: true,
+            applicationId: state.pathParameters['applicationId']!,
+          ),
+        ),
+      ),
       _appRoute(AppRoutes.home, (context, state) => const AuthGate()),
       _appRoute(AppRoutes.signUp, (context, state) => const SignUpPage()),
       _appRoute(
@@ -203,10 +255,16 @@ Page<void> _appPage(GoRouterState state, Widget child) {
 }
 
 class _AuthRouterRefresh extends ChangeNotifier {
+  String? _demoUserId = Supabase.instance.client.auth.currentUser?.id;
   late final StreamSubscription<AuthState> _subscription;
 
   _AuthRouterRefresh() {
     _subscription = Supabase.instance.client.auth.onAuthStateChange.listen((_) {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != _demoUserId) {
+        Module2Repository.session.reset();
+        _demoUserId = userId;
+      }
       notifyListeners();
     });
   }
@@ -225,38 +283,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Home Page',
+      title: 'JobMate',
       scrollBehavior: const JobMateScrollBehavior(),
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0F766E),
-          surface: const Color(0xFFF5F8FA),
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF5F8FA),
-        cardColor: Colors.white,
-        appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          backgroundColor: Colors.white,
-          foregroundColor: Color(0xFF172B3A),
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-        ),
-      ),
+      theme: JobMateTheme.light(),
       routerConfig: _appRouter,
     );
   }

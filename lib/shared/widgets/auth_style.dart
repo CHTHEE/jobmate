@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 
-/// Authentication-only tokens; other application screens keep their own theme.
+import '../theme/jobmate_theme.dart';
+
+/// Authentication presentation layered over the shared application tokens.
 abstract final class AuthStyle {
-  static const teal = Color(0xFF0D9488);
-  static const darkTeal = Color(0xFF0F766E);
-  static const background = Color(0xFFF8FAFC);
-  static const heading = Color(0xFF0F172A);
-  static const body = Color(0xFF64748B);
+  static const teal = JobMateTheme.teal;
+  static const darkTeal = JobMateTheme.primary;
+  static const background = JobMateTheme.background;
+  static const heading = JobMateTheme.heading;
+  static const body = JobMateTheme.body;
   static const label = Color(0xFF334155);
-  static const border = Color(0xFFCBD5E1);
+  static const border = JobMateTheme.border;
   static const muted = Color(0xFF94A3B8);
-  static const error = Color(0xFFDC2626);
+  static const error = JobMateTheme.error;
   static const success = Color(0xFF22C55E);
   static const title = TextStyle(
     fontFamily: 'DM Serif Display',
@@ -20,7 +22,7 @@ abstract final class AuthStyle {
   );
 
   static ThemeData theme(BuildContext context) {
-    final base = Theme.of(context);
+    final base = JobMateTheme.apply(Theme.of(context));
     OutlineInputBorder outline(Color color, [double width = 1]) =>
         OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -59,7 +61,7 @@ abstract final class AuthStyle {
         style: FilledButton.styleFrom(
           backgroundColor: teal,
           foregroundColor: Colors.white,
-          minimumSize: const Size(double.infinity, 46),
+          minimumSize: const Size(double.infinity, 48),
           textStyle: const TextStyle(
             fontFamily: 'Outfit',
             fontSize: 14,

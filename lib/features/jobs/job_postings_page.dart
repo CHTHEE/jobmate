@@ -275,6 +275,21 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                               spacing: 12,
                               runSpacing: 8,
                               children: [
+                                OutlinedButton.icon(
+                                  onPressed: busy
+                                      ? null
+                                      : () => context.push<void>(
+                                          Uri(
+                                            path: AppRoutes.applicants,
+                                            queryParameters: {
+                                              'posting': job['job_id']
+                                                  .toString(),
+                                            },
+                                          ).toString(),
+                                        ),
+                                  icon: const Icon(Icons.people_outline),
+                                  label: const Text('Applications (preview)'),
+                                ),
                                 OutlinedButton(
                                   onPressed: busy
                                       ? null

@@ -991,6 +991,7 @@ void main() {
       await tester.pumpAndSettle();
       router.push(AppRoutes.jobPostings);
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Edit Draft'));
       await tester.tap(find.text('Edit Draft'));
       await tester.pumpAndSettle();
       field(tester, 'Job title').text = 'Updated role';

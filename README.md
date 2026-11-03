@@ -16,7 +16,7 @@ These are codebase capabilities, not confirmation that every workflow works agai
 
 ### Planned features
 
-The dashboard labels Applications, AI Recommendations, Attendance, Chat and Location Discovery as coming soon. Do not describe them as working features. Employer Job Posting is implemented, although the shared upcoming-module list also includes that label for other roles. Other platform folders exist, but the project targets Web and Android.
+Module 2 browsing and application screens now have an explicit demo environment (see below). AI Recommendations, Attendance, Chat and Location Discovery remain coming soon. Do not describe them as working features. Employer Job Posting remains connected to the existing Supabase workflow. Other platform folders exist, but the project targets Web and Android.
 
 ### Structure and routing
 
@@ -117,6 +117,33 @@ Inspect `main.dart`, `AppRoutes`, `AppWorkspace`, `MobileBackAction` and the aff
 
 Check unsaved-change handling before changing back navigation. The job form confirms before discarding changes through its back action, workspace navigation or GoRouter route exit, including router-supported browser Back. Saving and AI formatting block navigation. Browser refresh, tab closing and leaving the site are not covered by this route guard. The form hides the Web back arrow, retains native back navigation, and provides Back to Job Postings plus an expandable example description.
 
+### Phase 1 UI foundation
+
+`lib/shared/theme/jobmate_theme.dart` owns the shared teal/neutral palette and
+Material input, button, card and dialog defaults. `AuthStyle` layers the existing
+authentication typography and full-width primary actions over these defaults;
+`AppWorkspace` reuses that layer and the existing responsive padding helper.
+Buttons have a 48 logical-pixel minimum target; cards/controls use 12 px corners
+and dialogs use 16 px corners. Existing feature overrides remain supported.
+
+The audit found reusable `AuthField`, `AuthWordmark`, `WorkspaceCard`,
+`WorkspaceStatus`, `WorkspaceInfo`, `LoadingOverlay`, `ResponsiveContent` and
+job preview/confirmation patterns. These remain in use rather than adding a
+parallel component library. The existing GoRouter sidebar/drawer navigation,
+mobile profile entries and job dirty-form guards remain unchanged.
+
+`JOBMATE_FIGMA_UI_SPEC.md` is a visual reference only. Flutter retains its
+600/1024 breakpoints rather than adopting the prototype's 768 px sidebar switch.
+Outfit, DM Serif Display and DM Mono are not bundled in this checkout; existing
+font requests use available platform fallbacks. Exact font assets, broader
+feature heading/stat/error-state consolidation, responsive modal presentation
+and remaining module layouts are deferred. No prototype data, simulated
+authentication/AI, backend contracts or new modules are introduced by this pass.
+
+Profile/company navigation currently uses existing edit/busy locking; this is
+not a general dirty-form guard. Refresh/tab-close protection also remains outside
+the existing job route guard. Those limitations need separate scoped work.
+
 ## 4. Employer Job Posting Requirements
 
 **Original Description** is the employer's own unstructured input. Employers should include the role's purpose, duties, actual qualifications/experience, location and work arrangement, employment type, salary details, benefits, vacancies and deadline where known. Structured fields must agree with these facts. Missing facts must come from the employer.
@@ -130,6 +157,94 @@ Check unsaved-change handling before changing back navigation. The job form conf
 - While AI formatting is pending, a full-page dimmed loading panel keeps the form visible and blocks pointer/keyboard interaction and router-supported Back/navigation. The panel uses actual request state, with a 60-second timeout rather than simulated progress. Success fills the four editable sections; failures/timeouts retain all values and allow retry, and late timed-out responses are ignored. Browser refresh and tab closing remain outside the route guard.
 
 The repository sends `original_description` to `format-job-description`. The client expects a nonempty string `role_overview` and string arrays `responsibilities`, `requirements` and `benefits`. Coordinate backend changes against this existing contract.
+
+### Phase 2 — Module 2 UI and data boundaries
+
+Implemented routes:
+
+| Route | Screen | Data |
+| --- | --- | --- |
+| `/jobs` | Search/filter/sort and session-saved jobs | Fictional demo catalogue |
+| `/jobs/:jobId` | Job details and responsive Apply modal | Demo only |
+| `/applications` | My Applications, All/Active/Completed, search/status filters | Shared session demo |
+| `/applications/:applicationId` | Application details, timeline, withdraw and offer actions | Shared session demo candidate |
+| `/applicants` | Employer pipeline, posting/status filters, search/sort | Fictional candidates only |
+| `/applicants/:applicationId` | Applicant details, stage actions, rejection note | Shared session demo |
+| `/applicants?posting=<jobId>` | Entry from a real employer posting | Explicit unconnected state; separate demo exploration |
+
+The existing employer list/create/edit/preview/draft/publish/close screens are
+reused. Registration/login, company verification/logo access, ownership checks,
+job repositories/validation and `format-job-description` are unchanged. The new
+route gate reads the existing signed-in `users.role` and `users.status`, requires
+an active Job Seeker or Employer as appropriate, and provides loading/error/retry
+and Dashboard exits. Existing auth redirects remain in place. This UI gate does
+not replace RLS or grant employer access to real applicant records.
+
+**Why Browse Jobs is demo-only:** inspection found no Job Seeker/public job-read
+service and no checked-in `job_postings` policies or public projection. The
+existing repository is for employer-scoped management and selects full rows.
+Reusing that path for public browsing would not establish permission or salary
+privacy. No new Supabase job read is attempted. The deployed public-read and
+salary-protection rules remain unverified; this is an integration/security review
+blocker, not a confirmed deployed vulnerability. If an unauthorized client can
+select hidden compensation, UI hiding cannot fix the exposure. Before enabling
+real browsing, verify existing grants/RLS and a server-enforced safe projection
+that omits hidden salary values. RLS alone does not redact individual columns.
+
+The demo `BrowseJob` display projection keeps existing posting field names and
+list formats and excludes `salary_min`, `salary_max` and `salary_period` unless
+`salary_visible` is exactly true. Cards/details never render hidden compensation.
+Only published sample jobs appear in browsing; expired samples are labeled and
+cannot receive applications. Closed/missing direct detail routes show unavailable
+states. Company verification and trust scores are not fabricated.
+
+`Module2Repository.session` is one in-memory `ChangeNotifier`, shared by all new
+screens. Saved jobs, duplicate checks, stage changes, summary counts and timelines
+use that same source. Candidate/Employer pages are two views into a fictional
+environment, not relationships between real accounts and jobs. Changes reset on
+refresh/restart or sign-out/account change. New applications are attributed to
+the explicitly fictional “Demo candidate (you)”; the signed-in profile/resume is
+not read, attached or uploaded. Sample resume availability never enables a fake
+download. No application success message claims server submission.
+
+Canonical demo statuses are Applied → Shortlisted / Reviewing → Interview →
+Offered → Hired. Figma’s Reviewing and Shortlisted map to the single
+`ApplicationStage.shortlisted` state. Employers can reject any nonterminal stage;
+only the next forward stage is enabled. Job Seekers may withdraw before Offered,
+accept an offer as Hired, or decline it as Withdrawn. Hired/Rejected/Withdrawn are
+terminal and comprise Completed; all other statuses are Active. Offer acceptance
+does not create an assignment. These are UI demo rules, not a deployed API
+contract. Internal rejection notes are shown only in the employer demo view;
+production privacy still requires server authorization and separate note access.
+
+Navigation retains the existing 1024 px sidebar/drawer switch and adds compact
+bottom navigation for Home, Jobs/Posts, Applications and Profile/Company. Both
+profiles remain in the drawer. Main Web destinations omit back arrows; detail
+pages have explicit return actions and native contextual Back with safe direct
+route fallbacks. Apply/rejection forms use a centered desktop dialog or compact
+scrollable sheet with keyboard insets, explicit Cancel, discard confirmation and
+local note drafts retained if route navigation disposes the modal. Unsubmitted
+notes are restored when reopened in the same session; explicit discard clears
+them. Refresh/tab close still resets the demo. Actual saving state drives the
+application progress UI; no fake network timers are used. Local catalogue/list
+reads are synchronous and do not simulate network loading or failures.
+
+Later backend integration needs confirmed application storage and unique
+job/candidate constraints, transactional status history and transition rules,
+separate employer-only notes, ownership/candidate RLS, resume storage and signed
+access, saved-job persistence and offer decisions. Table/service names and schema
+must be agreed from the actual backend; prototype proposed entities are not
+contracts. Deadline/status/session checks must be enforced server-side at
+submission and transitions. Notification/assignment integration belongs to later
+scoped work. **No tables, policies, migrations, buckets, Edge Functions, secrets or
+Dashboard changes are created or required by this UI demo.**
+
+Focused coverage is in `test/module2_test.dart`: filtering/sorting, salary
+projection, status mapping/invalid transitions, duplicates, expiry, cross-role
+state/history, reset, access states, responsive pages/modals, internal-note
+visibility and direct-route fallback. Run `flutter test test/module2_test.dart
+test/workspace_test.dart test/job_postings_test.dart`. Platform acceptance and
+live Supabase/AI behavior still require separate verification.
 
 ## 5. Security and Collaboration
 

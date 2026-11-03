@@ -4,10 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../navigation/app_routes.dart';
 import 'auth_style.dart';
+import 'responsive_layout.dart';
 
 const upcomingModules = <(String, IconData)>[
-  ('Job Posting', Icons.work_outline),
-  ('Applications', Icons.assignment_outlined),
   ('AI Recommendations', Icons.auto_awesome_outlined),
   ('Attendance', Icons.event_available_outlined),
   ('Chat', Icons.chat_bubble_outline),
@@ -40,30 +39,14 @@ class AppWorkspace extends StatelessWidget {
   Widget build(BuildContext context) {
     final base = AuthStyle.theme(context);
     return Theme(
-      data: base.copyWith(
-        scaffoldBackgroundColor: AuthStyle.background,
-        cardTheme: CardThemeData(
-          color: Colors.white,
-          elevation: 0,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0xFFE2E8F0)),
-          ),
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          foregroundColor: AuthStyle.heading,
-          surfaceTintColor: Colors.transparent,
-          centerTitle: false,
-        ),
-      ),
+      data: base,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final desktop = constraints.maxWidth >= 1024;
-          void navigate(String destination) {
+          final desktop =
+              constraints.maxWidth >= ResponsiveLayout.expandedBreakpoint;
+          void navigate(String destination, {bool closeDrawer = false}) {
             if (navigationLocked) return;
-            if (!desktop) Navigator.of(context).pop();
+            if (closeDrawer && !desktop) Navigator.of(context).pop();
             if (destination == path) return;
             if (onNavigate != null) {
               onNavigate!(destination);
@@ -96,6 +79,20 @@ class AppWorkspace extends StatelessWidget {
                   const SizedBox(height: 12),
                   for (final item in <(String, String, IconData)>[
                     (AppRoutes.home, 'Dashboard', Icons.grid_view_rounded),
+                    if (role == 'job_seeker')
+                      (AppRoutes.browseJobs, 'Browse Jobs', Icons.search),
+                    if (role == 'job_seeker')
+                      (
+                        AppRoutes.applications,
+                        'My Applications',
+                        Icons.assignment_outlined,
+                      ),
+                    if (role == 'employer')
+                      (
+                        AppRoutes.applicants,
+                        'Applications (demo)',
+                        Icons.people_outline,
+                      ),
                     (
                       AppRoutes.profile,
                       'Personal profile',
@@ -132,7 +129,7 @@ class AppWorkspace extends StatelessWidget {
                         leading: Icon(item.$3),
                         title: Text(item.$2),
                         enabled: !navigationLocked,
-                        onTap: () => navigate(item.$1),
+                        onTap: () => navigate(item.$1, closeDrawer: true),
                       ),
                     ),
                   const Divider(height: 32),
@@ -146,7 +143,9 @@ class AppWorkspace extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   for (final module in upcomingModules.where(
-                    (m) => role != 'employer' || m.$1 != 'Job Posting',
+                    (m) =>
+                        !['employer', 'job_seeker'].contains(role) ||
+                        m.$1 != 'Job Posting',
                   ))
                     ListTile(
                       enabled: false,
@@ -164,6 +163,64 @@ class AppWorkspace extends StatelessWidget {
             ),
           );
           return Scaffold(
+            bottomNavigationBar:
+                !desktop && ['job_seeker', 'employer'].contains(role)
+                ? SafeArea(
+                    child: NavigationBar(
+                      selectedIndex: role == 'job_seeker'
+                          ? (path == AppRoutes.browseJobs
+                                ? 1
+                                : path == AppRoutes.applications
+                                ? 2
+                                : path == AppRoutes.profile
+                                ? 3
+                                : 0)
+                          : (path == AppRoutes.jobPostings ||
+                                    path == AppRoutes.createJob
+                                ? 1
+                                : path == AppRoutes.applicants
+                                ? 2
+                                : path == AppRoutes.company
+                                ? 3
+                                : 0),
+                      onDestinationSelected: navigationLocked
+                          ? null
+                          : (index) => navigate(
+                              (role == 'job_seeker'
+                                  ? [
+                                      AppRoutes.home,
+                                      AppRoutes.browseJobs,
+                                      AppRoutes.applications,
+                                      AppRoutes.profile,
+                                    ]
+                                  : [
+                                      AppRoutes.home,
+                                      AppRoutes.jobPostings,
+                                      AppRoutes.applicants,
+                                      AppRoutes.company,
+                                    ])[index],
+                            ),
+                      destinations: [
+                        const NavigationDestination(
+                          icon: Icon(Icons.dashboard_outlined),
+                          label: 'Home',
+                        ),
+                        NavigationDestination(
+                          icon: const Icon(Icons.work_outline),
+                          label: role == 'job_seeker' ? 'Jobs' : 'Posts',
+                        ),
+                        const NavigationDestination(
+                          icon: Icon(Icons.assignment_outlined),
+                          label: 'Applications',
+                        ),
+                        NavigationDestination(
+                          icon: const Icon(Icons.person_outline),
+                          label: role == 'job_seeker' ? 'Profile' : 'Company',
+                        ),
+                      ],
+                    ),
+                  )
+                : null,
             drawer: desktop ? null : Drawer(child: navigation),
             drawerEnableOpenDragGesture: !navigationLocked,
             appBar: AppBar(
@@ -209,7 +266,7 @@ class WorkspaceContent extends StatelessWidget {
   final Widget child;
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
-    padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 600 ? 16 : 32),
+    padding: ResponsiveLayout.pagePadding(context),
     child: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1120),
