@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../shared/widgets/mobile_back_action.dart';
+import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/design_primitives.dart';
+import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/responsive_layout.dart';
 
 class AdminUsersPage extends StatefulWidget {
@@ -110,14 +112,15 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
     final name = user['name'] as String? ?? 'Unnamed user';
     final role = _display(user['role'] as String?);
     final status = _display(user['account_status'] as String?);
-    final verification =
-        _display(user['verification_status'] as String?);
+    final verification = _display(user['verification_status'] as String?);
     final created = user['created_at']?.toString();
 
     return Card.outlined(
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-        leading: CircleAvatar(child: Text(name.isEmpty ? '?' : name[0].toUpperCase())),
+        leading: CircleAvatar(
+          child: Text(name.isEmpty ? '?' : name[0].toUpperCase()),
+        ),
         title: Text(name),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 8),
@@ -188,23 +191,29 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: mobileBackLeading(context),
-        title: const Text('Users'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _loading ? null : _loadUsers,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: SafeArea(
+    return AppWorkspace(
+      title: 'Users',
+      path: AppRoutes.adminUsers,
+      role: 'administrator',
+      actions: [
+        IconButton(
+          tooltip: 'Refresh',
+          onPressed: _loading ? null : _loadUsers,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+      child: SafeArea(
         child: ResponsiveContent(
-          maxWidth: 1100,
+          maxWidth: 896,
           child: Column(
             children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(24, 24, 24, 0),
+                child: PageHeading(
+                  title: 'User management',
+                  description: 'Review real account records using the existing administrator permissions.',
+                ),
+              ),
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   ResponsiveLayout.pagePadding(context).horizontal,

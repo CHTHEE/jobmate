@@ -78,6 +78,7 @@ class _HomePageState extends State<HomePage> {
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : WorkspaceContent(
+                maxWidth: _accountRole == 'employer' ? 768 : 672,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

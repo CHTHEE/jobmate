@@ -161,12 +161,13 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
       child: loading
           ? const Center(child: CircularProgressIndicator())
           : WorkspaceContent(
+              maxWidth: 768,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   PageHeading(
                     title: 'My Job Postings',
-                    eyebrow: 'Hiring workspace',
+
                     description: 'Manage your opportunities, from the first draft to the final hire.',
                     actions: [
                       OutlinedButton.icon(
@@ -179,7 +180,7 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                             ? () => open(AppRoutes.createJob)
                             : null,
                         icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Create Job'),
+                        label: const Text('Post Job'),
                       ),
                     ],
                   ),
@@ -212,6 +213,7 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                     StatGrid(
                       children: [
                         StatTile(
+                          valueSize: 20,
                           label: 'Total Jobs',
                           value: '${jobs.length}',
                           icon: Icons.work_outline,
@@ -238,20 +240,21 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                           ),
                         ])
                           StatTile(
+                            valueSize: 20,
                             label: item.$2,
                             value:
                                 '${jobs.where((j) => j['status'] == item.$1).length}',
                             icon: item.$3,
                             color: item.$4,
                             note: item.$1 == 'published'
-                                ? 'Open for applications'
+                                ? 'Published postings'
                                 : item.$1 == 'draft'
                                 ? 'Ready when you are'
                                 : 'No longer accepting applications',
                           ),
                       ],
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 20),
                     Text(
                       access!.company!['company_name'] as String,
                       style: Theme.of(context).textTheme.titleLarge,
@@ -313,169 +316,150 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                     for (final job in visible)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 20),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border(
-                              left: BorderSide(
-                                color: job['status'] == 'published'
-                                    ? JobMateTheme.primary
-                                    : job['status'] == 'draft'
-                                    ? const Color(0xFFF59E0B)
-                                    : JobMateTheme.border,
-                                width: 4,
+                        child: WorkspaceCard(
+                          title: job['title'] as String? ?? 'Untitled job',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Wrap(
+                                spacing: 20,
+                                runSpacing: 12,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  CompanyIdentity(
+                                    name:
+                                        access!.company!['company_name']
+                                            as String,
+                                    logo: access!.logo,
+                                  ),
+                                  WorkspaceStatus(job['status'] as String),
+                                ],
                               ),
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: WorkspaceCard(
-                            title: job['title'] as String? ?? 'Untitled job',
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Wrap(
-                                  spacing: 20,
-                                  runSpacing: 12,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    CompanyIdentity(
-                                      name:
-                                          access!.company!['company_name']
-                                              as String,
-                                      logo: access!.logo,
-                                    ),
-                                    WorkspaceStatus(job['status'] as String),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                Wrap(
-                                  spacing: 16,
-                                  runSpacing: 10,
-                                  children: [
-                                    for (final key in [
-                                      'department',
-                                      'employment_type',
-                                      'work_arrangement',
-                                      'location',
-                                    ])
-                                      if ('${job[key] ?? ''}'.isNotEmpty)
-                                        Chip(
-                                          label: Text(
-                                            '${jobLabel(key)}: ${jobLabel('${job[key]}')}',
-                                          ),
+                              const SizedBox(height: 16),
+                              Wrap(
+                                spacing: 16,
+                                runSpacing: 10,
+                                children: [
+                                  for (final key in [
+                                    'department',
+                                    'employment_type',
+                                    'work_arrangement',
+                                    'location',
+                                  ])
+                                    if ('${job[key] ?? ''}'.isNotEmpty)
+                                      Chip(
+                                        label: Text(
+                                          '${jobLabel(key)}: ${jobLabel('${job[key]}')}',
                                         ),
-                                  ],
-                                ),
-                                if ('${job['role_overview'] ?? ''}'
-                                    .trim()
-                                    .isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 12),
-                                    child: Text(
-                                      '${job['role_overview']}',
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: JobMateTheme.body,
-                                        height: 1.6,
                                       ),
+                                ],
+                              ),
+                              if ('${job['role_overview'] ?? ''}'
+                                  .trim()
+                                  .isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Text(
+                                    '${job['role_overview']}',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: JobMateTheme.body,
+                                      height: 1.6,
                                     ),
                                   ),
-                                const SizedBox(height: 16),
-                                Wrap(
-                                  spacing: 24,
-                                  runSpacing: 8,
-                                  children: [
-                                    if (job['salary_visible'] == true)
-                                      Text('Salary: ${jobSalary(job)}'),
-                                    Text(
-                                      'Vacancies: ${job['vacancies'] ?? 'Not set'}',
-                                    ),
-                                    if (job['application_deadline'] != null)
-                                      Text(
-                                        'Application deadline: ${jobDate(job['application_deadline'])}',
-                                      ),
-                                    if (job['published_at'] != null)
-                                      Text(
-                                        'Published: ${jobDate(job['published_at'])}',
-                                      )
-                                    else if (job['created_at'] != null)
-                                      Text(
-                                        'Created: ${jobDate(job['created_at'])}',
-                                      ),
-                                  ],
                                 ),
-                                const Divider(height: 32),
-                                Wrap(
-                                  spacing: 12,
-                                  runSpacing: 10,
-                                  children: [
-                                    if (job['status'] == 'draft' ||
-                                        job['status'] == 'published')
-                                      FilledButton(
-                                        onPressed: busy
-                                            ? null
-                                            : () => open(
-                                                '${AppRoutes.jobPostings}/${job['job_id']}/edit',
-                                              ),
-                                        child: Text(
-                                          job['status'] == 'draft'
-                                              ? 'Edit Draft'
-                                              : 'Edit',
-                                        ),
+                              const SizedBox(height: 16),
+                              Wrap(
+                                spacing: 24,
+                                runSpacing: 8,
+                                children: [
+                                  if (job['salary_visible'] == true)
+                                    Text('Salary: ${jobSalary(job)}'),
+                                  Text(
+                                    'Vacancies: ${job['vacancies'] ?? 'Not set'}',
+                                  ),
+                                  if (job['application_deadline'] != null)
+                                    Text(
+                                      'Application deadline: ${jobDate(job['application_deadline'])}',
+                                    ),
+                                  if (job['published_at'] != null)
+                                    Text(
+                                      'Published: ${jobDate(job['published_at'])}',
+                                    )
+                                  else if (job['created_at'] != null)
+                                    Text(
+                                      'Created: ${jobDate(job['created_at'])}',
+                                    ),
+                                ],
+                              ),
+                              const Divider(height: 32),
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 10,
+                                children: [
+                                  if (job['status'] == 'draft' ||
+                                      job['status'] == 'published')
+                                    FilledButton(
+                                      onPressed: busy
+                                          ? null
+                                          : () => open(
+                                              '${AppRoutes.jobPostings}/${job['job_id']}/edit',
+                                            ),
+                                      child: Text(
+                                        job['status'] == 'draft'
+                                            ? 'Edit Draft'
+                                            : 'Edit',
                                       ),
+                                    ),
+                                  OutlinedButton(
+                                    onPressed: busy
+                                        ? null
+                                        : () => showDialog<void>(
+                                            context: context,
+                                            builder: (_) => JobPreview(
+                                              logo: access!.logo,
+                                              job: job,
+                                              company:
+                                                  access!.company!['company_name']
+                                                      as String,
+                                            ),
+                                          ),
+                                    child: const Text('Preview'),
+                                  ),
+                                  if (job['status'] == 'draft')
                                     OutlinedButton(
                                       onPressed: busy
                                           ? null
-                                          : () => showDialog<void>(
-                                              context: context,
-                                              builder: (_) => JobPreview(
-                                                logo: access!.logo,
-                                                job: job,
-                                                company:
-                                                    access!.company!['company_name']
-                                                        as String,
-                                              ),
-                                            ),
-                                      child: const Text('Preview'),
+                                          : () => publish(job),
+                                      child: const Text('Publish'),
                                     ),
-                                    if (job['status'] == 'draft')
-                                      OutlinedButton(
-                                        onPressed: busy
-                                            ? null
-                                            : () => publish(job),
-                                        child: const Text('Publish'),
-                                      ),
-                                    if (job['status'] == 'published')
-                                      OutlinedButton(
-                                        onPressed: busy
-                                            ? null
-                                            : () => close(job),
-                                        child: const Text('Close Job'),
-                                      ),
-                                    OutlinedButton.icon(
-                                      onPressed: busy
-                                          ? null
-                                          : () => context.push<void>(
-                                              Uri(
-                                                path: AppRoutes.applicants,
-                                                queryParameters: {
-                                                  'posting': job['job_id']
-                                                      .toString(),
-                                                },
-                                              ).toString(),
-                                            ),
-                                      icon: const Icon(
-                                        Icons.people_outline,
-                                        size: 18,
-                                      ),
-                                      label: const Text(
-                                        'Applications (preview)',
-                                      ),
+                                  if (job['status'] == 'published')
+                                    OutlinedButton(
+                                      onPressed: busy ? null : () => close(job),
+                                      child: const Text('Close Job'),
                                     ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                                  OutlinedButton.icon(
+                                    onPressed: busy
+                                        ? null
+                                        : () => context.push<void>(
+                                            Uri(
+                                              path: AppRoutes.applicants,
+                                              queryParameters: {
+                                                'posting': job['job_id']
+                                                    .toString(),
+                                              },
+                                            ).toString(),
+                                          ),
+                                    icon: const Icon(
+                                      Icons.people_outline,
+                                      size: 18,
+                                    ),
+                                    label: const Text('Applications (preview)'),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
                       ),

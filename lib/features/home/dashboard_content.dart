@@ -149,8 +149,9 @@ class DashboardContent extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         PageHeading(
+          fontSize: 24,
           title: 'Welcome${name.isEmpty ? '' : ', $name'}',
-          eyebrow: '${workspaceLabel(role)} dashboard',
+
           description: role == 'employer'
               ? company == null
                     ? 'Build your team, one opportunity at a time.'
@@ -171,6 +172,7 @@ class DashboardContent extends StatelessWidget {
               ),
           ],
         ),
+        if (role == 'job_seeker') ...[summary, const SizedBox(height: 24)],
         if (role == 'employer') ...[
           StatGrid(
             children: [
@@ -237,7 +239,8 @@ class DashboardContent extends StatelessWidget {
         ],
         LayoutBuilder(
           builder: (context, constraints) {
-            if (role != 'job_seeker' && role != 'employer') return summary;
+            if (role == 'job_seeker') return verification;
+            if (role != 'employer') return summary;
             return constraints.maxWidth >= 760
                 ? Row(
                     crossAxisAlignment: CrossAxisAlignment.start,

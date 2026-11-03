@@ -21,6 +21,11 @@ class JobPreview extends StatelessWidget {
   final String company;
   @override
   Widget build(BuildContext context) => AlertDialog(
+    constraints: BoxConstraints(
+      maxWidth: 512,
+      maxHeight: MediaQuery.sizeOf(context).height * .8,
+    ),
+    insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
     title: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -41,7 +46,7 @@ class JobPreview extends StatelessWidget {
       ],
     ),
     content: SizedBox(
-      width: 700,
+      width: 464,
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

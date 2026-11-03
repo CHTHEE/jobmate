@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/design_primitives.dart';
 import '../applications/module2_widgets.dart';
 import '../demo_work/demo_widgets.dart';
 import 'phase4_store.dart';
@@ -72,12 +73,15 @@ class _ReputationPageState extends State<ReputationPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    '$score / 100 • DEMO',
-                    style: Theme.of(context).textTheme.displaySmall,
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: ScoreRing(value: score, label: 'DEMO'),
                   ),
                   const SizedBox(height: 12),
-                  LinearProgressIndicator(value: score / 100),
+                  Text(
+                    '$score / 100 • DEMO',
+                    style: const TextStyle(fontFamily: 'DM Mono', fontSize: 14),
+                  ),
                   const SizedBox(height: 16),
                   const Text(
                     'Fixed preview value. It does not recalculate from your activity or represent a verified assessment.',

@@ -2,6 +2,57 @@ import 'package:flutter/material.dart';
 
 import '../theme/jobmate_theme.dart';
 
+/// A visual summary only: callers own the score, provenance and explanation.
+class ScoreRing extends StatelessWidget {
+  const ScoreRing({
+    super.key,
+    required this.value,
+    required this.label,
+    this.size = 96,
+  });
+  final int value;
+  final String label;
+  final double size;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: '$label: $value out of 100',
+    child: SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned.fill(
+            child: CircularProgressIndicator(
+              value: value.clamp(0, 100) / 100,
+              strokeWidth: 7,
+              backgroundColor: JobMateTheme.teal100,
+              color: JobMateTheme.teal,
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$value',
+                style: const TextStyle(
+                  fontFamily: 'DM Mono',
+                  fontSize: 24,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 10, color: JobMateTheme.body),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class PageHeading extends StatelessWidget {
   const PageHeading({
     super.key,
@@ -9,13 +60,15 @@ class PageHeading extends StatelessWidget {
     required this.description,
     this.eyebrow,
     this.actions = const [],
+    this.fontSize = 20,
   });
   final String title, description;
   final String? eyebrow;
   final List<Widget> actions;
+  final double fontSize;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 28),
+    padding: const EdgeInsets.only(bottom: 20),
     child: LayoutBuilder(
       builder: (context, box) {
         final heading = Column(
@@ -33,7 +86,11 @@ class PageHeading extends StatelessWidget {
               ),
               const SizedBox(height: 8),
             ],
-            Text(title, style: Theme.of(context).textTheme.headlineLarge),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.headlineMedium
+                  ?.copyWith(fontSize: fontSize, height: 1.4),
+            ),
             if (description.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
@@ -43,7 +100,7 @@ class PageHeading extends StatelessWidget {
             ],
           ],
         );
-        if (box.maxWidth < 760) {
+        if (box.maxWidth < 600) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -78,11 +135,13 @@ class StatTile extends StatelessWidget {
     required this.icon,
     this.note,
     this.color = JobMateTheme.darkTeal,
+    this.valueSize = 24,
   });
   final String label, value;
   final IconData icon;
   final String? note;
   final Color color;
+  final double valueSize;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, box) {
@@ -131,7 +190,7 @@ class StatTile extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'DM Mono',
                 fontFamilyFallback: const ['Consolas', 'monospace'],
-                fontSize: compact ? 28 : 32,
+                fontSize: valueSize,
                 fontWeight: FontWeight.w600,
                 color: JobMateTheme.heading,
               ),
@@ -156,7 +215,8 @@ class StatGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, box) {
-      final maximum = box.maxWidth >= 850
+      final maximum =
+          MediaQuery.sizeOf(context).width >= 768 && box.maxWidth >= 400
           ? 4
           : box.maxWidth >= 280
           ? 2
@@ -222,7 +282,7 @@ class BrandPanel extends StatelessWidget {
                     style: const TextStyle(
                       fontFamily: 'DM Serif Display',
                       fontFamilyFallback: ['Georgia', 'serif'],
-                      fontSize: 27,
+                      fontSize: 20,
                       color: Colors.white,
                     ),
                   ),
@@ -301,18 +361,20 @@ class ProfileHeading extends StatelessWidget {
     required this.description,
     required this.icon,
     this.trailing,
+    this.avatar,
   });
   final String title, description;
   final IconData icon;
   final Widget? trailing;
+  final Widget? avatar;
   @override
   Widget build(BuildContext context) => Container(
     margin: const EdgeInsets.only(bottom: 24),
     padding: const EdgeInsets.all(24),
     decoration: BoxDecoration(
-      color: const Color(0xFFF0FDFA),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0xFF99F6E4)),
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: JobMateTheme.divider),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -326,7 +388,8 @@ class ProfileHeading extends StatelessWidget {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(icon, color: JobMateTheme.darkTeal, size: 28),
+              child:
+                  avatar ?? Icon(icon, color: JobMateTheme.darkTeal, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(

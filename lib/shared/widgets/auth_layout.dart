@@ -77,8 +77,8 @@ class AuthLayout extends StatelessWidget {
                                 style: TextStyle(
                                   fontFamily: 'DM Serif Display',
                                   fontFamilyFallback: ['Georgia', 'serif'],
-                                  fontSize: 42,
-                                  height: 1.2,
+                                  fontSize: 30,
+                                  height: 1.375,
                                   color: Colors.white,
                                 ),
                               ),
@@ -86,8 +86,8 @@ class AuthLayout extends StatelessWidget {
                               Text(
                                 'AI-assisted recruitment and workforce management. Connect talent with opportunity through JobMate.',
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  height: 1.7,
+                                  fontSize: 14,
+                                  height: 1.625,
                                   color: Colors.white.withValues(alpha: 0.85),
                                 ),
                               ),
@@ -104,7 +104,9 @@ class AuthLayout extends StatelessWidget {
                           vertical: desktop ? 40 : pagePadding.vertical + 16,
                         ),
                         child: ConstrainedBox(
-                          constraints: BoxConstraints(maxWidth: contentMaxWidth),
+                          constraints: BoxConstraints(
+                            maxWidth: contentMaxWidth,
+                          ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,

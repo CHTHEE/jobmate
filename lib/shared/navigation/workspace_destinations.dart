@@ -21,6 +21,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
       (AppRoutes.applicants, 'Applications (demo)', Icons.people_outline),
     ],
     'WORKERS': [
+      (AppRoutes.workers, 'Workers (demo)', Icons.groups_outlined),
       (
         AppRoutes.attendanceReview,
         'Attendance Review (demo)',

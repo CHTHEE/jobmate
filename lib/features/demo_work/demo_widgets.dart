@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../applications/module2_widgets.dart';
 
@@ -20,10 +21,14 @@ class DemoPage extends StatelessWidget {
     required this.role,
     required this.children,
     this.back,
+    this.maxWidth,
+    this.sidebar = const [],
   });
   final String title, path, role;
   final List<Widget> children;
+  final List<Widget> sidebar;
   final String? back;
+  final double? maxWidth;
   @override
   Widget build(BuildContext context) => AppWorkspace(
     title: title,
@@ -33,6 +38,13 @@ class DemoPage extends StatelessWidget {
         ? BackButton(onPressed: () => moduleBack(context, back!))
         : null,
     child: WorkspaceContent(
+      maxWidth:
+          maxWidth ??
+          (role == 'administrator'
+              ? 896
+              : path == AppRoutes.attendanceReview
+              ? 768
+              : 672),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -45,16 +57,35 @@ class DemoPage extends StatelessWidget {
                 label: const Text('Back'),
               ),
             ),
-          PageHeading(
-            title: title,
-            description: '',
-            eyebrow: role == 'employer'
-                ? 'Hiring workspace'
-                : role == 'administrator'
-                ? 'Administration'
-                : 'Your workspace',
-          ),
-          ...children,
+          PageHeading(title: title, description: ''),
+          if (sidebar.isEmpty)
+            ...children
+          else
+            LayoutBuilder(
+              builder: (context, box) {
+                final main = Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: children,
+                );
+                final side = Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: sidebar,
+                );
+                return box.maxWidth >= 900
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 2, child: main),
+                          const SizedBox(width: 16),
+                          Expanded(child: side),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [main, const SizedBox(height: 20), side],
+                      );
+              },
+            ),
         ],
       ),
     ),
@@ -103,18 +134,14 @@ class DemoStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 20),
-    child: Wrap(
-      spacing: 12,
-      runSpacing: 12,
+    child: StatGrid(
       children: [
         for (final v in values.entries)
-          SizedBox(
-            width: 180,
-            child: WorkspaceCard(
-              title: '${v.value}',
-              subtitle: v.key,
-              child: const Text('Demo records'),
-            ),
+          StatTile(
+            label: v.key,
+            value: '${v.value}',
+            icon: Icons.insights_outlined,
+            note: 'Demo records',
           ),
       ],
     ),

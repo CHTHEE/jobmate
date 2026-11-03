@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:jobmate/features/home/dashboard_content.dart';
 import 'package:jobmate/shared/navigation/app_routes.dart';
 import 'package:jobmate/shared/widgets/app_workspace.dart';
-import 'package:jobmate/shared/widgets/auth_style.dart';
 
 void main() {
   for (final width in [320.0, 1440.0]) {
@@ -50,7 +49,7 @@ void main() {
             !kIsWeb,
           );
           expect(find.byType(BackButton), findsNothing);
-          if (width < 1024) {
+          if (width < 768) {
             await tester.tap(find.byTooltip('Open navigation menu'));
             await tester.pumpAndSettle();
           }
@@ -62,7 +61,7 @@ void main() {
           expect(router.canPop(), true);
           expect(
             find.byType(BackButton),
-            !kIsWeb && width >= 1024 ? findsOneWidget : findsNothing,
+            !kIsWeb && width >= 768 ? findsOneWidget : findsNothing,
           );
           expect(find.text('Page content'), findsOneWidget);
           // Back remains routed even when Web omits the visual arrow.
@@ -97,6 +96,14 @@ void main() {
       expect(tile.enabled, isFalse);
       expect(tile.onTap, isNull);
     }
+    await tester.scrollUntilVisible(
+      find.widgetWithText(ListTile, 'Personal profile'),
+      160,
+      scrollable: find.descendant(
+        of: find.byKey(const ValueKey('workspace-navigation')),
+        matching: find.byType(Scrollable),
+      ),
+    );
     expect(
       tester
           .widget<ListTile>(find.widgetWithText(ListTile, 'Personal profile'))
@@ -129,10 +136,7 @@ void main() {
       find.widgetWithText(ListTile, 'Company profile'),
       180,
       scrollable: find.descendant(
-        of: find.ancestor(
-          of: find.byType(AuthWordmark),
-          matching: find.byType(ListView),
-        ),
+        of: find.byKey(const ValueKey('workspace-navigation')),
         matching: find.byType(Scrollable),
       ),
     );
@@ -177,9 +181,19 @@ void main() {
           find.text('Set up company'),
           role == 'employer' ? findsOneWidget : findsNothing,
         );
-        if (width < 1024) {
+        if (width < 768) {
           await tester.tap(find.byTooltip('Open navigation menu'));
           await tester.pumpAndSettle();
+        }
+        if (role == 'employer') {
+          await tester.scrollUntilVisible(
+            find.widgetWithText(ListTile, 'Company profile'),
+            160,
+            scrollable: find.descendant(
+              of: find.byKey(const ValueKey('workspace-navigation')),
+              matching: find.byType(Scrollable),
+            ),
+          );
         }
         expect(
           find.text('Company profile'),
@@ -189,10 +203,7 @@ void main() {
           find.widgetWithText(ListTile, 'Personal profile'),
           180,
           scrollable: find.descendant(
-            of: find.ancestor(
-              of: find.byType(AuthWordmark),
-              matching: find.byType(ListView),
-            ),
+            of: find.byKey(const ValueKey('workspace-navigation')),
             matching: find.byType(Scrollable),
           ),
         );

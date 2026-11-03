@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/design_primitives.dart';
 import '../jobs/job_display.dart';
 import 'module2_repository.dart';
 import 'module2_widgets.dart';
@@ -66,7 +67,9 @@ class JobDetailsPage extends StatelessWidget {
                     message: 'This demo job does not exist. Refresh resets the demo environment.',
                   )
                 else ...[
+                  PageHeading(title: job.title, description: job.company),
                   WorkspaceCard(
+                    leading: const Icon(Icons.business_outlined),
                     title: job.title,
                     subtitle: job.company,
                     child: Column(
@@ -85,28 +88,35 @@ class JobDetailsPage extends StatelessWidget {
                             'Already applied in this demo session. View My Applications for the current status.',
                           ),
                         const SizedBox(height: 12),
-                        FilledButton(
-                          onPressed:
-                              job.unavailable() != null || repo.applied(job.id)
-                              ? null
-                              : () => moduleModal<void>(
-                                  context,
-                                  ApplyDemoForm(job: job, repository: repo),
-                                ),
-                          child: const Text('Apply Now (demo)'),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: FilledButton(
+                            onPressed:
+                                job.unavailable() != null ||
+                                    repo.applied(job.id)
+                                ? null
+                                : () => moduleModal<void>(
+                                    context,
+                                    ApplyDemoForm(job: job, repository: repo),
+                                  ),
+                            child: const Text('Apply Now (demo)'),
+                          ),
                         ),
                         const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: () => repo.toggleSave(job.id),
-                          icon: Icon(
-                            repo.saved(job.id)
-                                ? Icons.bookmark
-                                : Icons.bookmark_border,
-                          ),
-                          label: Text(
-                            repo.saved(job.id)
-                                ? 'Unsave Job (demo)'
-                                : 'Save Job (demo)',
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            onPressed: () => repo.toggleSave(job.id),
+                            icon: Icon(
+                              repo.saved(job.id)
+                                  ? Icons.bookmark
+                                  : Icons.bookmark_border,
+                            ),
+                            label: Text(
+                              repo.saved(job.id)
+                                  ? 'Unsave Job (demo)'
+                                  : 'Save Job (demo)',
+                            ),
                           ),
                         ),
                       ],

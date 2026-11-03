@@ -19,6 +19,7 @@ abstract final class AppRoutes {
   static const attendanceHistory = '/attendance/history';
   static const workEvidence = '/attendance/evidence';
   static const attendanceReview = '/attendance-review';
+  static const workers = '/workers';
   static const messages = '/messages';
   static const employerMessages = '/employer-messages';
   static const nearbyJobs = '/nearby-jobs';

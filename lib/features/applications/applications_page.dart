@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/design_primitives.dart';
 import '../jobs/job_display.dart';
 import 'module2_repository.dart';
 import 'module2_widgets.dart';
@@ -54,6 +55,7 @@ class _ApplicationsPageState extends State<ApplicationsPage> {
         path: widget.employer ? AppRoutes.applicants : AppRoutes.applications,
         role: widget.employer ? 'employer' : 'job_seeker',
         child: WorkspaceContent(
+          maxWidth: widget.employer ? 768 : 672,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -97,9 +99,7 @@ class _ApplicationsPageState extends State<ApplicationsPage> {
                       onChanged: (v) => setState(() => jobId = v),
                     ),
                   ),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
+                StatGrid(
                   children: [
                     for (final item in <(String, int)>[
                       ('All', base.length),
@@ -109,13 +109,15 @@ class _ApplicationsPageState extends State<ApplicationsPage> {
                         base.where((a) => a.stage.completed).length,
                       ),
                     ])
-                      SizedBox(
-                        width: 180,
-                        child: WorkspaceCard(
-                          title: '${item.$2}',
-                          subtitle: '${item.$1} demo applications',
-                          child: const SizedBox.shrink(),
-                        ),
+                      StatTile(
+                        label: item.$1,
+                        value: '${item.$2}',
+                        icon: item.$1 == 'All'
+                            ? Icons.description_outlined
+                            : item.$1 == 'Active'
+                            ? Icons.schedule
+                            : Icons.task_alt,
+                        note: 'Demo applications',
                       ),
                   ],
                 ),
@@ -210,6 +212,15 @@ class _ApplicationsPageState extends State<ApplicationsPage> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: WorkspaceCard(
+                      leading: CircleAvatar(
+                        radius: 20,
+                        child: Icon(
+                          widget.employer
+                              ? Icons.person_outline
+                              : Icons.work_outline,
+                          size: 20,
+                        ),
+                      ),
                       title: widget.employer
                           ? a.candidate
                           : repo.job(a.jobId)!.title,
@@ -244,14 +255,17 @@ class _ApplicationsPageState extends State<ApplicationsPage> {
                             ),
                           ],
                           const SizedBox(height: 16),
-                          OutlinedButton(
-                            onPressed: () => context.push(
-                              '${widget.employer ? AppRoutes.applicants : AppRoutes.applications}/${a.id}',
-                            ),
-                            child: Text(
-                              widget.employer
-                                  ? 'View Applicant'
-                                  : 'View Application',
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: OutlinedButton(
+                              onPressed: () => context.push(
+                                '${widget.employer ? AppRoutes.applicants : AppRoutes.applications}/${a.id}',
+                              ),
+                              child: Text(
+                                widget.employer
+                                    ? 'View Applicant'
+                                    : 'View Application',
+                              ),
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -300,6 +314,7 @@ class ApplicationDetailsPage extends StatelessWidget {
           path: path,
           role: employer ? 'employer' : 'job_seeker',
           child: WorkspaceContent(
+            maxWidth: employer ? 512 : 448,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -325,7 +340,13 @@ class ApplicationDetailsPage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         if (employer) Text(j.title),
-                        Text('Demo ID: ${a.id}'),
+                        Text(
+                          'Demo ID: ${a.id}',
+                          style: const TextStyle(
+                            fontFamily: 'DM Mono',
+                            fontSize: 11,
+                          ),
+                        ),
                         Align(
                           alignment: Alignment.centerLeft,
                           child: StageBadge(a.stage),
@@ -554,6 +575,16 @@ class _TransitionFormState extends State<TransitionForm> {
       actions: [
         TextButton(onPressed: close, child: const Text('Cancel')),
         FilledButton(
+          style:
+              [
+                ApplicationStage.rejected,
+                ApplicationStage.withdrawn,
+              ].contains(widget.next)
+              ? FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFDC2626),
+                  foregroundColor: Colors.white,
+                )
+              : null,
           onPressed: () {
             if (leaving) return;
             try {

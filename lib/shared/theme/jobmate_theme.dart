@@ -18,7 +18,7 @@ abstract final class JobMateTheme {
   static const border = Color(0xFFCBD5E1);
   static const divider = Color(0xFFE2E8F0);
   static const error = Color(0xFFDC2626);
-  static const controlRadius = 12.0;
+  static const controlRadius = 8.0;
   static const dialogRadius = 16.0;
 
   static ThemeData light() => apply(ThemeData(useMaterial3: true));
@@ -37,13 +37,13 @@ abstract final class JobMateTheme {
       fontFamily: 'Outfit',
       fontFamilyFallback: ['Arial', 'sans-serif'],
       fontSize: 14,
-      fontWeight: FontWeight.w600,
+      fontWeight: FontWeight.w500,
     );
     return base.copyWith(
       colorScheme: ColorScheme.fromSeed(
         seedColor: primary,
-        primary: primary,
-        onPrimary: heading,
+        primary: teal,
+        onPrimary: Colors.white,
         surface: Colors.white,
         onSurface: heading,
         error: error,
@@ -57,17 +57,42 @@ abstract final class JobMateTheme {
             displayColor: heading,
           )
           .copyWith(
+            bodyLarge: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 14,
+              height: 20 / 14,
+              color: heading,
+            ),
+            bodyMedium: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 14,
+              height: 20 / 14,
+              color: heading,
+            ),
+            bodySmall: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 12,
+              height: 16 / 12,
+              color: body,
+            ),
+            titleLarge: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 16,
+              height: 1.5,
+              fontWeight: FontWeight.w600,
+              color: heading,
+            ),
             headlineLarge: const TextStyle(
               fontFamily: 'DM Serif Display',
               fontFamilyFallback: ['Georgia', 'serif'],
-              fontSize: 34,
+              fontSize: 24,
               height: 1.2,
               color: heading,
             ),
             headlineMedium: const TextStyle(
               fontFamily: 'DM Serif Display',
               fontFamilyFallback: ['Georgia', 'serif'],
-              fontSize: 28,
+              fontSize: 20,
               height: 1.25,
               color: heading,
             ),
@@ -105,7 +130,10 @@ abstract final class JobMateTheme {
         color: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        shape: shape.copyWith(side: const BorderSide(color: divider)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: divider),
+        ),
       ),
       appBarTheme: const AppBarTheme(
         centerTitle: false,
@@ -119,7 +147,7 @@ abstract final class JobMateTheme {
         fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
-          vertical: 16,
+          vertical: 12,
         ),
         border: outline(border),
         enabledBorder: outline(border),
@@ -128,14 +156,21 @@ abstract final class JobMateTheme {
         focusedErrorBorder: outline(error, 2),
       ),
       filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: darkTeal,
-          foregroundColor: Colors.white,
-          minimumSize: const Size(48, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          textStyle: buttonText,
-          shape: shape,
-        ),
+        style:
+            FilledButton.styleFrom(
+              backgroundColor: teal,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(48, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              textStyle: buttonText,
+              shape: shape,
+            ).copyWith(
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.disabled)) return null;
+                if (states.contains(WidgetState.pressed)) return teal800;
+                return states.contains(WidgetState.hovered) ? darkTeal : teal;
+              }),
+            ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(

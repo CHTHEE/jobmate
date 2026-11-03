@@ -681,6 +681,182 @@ bundled design fonts, dedicated worker views and complete visual acceptance agai
 original Figma frames remain future work. This pass does not claim every screen was
 individually redesigned. No commit or push was made.
 
+## Phase 5.1 — Exact handoff matching progress
+
+`JOBMATE_EXACT_UI_DESIGN_HANDOFF.md` is now the primary visual reference;
+`JOBMATE_FIGMA_UI_SPEC.md` continues to describe screen/workflow coverage. The
+working tree was clean at the start of this pass. Functional implementations and
+teammate persistence/authorization code are retained. This section supersedes
+Phase 5's measurements and fallback-font limitations where explicitly stated.
+
+### Implemented visual matching
+
+| Area / screen | Updated presentation |
+| --- | --- |
+| Shared theme | Canvas/text/brand tokens; primary action `#0D9488`, hover `#0F766E`, pressed `#115E59`; white bordered cards without resting shadow; 8px controls, 12px cards, 16px dialogs; 14px body/fields and distinct 20px section/page versus 24px dashboard headings. |
+| Fonts | Outfit 300–700, DM Serif Display regular/italic, DM Mono 400/500 bundled in `assets/fonts/`, registered in `pubspec.yaml`. No font package or runtime font requests. Source/licensing notes and OFL licenses included. Heavier serif/mono weights can be synthesized. |
+| Workspace shell | 240px sidebar from 768px viewport width, 56px toolbar, 256px mobile drawer, 18px navigation icons, 8px selected item corners, compact Outfit wordmark and pinned account footer. Existing role routes, locks, contextual exits and Android navigation remain. The footer truthfully shows account/role context, not a fabricated person. |
+| EMP-02 | Centered 768px list, 20px serif heading, intrinsic Post Job action, four real-derived count cards, existing search/status controls, bordered stacked posting cards and preserved Refresh/Edit/Preview/Publish/Close. Unsupported applicant/view metrics are not fabricated. |
+| EMP-03/04 | Centered 672px form with five separate bordered cards: Basic job information, Compensation, Schedule & location, Description & AI formatting, Requirements & benefits. Icon headers, responsive paired fields and salary visibility grouped under compensation. Controllers, field keys, validators, dirty guards, AI progress and callbacks preserved. No fake skills field added. |
+| EMP-05 | Preview constrained to 512px and 80% viewport height with scrollable actual content and existing close/return behavior. |
+| JS-01 / EMP-01 | 672px / 768px production content columns, 24px greetings and smaller numeric hierarchy. Job Seeker's real profile-completion card precedes demo activity. Existing demo work/applications remain visibly separate from real account/posting data. |
+| ADM-01 | 896px content, Slate 50 canvas and 56px toolbar; existing access checks and real overview retained. |
+| JS-23/24 | Shared 672px column, 56px real photo/fallback, compact identity/personal details and edit controls. Existing real editing/upload/security logic retained. |
+| EMP-19/20 | Shared 672px company layout and saved real logo in the profile header with actual verification state; existing company submission/edit forms inherit bundled fonts and shared fields. |
+| Remaining shared pages | Workspace columns default to 672px; employer attendance review uses 768px, admin demo pages 896px. Shared headers/cards/inputs receive the same tokens without changing module state. Chat retains its own split-layout implementation. |
+
+### Remaining fidelity checklist
+
+This is a measured priority-screen matching pass, not a claim that the entire
+inventory now exactly matches. Bespoke content order and components still need
+individual matching for Browse/Details/Applications, Recommendations, Attendance,
+Chat, Evaluations, Reputation, Payments, Nearby/Location and Admin directory/
+moderation/disputes/reports/auth/settings. Role dashboards still retain extra real
+account/verification cards instead of invented Figma trust/skill metrics; they do
+not yet reproduce every recommendation/recent-activity panel. Real profiles lack
+some prototype-only bio/skills/resume/reputation fields; no fictional replacements
+were introduced. Company registration/resubmission remains the actual workflow.
+
+The shell still places its toolbar across the Scaffold above sidebar/content,
+rather than reproducing every sticky React chrome detail. The existing four mobile
+destinations are retained; other role destinations remain accessible in the drawer.
+Material icons and controls remain instead of adding Lucide dependencies. Android
+touch targets are kept usable rather than copying small web-only click targets.
+The 36px development switcher is not reproduced. Dedicated worker directory views
+and standalone report HTML remain outside this visual pass.
+
+### Functionality and validation
+
+No schema, SQL, RLS, Edge Functions, Gemini model/request contract, secrets,
+Storage buckets or package dependencies changed. Font asset registration is the
+only `pubspec.yaml` change. Supabase login/role selection, company ownership and
+verification, profile updates, actual posting fields/status operations and
+Original Description plus four editable AI sections remain authoritative.
+All previous demo/backend integration notes remain applicable; no Dashboard steps
+are needed. No commit or push was made.
+
+The full test run reports 246 passes and the same two pre-existing failures:
+registration's stale CheckboxListTile lookup and the counter smoke test without
+router initialization. A subsequent targeted run passes 118 tests across workspace,
+posting, Phase 3 and responsive visual scenarios. Analysis retains the eight
+pre-existing auth/home/profile diagnostics. Final formatting, whitespace checks
+and the release Web build pass. No Android device was connected.
+
+Visual fixture tests now load the bundled fonts and render posting/dashboard/form
+screens at 390, 768 and 1440px, with 15 PNGs including previews under ignored
+`build/phase51-review/`. They assert widths, toolbar geometry, form sections,
+fixture-derived counts and absence of layout exceptions. Images were inspected
+against the documented measurements; original Figma screenshots/frames are not
+available, so no image-to-image or pixel-perfect comparison is claimed. These are
+injected-data Flutter renders, not authenticated browser/server acceptance tests.
+The release build was also served locally and real login-page screenshots were
+captured and inspected in headless Chrome at 1440px and at a DevTools-emulated
+390px viewport (document width also 390px). The first narrow window-only capture
+was cropped; it was replaced with the correctly emulated capture. Browser images
+are `login-browser-1440.png` and `login-browser-390.png` in the same review folder.
+No credentials were entered and no authenticated actions were exercised.
+Real Supabase/Gemini operations, native Android hardware, browser history/refresh,
+keyboard-open forms and native pickers remain unverified in this pass.
+
+### Files changed in Phase 5.1
+
+- Theme/components: `lib/shared/theme/jobmate_theme.dart`,
+  `lib/shared/widgets/app_workspace.dart`, `auth_style.dart`, `design_primitives.dart`.
+- Posting UI: `lib/features/jobs/job_postings_page.dart`, `job_form_page.dart`,
+  `job_preview.dart`.
+- Landing/profile UI: `lib/features/home/home_page.dart`, `dashboard_content.dart`,
+  `lib/features/admin/admin_dashboard_page.dart`,
+  `lib/features/profile/profile_page.dart`,
+  `lib/features/company/create_company_page.dart`.
+- Shared demo presentation: `lib/features/demo_work/demo_widgets.dart`.
+- Verification: `test/workspace_test.dart`, `test/job_postings_test.dart`,
+  `test/phase5_visual_test.dart` (four additional tablet scenarios).
+- Assets/documentation: `pubspec.yaml`, five `.ttf` files, three OFL license files,
+  `assets/fonts/README.md`, and this README. No dependency additions.
+
+## Phase 5.2 — UI consistency and application integration preparation
+
+The improved Phase 5.1 employer dashboard/posting/form design is preserved. The
+existing uncommitted working tree was retained. See [the 71-screen audit](PHASE52_SCREEN_AUDIT.md)
+for every AUTH/ACC/JS/EMP/ADM/RPT ID, implementation, role entry, real/demo boundary
+and remaining visual differences. Presence of a route is not a completion claim.
+
+### Screens polished / completed
+
+| Module | Phase 5.2 UI work and current boundary |
+| --- | --- |
+| 1 Account/identity | Existing real login/registration/recovery/profile/company flows preserved. Auth marketing typography now follows 30px display / 14px support copy. Existing real profile/company baseline retained; extended profile/company previews remain explicitly demo. Settings reuse the refined modal/field styles. |
+| 2 Jobs/applications | Browse identity cards, responsive filters, job header/actions, three application summary tiles, semantic stage badges, 768px employer pipeline, compact card actions, 448px seeker / 512px employer detail widths, timeline IDs, responsive 448px dialogs and destructive withdrawal/rejection confirmation styling. All seeker catalogue/applications/applicants remain fictional; real posting entry explicitly requires choosing a separate demo pipeline. Employer real postings/counts/AI are unchanged. |
+| 3 Recommendations | Existing deterministic matching, filters, match rings, explanations and shared Apply flow retained with refined common fields/modals. No real recommendation AI claim. |
+| 4 Attendance/work | Responsive mono-number summaries; attendance/evidence/review/report remain coherent local demos. Added `/workers` directory from the same attendance store and worker-context reputation modal with a truthful insufficient-data state (no invented worker score). Printable A4 demo report styling and 794px report width refined. |
+| 5 Communication | White bordered split chat, 288/320px rail sizing where space permits, message/composer padding, mobile single-conversation layout retained. Local sends/attachments/receipts remain labeled simulated. Split mode waits until enough content width remains after the sidebar. |
+| 6 Evaluations | Separate bordered criterion panels, colored circular 1–5 choices, mono rating labels. Exact six criteria, 300-character feedback, confirmation/history/visibility behavior preserved. |
+| 7 Reputation | Shared 96px score ring and numeric detail for illustrative worker/company dashboards, existing factors/trend/insufficient-data behavior retained. No production scoring added. |
+| 8 Administration | Real User Directory now uses the role workspace shell and 896px width; existing reads/permissions/filters/page controls retained. Demo case detail uses a 1024px main/action-and-remarks split on wide layouts and stacks on mobile. Reports use 768px. Protected conversations remain unavailable. |
+| 9 External payment records | Existing Record/Success/History/Details/Receipt/Issue flows retain coherent local state; shared summaries/modals/controls refined. No payment gateway, wallet or money transfer. |
+| 10 Location | 768px nearby page; 360px illustrative map with parks/roads/water, 180px detail map and 320px employer picker. Simulation labels/coordinates remain explicit; actual posting coordinates are untouched. |
+
+Role navigation includes the new guarded employer Workers destination. The worker
+directory uses `Module2Gate(role: 'employer')`; no UI role switching grants access.
+Existing GoRouter routes, direct-route safe Back fallbacks, Web main-page arrow
+rules, Android contextual Back, form drafts/dirty protection and session resets
+remain. No demo repository was converted into a production data service.
+
+### Application Management next
+
+[APPLICATION_MANAGEMENT_INTEGRATION_PLAN.md](APPLICATION_MANAGEMENT_INTEGRATION_PLAN.md)
+documents the current screens/models, employer-only real posting reads, missing
+public salary-safe read contract, proposed application/history/offer/save/private
+note/resume storage, status transitions, ownership/duplicate protection, RLS/privacy
+and recommended integration order. All storage structures are proposals. No SQL,
+migrations, tables, policies, buckets, Edge Functions, secrets or APIs were created
+or changed. All earlier backend integration notes above remain applicable.
+
+UI status: all inventory flows have a corresponding screen/modal/state or explicit
+unavailable presentation. This does not mean all production data exists or all
+screens are pixel-perfect. Real company editing still follows the existing
+registration/resubmission/authorization contract. Production applications remain
+blocked on approved public-read, application, privacy and RLS contracts; visual
+readiness is not backend readiness.
+
+### Validation and remaining differences
+
+`test/phase52_visual_test.dart` adds 50 render/interaction scenarios: 25 representative
+screens at 390px and 1440px using bundled fonts. It checks rendering exceptions and
+demo labels, plus worker search/reputation interaction. PNGs are generated under
+ignored `build/phase52-review/`. Representative images were visually inspected;
+not every conditional state was manually reviewed. Existing module tests cover
+additional 320/768/1440px scenarios, filters, role denial, status changes, validation,
+draft protection and AI callbacks with injected fixtures.
+
+The full suite reports 296 passing tests and the same two pre-existing failures
+(registration CheckboxListTile expectation; router-uninitialized counter smoke test).
+The final Module 2 / Phase 4 / Phase 5.2 focused run passes 155 tests. Analysis retains
+eight existing auth/home/profile diagnostics, with none newly introduced. Formatting,
+whitespace validation and the release Web build pass; no live Supabase/Gemini acceptance,
+Android hardware, native picker, keyboard or browser history acceptance is claimed.
+
+The release app's actual login page was captured in headless Chrome at confirmed
+1440px and 390px viewports, inspected alongside the fixture samples, with no
+horizontal document overflow. These browser captures do not verify authenticated
+flows. No original Figma screenshots/frames were available for pixel comparison. Some
+prototype-only real-profile metrics are omitted rather than invented. Admin reports
+use coherent demo summaries instead of fabricated real registration/ranking data;
+case action rail is not sticky. The standalone HTML print sheet uses local system
+font fallbacks; the Flutter report uses the bundled design fonts. Detail routes remain routes where needed for
+history/direct URLs. Material icons and Android touch targets remain deliberate
+Flutter adaptations. Full live role/permission and platform acceptance is still
+required. No commit or push was made.
+
+### Files changed in Phase 5.2
+
+- Application UI: `lib/features/applications/{browse_jobs_page,job_details_page,applications_page,module2_widgets}.dart`.
+- Shared UI: `lib/features/demo_work/demo_widgets.dart`, `lib/shared/widgets/design_primitives.dart`, `lib/shared/widgets/auth_layout.dart`.
+- Work/navigation: new `lib/features/attendance/workers_page.dart`, `lib/features/attendance/attendance_pages.dart`, `lib/shared/navigation/{app_routes,workspace_destinations}.dart`, `lib/main.dart`.
+- Other presentation: `lib/features/chat/chat_page.dart`, `lib/features/location/location_pages.dart`, `lib/features/admin/admin_users_page.dart`, `lib/features/phase4/{evaluation_pages,reputation_page,admin_preview_pages}.dart`. Payment pages inherit updated shared summaries and modals.
+- Documentation/verification: new `APPLICATION_MANAGEMENT_INTEGRATION_PLAN.md`, `PHASE52_SCREEN_AUDIT.md`, `test/phase52_visual_test.dart`, and this README.
+- Prior Phase 5.1 edits/assets remain uncommitted and preserved. No new package dependency.
+
 ## 5. Security and Collaboration
 
 - Never commit Gemini API keys, service-role keys, JWTs, credentials or private tokens. Keep Gemini API calls inside the Supabase Edge Function, never directly in Flutter.

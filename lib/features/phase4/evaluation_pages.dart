@@ -246,32 +246,57 @@ class _EvaluationFormPageState extends State<EvaluationFormPage> {
                   for (final criterion in evaluationCriteria(role))
                     Padding(
                       padding: const EdgeInsets.only(bottom: 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            criterion,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              for (var score = 1; score <= 5; score++)
-                                ChoiceChip(
-                                  label: Text('$score'),
-                                  tooltip: '$criterion: $score out of 5',
-                                  selected: draft.ratings[criterion] == score,
-                                  onSelected: submitting
-                                      ? null
-                                      : (_) => setState(
-                                          () =>
-                                              draft.ratings[criterion] = score,
-                                        ),
-                                ),
-                            ],
-                          ),
-                        ],
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              criterion,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (var score = 1; score <= 5; score++)
+                                  ChoiceChip(
+                                    shape: const CircleBorder(),
+                                    showCheckmark: false,
+                                    backgroundColor: ratingColor(score)
+                                        .withValues(alpha: .08),
+                                    selectedColor: ratingColor(score)
+                                        .withValues(alpha: .2),
+                                    side: BorderSide(
+                                      color: ratingColor(score)
+                                          .withValues(alpha: .5),
+                                    ),
+                                    label: Text(
+                                      '$score',
+                                      style: TextStyle(
+                                        fontFamily: 'DM Mono',
+                                        color: ratingColor(score),
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    tooltip: '$criterion: $score out of 5',
+                                    selected: draft.ratings[criterion] == score,
+                                    onSelected: submitting
+                                        ? null
+                                        : (_) => setState(
+                                            () => draft.ratings[criterion] =
+                                                score,
+                                          ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   TextField(
@@ -533,3 +558,11 @@ class _EvaluationReportFormState extends State<EvaluationReportForm> {
     ],
   );
 }
+
+Color ratingColor(int score) => switch (score) {
+  1 => const Color(0xFFEF4444),
+  2 => const Color(0xFFF97316),
+  3 => const Color(0xFFF59E0B),
+  4 => const Color(0xFF14B8A6),
+  _ => const Color(0xFF22C55E),
+};

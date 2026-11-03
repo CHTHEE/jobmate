@@ -29,6 +29,7 @@ class DemoMap extends StatelessWidget {
   const DemoMap({
     super.key,
     this.places = const [],
+    this.height = 360,
     this.radius = 5,
     this.onSelect,
     this.marker,
@@ -36,13 +37,14 @@ class DemoMap extends StatelessWidget {
   });
   final List<DemoPlace> places;
   final double radius;
+  final double height;
   final ValueChanged<DemoPlace>? onSelect;
   final (double, double)? marker;
   final void Function(double, double)? onMove;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final width = constraints.maxWidth, height = 280.0;
+      final width = constraints.maxWidth, height = this.height;
       void move(Offset position) =>
           onMove?.call(position.dx / width, position.dy / height);
       return Semantics(
@@ -152,10 +154,51 @@ class _GridPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(
       Offset.zero & size,
-      Paint()..color = const Color(0xFFF0FDFA),
+      Paint()..color = const Color(0xFFF0ECE0),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          size.width * .06,
+          size.height * .08,
+          size.width * .22,
+          size.height * .24,
+        ),
+        const Radius.circular(14),
+      ),
+      Paint()..color = const Color(0xFFD0E4C6),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          size.width * .68,
+          size.height * .58,
+          size.width * .24,
+          size.height * .30,
+        ),
+        const Radius.circular(16),
+      ),
+      Paint()..color = const Color(0xFFD0E4C6),
+    );
+    final river = Path()
+      ..moveTo(size.width * .7, 0)
+      ..cubicTo(
+        size.width * .45,
+        size.height * .3,
+        size.width * .9,
+        size.height * .7,
+        size.width * .55,
+        size.height,
+      );
+    canvas.drawPath(
+      river,
+      Paint()
+        ..color = const Color(0xFFB6DCEB)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 22,
     );
     final lines = Paint()
-      ..color = const Color(0xFFCCFBF1)
+      ..color = Colors.white
       ..strokeWidth = 16;
     for (var i = 1; i < 6; i++) {
       canvas.drawLine(
@@ -207,6 +250,7 @@ class _NearbyJobsPageState extends State<NearbyJobsPage> {
             ..sort((a, b) => a.distance.compareTo(b.distance));
       return DemoPage(
         title: 'Nearby Jobs',
+        maxWidth: 768,
         path: AppRoutes.nearbyJobs,
         role: 'job_seeker',
         children: [
@@ -393,6 +437,7 @@ class NearbyDetailPage extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               DemoMap(
+                height: 180,
                 places: [DemoPlace(j)],
                 radius: 25,
                 onSelect: (_) =>
@@ -475,6 +520,7 @@ class _JobLocationDemoPageState extends State<JobLocationDemoPage> {
               ),
               const SizedBox(height: 16),
               DemoMap(
+                height: 320,
                 marker: (store.markerX, store.markerY),
                 onMove: store.moveMarker,
               ),

@@ -24,6 +24,7 @@ import 'features/applications/applications_page.dart';
 import 'features/demo_work/phase3_store.dart';
 import 'features/recommendations/recommendations_page.dart';
 import 'features/attendance/attendance_pages.dart';
+import 'features/attendance/workers_page.dart';
 import 'features/chat/chat_page.dart';
 import 'features/location/location_pages.dart';
 import 'features/phase4/phase4_store.dart';
@@ -311,6 +312,10 @@ GoRouter _createRouter() {
           role: 'employer',
           child: AttendanceListPage(employer: true),
         ),
+      ),
+      _appRoute(
+        AppRoutes.workers,
+        (_, _) => const Module2Gate(role: 'employer', child: WorkersPage()),
       ),
       _appRoute(
         '${AppRoutes.attendanceReview}/:recordId/report',

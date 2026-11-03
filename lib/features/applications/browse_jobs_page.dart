@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/design_primitives.dart';
 import '../jobs/job_display.dart';
 import 'module2_repository.dart';
 import 'module2_widgets.dart';
@@ -57,15 +58,10 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const DemoNotice(),
-              Text(
-                'Find your next opportunity',
-                style: Theme.of(context).textTheme.headlineMedium,
+              const PageHeading(
+                title: 'Find your next opportunity',
+                description: 'Explore the demo catalogue. Real job browsing is awaiting a verified public read contract.',
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Explore the demo catalogue. Real job browsing is awaiting a verified public read contract.',
-              ),
-              const SizedBox(height: 24),
               TextField(
                 controller: search,
                 onChanged: (_) => setState(() {}),
@@ -106,7 +102,9 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                     onChanged: (v) => setState(() => arrangement = v),
                   ),
                   SizedBox(
-                    width: 220,
+                    width: MediaQuery.sizeOf(context).width < 600
+                        ? MediaQuery.sizeOf(context).width - 32
+                        : 220,
                     child: TextField(
                       controller: location,
                       onChanged: (_) => setState(() {}),
@@ -153,20 +151,16 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: WorkspaceCard(
                     title: job.title,
+                    leading: CircleAvatar(
+                      radius: 20,
+                      child: Text(
+                        job.company.replaceFirst('Demo ', '').substring(0, 1),
+                      ),
+                    ),
                     subtitle: job.company,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: CircleAvatar(
-                            child: Text(
-                              job.company
-                                  .replaceFirst('Demo ', '')
-                                  .substring(0, 1),
-                            ),
-                          ),
-                        ),
                         JobFacts(job),
                         const SizedBox(height: 12),
                         Text(

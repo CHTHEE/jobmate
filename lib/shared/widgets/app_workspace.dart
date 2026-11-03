@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:go_router/go_router.dart';
 
 import '../navigation/app_routes.dart';
 import 'auth_style.dart';
-import 'responsive_layout.dart';
 import '../theme/jobmate_theme.dart';
 import '../navigation/workspace_destinations.dart';
 
@@ -39,8 +39,7 @@ class AppWorkspace extends StatelessWidget {
       data: base,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final desktop =
-              constraints.maxWidth >= ResponsiveLayout.expandedBreakpoint;
+          final desktop = constraints.maxWidth >= 768;
           void navigate(String destination, {bool closeDrawer = false}) {
             if (navigationLocked) return;
             if (closeDrawer && !desktop) Navigator.of(context).pop();
@@ -57,84 +56,133 @@ class AppWorkspace extends StatelessWidget {
           final navigation = Material(
             color: Colors.white,
             child: SafeArea(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(12, 20, 12, 20),
+              child: Column(
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: AuthWordmark(),
-                  ),
-                  const SizedBox(height: 12),
-                  for (final group in workspaceDestinations(role).entries) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 20, 8, 10),
-                      child: Text(
-                        group.key,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AuthStyle.body,
-                          letterSpacing: 1.6,
-                          fontWeight: FontWeight.w700,
+                  Expanded(
+                    child: ListView(
+                      key: const ValueKey('workspace-navigation'),
+                      scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
+                      padding: const EdgeInsets.fromLTRB(12, 20, 12, 20),
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: AuthWordmark(compact: true),
                         ),
-                      ),
-                    ),
-                    for (final item in group.value)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: ListTile(
-                          selected: path == item.$1,
-                          selectedTileColor: const Color(0xFFF0FDFA),
-                          selectedColor: AuthStyle.darkTeal,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                          ),
-                          minLeadingWidth: 24,
-                          leading: Icon(item.$3, size: 20),
-                          title: Text(
-                            item.$2,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: path == item.$1
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
+                        const SizedBox(height: 12),
+                        for (final group in workspaceDestinations(
+                          role,
+                        ).entries) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 20, 8, 10),
+                            child: Text(
+                              group.key,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: AuthStyle.body,
+                                letterSpacing: 1.6,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                          enabled: !navigationLocked,
-                          onTap: () => navigate(item.$1, closeDrawer: true),
-                        ),
-                      ),
-                  ],
-                  if (upcomingModules.isNotEmpty) ...[
-                    const Divider(height: 32),
-                    const Text(
-                      'COMING SOON',
-                      style: TextStyle(
-                        fontSize: 11,
-                        letterSpacing: 1.5,
-                        fontWeight: FontWeight.w600,
+                          for (final item in group.value)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: ListTile(
+                                dense: true,
+                                minTileHeight: kIsWeb ? 40 : 48,
+                                minVerticalPadding: 0,
+                                selected: path == item.$1,
+                                selectedTileColor: const Color(0xFFF0FDFA),
+                                selectedColor: AuthStyle.darkTeal,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                minLeadingWidth: 24,
+                                leading: Icon(item.$3, size: 18),
+                                title: Text(
+                                  item.$2,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                enabled: !navigationLocked,
+                                onTap: () =>
+                                    navigate(item.$1, closeDrawer: true),
+                              ),
+                            ),
+                        ],
+                        if (upcomingModules.isNotEmpty) ...[
+                          const Divider(height: 32),
+                          const Text(
+                            'COMING SOON',
+                            style: TextStyle(
+                              fontSize: 11,
+                              letterSpacing: 1.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          for (final module in upcomingModules.where(
+                            (m) =>
+                                !['employer', 'job_seeker'].contains(role) ||
+                                m.$1 != 'Job Posting',
+                          ))
+                            ListTile(
+                              enabled: false,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              leading: Icon(module.$2, size: 20),
+                              title: Text(
+                                module.$1,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    leading: const CircleAvatar(
+                      radius: 16,
+                      backgroundColor: JobMateTheme.teal100,
+                      child: Icon(
+                        Icons.person_outline,
+                        size: 18,
+                        color: JobMateTheme.teal,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    for (final module in upcomingModules.where(
-                      (m) =>
-                          !['employer', 'job_seeker'].contains(role) ||
-                          m.$1 != 'Job Posting',
-                    ))
-                      ListTile(
-                        enabled: false,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                        ),
-                        leading: Icon(module.$2, size: 20),
-                        title: Text(
-                          module.$1,
-                          style: const TextStyle(fontSize: 13),
-                        ),
+                    title: const Text(
+                      'Your account',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
                       ),
-                  ],
+                    ),
+                    subtitle: Text(
+                      workspaceLabel(role),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: const Icon(Icons.chevron_right, size: 16),
+                    enabled: !navigationLocked,
+                    onTap: () => navigate(
+                      role == 'employer'
+                          ? AppRoutes.company
+                          : role == 'admin' || role == 'administrator'
+                          ? AppRoutes.adminSettings
+                          : AppRoutes.profile,
+                      closeDrawer: true,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -198,10 +246,10 @@ class AppWorkspace extends StatelessWidget {
                     ),
                   )
                 : null,
-            drawer: desktop ? null : Drawer(child: navigation),
+            drawer: desktop ? null : Drawer(width: 256, child: navigation),
             drawerEnableOpenDragGesture: !navigationLocked,
             appBar: AppBar(
-              toolbarHeight: 64,
+              toolbarHeight: 56,
               shape: const Border(
                 bottom: BorderSide(color: JobMateTheme.divider),
               ),
@@ -222,7 +270,7 @@ class AppWorkspace extends StatelessWidget {
               title: Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -243,14 +291,18 @@ class AppWorkspace extends StatelessWidget {
 }
 
 class WorkspaceContent extends StatelessWidget {
-  const WorkspaceContent({super.key, required this.child});
+  const WorkspaceContent({super.key, required this.child, this.maxWidth = 672});
   final Widget child;
+  final double maxWidth;
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
-    padding: ResponsiveLayout.pagePadding(context),
+    padding: EdgeInsets.symmetric(
+      horizontal: MediaQuery.sizeOf(context).width >= 768 ? 24 : 16,
+      vertical: MediaQuery.sizeOf(context).width >= 768 ? 32 : 24,
+    ),
     child: Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1120),
+        constraints: BoxConstraints(maxWidth: maxWidth),
         child: SizedBox(width: double.infinity, child: child),
       ),
     ),
@@ -263,25 +315,34 @@ class WorkspaceCard extends StatelessWidget {
     required this.title,
     required this.child,
     this.subtitle,
+    this.leading,
   });
   final String title;
   final String? subtitle;
+  final Widget? leading;
   final Widget child;
   @override
   Widget build(BuildContext context) => Card(
     margin: EdgeInsets.zero,
     child: Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AuthStyle.heading,
-            ),
+          Row(
+            children: [
+              if (leading != null) ...[leading!, const SizedBox(width: 8)],
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AuthStyle.heading,
+                  ),
+                ),
+              ),
+            ],
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 8),

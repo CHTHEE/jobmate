@@ -6,7 +6,6 @@ import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
-import '../../shared/widgets/auth_style.dart';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
@@ -340,29 +339,29 @@ class _ProfilePageState extends State<ProfilePage> {
         Tooltip(
           message: _canEdit ? 'Change profile photo' : 'Profile photo',
           child: SizedBox(
-            width: 120,
-            height: 120,
+            width: 56,
+            height: 56,
             child: Stack(
               children: [
                 ClipOval(
                   child: avatarUrl == null || avatarUrl.isEmpty
                       ? Container(
-                          width: 120,
-                          height: 120,
+                          width: 56,
+                          height: 56,
                           color: colors.surfaceContainerHighest,
-                          child: const Icon(Icons.person_outline, size: 64),
+                          child: const Icon(Icons.person_outline, size: 28),
                         )
                       : Image.network(
                           avatarUrl,
-                          width: 120,
-                          height: 120,
+                          width: 56,
+                          height: 56,
                           fit: BoxFit.cover,
                           // BoxFit.contain: 显示完整图片，可能留白。
                           // BoxFit.fill: 填满，可能变形。
                           errorBuilder: (context, error, stackTrace) {
                             return Container(
-                              width: 120,
-                              height: 120,
+                              width: 56,
+                              height: 56,
                               color: colors.surfaceContainerHighest,
                               child: const Icon(
                                 Icons.broken_image_outlined,
@@ -377,8 +376,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   left: 0,
                   bottom: 0,
                   child: Container(
-                    width: 36,
-                    height: 36,
+                    width: 24,
+                    height: 24,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: _canEdit
@@ -388,7 +387,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                     child: Icon(
                       Icons.camera_alt_outlined,
-                      size: 20,
+                      size: 14,
                       color: _canEdit
                           ? colors.onPrimary
                           : colors.onSurfaceVariant,
@@ -416,7 +415,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
         Text(
           _savedName.isEmpty ? 'Personal profile' : _savedName,
-          style: AuthStyle.title,
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
@@ -500,7 +503,10 @@ class _ProfilePageState extends State<ProfilePage> {
         Row(
           children: [
             const Expanded(
-              child: Text('Personal Details', style: TextStyle(fontSize: 24)),
+              child: Text(
+                'Personal Details',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
             ),
 
             if (!_isEditing)
@@ -621,7 +627,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final details = Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: _buildPersonalDetails(),
       ),
     );

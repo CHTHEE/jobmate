@@ -209,6 +209,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: 56,
         automaticallyImplyLeading: false,
         title: Text(narrowPhone ? 'Admin' : 'JobMate Admin'),
         actions: [
@@ -310,12 +311,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       ),
       body: SafeArea(
         child: ColoredBox(
-          color: const Color(0xFFF4F7FA),
+          color: const Color(0xFFF8FAFC),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final compact =
-                  ResponsiveLayout.forWidth(constraints.maxWidth) !=
-                  JobMateScreenSize.expanded;
+              final compact = constraints.maxWidth < 768;
               return Row(
                 children: [
                   if (!compact) _buildSidebar(context),
@@ -323,7 +322,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     child: Align(
                       alignment: Alignment.topCenter,
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 1200),
+                        constraints: const BoxConstraints(maxWidth: 896),
                         child: ListView(
                           padding: ResponsiveLayout.pagePaddingForWidth(
                             constraints.maxWidth,

@@ -551,6 +551,7 @@ class AttendanceDetailPage extends StatelessWidget {
                 if (r.flagReason.isNotEmpty) 'Flag reason': r.flagReason,
               };
         return DemoPage(
+          maxWidth: report ? 794 : 672,
           title: report
               ? 'Attendance & Work Completion Report'
               : 'Attendance Details',
@@ -695,7 +696,7 @@ String attendanceReportHtml(Map<String, String> facts) {
             '<tr><th>${escape.convert(e.key)}</th><td>${escape.convert(e.value)}</td></tr>',
       )
       .join();
-  return '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>JobMate Demo Attendance Report</title><style>body{font:16px system-ui;color:#0f172a;max-width:800px;margin:32px auto;padding:24px}h1{color:#0f766e}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #cbd5e1;overflow-wrap:anywhere}th{width:35%}button{padding:12px;background:#0f766e;color:white;border:0;border-radius:8px}@media print{button{display:none}body{margin:0}tr{break-inside:avoid}}@page{size:A4;margin:18mm}</style><button onclick="window.print()">Print / Save as PDF</button><h1>JobMate</h1><h2>Attendance &amp; Work Completion</h2><p>RPT-01 • DEMO REPORT • Local sample data only</p><table>$rows</table><p>${escape.convert(attendanceDisclaimer)}</p></html>';
+  return '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>JobMate Demo Attendance Report</title><style>html{background:#e2e8f0}body{font:14px/1.6 system-ui;color:#0f172a;background:white;box-sizing:border-box;max-width:794px;min-height:1123px;margin:32px auto;padding:32px;border:1px solid #cbd5e1;box-shadow:0 4px 6px #0f172a18}h1{color:#0d9488;font-size:36px}h2{font:24px Georgia,serif}p{overflow-wrap:anywhere}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;padding:12px;border-bottom:1px solid #cbd5e1;overflow-wrap:anywhere}th{width:35%}button{padding:12px;background:#0f766e;color:white;border:0;border-radius:8px}@media print{button{display:none}html{background:white}body{margin:0;max-width:none;min-height:0;border:0;box-shadow:none;padding:0}tr{break-inside:avoid}}@page{size:A4;margin:18mm}</style><button onclick="window.print()">Print / Save as PDF</button><h1>JobMate</h1><h2>Attendance &amp; Work Completion</h2><p>RPT-01 • DEMO REPORT • Local sample data only</p><table>$rows</table><p>${escape.convert(attendanceDisclaimer)}</p></html>';
 }
 
 class FlagWorkForm extends StatefulWidget {

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/theme/jobmate_theme.dart';
 import '../applications/module2_widgets.dart';
 import '../demo_work/demo_widgets.dart';
 import '../demo_work/local_attachment.dart';
@@ -252,7 +253,7 @@ class _ChatPageState extends State<ChatPage> {
             : null,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final split = constraints.maxWidth >= 800;
+            final split = constraints.maxWidth >= 720;
             return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -261,15 +262,34 @@ class _ChatPageState extends State<ChatPage> {
                   const Phase3Notice(
                     'Fictional job conversations, local attachments and simulated receipts. No Supabase Realtime, actual presence, notifications or private messages between real accounts.',
                   ),
-                  SizedBox(
-                    height: math.max(520, constraints.maxHeight - 220),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: JobMateTheme.divider),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    height: math.max(520, constraints.maxHeight - 180),
                     child: split
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              SizedBox(width: 280, child: list),
-                              const VerticalDivider(width: 24),
-                              Expanded(child: thread),
+                              SizedBox(
+                                width: MediaQuery.sizeOf(context).width >= 1024
+                                    ? 320
+                                    : 288,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: list,
+                                ),
+                              ),
+                              const VerticalDivider(width: 1),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: thread,
+                                ),
+                              ),
                             ],
                           )
                         : widget.conversationId == null

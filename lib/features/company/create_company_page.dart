@@ -907,6 +907,16 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
                     'Company profile & verification',
                 description: 'Your company identity, membership and supporting documents.',
                 icon: Icons.business_outlined,
+                avatar: _savedLogoBytes == null
+                    ? null
+                    : Image.memory(
+                        _savedLogoBytes!,
+                        width: 56,
+                        height: 56,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, _, _) =>
+                            const Icon(Icons.business_outlined, size: 28),
+                      ),
                 trailing: _company == null
                     ? null
                     : Align(

@@ -25,7 +25,7 @@ abstract final class AuthStyle {
     final base = JobMateTheme.apply(Theme.of(context));
     OutlineInputBorder outline(Color color, [double width = 1]) =>
         OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: color, width: width),
         );
     return base.copyWith(
@@ -59,7 +59,7 @@ abstract final class AuthStyle {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: darkTeal,
+          backgroundColor: teal,
           foregroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 48),
           textStyle: const TextStyle(
@@ -77,8 +77,9 @@ abstract final class AuthStyle {
 }
 
 class AuthWordmark extends StatelessWidget {
-  const AuthWordmark({super.key, this.light = false});
+  const AuthWordmark({super.key, this.light = false, this.compact = false});
   final bool light;
+  final bool compact;
   @override
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
@@ -86,7 +87,7 @@ class AuthWordmark extends StatelessWidget {
       Icon(
         Icons.work_outline_rounded,
         color: light ? Colors.white : AuthStyle.teal,
-        size: 28,
+        size: compact ? 32 : 28,
       ),
       const SizedBox(width: 10),
       Flexible(
@@ -95,9 +96,10 @@ class AuthWordmark extends StatelessWidget {
           child: Text(
             'JobMate',
             style: TextStyle(
-              fontFamily: 'DM Serif Display',
-              fontFamilyFallback: const ['Georgia', 'serif'],
-              fontSize: 28,
+              fontFamily: compact ? 'Outfit' : 'DM Serif Display',
+              fontFamilyFallback: const ['Arial', 'sans-serif'],
+              fontWeight: compact ? FontWeight.w700 : FontWeight.w400,
+              fontSize: compact ? 16 : 28,
               color: light ? Colors.white : AuthStyle.heading,
             ),
           ),

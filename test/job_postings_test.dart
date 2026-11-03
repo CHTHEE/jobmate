@@ -920,9 +920,7 @@ void main() {
           addTearDown(router.dispose);
           await tester.pumpWidget(MaterialApp.router(routerConfig: router));
           await tester.pumpAndSettle();
-          await tester.tap(
-            find.widgetWithText(FilledButton, 'Create Job').first,
-          );
+          await tester.tap(find.widgetWithText(FilledButton, 'Post Job').first);
           await tester.pumpAndSettle();
           await tester.enterText(find.byType(TextFormField).first, 'Engineer');
           final action = publish
@@ -1173,7 +1171,7 @@ void main() {
     expect(find.text('Company pending verification.'), findsOneWidget);
     expect(
       tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Create Job'))
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Post Job'))
           .onPressed,
       isNull,
     );

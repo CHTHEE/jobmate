@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
+import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
 import 'module2_repository.dart';
@@ -126,11 +127,23 @@ class StageBadge extends StatelessWidget {
     final color = switch (stage) {
       ApplicationStage.rejected => Colors.red.shade800,
       ApplicationStage.withdrawn => Colors.blueGrey.shade700,
-      ApplicationStage.offered => Colors.amber.shade900,
-      _ => Colors.teal.shade800,
+      ApplicationStage.offered => const Color(0xFF7E22CE),
+      ApplicationStage.applied => const Color(0xFF1D4ED8),
+      ApplicationStage.shortlisted => const Color(0xFFB45309),
+      ApplicationStage.interview => JobMateTheme.teal,
+      ApplicationStage.hired => const Color(0xFF15803D),
     };
     return Chip(
-      label: Text(stage.label, style: TextStyle(color: color)),
+      label: Text(
+        stage.label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      side: BorderSide(color: color.withValues(alpha: .15)),
+      visualDensity: VisualDensity.compact,
       backgroundColor: color.withValues(alpha: .07),
     );
   }
@@ -148,29 +161,38 @@ class ModuleSelect extends StatelessWidget {
   final Map<String, String> options;
   final ValueChanged<String> onChanged;
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 220,
-    child: DropdownButtonFormField<String>(
-      key: ValueKey('$label:$value'),
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(labelText: label),
-      items: options.entries
-          .map(
-            (e) => DropdownMenuItem(
-              value: e.key,
-              child: Text(e.value, overflow: TextOverflow.ellipsis),
-            ),
-          )
-          .toList(),
-      onChanged: (v) {
-        if (v != null) onChanged(v);
-      },
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => SizedBox(
+      width: MediaQuery.sizeOf(context).width < 600
+          ? constraints.maxWidth
+          : 220,
+      child: DropdownButtonFormField<String>(
+        key: ValueKey('$label:$value'),
+        initialValue: value,
+        isExpanded: true,
+        decoration: InputDecoration(labelText: label),
+        items: options.entries
+            .map(
+              (e) => DropdownMenuItem(
+                value: e.key,
+                child: Text(e.value, overflow: TextOverflow.ellipsis),
+              ),
+            )
+            .toList(),
+        onChanged: (v) {
+          if (v != null) onChanged(v);
+        },
+      ),
     ),
   );
 }
 
-Future<T?> moduleModal<T>(BuildContext context, Widget child) {
+Future<T?> moduleModal<T>(
+  BuildContext context,
+  Widget child, {
+  double maxWidth = 448,
+  double heightFraction = .85,
+}) {
   if (MediaQuery.sizeOf(context).width < 600) {
     return showModalBottomSheet<T>(
       context: context,
@@ -186,10 +208,10 @@ Future<T?> moduleModal<T>(BuildContext context, Widget child) {
     barrierDismissible: false,
     builder: (_) => Dialog(
       child: SizedBox(
-        width: 680,
+        width: maxWidth,
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * .9,
+            maxHeight: MediaQuery.sizeOf(context).height * heightFraction,
           ),
           child: child,
         ),
@@ -217,7 +239,7 @@ class ModalBody extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(title, style: Theme.of(context).textTheme.headlineSmall),
+            Text(title, style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 20),
             ...children,
             const SizedBox(height: 24),

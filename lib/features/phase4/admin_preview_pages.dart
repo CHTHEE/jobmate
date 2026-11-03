@@ -182,6 +182,7 @@ class _AdminPreviewPageState extends State<AdminPreviewPage> {
       };
       return DemoPage(
         title: 'Admin ${section == 'Overview' ? 'UI Sandbox' : section} (demo)',
+        maxWidth: section == 'Reports' ? 768 : 896,
         path: path,
         role: 'administrator',
         children: [
@@ -664,32 +665,12 @@ class _DisputeDetailPageState extends State<DisputeDetailPage> {
           p = d?.linkId == null ? null : store.payment(d!.linkId!);
       return DemoPage(
         title: 'Demo Dispute Details',
-        path: AppRoutes.adminDemoDisputes,
-        role: 'administrator',
-        back: AppRoutes.adminDemoDisputes,
-        children: [
-          const Phase3Notice(adminPreviewDisclaimer),
-          if (d == null)
-            const ModuleState(
-              title: 'Case unavailable',
-              message:
-                  'No case exists with this ID in the current demo session.',
-            )
-          else ...[
-            WorkspaceCard(
-              title: d.id,
-              subtitle: '${d.category} • ${d.state.label}',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  WorkspaceInfo('Subject', d.subject),
-                  WorkspaceInfo('Parties', 'Demo candidate / demo employer'),
-                  WorkspaceInfo('Initial report', d.reason),
-                  if (d.linkId != null)
-                    WorkspaceInfo('Linked sample record', d.linkId!),
-                  if (d.outcome.isNotEmpty) WorkspaceInfo('Outcome', d.outcome),
-                  const SizedBox(height: 16),
-                  Wrap(
+        sidebar: d == null
+            ? const []
+            : [
+                WorkspaceCard(
+                  title: 'Case actions',
+                  child: Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
@@ -751,6 +732,85 @@ class _DisputeDetailPageState extends State<DisputeDetailPage> {
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: 20),
+                WorkspaceCard(
+                  title: 'Internal demo remarks',
+                  subtitle: 'Visible in this admin preview only; no server privacy guarantee is claimed.',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextField(
+                        controller: remarks,
+                        maxLength: 2000,
+                        minLines: 3,
+                        maxLines: 6,
+                        onChanged: (v) => store.formDrafts[keyName] = v,
+                        decoration: const InputDecoration(
+                          labelText: 'Internal remarks',
+                        ),
+                      ),
+                      OutlinedButton(
+                        onPressed: () {
+                          try {
+                            store.saveRemarks(d.id, remarks.text);
+                            store.formDrafts.remove(keyName);
+                            demoMessage(context, 'Demo remarks saved locally');
+                          } on StateError catch (e) {
+                            demoMessage(context, e.message.toString());
+                          }
+                        },
+                        child: const Text('Save Remarks (demo)'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                WorkspaceCard(
+                  title: 'Local action history',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final line in store.audit.where(
+                        (line) => line.contains(d.id),
+                      ))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(line),
+                        ),
+                      const Text(
+                        'Not a secure audit trail; production logging is not implemented.',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+        maxWidth: 1024,
+        path: AppRoutes.adminDemoDisputes,
+        role: 'administrator',
+        back: AppRoutes.adminDemoDisputes,
+        children: [
+          const Phase3Notice(adminPreviewDisclaimer),
+          if (d == null)
+            const ModuleState(
+              title: 'Case unavailable',
+              message:
+                  'No case exists with this ID in the current demo session.',
+            )
+          else ...[
+            WorkspaceCard(
+              title: d.id,
+              subtitle: '${d.category} • ${d.state.label}',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  WorkspaceInfo('Subject', d.subject),
+                  WorkspaceInfo('Parties', 'Demo candidate / demo employer'),
+                  WorkspaceInfo('Initial report', d.reason),
+                  if (d.linkId != null)
+                    WorkspaceInfo('Linked sample record', d.linkId!),
+                  if (d.outcome.isNotEmpty) WorkspaceInfo('Outcome', d.outcome),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
@@ -813,56 +873,8 @@ class _DisputeDetailPageState extends State<DisputeDetailPage> {
               ),
             ),
             const SizedBox(height: 20),
-            WorkspaceCard(
-              title: 'Internal demo remarks',
-              subtitle: 'Visible in this admin preview only; no server privacy guarantee is claimed.',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextField(
-                    controller: remarks,
-                    maxLength: 2000,
-                    minLines: 3,
-                    maxLines: 6,
-                    onChanged: (v) => store.formDrafts[keyName] = v,
-                    decoration: const InputDecoration(
-                      labelText: 'Internal remarks',
-                    ),
-                  ),
-                  OutlinedButton(
-                    onPressed: () {
-                      try {
-                        store.saveRemarks(d.id, remarks.text);
-                        store.formDrafts.remove(keyName);
-                        demoMessage(context, 'Demo remarks saved locally');
-                      } on StateError catch (e) {
-                        demoMessage(context, e.message.toString());
-                      }
-                    },
-                    child: const Text('Save Remarks (demo)'),
-                  ),
-                ],
-              ),
-            ),
+
             const SizedBox(height: 20),
-            WorkspaceCard(
-              title: 'Local action history',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final line in store.audit.where(
-                    (line) => line.contains(d.id),
-                  ))
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(line),
-                    ),
-                  const Text(
-                    'Not a secure audit trail; production logging is not implemented.',
-                  ),
-                ],
-              ),
-            ),
           ],
         ],
       );

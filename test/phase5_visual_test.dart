@@ -19,23 +19,15 @@ import 'job_postings_test.dart' as fixtures;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() async {
-    // Readable test-only aliases use installed fallback fonts, not Figma assets.
+    // Load the same bundled font families as the application.
     for (final entry in {
-      'Arial': 'arial.ttf',
-      'Outfit': 'arial.ttf',
-      'Georgia': 'georgia.ttf',
-      'DM Serif Display': 'georgia.ttf',
-      'Consolas': 'consola.ttf',
-      'DM Mono': 'consola.ttf',
+      'Outfit': 'Outfit-Variable.ttf',
+      'DM Serif Display': 'DMSerifDisplay-Regular.ttf',
+      'DM Mono': 'DMMono-Regular.ttf',
     }.entries) {
-      final file = File('C:/Windows/Fonts/${entry.value}');
-      if (await file.exists()) {
-        final loader = FontLoader(entry.key)
-          ..addFont(
-            Future.value(ByteData.sublistView(await file.readAsBytes())),
-          );
-        await loader.load();
-      }
+      final loader = FontLoader(entry.key)
+        ..addFont(rootBundle.load('assets/fonts/${entry.value}'));
+      await loader.load();
     }
     var directory = File(Platform.resolvedExecutable).parent;
     for (var depth = 0; depth < 9; depth++) {
@@ -61,14 +53,14 @@ void main() {
     await tester.runAsync(() async {
       final image = await boundary.toImage(pixelRatio: 1);
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-      final file = File('build/phase5-review/$name.png');
+      final file = File('build/phase51-review/$name.png');
       await file.parent.create(recursive: true);
       await file.writeAsBytes(bytes!.buffer.asUint8List());
       image.dispose();
     });
   }
 
-  for (final width in [390.0, 1440.0]) {
+  for (final width in [390.0, 768.0, 1440.0]) {
     for (final screen in ['jobs', 'create', 'seeker-home', 'employer-home']) {
       testWidgets('Rendered $screen at $width', (tester) async {
         tester.view.physicalSize = Size(width, 1000);
@@ -104,6 +96,7 @@ void main() {
             path: '/',
             role: screen == 'seeker-home' ? 'job_seeker' : 'employer',
             child: WorkspaceContent(
+              maxWidth: screen == 'employer-home' ? 768 : 672,
               child: DashboardContent(
                 profile: {
                   'role': screen == 'seeker-home' ? 'job_seeker' : 'employer',
@@ -144,6 +137,33 @@ void main() {
           ),
         );
         await capture(tester, key, '$screen-${width.toInt()}');
+        expect(tester.widget<AppBar>(find.byType(AppBar)).toolbarHeight, 56);
+        final content = tester.widget<WorkspaceContent>(
+          find.byType(WorkspaceContent),
+        );
+        expect(
+          content.maxWidth,
+          screen == 'jobs' || screen == 'employer-home' ? 768 : 672,
+        );
+        if (width >= 768) {
+          expect(find.byType(Drawer), findsNothing);
+        } else {
+          expect(
+            tester.widget<Scaffold>(find.byType(Scaffold)).drawer,
+            isA<Drawer>(),
+          );
+        }
+        if (screen == 'create') {
+          for (final title in [
+            'Basic job information',
+            'Compensation',
+            'Schedule & location',
+            'Description & AI formatting',
+            'Requirements & benefits',
+          ]) {
+            expect(find.text(title), findsOneWidget);
+          }
+        }
         if (screen == 'jobs' || screen == 'employer-home') {
           final tiles = tester.widgetList<StatTile>(find.byType(StatTile));
           expect(

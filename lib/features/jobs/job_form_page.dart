@@ -463,7 +463,6 @@ class JobFormPageState extends State<JobFormPage> {
                   description: status == 'closed'
                       ? 'This posting is closed. Its details remain available for reference.'
                       : 'Turn your hiring needs into a clear, thoughtful opportunity. Your work is saved only when you choose Save Draft or Publish.',
-                  eyebrow: 'Job posts / ${jobId == null ? 'Create' : 'Edit'}',
                 ),
                 if (error != null) ...[
                   Text(error!, style: const TextStyle(color: Colors.red)),
@@ -490,357 +489,406 @@ class JobFormPageState extends State<JobFormPage> {
                     ),
                   ),
                 if (access?.allowed == true)
-                  WorkspaceCard(
-                    title: jobId == null
-                        ? 'Create Job'
-                        : '${workspaceLabel(status)} job',
-                    subtitle: status == 'closed'
-                        ? 'Closed jobs are read-only.'
-                        : status == 'published'
-                        ? 'Update this published job. All publication fields must remain complete.'
-                        : 'Save a draft or complete the required details to publish.',
-                    child: Form(
-                      key: form,
-                      // Revalidate on controller, dropdown and widget updates
-                      // after submission, including dependent salary fields.
-                      autovalidateMode: validationActivated
-                          ? AutovalidateMode.always
-                          : AutovalidateMode.disabled,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          requiredLabel('Verified hiring company'),
-                          const Text(
-                            'Fields marked * are required before publishing. Drafts may be incomplete.',
-                          ),
-                          CompanyIdentity(
-                            name: access!.company!['company_name'] as String,
-                            logo: access!.logo,
-                          ),
-                          const Text(
-                            'Your verified hiring company is selected automatically from your membership and cannot be changed here.',
-                          ),
-                          const SizedBox(height: 16),
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              final width = constraints.maxWidth >= 650
-                                  ? (constraints.maxWidth - 20) / 2
-                                  : constraints.maxWidth;
-                              return Wrap(
-                                spacing: 20,
-                                runSpacing: 16,
-                                children: [
-                                  for (final entry in fields.entries) ...[
-                                    if (entry.key == 'title')
-                                      SizedBox(
-                                        width: constraints.maxWidth,
-                                        child: const FormSectionHeading(
-                                          '01  Job essentials',
-                                          'Give candidates the details they need to understand the role.',
-                                          icon: Icons.work_outline,
-                                        ),
-                                      ),
-                                    if (entry.key == 'salary_min')
-                                      SizedBox(
-                                        width: constraints.maxWidth,
-                                        child: const FormSectionHeading(
-                                          '02  Compensation & schedule',
-                                          'Keep salary, vacancies and deadlines accurate. Salary visibility controls the public preview.',
-                                          icon: Icons.payments_outlined,
-                                        ),
-                                      ),
-                                    if (entry.key == 'original_description')
-                                      SizedBox(
-                                        width: constraints.maxWidth,
-                                        child: const FormSectionHeading(
-                                          '03  Tell the original story',
-                                          'Your own description is always retained, including when using AI formatting.',
-                                          icon: Icons.edit_note_outlined,
-                                        ),
-                                      ),
-                                    if (entry.key == 'role_overview')
-                                      SizedBox(
-                                        width: constraints.maxWidth,
-                                        child: const FormSectionHeading(
-                                          '04  Review the published description',
-                                          'These sections remain editable. Review every fact before publishing.',
-                                          icon: Icons.fact_check_outlined,
-                                        ),
-                                      ),
-                                    SizedBox(
-                                      width:
-                                          [
-                                            'original_description',
-                                            'role_overview',
-                                            'responsibilities',
-                                            'requirements',
-                                            'benefits',
-                                          ].contains(entry.key)
-                                          ? constraints.maxWidth
-                                          : width,
-                                      child: TextFormField(
-                                        key: fieldKeys.putIfAbsent(
-                                          entry.key,
-                                          () =>
-                                              GlobalKey<
-                                                FormFieldState<String>
-                                              >(),
-                                        ),
-                                        controller: entry.value,
-                                        enabled: !busy && status != 'closed',
-                                        minLines:
-                                            [
-                                              'original_description',
-                                              'role_overview',
-                                              'responsibilities',
-                                              'requirements',
-                                              'benefits',
-                                            ].contains(entry.key)
-                                            ? 3
-                                            : 1,
-                                        maxLines:
-                                            [
-                                              'original_description',
-                                              'role_overview',
-                                              'responsibilities',
-                                              'requirements',
-                                              'benefits',
-                                            ].contains(entry.key)
-                                            ? 8
-                                            : 1,
-                                        keyboardType:
-                                            [
-                                              'original_description',
-                                              'role_overview',
-                                              'responsibilities',
-                                              'requirements',
-                                              'benefits',
-                                            ].contains(entry.key)
-                                            ? TextInputType.multiline
-                                            : entry.key.startsWith('salary_') ||
-                                                  entry.key == 'vacancies'
-                                            ? const TextInputType.numberWithOptions(
-                                                decimal: true,
-                                              )
-                                            : TextInputType.text,
-                                        textInputAction:
-                                            [
-                                              'original_description',
-                                              'role_overview',
-                                              'responsibilities',
-                                              'requirements',
-                                              'benefits',
-                                            ].contains(entry.key)
-                                            ? TextInputAction.newline
-                                            : null,
-                                        decoration: InputDecoration(
-                                          label: requiredLabel(
-                                            jobLabel(entry.key),
+                  Form(
+                    key: form,
+                    // Revalidate on controller, dropdown and widget updates
+                    // after submission, including dependent salary fields.
+                    autovalidateMode: validationActivated
+                        ? AutovalidateMode.always
+                        : AutovalidateMode.disabled,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        requiredLabel('Verified hiring company'),
+                        const Text(
+                          'Fields marked * are required before publishing. Drafts may be incomplete.',
+                        ),
+                        CompanyIdentity(
+                          name: access!.company!['company_name'] as String,
+                          logo: access!.logo,
+                        ),
+                        const Text(
+                          'Your verified hiring company is selected automatically from your membership and cannot be changed here.',
+                        ),
+                        const SizedBox(height: 16),
+
+                        for (final section
+                            in <(String, IconData, List<String>, List<String>)>[
+                              (
+                                'Basic job information',
+                                Icons.work_outline,
+                                ['title', 'department'],
+                                ['employment_type'],
+                              ),
+                              (
+                                'Compensation',
+                                Icons.payments_outlined,
+                                ['salary_min', 'salary_max'],
+                                ['salary_period'],
+                              ),
+                              (
+                                'Schedule & location',
+                                Icons.location_on_outlined,
+                                [
+                                  'location',
+                                  'vacancies',
+                                  'application_deadline',
+                                ],
+                                ['work_arrangement'],
+                              ),
+                              (
+                                'Description & AI formatting',
+                                Icons.auto_awesome_outlined,
+                                [
+                                  'original_description',
+                                  'role_overview',
+                                  'responsibilities',
+                                ],
+                                [],
+                              ),
+                              (
+                                'Requirements & benefits',
+                                Icons.fact_check_outlined,
+                                ['requirements', 'benefits'],
+                                [],
+                              ),
+                            ]) ...[
+                          const SizedBox(height: 20),
+                          WorkspaceCard(
+                            title: section.$1,
+                            leading: Icon(
+                              section.$2,
+                              size: 18,
+                              color: AuthStyle.teal,
+                            ),
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final width = constraints.maxWidth >= 540
+                                    ? (constraints.maxWidth - 16) / 2
+                                    : constraints.maxWidth;
+                                return Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Wrap(
+                                      spacing: 16,
+                                      runSpacing: 16,
+                                      children: [
+                                        for (final entry
+                                            in fields.entries.where(
+                                              (e) => section.$3.contains(e.key),
+                                            )) ...[
+                                          SizedBox(
+                                            width:
+                                                [
+                                                  'original_description',
+                                                  'role_overview',
+                                                  'responsibilities',
+                                                  'requirements',
+                                                  'benefits',
+                                                ].contains(entry.key)
+                                                ? constraints.maxWidth
+                                                : width,
+                                            child: TextFormField(
+                                              key: fieldKeys.putIfAbsent(
+                                                entry.key,
+                                                () =>
+                                                    GlobalKey<
+                                                      FormFieldState<String>
+                                                    >(),
+                                              ),
+                                              controller: entry.value,
+                                              enabled:
+                                                  !busy && status != 'closed',
+                                              minLines:
+                                                  [
+                                                    'original_description',
+                                                    'role_overview',
+                                                    'responsibilities',
+                                                    'requirements',
+                                                    'benefits',
+                                                  ].contains(entry.key)
+                                                  ? 3
+                                                  : 1,
+                                              maxLines:
+                                                  [
+                                                    'original_description',
+                                                    'role_overview',
+                                                    'responsibilities',
+                                                    'requirements',
+                                                    'benefits',
+                                                  ].contains(entry.key)
+                                                  ? 8
+                                                  : 1,
+                                              keyboardType:
+                                                  [
+                                                    'original_description',
+                                                    'role_overview',
+                                                    'responsibilities',
+                                                    'requirements',
+                                                    'benefits',
+                                                  ].contains(entry.key)
+                                                  ? TextInputType.multiline
+                                                  : entry.key.startsWith(
+                                                          'salary_',
+                                                        ) ||
+                                                        entry.key == 'vacancies'
+                                                  ? const TextInputType.numberWithOptions(
+                                                      decimal: true,
+                                                    )
+                                                  : TextInputType.text,
+                                              textInputAction:
+                                                  [
+                                                    'original_description',
+                                                    'role_overview',
+                                                    'responsibilities',
+                                                    'requirements',
+                                                    'benefits',
+                                                  ].contains(entry.key)
+                                                  ? TextInputAction.newline
+                                                  : null,
+                                              decoration: InputDecoration(
+                                                label: requiredLabel(
+                                                  jobLabel(entry.key),
+                                                ),
+                                                hintText:
+                                                    jobExamples[entry.key],
+                                                helperMaxLines: 5,
+                                                suffixIcon:
+                                                    entry.key ==
+                                                        'application_deadline'
+                                                    ? IconButton(
+                                                        tooltip: 'Choose application deadline',
+                                                        onPressed:
+                                                            busy ||
+                                                                status ==
+                                                                    'closed'
+                                                            ? null
+                                                            : pickDeadline,
+                                                        icon: const Icon(
+                                                          Icons
+                                                              .calendar_month_outlined,
+                                                        ),
+                                                      )
+                                                    : null,
+                                                helperText:
+                                                    [
+                                                      'responsibilities',
+                                                      'requirements',
+                                                      'benefits',
+                                                    ].contains(entry.key)
+                                                    ? 'Press Enter to start a new bullet point. You can write full sentences or short phrases on each line.'
+                                                    : entry.key ==
+                                                          'application_deadline'
+                                                    ? 'YYYY-MM-DD. Choose a future date before publishing.'
+                                                    : entry.key ==
+                                                          'original_description'
+                                                    ? 'Describe duties, requirements, working arrangements and benefits in normal sentences.'
+                                                    : entry.key ==
+                                                          'role_overview'
+                                                    ? 'You can write multiple sentences or paragraphs. Press Enter to start a new line.'
+                                                    : entry.key == 'location'
+                                                    ? 'Enter the workplace for on-site/hybrid jobs, or the work region for remote jobs.'
+                                                    : null,
+                                              ),
+                                              validator: (v) =>
+                                                  validate(entry.key, v ?? ''),
+                                            ),
                                           ),
-                                          hintText: jobExamples[entry.key],
-                                          helperMaxLines: 5,
-                                          suffixIcon:
-                                              entry.key ==
-                                                  'application_deadline'
-                                              ? IconButton(
-                                                  tooltip: 'Choose application deadline',
-                                                  onPressed:
+
+                                          if (entry.key ==
+                                              'original_description')
+                                            SizedBox(
+                                              width: constraints.maxWidth,
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  const Text(
+                                                    'Format with AI generates Role Overview, Responsibilities, Requirements and Benefits. Your Original Description stays unchanged. Review and edit the generated text before publishing.',
+                                                  ),
+                                                  const ExpansionTile(
+                                                    tilePadding:
+                                                        EdgeInsets.zero,
+                                                    title: Text(
+                                                      'View example description',
+                                                    ),
+                                                    children: [
+                                                      Padding(
+                                                        padding:
+                                                            EdgeInsets.only(
+                                                              bottom: 16,
+                                                            ),
+                                                        child: Text(
+                                                          'We are looking for part-time café crew at our café in Shah Alam. You will take orders, serve drinks and light meals, handle payments and keep the counter and tables clean. You should communicate politely with customers and work well in a team. No café experience is needed; training is provided. This is an on-site role with weekend shifts, around 16 hours per week. Staff receive a meal during each shift and a staff discount.',
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  OutlinedButton(
+                                                    onPressed:
+                                                        busy ||
+                                                            status == 'closed'
+                                                        ? null
+                                                        : formatWithAi,
+                                                    child: Text(
+                                                      aiFormatting
+                                                          ? 'Formatting…'
+                                                          : 'Format with AI ✨',
+                                                    ),
+                                                  ),
+                                                  if (aiFormatting)
+                                                    const Padding(
+                                                      padding: EdgeInsets.only(
+                                                        top: 8,
+                                                      ),
+                                                      child:
+                                                          LinearProgressIndicator(),
+                                                    ),
+                                                  if (aiError != null)
+                                                    Text(
+                                                      aiError!,
+                                                      style: TextStyle(
+                                                        color: Theme.of(context)
+                                                            .colorScheme
+                                                            .error,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                        ],
+                                        for (final entry
+                                            in options.entries.where(
+                                              (e) => section.$4.contains(e.key),
+                                            ))
+                                          SizedBox(
+                                            width: width,
+                                            child:
+                                                DropdownButtonFormField<String>(
+                                                  key: fieldKeys.putIfAbsent(
+                                                    entry.key,
+                                                    () =>
+                                                        GlobalKey<
+                                                          FormFieldState<String>
+                                                        >(),
+                                                  ),
+                                                  validator: (v) => validate(
+                                                    entry.key,
+                                                    v ?? '',
+                                                  ),
+                                                  initialValue:
+                                                      selected[entry.key],
+                                                  decoration: InputDecoration(
+                                                    label: requiredLabel(
+                                                      jobLabel(entry.key),
+                                                    ),
+                                                    helperMaxLines: 3,
+                                                    helperText:
+                                                        entry.key ==
+                                                            'work_arrangement'
+                                                        ? 'On-site: at the workplace. Hybrid: workplace and remote. Remote: off-site.'
+                                                        : entry.key ==
+                                                              'employment_type'
+                                                        ? 'Choose the contract or working schedule for this role.'
+                                                        : 'How often the salary amount is paid.',
+                                                  ),
+                                                  items:
+                                                      {
+                                                            ...entry.value,
+                                                            selected[entry
+                                                                .key]!,
+                                                          }
+                                                          .map(
+                                                            (v) =>
+                                                                DropdownMenuItem(
+                                                                  value: v,
+                                                                  child: Text(
+                                                                    jobLabel(v),
+                                                                  ),
+                                                                ),
+                                                          )
+                                                          .toList(),
+                                                  onChanged:
                                                       busy || status == 'closed'
                                                       ? null
-                                                      : pickDeadline,
-                                                  icon: const Icon(
-                                                    Icons
-                                                        .calendar_month_outlined,
-                                                  ),
-                                                )
-                                              : null,
-                                          helperText:
-                                              [
-                                                'responsibilities',
-                                                'requirements',
-                                                'benefits',
-                                              ].contains(entry.key)
-                                              ? 'Press Enter to start a new bullet point. You can write full sentences or short phrases on each line.'
-                                              : entry.key ==
-                                                    'application_deadline'
-                                              ? 'YYYY-MM-DD. Choose a future date before publishing.'
-                                              : entry.key ==
-                                                    'original_description'
-                                              ? 'Describe duties, requirements, working arrangements and benefits in normal sentences.'
-                                              : entry.key == 'role_overview'
-                                              ? 'You can write multiple sentences or paragraphs. Press Enter to start a new line.'
-                                              : entry.key == 'location'
-                                              ? 'Enter the workplace for on-site/hybrid jobs, or the work region for remote jobs.'
-                                              : null,
-                                        ),
-                                        validator: (v) =>
-                                            validate(entry.key, v ?? ''),
-                                      ),
-                                    ),
-                                    if (entry.key == 'original_description')
-                                      SizedBox(
-                                        width: constraints.maxWidth,
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            const Text(
-                                              'Format with AI generates Role Overview, Responsibilities, Requirements and Benefits. Your Original Description stays unchanged. Review and edit the generated text before publishing.',
-                                            ),
-                                            const ExpansionTile(
-                                              tilePadding: EdgeInsets.zero,
-                                              title: Text(
-                                                'View example description',
-                                              ),
-                                              children: [
-                                                Padding(
-                                                  padding: EdgeInsets.only(
-                                                    bottom: 16,
-                                                  ),
-                                                  child: Text(
-                                                    'We are looking for part-time café crew at our café in Shah Alam. You will take orders, serve drinks and light meals, handle payments and keep the counter and tables clean. You should communicate politely with customers and work well in a team. No café experience is needed; training is provided. This is an on-site role with weekend shifts, around 16 hours per week. Staff receive a meal during each shift and a staff discount.',
-                                                  ),
+                                                      : (v) => setState(
+                                                          () =>
+                                                              selected[entry
+                                                                      .key] =
+                                                                  v!,
+                                                        ),
                                                 ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            OutlinedButton(
-                                              onPressed:
-                                                  busy || status == 'closed'
-                                                  ? null
-                                                  : formatWithAi,
-                                              child: Text(
-                                                aiFormatting
-                                                    ? 'Formatting…'
-                                                    : 'Format with AI ✨',
-                                              ),
-                                            ),
-                                            if (aiFormatting)
-                                              const Padding(
-                                                padding: EdgeInsets.only(
-                                                  top: 8,
-                                                ),
-                                                child:
-                                                    LinearProgressIndicator(),
-                                              ),
-                                            if (aiError != null)
-                                              Text(
-                                                aiError!,
-                                                style: TextStyle(
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .error,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                  for (final entry in options.entries)
-                                    SizedBox(
-                                      width: width,
-                                      child: DropdownButtonFormField<String>(
-                                        key: fieldKeys.putIfAbsent(
-                                          entry.key,
-                                          () =>
-                                              GlobalKey<
-                                                FormFieldState<String>
-                                              >(),
-                                        ),
-                                        validator: (v) =>
-                                            validate(entry.key, v ?? ''),
-                                        initialValue: selected[entry.key],
-                                        decoration: InputDecoration(
-                                          label: requiredLabel(
-                                            jobLabel(entry.key),
                                           ),
-                                          helperMaxLines: 3,
-                                          helperText:
-                                              entry.key == 'work_arrangement'
-                                              ? 'On-site: at the workplace. Hybrid: workplace and remote. Remote: off-site.'
-                                              : entry.key == 'employment_type'
-                                              ? 'Choose the contract or working schedule for this role.'
-                                              : 'How often the salary amount is paid.',
+                                      ],
+                                    ),
+                                    if (section.$1 == 'Compensation')
+                                      SwitchListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text(
+                                          'Show salary on posting',
                                         ),
-                                        items:
-                                            {
-                                                  ...entry.value,
-                                                  selected[entry.key]!,
-                                                }
-                                                .map(
-                                                  (v) => DropdownMenuItem(
-                                                    value: v,
-                                                    child: Text(jobLabel(v)),
-                                                  ),
-                                                )
-                                                .toList(),
+                                        subtitle: const Text(
+                                          'Turn off to hide salary amounts from job seekers.',
+                                        ),
+                                        value: salaryVisible,
                                         onChanged: busy || status == 'closed'
                                             ? null
                                             : (v) => setState(
-                                                () => selected[entry.key] = v!,
+                                                () => salaryVisible = v,
                                               ),
                                       ),
-                                    ),
-                                ],
-                              );
-                            },
-                          ),
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('Show salary on posting'),
-                            subtitle: const Text(
-                              'Turn off to hide salary amounts from job seekers.',
+                                  ],
+                                );
+                              },
                             ),
-                            value: salaryVisible,
-                            onChanged: busy || status == 'closed'
-                                ? null
-                                : (v) => setState(() => salaryVisible = v),
                           ),
-                          const SizedBox(height: 20),
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: [
-                              if (status == 'published')
-                                FilledButton(
-                                  onPressed: busy ? null : () => save(true),
-                                  child: const Text('Save Changes'),
-                                ),
-                              if (status == 'draft') ...[
-                                OutlinedButton(
-                                  onPressed: busy ? null : () => save(false),
-                                  child: const Text('Save Draft'),
-                                ),
-                                FilledButton(
-                                  onPressed: busy ? null : () => save(true),
-                                  child: const Text('Publish'),
-                                ),
-                              ],
-                              OutlinedButton(
-                                onPressed: busy
-                                    ? null
-                                    : () => showDialog<void>(
-                                        context: context,
-                                        builder: (_) => JobPreview(
-                                          logo: access!.logo,
-                                          job: {...?savedJob, ...values()},
-                                          company:
-                                              access!.company!['company_name']
-                                                  as String,
-                                        ),
-                                      ),
-                                child: const Text('Preview'),
+                        ],
+                        const SizedBox(height: 20),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            if (status == 'published')
+                              FilledButton(
+                                onPressed: busy ? null : () => save(true),
+                                child: const Text('Save Changes'),
                               ),
-                              TextButton(
-                                onPressed: busy ? null : _backToPostings,
-                                child: const Text('Back to Job Postings'),
+                            if (status == 'draft') ...[
+                              OutlinedButton(
+                                onPressed: busy ? null : () => save(false),
+                                child: const Text('Save Draft'),
+                              ),
+                              FilledButton(
+                                onPressed: busy ? null : () => save(true),
+                                child: const Text('Publish'),
                               ),
                             ],
-                          ),
-                          if (busy && (aiFormatting || !aiConfirmationPending))
-                            const LinearProgressIndicator(),
-                        ],
-                      ),
+                            OutlinedButton(
+                              onPressed: busy
+                                  ? null
+                                  : () => showDialog<void>(
+                                      context: context,
+                                      builder: (_) => JobPreview(
+                                        logo: access!.logo,
+                                        job: {...?savedJob, ...values()},
+                                        company:
+                                            access!.company!['company_name']
+                                                as String,
+                                      ),
+                                    ),
+                              child: const Text('Preview'),
+                            ),
+                            TextButton(
+                              onPressed: busy ? null : _backToPostings,
+                              child: const Text('Back to Job Postings'),
+                            ),
+                          ],
+                        ),
+                        if (busy && (aiFormatting || !aiConfirmationPending))
+                          const LinearProgressIndicator(),
+                      ],
                     ),
                   ),
               ],
