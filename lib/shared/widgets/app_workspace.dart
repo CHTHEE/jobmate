@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../navigation/app_routes.dart';
 import 'auth_style.dart';
 import 'responsive_layout.dart';
+import '../theme/jobmate_theme.dart';
+import '../navigation/workspace_destinations.dart';
 
 const upcomingModules = <(String, IconData)>[];
 
@@ -32,7 +34,7 @@ class AppWorkspace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = AuthStyle.theme(context);
+    final base = JobMateTheme.apply(Theme.of(context));
     return Theme(
       data: base,
       child: LayoutBuilder(
@@ -56,179 +58,55 @@ class AppWorkspace extends StatelessWidget {
             color: Colors.white,
             child: SafeArea(
               child: ListView(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(12, 20, 12, 20),
                 children: [
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
                     child: AuthWordmark(),
                   ),
-                  const SizedBox(height: 28),
-                  const Text(
-                    'WORKSPACE',
-                    style: TextStyle(
-                      fontSize: 11,
-                      letterSpacing: 1.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
                   const SizedBox(height: 12),
-                  for (final item in <(String, String, IconData)>[
-                    (AppRoutes.home, 'Dashboard', Icons.grid_view_rounded),
-                    if (role == 'administrator') ...[
-                      (
-                        AppRoutes.adminUsers,
-                        'Real User Directory',
-                        Icons.people_outline,
-                      ),
-                      (
-                        AppRoutes.adminPreview,
-                        'UI Sandbox (demo)',
-                        Icons.dashboard_customize_outlined,
-                      ),
-                      (
-                        AppRoutes.adminDemoAccounts,
-                        'Account Actions (demo)',
-                        Icons.manage_accounts_outlined,
-                      ),
-                      (
-                        AppRoutes.adminDemoJobs,
-                        'Job Moderation (demo)',
-                        Icons.work_outline,
-                      ),
-                      (
-                        AppRoutes.adminDemoDisputes,
-                        'Disputes (demo)',
-                        Icons.gavel_outlined,
-                      ),
-                      (
-                        AppRoutes.adminDemoReports,
-                        'Reports (demo)',
-                        Icons.analytics_outlined,
-                      ),
-                    ],
-                    if (role == 'job_seeker')
-                      (AppRoutes.browseJobs, 'Browse Jobs', Icons.search),
-                    if (role == 'job_seeker')
-                      (
-                        AppRoutes.applications,
-                        'My Applications',
-                        Icons.assignment_outlined,
-                      ),
-                    if (role == 'employer')
-                      (
-                        AppRoutes.applicants,
-                        'Applications (demo)',
-                        Icons.people_outline,
-                      ),
-                    (
-                      AppRoutes.profile,
-                      'Personal profile',
-                      Icons.person_outline,
-                    ),
-                    if (role == 'employer')
-                      (
-                        AppRoutes.company,
-                        'Company profile',
-                        Icons.business_outlined,
-                      ),
-                    if (role == 'employer')
-                      (
-                        AppRoutes.jobPostings,
-                        'My Job Postings',
-                        Icons.work_outline,
-                      ),
-                    if (role == 'employer')
-                      (
-                        AppRoutes.createJob,
-                        'Create Job',
-                        Icons.add_circle_outline,
-                      ),
-                    if (role == 'job_seeker')
-                      (
-                        AppRoutes.recommendations,
-                        'For You (demo)',
-                        Icons.auto_awesome_outlined,
-                      ),
-                    if (role == 'job_seeker')
-                      (
-                        AppRoutes.nearbyJobs,
-                        'Nearby Jobs (demo)',
-                        Icons.map_outlined,
-                      ),
-                    if (role == 'job_seeker')
-                      (
-                        AppRoutes.attendance,
-                        'Attendance (demo)',
-                        Icons.event_available_outlined,
-                      ),
-                    if (role == 'employer')
-                      (
-                        AppRoutes.attendanceReview,
-                        'Attendance Review (demo)',
-                        Icons.fact_check_outlined,
-                      ),
-                    if (['job_seeker', 'employer'].contains(role))
-                      (
-                        role == 'employer'
-                            ? AppRoutes.employerMessages
-                            : AppRoutes.messages,
-                        'Messages (demo)',
-                        Icons.chat_bubble_outline,
-                      ),
-                    if (role == 'employer')
-                      (
-                        AppRoutes.jobLocationDemo,
-                        'Location Picker (demo)',
-                        Icons.add_location_alt_outlined,
-                      ),
-                    if (['job_seeker', 'employer'].contains(role)) ...[
-                      (
-                        role == 'employer'
-                            ? AppRoutes.employerEvaluations
-                            : AppRoutes.evaluations,
-                        'Evaluations (demo)',
-                        Icons.rate_review_outlined,
-                      ),
-                      (
-                        role == 'employer'
-                            ? AppRoutes.employerReputation
-                            : AppRoutes.reputation,
-                        'Reputation (demo)',
-                        Icons.stars_outlined,
-                      ),
-                      (
-                        role == 'employer'
-                            ? AppRoutes.employerPayments
-                            : AppRoutes.payments,
-                        'Payments (demo)',
-                        Icons.receipt_long_outlined,
-                      ),
-                    ],
-                    (
-                      role == 'employer'
-                          ? AppRoutes.employerSettings
-                          : role == 'administrator'
-                          ? AppRoutes.adminSettings
-                          : AppRoutes.settings,
-                      'Account Settings',
-                      Icons.settings_outlined,
-                    ),
-                  ])
+                  for (final group in workspaceDestinations(role).entries) ...[
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: ListTile(
-                        selected: path == item.$1,
-                        selectedTileColor: const Color(0xFFF0FDFA),
-                        selectedColor: AuthStyle.darkTeal,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                      padding: const EdgeInsets.fromLTRB(12, 20, 8, 10),
+                      child: Text(
+                        group.key,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AuthStyle.body,
+                          letterSpacing: 1.6,
+                          fontWeight: FontWeight.w700,
                         ),
-                        leading: Icon(item.$3),
-                        title: Text(item.$2),
-                        enabled: !navigationLocked,
-                        onTap: () => navigate(item.$1, closeDrawer: true),
                       ),
                     ),
+                    for (final item in group.value)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: ListTile(
+                          selected: path == item.$1,
+                          selectedTileColor: const Color(0xFFF0FDFA),
+                          selectedColor: AuthStyle.darkTeal,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                          ),
+                          minLeadingWidth: 24,
+                          leading: Icon(item.$3, size: 20),
+                          title: Text(
+                            item.$2,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: path == item.$1
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                            ),
+                          ),
+                          enabled: !navigationLocked,
+                          onTap: () => navigate(item.$1, closeDrawer: true),
+                        ),
+                      ),
+                  ],
                   if (upcomingModules.isNotEmpty) ...[
                     const Divider(height: 32),
                     const Text(
@@ -323,6 +201,10 @@ class AppWorkspace extends StatelessWidget {
             drawer: desktop ? null : Drawer(child: navigation),
             drawerEnableOpenDragGesture: !navigationLocked,
             appBar: AppBar(
+              toolbarHeight: 64,
+              shape: const Border(
+                bottom: BorderSide(color: JobMateTheme.divider),
+              ),
               automaticallyImplyLeading: !kIsWeb,
               leading:
                   leading ??
@@ -349,7 +231,7 @@ class AppWorkspace extends StatelessWidget {
             body: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (desktop) SizedBox(width: 288, child: navigation),
+                if (desktop) SizedBox(width: 240, child: navigation),
                 Expanded(child: SafeArea(child: child)),
               ],
             ),
@@ -389,14 +271,14 @@ class WorkspaceCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(
     margin: EdgeInsets.zero,
     child: Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             title,
             style: const TextStyle(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w600,
               color: AuthStyle.heading,
             ),
@@ -419,7 +301,7 @@ class WorkspaceStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (value) {
-      'verified' || 'active' => AuthStyle.darkTeal,
+      'verified' || 'active' || 'published' => AuthStyle.darkTeal,
       'pending' => const Color(0xFF92400E),
       'rejected' || 'suspended' || 'deactivated' => AuthStyle.error,
       _ => AuthStyle.body,
@@ -463,22 +345,33 @@ class WorkspaceInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 10),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
+    child: LayoutBuilder(
+      builder: (context, box) {
+        final heading = Text(
           label,
           style: const TextStyle(fontSize: 12, color: AuthStyle.body),
-        ),
-        const SizedBox(height: 4),
-        SelectableText(
+        );
+        final content = SelectableText(
           value.isEmpty ? 'Not provided' : value,
           style: const TextStyle(
             color: AuthStyle.heading,
             fontWeight: FontWeight.w500,
+            height: 1.5,
           ),
-        ),
-      ],
+        );
+        return box.maxWidth >= 500
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 160, child: heading),
+                  Expanded(child: content),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [heading, const SizedBox(height: 4), content],
+              );
+      },
     ),
   );
 }

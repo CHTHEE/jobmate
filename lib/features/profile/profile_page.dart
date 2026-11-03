@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/auth_style.dart';
 
 import 'package:image_picker/image_picker.dart';
@@ -640,12 +641,11 @@ class _ProfilePageState extends State<ProfilePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Your personal profile', style: AuthStyle.title),
-              const SizedBox(height: 8),
-              const Text(
-                'Keep your personal details up to date. Company information is managed separately.',
+              const ProfileHeading(
+                title: 'Your personal profile',
+                description: 'Your identity, contact details and verification, all in one place.',
+                icon: Icons.person_outline,
               ),
-              const SizedBox(height: 24),
               if (_loadError != null)
                 WorkspaceCard(
                   title: 'Profile unavailable',
@@ -666,7 +666,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(child: identity),
+                            SizedBox(width: 300, child: identity),
                             const SizedBox(width: 20),
                             Expanded(child: details),
                           ],

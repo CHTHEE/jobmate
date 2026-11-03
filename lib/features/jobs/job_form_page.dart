@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/auth_style.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import 'job_postings_repository.dart';
@@ -453,6 +454,17 @@ class JobFormPageState extends State<JobFormPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                PageHeading(
+                  title: jobId == null
+                      ? 'Create a job'
+                      : status == 'closed'
+                      ? 'Job details'
+                      : 'Edit your posting',
+                  description: status == 'closed'
+                      ? 'This posting is closed. Its details remain available for reference.'
+                      : 'Turn your hiring needs into a clear, thoughtful opportunity. Your work is saved only when you choose Save Draft or Publish.',
+                  eyebrow: 'Job posts / ${jobId == null ? 'Create' : 'Edit'}',
+                ),
                 if (error != null) ...[
                   Text(error!, style: const TextStyle(color: Colors.red)),
                   TextButton(
@@ -519,6 +531,42 @@ class JobFormPageState extends State<JobFormPage> {
                                 runSpacing: 16,
                                 children: [
                                   for (final entry in fields.entries) ...[
+                                    if (entry.key == 'title')
+                                      SizedBox(
+                                        width: constraints.maxWidth,
+                                        child: const FormSectionHeading(
+                                          '01  Job essentials',
+                                          'Give candidates the details they need to understand the role.',
+                                          icon: Icons.work_outline,
+                                        ),
+                                      ),
+                                    if (entry.key == 'salary_min')
+                                      SizedBox(
+                                        width: constraints.maxWidth,
+                                        child: const FormSectionHeading(
+                                          '02  Compensation & schedule',
+                                          'Keep salary, vacancies and deadlines accurate. Salary visibility controls the public preview.',
+                                          icon: Icons.payments_outlined,
+                                        ),
+                                      ),
+                                    if (entry.key == 'original_description')
+                                      SizedBox(
+                                        width: constraints.maxWidth,
+                                        child: const FormSectionHeading(
+                                          '03  Tell the original story',
+                                          'Your own description is always retained, including when using AI formatting.',
+                                          icon: Icons.edit_note_outlined,
+                                        ),
+                                      ),
+                                    if (entry.key == 'role_overview')
+                                      SizedBox(
+                                        width: constraints.maxWidth,
+                                        child: const FormSectionHeading(
+                                          '04  Review the published description',
+                                          'These sections remain editable. Review every fact before publishing.',
+                                          icon: Icons.fact_check_outlined,
+                                        ),
+                                      ),
                                     SizedBox(
                                       width:
                                           [

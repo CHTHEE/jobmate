@@ -616,6 +616,71 @@ interaction, native file pickers, printable popup dialogs, real Supabase sign-ou
 live admin access checks and deployed-backend acceptance remain unverified; widget
 tests exercise injected account/access fixtures, not actual server authorization.
 
+## Phase 5 — Figma visual redesign and polish
+
+This pass applies the local Figma Markdown specification; original frames and the
+referenced BEFORE screenshot were not supplied. It is not a pixel-perfect claim.
+The shared theme now uses the teal/slate palette, white bordered surfaces, rounded
+controls, compact status badges and clearer heading hierarchy. Outfit, DM Serif
+Display and DM Mono are requested with platform fallbacks; these fonts are not
+newly bundled or downloaded. Dark teal buttons improve contrast while bright teal
+remains the brand accent. New reusable page/profile headings, statistic grids,
+brand panels, section headings and compact DEMO notices avoid duplicate layouts.
+
+### Screen inventory coverage
+
+| Figma screens | Phase 5 coverage |
+| --- | --- |
+| JS-01, EMP-01 | Redesigned welcome, quick actions, activity previews and responsive summaries. Employer posting counts use the existing authorized repository; unavailable counts display an em dash and explanation. Sample applications/work remain separately labeled DEMO. |
+| ADM-01 | Redesigned header, management shortcuts and explicitly demo moderation/dispute summaries; existing real overview/access checks retained. |
+| EMP-02 | Redesigned real posting dashboard: four derived statistics, search, status filters, richer cards and existing lifecycle actions. |
+| EMP-03–04 | Numbered form sections, clearer hierarchy and shared controls; all actual fields, dirty guards, validation and AI callbacks retained. |
+| EMP-05 | Professional preview heading/company panel and clearer description sections using the existing form values. |
+| JS-23, EMP-19 | New profile/company heroes, responsive information sections and real verification presentation. |
+| JS-24, EMP-20, AUTH/ACC | Existing forms/layouts retained; inherit shared typography and controls. Not individually rebuilt. |
+| JS-02–22, JS-25–26, EMP-06–09, EMP-12–18, EMP-21–22, ADM-05–12 | Existing screens inherit shared surfaces, badges, typography, demo notices and (where using DemoPage) page headers. No bespoke redesign of every screen is claimed. Existing state/actions remain intact. |
+| ADM-02–04 | Existing real admin screens receive global styling; specialized directory/review layouts remain. |
+| EMP-10–11, RPT-01 | No dedicated worker directory/profile was added; Workers shortcut opens existing attendance review. Standalone printable report HTML was not redesigned. |
+
+Role landing selection, GoRouter routes and guards remain intact. Desktop
+workspace navigation is now grouped in a 240px sidebar. Existing responsive
+drawer/bottom navigation, Android contextual Back, safe route fallbacks and Web
+main-destination back-arrow rules remain. The existing 1024px sidebar breakpoint
+and 64px toolbar are retained rather than forcing prototype dimensions.
+
+### Real functionality, demos and future integration
+
+Supabase authentication, real profiles/company/logo/verification, employer
+membership authorization, posting Create/Edit/Preview/Draft/Publish/Close and
+salary visibility remain in place. The existing `format-job-description` Edge
+Function request, editable AI sections and Original Description are unchanged.
+The employer landing page adds only an authorized read through the existing job
+repository. No backend contracts, policies, secrets, dependencies or infrastructure
+were changed. Existing application, matching, attendance, chat, evaluation,
+reputation, payment, location and moderation demo stores remain session-only;
+new dashboard previews explicitly identify them. All previous future integration
+requirements above still apply; no Supabase Dashboard steps are needed for this pass.
+
+### Validation and remaining work
+
+Formatting and the release Web build pass. Analysis retains the eight existing
+auth/home/profile diagnostics. The full suite reports 242 passing tests and two
+pre-existing failures (registration CheckboxListTile expectation and counter smoke
+test without router initialization). The focused workspace/posting/visual suite
+passes 65 tests. Eight new fixture tests render dashboards, posting list/form and
+preview at 390px and 1440px, checking layout exceptions and fixture-derived counts.
+Ten PNGs are generated under ignored `build/phase5-review/` and were visually
+inspected. Tests alias installed Windows fallback fonts for readable screenshots;
+these are fixture renders, not live Supabase sessions or exact Figma font matches.
+
+A headless browser attempt captured only the startup loader, so actual browser
+runtime verification is inconclusive. No live Supabase/Gemini requests, authenticated
+profile/admin browser walkthrough, Android device, browser history/refresh acceptance
+or native keyboard/file-picker testing is claimed. Deeper individual module layouts,
+bundled design fonts, dedicated worker views and complete visual acceptance against
+original Figma frames remain future work. This pass does not claim every screen was
+individually redesigned. No commit or push was made.
+
 ## 5. Security and Collaboration
 
 - Never commit Gemini API keys, service-role keys, JWTs, credentials or private tokens. Keep Gemini API calls inside the Supabase Edge Function, never directly in Flutter.

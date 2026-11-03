@@ -5,7 +5,7 @@ import '../theme/jobmate_theme.dart';
 /// Authentication presentation layered over the shared application tokens.
 abstract final class AuthStyle {
   static const teal = JobMateTheme.teal;
-  static const darkTeal = JobMateTheme.primary;
+  static const darkTeal = JobMateTheme.darkTeal;
   static const background = JobMateTheme.background;
   static const heading = JobMateTheme.heading;
   static const body = JobMateTheme.body;
@@ -59,7 +59,7 @@ abstract final class AuthStyle {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: teal,
+          backgroundColor: darkTeal,
           foregroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 48),
           textStyle: const TextStyle(
@@ -89,13 +89,18 @@ class AuthWordmark extends StatelessWidget {
         size: 28,
       ),
       const SizedBox(width: 10),
-      Text(
-        'JobMate',
-        style: TextStyle(
-          fontFamily: 'DM Serif Display',
-          fontFamilyFallback: const ['Georgia', 'serif'],
-          fontSize: 28,
-          color: light ? Colors.white : AuthStyle.heading,
+      Flexible(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            'JobMate',
+            style: TextStyle(
+              fontFamily: 'DM Serif Display',
+              fontFamilyFallback: const ['Georgia', 'serif'],
+              fontSize: 28,
+              color: light ? Colors.white : AuthStyle.heading,
+            ),
+          ),
         ),
       ),
     ],

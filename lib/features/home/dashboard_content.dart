@@ -5,6 +5,8 @@ import '../../shared/navigation/app_routes.dart';
 
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/auth_style.dart';
+import '../../shared/widgets/design_primitives.dart';
+import 'dashboard_activity.dart';
 
 /// Dashboard presentation, using records loaded by HomePage.
 class DashboardContent extends StatelessWidget {
@@ -19,6 +21,8 @@ class DashboardContent extends StatelessWidget {
     this.companyError,
     this.memberRole = '',
     this.onRetry,
+    this.jobPostings,
+    this.jobPostingsError,
   });
   final Map<String, dynamic> profile;
   final Map<String, dynamic>? company;
@@ -29,6 +33,8 @@ class DashboardContent extends StatelessWidget {
   final VoidCallback onCompany;
   final VoidCallback onVerification;
   final VoidCallback? onRetry;
+  final List<Map<String, dynamic>>? jobPostings;
+  final String? jobPostingsError;
 
   @override
   Widget build(BuildContext context) {
@@ -142,18 +148,93 @@ class DashboardContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          '${workspaceLabel(role)} dashboard',
-          style: const TextStyle(
-            color: AuthStyle.teal,
-            fontWeight: FontWeight.w600,
-          ),
+        PageHeading(
+          title: 'Welcome${name.isEmpty ? '' : ', $name'}',
+          eyebrow: '${workspaceLabel(role)} dashboard',
+          description: role == 'employer'
+              ? company == null
+                    ? 'Build your team, one opportunity at a time.'
+                    : 'Your hiring overview for ${company!['company_name'] ?? 'your company'}.'
+              : 'Discover opportunities, track applications and plan your next step.',
+          actions: [
+            if (role == 'job_seeker')
+              FilledButton.icon(
+                onPressed: () => context.push(AppRoutes.browseJobs),
+                icon: const Icon(Icons.search),
+                label: const Text('Browse Jobs'),
+              ),
+            if (role == 'employer')
+              OutlinedButton.icon(
+                onPressed: () => context.push(AppRoutes.jobPostings),
+                icon: const Icon(Icons.work_outline),
+                label: const Text('Job Posts'),
+              ),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text('Welcome${name.isEmpty ? '' : ', $name'}', style: AuthStyle.title),
-        const SizedBox(height: 8),
-        const Text('Your profile, verification and next steps in one place.'),
-        const SizedBox(height: 28),
+        if (role == 'employer') ...[
+          StatGrid(
+            children: [
+              for (final item in <(String, String, IconData)>[
+                ('all', 'Total Jobs', Icons.work_outline),
+                ('published', 'Published', Icons.public_outlined),
+                ('draft', 'Draft', Icons.edit_note_outlined),
+                ('closed', 'Closed', Icons.task_alt),
+              ])
+                StatTile(
+                  label: item.$2,
+                  value: jobPostings == null
+                      ? '—'
+                      : '${item.$1 == 'all' ? jobPostings!.length : jobPostings!.where((j) => j['status'] == item.$1).length}',
+                  icon: item.$3,
+                  note: 'Real company postings',
+                ),
+            ],
+          ),
+          if (jobPostings == null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                jobPostingsError ?? 'Posting counts load only when existing employer membership and company verification allow access.',
+              ),
+            ),
+          const SizedBox(height: 24),
+        ],
+        if (role == 'job_seeker') ...[
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final item in <(String, String, IconData)>[
+                (
+                  AppRoutes.recommendations,
+                  'For You',
+                  Icons.auto_awesome_outlined,
+                ),
+                (AppRoutes.nearbyJobs, 'Nearby', Icons.map_outlined),
+                (
+                  AppRoutes.applications,
+                  'Applications',
+                  Icons.assignment_outlined,
+                ),
+                (
+                  AppRoutes.attendance,
+                  'Attendance',
+                  Icons.event_available_outlined,
+                ),
+              ])
+                OutlinedButton.icon(
+                  onPressed: () => context.push(item.$1),
+                  icon: Icon(item.$3, size: 18),
+                  label: Text(item.$2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 24),
+        ],
+        if (role == 'job_seeker' || role == 'employer') ...[
+          DashboardActivity(employer: role == 'employer'),
+          const SizedBox(height: 28),
+        ],
         LayoutBuilder(
           builder: (context, constraints) {
             if (role != 'job_seeker' && role != 'employer') return summary;
@@ -279,6 +360,7 @@ class DashboardContent extends StatelessWidget {
             ),
           ),
         ],
+
         const SizedBox(height: 20),
         if (upcomingModules.isNotEmpty)
           WorkspaceCard(

@@ -1192,6 +1192,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Edit Draft'), findsOneWidget);
+    await tester.ensureVisible(find.text('published (1)'));
     await tester.tap(find.text('published (1)'));
     await tester.pumpAndSettle();
     expect(find.text('Live role'), findsOneWidget);
@@ -1200,6 +1201,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Close Job'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('closed (2)'));
     await tester.tap(find.text('closed (2)'));
     await tester.pumpAndSettle();
     expect(find.text('Live role'), findsOneWidget);

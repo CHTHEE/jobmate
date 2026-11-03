@@ -3,6 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
+import '../../shared/widgets/design_primitives.dart';
+import '../../shared/widgets/auth_style.dart';
+import '../phase4/phase4_store.dart';
 import '../../shared/widgets/responsive_layout.dart';
 
 enum _AdminProfileAction { profile, refresh, signOut }
@@ -326,20 +329,54 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                             constraints.maxWidth,
                           ),
                           children: [
-                            Text(
-                              'Platform overview',
-                              style: Theme.of(context).textTheme.headlineMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            PageHeading(
+                              title: 'Platform overview',
+                              description: 'Manage accounts, review companies and keep JobMate running smoothly.',
+                              eyebrow: 'Administration',
                             ),
-                            const SizedBox(height: 8),
-                            Text('Signed in as ${widget.email}'),
-                            const SizedBox(height: 28),
                             if (compact) ...[
                               _buildMobileNavigation(context),
                               const SizedBox(height: 20),
                             ],
                             if (_error != null) _buildError(context),
                             _buildOverview(context),
+                            const SizedBox(height: 24),
+                            if (!_loadingAccess && _error == null)
+                              BrandPanel(
+                                title: 'A clear view of your platform',
+                                description: 'Real user and company metrics appear above. Job moderation, disputes and reports below remain a separate demo workspace.',
+                                icon: Icons.admin_panel_settings_outlined,
+                              ),
+                            const SizedBox(height: 20),
+                            if (!_loadingAccess && _error == null)
+                              ListenableBuilder(
+                                listenable: Phase4Store.session,
+                                builder: (context, _) => StatGrid(
+                                  children: [
+                                    StatTile(
+                                      label: 'Job moderation',
+                                      value:
+                                          '${Phase4Store.session.jobs.length}',
+                                      icon: Icons.work_outline,
+                                      note: 'DEMO posts',
+                                    ),
+                                    StatTile(
+                                      label: 'Open disputes',
+                                      value:
+                                          '${Phase4Store.session.disputes.where((d) => !d.state.terminal).length}',
+                                      icon: Icons.gavel_outlined,
+                                      note: 'DEMO cases',
+                                    ),
+                                    StatTile(
+                                      label: 'Review history',
+                                      value:
+                                          '${Phase4Store.session.audit.length}',
+                                      icon: Icons.history,
+                                      note: 'DEMO local actions',
+                                    ),
+                                  ],
+                                ),
+                              ),
                             const SizedBox(height: 28),
                             Text(
                               'Admin tools',
@@ -373,6 +410,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           padding: const EdgeInsets.all(16),
           children: [
             const Padding(
+              padding: EdgeInsets.fromLTRB(12, 12, 12, 20),
+              child: AuthWordmark(),
+            ),
+            const Padding(
               padding: EdgeInsets.fromLTRB(12, 8, 12, 24),
               child: Text(
                 'ADMINISTRATION',
@@ -390,6 +431,29 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               title: const Text('Users'),
               onTap: () => context.push<void>(AppRoutes.adminUsers),
             ),
+            if (!_loadingAccess && _error == null)
+              for (final item in <(String, String, IconData)>[
+                (
+                  AppRoutes.adminDemoJobs,
+                  'Job Posts (demo)',
+                  Icons.work_outline,
+                ),
+                (
+                  AppRoutes.adminDemoDisputes,
+                  'Disputes (demo)',
+                  Icons.gavel_outlined,
+                ),
+                (
+                  AppRoutes.adminDemoReports,
+                  'Reports (demo)',
+                  Icons.analytics_outlined,
+                ),
+              ])
+                ListTile(
+                  leading: Icon(item.$3),
+                  title: Text(item.$2),
+                  onTap: () => context.push<void>(item.$1),
+                ),
             if (_canReviewCompanies)
               ListTile(
                 leading: const Icon(Icons.business_outlined),
@@ -492,7 +556,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           crossAxisCount: columns,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          mainAxisExtent: 210,
+          mainAxisExtent: 220,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
@@ -660,7 +724,7 @@ class _OverviewCard extends StatelessWidget {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
       child: Padding(
@@ -713,7 +777,7 @@ class _ToolCard extends StatelessWidget {
       elevation: 0,
       color: Colors.white,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
       clipBehavior: Clip.antiAlias,

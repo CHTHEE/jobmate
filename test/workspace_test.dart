@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:jobmate/features/home/dashboard_content.dart';
 import 'package:jobmate/shared/navigation/app_routes.dart';
 import 'package:jobmate/shared/widgets/app_workspace.dart';
+import 'package:jobmate/shared/widgets/auth_style.dart';
 
 void main() {
   for (final width in [320.0, 1440.0]) {
@@ -124,6 +125,18 @@ void main() {
         ),
       ),
     );
+    await tester.scrollUntilVisible(
+      find.widgetWithText(ListTile, 'Company profile'),
+      180,
+      scrollable: find.descendant(
+        of: find.ancestor(
+          of: find.byType(AuthWordmark),
+          matching: find.byType(ListView),
+        ),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ListTile, 'Company profile'));
     expect(navigated, isFalse);
   });
@@ -172,6 +185,21 @@ void main() {
           find.text('Company profile'),
           role == 'employer' ? findsOneWidget : findsNothing,
         );
+        await tester.scrollUntilVisible(
+          find.widgetWithText(ListTile, 'Personal profile'),
+          180,
+          scrollable: find.descendant(
+            of: find.ancestor(
+              of: find.byType(AuthWordmark),
+              matching: find.byType(ListView),
+            ),
+            matching: find.byType(Scrollable),
+          ),
+        );
+        await tester.ensureVisible(
+          find.widgetWithText(ListTile, 'Personal profile'),
+        );
+        await tester.pumpAndSettle();
         await tester.tap(find.widgetWithText(ListTile, 'Personal profile'));
         await tester.pumpAndSettle();
         expect(destination, AppRoutes.profile);

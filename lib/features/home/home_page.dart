@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/app_workspace.dart';
 import 'dashboard_content.dart';
+import '../jobs/job_postings_repository.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/responsive_layout.dart';
 
@@ -31,6 +32,8 @@ class _HomePageState extends State<HomePage> {
   bool _loading = true;
   String? _loadError;
   String? _companyError;
+  List<Map<String, dynamic>>? _jobPostings;
+  String? _jobPostingsError;
 
   @override
   void initState() {
@@ -112,6 +115,8 @@ class _HomePageState extends State<HomePage> {
                         onVerification: () =>
                             _openSection(AppRoutes.documentSubmission),
                         onRetry: _loadAccountRole,
+                        jobPostings: _jobPostings,
+                        jobPostingsError: _jobPostingsError,
                       ),
                     const SizedBox(height: 20),
                     WorkspaceCard(
@@ -284,6 +289,23 @@ class _HomePageState extends State<HomePage> {
           companyError = 'Unable to load company information. Retry or open Company profile from navigation.';
         }
       }
+      List<Map<String, dynamic>>? postingRecords;
+      String? postingError;
+      if (role == 'employer') {
+        try {
+          final repository = JobPostingsRepository(client);
+          final access = await repository.loadAccess();
+          if (access.allowed) {
+            postingRecords = await repository.list(
+              access.company!['company_id'].toString(),
+            );
+          } else {
+            postingError = access.message;
+          }
+        } catch (_) {
+          postingError = 'Unable to load company job counts. Refresh or open My Job Postings to retry.';
+        }
+      }
       if (!mounted || client.auth.currentUser?.id != userId) return;
       setState(() {
         _profile = profile;
@@ -291,6 +313,8 @@ class _HomePageState extends State<HomePage> {
         _company = company;
         _memberRole = memberRole;
         _companyError = companyError;
+        _jobPostings = postingRecords;
+        _jobPostingsError = postingError;
       });
     } catch (error) {
       debugPrint('Dashboard load failed: $error');

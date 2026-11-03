@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/design_primitives.dart';
 import 'module2_repository.dart';
 
 class Module2Gate extends StatefulWidget {
@@ -86,16 +87,8 @@ class _Module2GateState extends State<Module2Gate> {
 class DemoNotice extends StatelessWidget {
   const DemoNotice({super.key});
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 24),
-    child: WorkspaceCard(
-      title: 'DEMO / PREVIEW',
-      subtitle: 'Fictional jobs, companies, profiles and applications. Changes stay in memory for this session and reset on refresh or account change. Nothing is sent to an employer or saved to Supabase.',
-      child: Text(
-        'Demo profile: no real profile or resume is shared.',
-        style: Theme.of(context).textTheme.bodySmall,
-      ),
-    ),
+  Widget build(BuildContext context) => const PreviewNotice(
+    'Fictional jobs, companies, profiles and applications. No real application is sent or resume shared.',
   );
 }
 

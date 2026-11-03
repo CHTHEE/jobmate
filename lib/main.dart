@@ -572,6 +572,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'JobMate',
+      debugShowCheckedModeBanner: false,
       scrollBehavior: const JobMateScrollBehavior(),
       theme: JobMateTheme.light(),
       routerConfig: _appRouter,

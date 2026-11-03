@@ -2,22 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/design_primitives.dart';
 import '../applications/module2_widgets.dart';
 
 class Phase3Notice extends StatelessWidget {
   const Phase3Notice(this.message, {super.key});
   final String message;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 20),
-    child: WorkspaceCard(
-      title: 'DEMO / PREVIEW',
-      subtitle: message,
-      child: const Text(
-        'Local session only • no real accounts, server persistence or uploads. Refresh and account changes reset sample state.',
-      ),
-    ),
-  );
+  Widget build(BuildContext context) => PreviewNotice(message);
 }
 
 class DemoPage extends StatelessWidget {
@@ -53,6 +45,15 @@ class DemoPage extends StatelessWidget {
                 label: const Text('Back'),
               ),
             ),
+          PageHeading(
+            title: title,
+            description: '',
+            eyebrow: role == 'employer'
+                ? 'Hiring workspace'
+                : role == 'administrator'
+                ? 'Administration'
+                : 'Your workspace',
+          ),
           ...children,
         ],
       ),

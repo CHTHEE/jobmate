@@ -8,7 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
 
 import '../../shared/widgets/app_workspace.dart';
-import '../../shared/widgets/auth_style.dart';
+import '../../shared/widgets/design_primitives.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import 'company_logo.dart';
@@ -901,15 +901,19 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Company profile & verification',
-                style: AuthStyle.title,
+              ProfileHeading(
+                title:
+                    _company?['company_name'] as String? ??
+                    'Company profile & verification',
+                description: 'Your company identity, membership and supporting documents.',
+                icon: Icons.business_outlined,
+                trailing: _company == null
+                    ? null
+                    : Align(
+                        alignment: Alignment.centerLeft,
+                        child: WorkspaceStatus(_status),
+                      ),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Your company identity, membership and supporting documents.',
-              ),
-              const SizedBox(height: 24),
               if (_loadError != null)
                 WorkspaceCard(
                   title: 'Company unavailable',

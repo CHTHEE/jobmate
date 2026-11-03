@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import '../company/company_logo.dart';
 
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/design_primitives.dart';
+import '../../shared/theme/jobmate_theme.dart';
 import 'job_display.dart';
 
 class JobPreview extends StatelessWidget {
@@ -19,15 +21,55 @@ class JobPreview extends StatelessWidget {
   final String company;
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text('${job['title'] ?? 'Untitled job'}'),
+    title: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'JOB PREVIEW',
+          style: TextStyle(
+            fontSize: 11,
+            letterSpacing: 1.5,
+            color: JobMateTheme.darkTeal,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '${job['title'] ?? 'Untitled job'}',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+      ],
+    ),
     content: SizedBox(
-      width: 640,
+      width: 700,
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            CompanyIdentity(name: company, logo: logo),
-            if (job['status'] != null) WorkspaceStatus(job['status'] as String),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDFA),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  CompanyIdentity(name: company, logo: logo),
+                  const SizedBox(height: 8),
+                  if (job['status'] != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: WorkspaceStatus(job['status'] as String),
+                    ),
+                ],
+              ),
+            ),
+            const FormSectionHeading(
+              'The opportunity',
+              'A preview of the details candidates will see.',
+              icon: Icons.work_outline,
+            ),
             for (final key in [
               'department',
               'employment_type',
@@ -50,7 +92,11 @@ class JobPreview extends StatelessWidget {
               WorkspaceInfo('Created date', jobDate(job['created_at'])),
             if (job['published_at'] != null)
               WorkspaceInfo('Published date', jobDate(job['published_at'])),
-            const Divider(),
+            const FormSectionHeading(
+              'About the role',
+              'Review your content and ensure every detail is accurate.',
+              icon: Icons.description_outlined,
+            ),
             WorkspaceInfo('Role overview', '${job['role_overview'] ?? ''}'),
             for (final key in [
               'responsibilities',
@@ -60,7 +106,10 @@ class JobPreview extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 jobLabel(key),
-                style: Theme.of(context).textTheme.titleMedium,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: JobMateTheme.darkTeal,
+                ),
               ),
               if ((job[key] as List? ?? []).isEmpty) const Text('Not provided'),
               for (final item in job[key] as List? ?? [])
@@ -76,12 +125,21 @@ class JobPreview extends StatelessWidget {
                 ),
             ],
             if ('${job['original_description'] ?? ''}'.isNotEmpty) ...[
-              const Divider(height: 32),
+              const FormSectionHeading(
+                'Employer original',
+                'Your original description is retained separately from AI-formatted content.',
+                icon: Icons.edit_note_outlined,
+              ),
               WorkspaceInfo(
                 'Original description',
                 '${job['original_description']}',
               ),
             ],
+            const SizedBox(height: 16),
+            const Text(
+              'This is a preview, not a publication action.',
+              style: TextStyle(color: JobMateTheme.body, fontSize: 12),
+            ),
           ],
         ),
       ),
