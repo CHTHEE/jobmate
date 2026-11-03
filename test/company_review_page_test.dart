@@ -77,6 +77,90 @@ class ReviewFixture implements CompanyReviewGateway {
 }
 
 void main() {
+  for (final width in [320.0, 1440.0]) {
+    testWidgets(
+      'Logo preview and permission retry adapt at $width with large text',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 1000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final logos = ReviewFixture(1)..documentDenied = true;
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: const TextScaler.linear(1.6)),
+              child: child!,
+            ),
+            home: CompanyReviewPage(
+              gateway: ReviewFixture(0),
+              logoGateway: logos,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Logo changes'));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('View Details'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('View Details'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('Unable to load private images.'),
+          findsOneWidget,
+        );
+        logos.documentDenied = false;
+        await tester.tap(find.text('Refresh images'));
+        await tester.pumpAndSettle();
+        expect(find.text('Current photo at submission'), findsOneWidget);
+        expect(find.text('Proposed photo'), findsOneWidget);
+        expect(logos.downloads.every((download) => !download), isTrue);
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Close'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'Logo queue uses separate gateway and cannot switch during a review',
+    (tester) async {
+      final documents = ReviewFixture(1);
+      final logos = ReviewFixture(1);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CompanyReviewPage(gateway: documents, logoGateway: logos),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(logos.offsets, isEmpty);
+      await tester.tap(find.text('Logo changes'));
+      await tester.pumpAndSettle();
+      expect(logos.offsets, [0]);
+      expect(find.text('Pending logo changes'), findsOneWidget);
+      await tester.tap(find.text('Approve'));
+      await tester.pumpAndSettle();
+      expect(find.text('Approve company logo?'), findsOneWidget);
+      logos.pendingReview = Completer<void>();
+      await tester.tap(find.widgetWithText(FilledButton, 'Approve').last);
+      await tester.pump();
+      expect(documents.decisions, isEmpty);
+      expect(logos.decisions, [('request-0', 'verified', '')]);
+      logos.pendingReview!.complete();
+      await tester.pumpAndSettle();
+      expect(
+        find.text('No logo changes are waiting on this page.'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Company documents'));
+      await tester.pumpAndSettle();
+      expect(find.text('Company 0'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   Future<void> mount(WidgetTester tester, ReviewFixture data) async {
     await tester.pumpWidget(
       MaterialApp(home: CompanyReviewPage(gateway: data)),

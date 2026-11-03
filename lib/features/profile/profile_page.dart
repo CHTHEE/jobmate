@@ -435,18 +435,19 @@ class _ProfilePageState extends State<ProfilePage> {
               avatar: const Icon(Icons.account_circle_outlined, size: 18),
               label: Text('Account: ${_displayLabel(_accountStatus)}'),
             ),
-            Chip(
-              avatar: Icon(
-                _verificationStatus == 'verified'
-                    ? Icons.verified_outlined
-                    : Icons.pending_outlined,
-                size: 18,
+            if (_role != 'job_seeker')
+              Chip(
+                avatar: Icon(
+                  _verificationStatus == 'verified'
+                      ? Icons.verified_outlined
+                      : Icons.pending_outlined,
+                  size: 18,
+                ),
+                label: Text(
+                  'Verification: '
+                  '${_displayLabel(_verificationStatus)}',
+                ),
               ),
-              label: Text(
-                'Verification: '
-                '${_displayLabel(_verificationStatus)}',
-              ),
-            ),
             Chip(
               avatar: const Icon(Icons.badge_outlined, size: 18),
               label: Text('Role: ${_displayLabel(_role)}'),
@@ -697,20 +698,29 @@ class _ProfilePageState extends State<ProfilePage> {
                 if (_role == 'job_seeker' || _role == 'employer') ...[
                   const SizedBox(height: 20),
                   WorkspaceCard(
-                    title: 'Personal verification',
-                    subtitle: 'Personal documents and history are separate from company verification.',
+                    title: _role == 'job_seeker'
+                        ? 'My Resume'
+                        : 'Personal verification',
+                    subtitle: _role == 'job_seeker'
+                        ? 'Upload or replace your resume anytime. No administrator approval is required.'
+                        : 'Personal documents and history are separate from company verification.',
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: WorkspaceStatus(_verificationStatus),
-                        ),
+                        if (_role != 'job_seeker')
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: WorkspaceStatus(_verificationStatus),
+                          ),
                         const SizedBox(height: 16),
                         OutlinedButton.icon(
                           onPressed: _canEdit ? _openDocumentSubmission : null,
                           icon: const Icon(Icons.folder_outlined),
-                          label: const Text('Documents & submission history'),
+                          label: Text(
+                            _role == 'job_seeker'
+                                ? 'Manage resume'
+                                : 'Documents & submission history',
+                          ),
                         ),
                       ],
                     ),

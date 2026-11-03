@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 
 /// Returns a trimmed comment, or null when the administrator cancels.
 class CompanyRejectionDialog extends StatefulWidget {
-  const CompanyRejectionDialog({super.key, this.approve = false});
+  const CompanyRejectionDialog({
+    super.key,
+    this.approve = false,
+    this.logo = false,
+  });
   final bool approve;
+  final bool logo;
 
   @override
   State<CompanyRejectionDialog> createState() => _CompanyRejectionDialogState();
@@ -23,8 +28,12 @@ class _CompanyRejectionDialogState extends State<CompanyRejectionDialog> {
   Widget build(BuildContext context) => AlertDialog(
     title: Text(
       widget.approve
-          ? 'Approve company application?'
-          : 'Reject company application',
+          ? (widget.logo
+                ? 'Approve company logo?'
+                : 'Approve company application?')
+          : (widget.logo
+                ? 'Reject company logo'
+                : 'Reject company application'),
     ),
     scrollable: true,
     content: Form(
@@ -35,7 +44,9 @@ class _CompanyRejectionDialogState extends State<CompanyRejectionDialog> {
         children: [
           Text(
             widget.approve
-                ? 'Confirm that the submitted company details and supporting document are acceptable. A review comment is optional.'
+                ? (widget.logo
+                      ? 'The proposed image will replace the current company photo. Company verification and job permissions stay unchanged. A review comment is optional.'
+                      : 'Confirm that the submitted company details and supporting document are acceptable. A review comment is optional.')
                 : 'Explain what needs to be corrected. The company owner will see this reason in their company profile and notification.',
           ),
           const SizedBox(height: 16),

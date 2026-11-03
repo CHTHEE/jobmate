@@ -14,7 +14,7 @@ import 'features/auth/sign_up_page.dart';
 import 'features/auth/terms_privacy_page.dart';
 import 'features/auth/verify_email_page.dart';
 import 'features/company/create_company_page.dart';
-import 'features/jobs/job_form_page.dart';
+import 'features/jobs/job_form_route.dart';
 import 'features/applications/module2_repository.dart';
 import 'features/applications/module2_widgets.dart';
 import 'features/applications/browse_jobs_page.dart';
@@ -81,8 +81,6 @@ Future<void> _initializeApp() async {
 }
 
 GoRouter _createRouter() {
-  final createJobKey = GlobalKey<JobFormPageState>();
-  final editJobKey = GlobalKey<JobFormPageState>();
   return GoRouter(
     initialLocation: AppRoutes.home,
     refreshListenable: _authRouterRefresh,
@@ -473,17 +471,8 @@ GoRouter _createRouter() {
           initialStatus: state.uri.queryParameters['status'] ?? 'draft',
         ),
       ),
-      _appRoute(
-        AppRoutes.createJob,
-        (context, state) => JobFormPage(key: createJobKey),
-        onExit: (_, _) => createJobKey.currentState?.confirmExit() ?? true,
-      ),
-      _appRoute(
-        '${AppRoutes.jobPostings}/:jobId/edit',
-        (context, state) =>
-            JobFormPage(key: editJobKey, jobId: state.pathParameters['jobId']),
-        onExit: (_, _) => editJobKey.currentState?.confirmExit() ?? true,
-      ),
+      jobFormRoute(AppRoutes.createJob),
+      jobFormRoute('${AppRoutes.jobPostings}/:jobId/edit'),
       _appRoute(AppRoutes.profile, (context, state) => const ProfilePage()),
       _appRoute(
         AppRoutes.company,

@@ -6,10 +6,12 @@ import '../../shared/widgets/responsive_layout.dart';
 import 'company_rejection_dialog.dart';
 import 'company_review_details.dart';
 import 'company_review_gateway.dart';
+import 'company_logo_review_details.dart';
 
 class CompanyReviewPage extends StatefulWidget {
-  const CompanyReviewPage({super.key, this.gateway});
+  const CompanyReviewPage({super.key, this.gateway, this.logoGateway});
   final CompanyReviewGateway? gateway;
+  final CompanyReviewGateway? logoGateway;
 
   @override
   State<CompanyReviewPage> createState() => _CompanyReviewPageState();
@@ -17,7 +19,13 @@ class CompanyReviewPage extends StatefulWidget {
 
 class _CompanyReviewPageState extends State<CompanyReviewPage> {
   static const _pageSize = 20;
-  late final CompanyReviewGateway _gateway;
+  late final CompanyReviewGateway _documentGateway;
+  late final CompanyReviewGateway _logoGateway =
+      widget.logoGateway ??
+      SupabaseCompanyLogoReviewGateway(Supabase.instance.client);
+  bool _isLogo = false;
+  CompanyReviewGateway get _gateway =>
+      _isLogo ? _logoGateway : _documentGateway;
   List<Map<String, dynamic>> _requests = [];
   bool _loading = false;
   bool _working = false;
@@ -30,7 +38,7 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
   @override
   void initState() {
     super.initState();
-    _gateway =
+    _documentGateway =
         widget.gateway ??
         SupabaseCompanyReviewGateway(Supabase.instance.client);
     _loadRequests();
@@ -79,8 +87,9 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
       _gateway.checkSession();
       await showDialog<void>(
         context: context,
-        builder: (_) =>
-            CompanyReviewDetails(request: request, gateway: _gateway),
+        builder: (_) => _isLogo
+            ? CompanyLogoReviewDetails(request: request, gateway: _gateway)
+            : CompanyReviewDetails(request: request, gateway: _gateway),
       );
     } catch (error) {
       _showMessage(_message(error));
@@ -99,7 +108,7 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
       _gateway.checkSession();
       final comment = await showDialog<String>(
         context: context,
-        builder: (_) => CompanyRejectionDialog(approve: approve),
+        builder: (_) => CompanyRejectionDialog(approve: approve, logo: _isLogo),
       );
       if (!mounted || comment == null) return;
       setState(() {
@@ -113,7 +122,11 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
       );
       if (!mounted) return;
       _showMessage(
-        approve
+        _isLogo
+            ? (approve
+                  ? 'Company logo approved.'
+                  : 'Company logo rejected. The owner has been notified.')
+            : approve
             ? 'Company approved.'
             : 'Company rejected. The reason has been saved for the owner.',
       );
@@ -156,6 +169,18 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
     _loadRequests();
   }
 
+  void _selectQueue(bool logo) {
+    if (_busy || logo == _isLogo) return;
+    setState(() {
+      _isLogo = logo;
+      _offset = 0;
+      _requests = [];
+      _hasMore = false;
+      _error = null;
+    });
+    _loadRequests();
+  }
+
   Widget _requestCard(Map<String, dynamic> request) => Card.outlined(
     child: Padding(
       padding: const EdgeInsets.all(18),
@@ -170,7 +195,11 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
           Text(
             'Submitted: ${companySubmissionDate(context, request['submitted_at'])}',
           ),
-          Text('Document: ${request['original_name'] ?? 'Not available'}'),
+          Text(
+            _isLogo
+                ? 'Company photo change'
+                : 'Document: ${request['original_name'] ?? 'Not available'}',
+          ),
           const Align(
             alignment: Alignment.centerLeft,
             child: Chip(label: Text('Pending review')),
@@ -231,13 +260,38 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: ResponsiveLayout.pagePadding(context),
                         children: [
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: [
+                              ChoiceChip(
+                                label: const Text('Company documents'),
+                                selected: !_isLogo,
+                                onSelected: _busy
+                                    ? null
+                                    : (_) => _selectQueue(false),
+                              ),
+                              ChoiceChip(
+                                label: const Text('Logo changes'),
+                                selected: _isLogo,
+                                onSelected: _busy
+                                    ? null
+                                    : (_) => _selectQueue(true),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
                           Text(
-                            'Pending company applications',
+                            _isLogo
+                                ? 'Pending logo changes'
+                                : 'Pending company applications',
                             style: Theme.of(context).textTheme.headlineSmall,
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            'Review the submitted details and private supporting PDF before making a decision.',
+                          Text(
+                            _isLogo
+                                ? 'Compare the current and proposed photo. Only approval replaces the company logo.'
+                                : 'Review the submitted details and private supporting PDF before making a decision.',
                           ),
                           const SizedBox(height: 20),
                           if (_error != null) ...[
@@ -257,8 +311,10 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
                               padding: EdgeInsets.symmetric(vertical: 24),
                               child: Icon(Icons.task_alt, size: 48),
                             ),
-                            const Text(
-                              'No company applications are waiting on this page.',
+                            Text(
+                              _isLogo
+                                  ? 'No logo changes are waiting on this page.'
+                                  : 'No company applications are waiting on this page.',
                               textAlign: TextAlign.center,
                             ),
                           ] else

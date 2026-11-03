@@ -20,6 +20,9 @@ class SupabaseCompanyReviewGateway implements CompanyReviewGateway {
     : _actorId = client.auth.currentUser?.id;
   final SupabaseClient client;
   final String? _actorId;
+  String get listRpc => 'list_company_review_requests';
+  String get reviewRpc => 'review_company_request';
+  String get bucket => 'jobmate-company-verification';
 
   @override
   void checkSession() {
@@ -37,7 +40,7 @@ class SupabaseCompanyReviewGateway implements CompanyReviewGateway {
   }) async {
     checkSession();
     final result = await client.rpc(
-      'list_company_review_requests',
+      listRpc,
       params: {'p_limit': limit, 'p_offset': offset},
     );
     checkSession();
@@ -65,7 +68,7 @@ class SupabaseCompanyReviewGateway implements CompanyReviewGateway {
       throw ArgumentError('Review comments must be 2000 characters or fewer.');
     }
     final result = await client.rpc(
-      'review_company_request',
+      reviewRpc,
       params: {
         'p_request_id': requestId,
         'p_decision': decision,
@@ -88,7 +91,7 @@ class SupabaseCompanyReviewGateway implements CompanyReviewGateway {
       throw StateError('No supporting document is attached.');
     }
     final url = await client.storage
-        .from('jobmate-company-verification')
+        .from(bucket)
         .createSignedUrl(
           path,
           60,
@@ -97,4 +100,14 @@ class SupabaseCompanyReviewGateway implements CompanyReviewGateway {
     checkSession();
     return Uri.parse(url);
   }
+}
+
+class SupabaseCompanyLogoReviewGateway extends SupabaseCompanyReviewGateway {
+  SupabaseCompanyLogoReviewGateway(super.client);
+  @override
+  String get listRpc => 'list_company_logo_review_requests';
+  @override
+  String get reviewRpc => 'review_company_logo_change';
+  @override
+  String get bucket => 'jobmate-company-logos';
 }

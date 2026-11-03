@@ -130,7 +130,8 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
             children: [
               Chip(label: Text(role)),
               Chip(label: Text(status)),
-              Chip(label: Text('Verification: $verification')),
+              if (user['role'] != 'job_seeker')
+                Chip(label: Text('Verification: $verification')),
               if (created != null)
                 Chip(label: Text('Joined: ${created.split('T').first}')),
             ],

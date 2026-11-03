@@ -123,24 +123,29 @@ class DashboardContent extends StatelessWidget {
       ),
     );
     final verification = WorkspaceCard(
-      title: 'Personal verification',
+      title: role == 'job_seeker' ? 'My Resume' : 'Personal verification',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: WorkspaceStatus(
-              profile['verification_status'] as String? ?? '',
+          if (role != 'job_seeker')
+            Align(
+              alignment: Alignment.centerLeft,
+              child: WorkspaceStatus(
+                profile['verification_status'] as String? ?? '',
+              ),
             ),
-          ),
           const SizedBox(height: 16),
-          const Text(
-            'View your documents, submission history and available review feedback.',
+          Text(
+            role == 'job_seeker'
+                ? 'Upload or replace your resume anytime. No administrator approval is required.'
+                : 'View your documents, submission history and available review feedback.',
           ),
           const SizedBox(height: 20),
           OutlinedButton(
             onPressed: onVerification,
-            child: const Text('Verification documents'),
+            child: Text(
+              role == 'job_seeker' ? 'Manage resume' : 'Verification documents',
+            ),
           ),
         ],
       ),

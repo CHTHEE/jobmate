@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/mobile_back_action.dart';
+import 'resume_page.dart';
 
 class DocumentSubmissionPage extends StatefulWidget {
   const DocumentSubmissionPage({super.key});
@@ -77,14 +78,19 @@ class _DocumentSubmissionPageState extends State<DocumentSubmissionPage> {
           .eq('user_id', user.id)
           .single();
 
-      final history = await _supabase
-          .from('verification_requests')
-          .select('request_id, status, submitted_at, review_comment')
-          .eq('user_id', user.id)
-          .order('submitted_at', ascending: false)
-          .limit(5);
+      final history = profile['role'] == 'job_seeker'
+          ? <Map<String, dynamic>>[]
+          : await _supabase
+                .from('verification_requests')
+                .select('request_id, status, submitted_at, review_comment')
+                .eq('user_id', user.id)
+                .order('submitted_at', ascending: false)
+                .limit(5);
 
       if (!mounted) return;
+      if (_supabase.auth.currentUser?.id != user.id) {
+        throw StateError('Your account changed. Reopen this page.');
+      }
 
       setState(() {
         _role = (profile['role'] as String?) ?? '';
@@ -291,6 +297,9 @@ class _DocumentSubmissionPageState extends State<DocumentSubmissionPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_role == 'job_seeker' && !_isLoading && _loadError == null) {
+      return const ResumePage();
+    }
     return LoadingOverlay(
       isLoading: _isBusy,
       message: _isWorking ? _loadingMessage : 'Loading submissions...',

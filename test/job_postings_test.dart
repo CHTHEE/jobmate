@@ -16,6 +16,8 @@ import 'package:jobmate/shared/widgets/loading_overlay.dart';
 import 'package:jobmate/features/jobs/job_preview.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jobmate/features/jobs/job_form_page.dart';
+import 'package:jobmate/features/jobs/job_form_route.dart';
+import 'package:jobmate/features/location/location_pages.dart';
 import 'package:jobmate/features/jobs/job_postings_page.dart';
 import 'package:jobmate/features/jobs/job_postings_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -93,8 +95,6 @@ TextEditingController field(WidgetTester tester, String label) => tester
     .controller!;
 
 GoRouter testRouter(TestJobs repo, {bool dashboard = false, String? initial}) {
-  final createKey = GlobalKey<JobFormPageState>();
-  final editKey = GlobalKey<JobFormPageState>();
   return GoRouter(
     initialLocation: initial ?? (dashboard ? '/' : AppRoutes.jobPostings),
     routes: [
@@ -109,19 +109,11 @@ GoRouter testRouter(TestJobs repo, {bool dashboard = false, String? initial}) {
           initialStatus: state.uri.queryParameters['status'] ?? 'draft',
         ),
       ),
+      jobFormRoute(AppRoutes.createJob, repository: repo),
+      jobFormRoute('${AppRoutes.jobPostings}/:jobId/edit', repository: repo),
       GoRoute(
-        path: AppRoutes.createJob,
-        builder: (_, _) => JobFormPage(key: createKey, repository: repo),
-        onExit: (_, _) => createKey.currentState?.confirmExit() ?? true,
-      ),
-      GoRoute(
-        path: '${AppRoutes.jobPostings}/:jobId/edit',
-        builder: (_, state) => JobFormPage(
-          key: editKey,
-          repository: repo,
-          jobId: state.pathParameters['jobId'],
-        ),
-        onExit: (_, _) => editKey.currentState?.confirmExit() ?? true,
+        path: AppRoutes.jobLocationDemo,
+        builder: (_, _) => const JobLocationDemoPage(),
       ),
     ],
   );
@@ -180,6 +172,98 @@ void completeForm(WidgetTester tester) {
 }
 
 void main() {
+  testWidgets(
+    'Create Job, location picker, Create Job have separate keys and exit guards',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final router = testRouter(TestJobs(), initial: AppRoutes.createJob);
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      field(tester, 'Job title').text = 'First form draft';
+      final sidebar = find.byKey(const ValueKey('workspace-navigation'));
+      await tester.scrollUntilVisible(
+        find.widgetWithText(ListTile, 'Location Picker (demo)'),
+        160,
+        scrollable: find.descendant(
+          of: sidebar,
+          matching: find.byType(Scrollable),
+        ),
+      );
+      await tester.tap(find.widgetWithText(ListTile, 'Location Picker (demo)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard changes'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Create Job'));
+      await tester.pumpAndSettle();
+      final forms = tester
+          .widgetList<JobFormPage>(
+            find.byType(JobFormPage, skipOffstage: false),
+          )
+          .toList();
+      expect(forms.length, 2);
+      expect(forms[0].key, isNot(forms[1].key));
+      expect(field(tester, 'Job title').text, isEmpty);
+      field(tester, 'Job title').text = 'Second form draft';
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Keep editing'));
+      await tester.pumpAndSettle();
+      expect(field(tester, 'Job title').text, 'Second form draft');
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard changes'));
+      await tester.pumpAndSettle();
+      expect(find.byType(JobLocationDemoPage), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(field(tester, 'Job title').text, 'First form draft');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Two pushed job edits retain separate form keys and records', (
+    tester,
+  ) async {
+    final repo = TestJobs()
+      ..records = [
+        {
+          ...completeJob(),
+          'job_id': 'first',
+          'status': 'draft',
+          'title': 'First posting',
+        },
+        {
+          ...completeJob(),
+          'job_id': 'second',
+          'status': 'draft',
+          'title': 'Second posting',
+        },
+      ];
+    final router = testRouter(
+      repo,
+      initial: '${AppRoutes.jobPostings}/first/edit',
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    router.push('${AppRoutes.jobPostings}/second/edit');
+    await tester.pumpAndSettle();
+    final forms = tester
+        .widgetList<JobFormPage>(find.byType(JobFormPage, skipOffstage: false))
+        .toList();
+    expect(forms.length, 2);
+    expect(forms[0].key, isNot(forms[1].key));
+    expect(field(tester, 'Job title').text, 'Second posting');
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(field(tester, 'Job title').text, 'First posting');
+    expect(tester.takeException(), isNull);
+  });
+
   test('AI errors do not expose unexpected server details', () {
     const details = 'private server diagnostics';
     expect(jobFormattingError(StateError(details)), isNot(contains(details)));

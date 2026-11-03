@@ -914,6 +914,158 @@ remain unverified. No Supabase mutation, migration, commit or push was performed
 
 ## 5. Security and Collaboration
 
+### Job form route and Admin sidebar fixes
+
+`lib/features/jobs/job_form_route.dart` now gives each pushed Create/Edit Job
+route its own form `GlobalKey` and registers the corresponding exit guard by
+GoRouter page key. Opening Location Picker above a job form and then Create Job
+again no longer attaches one key to two mounted forms. Disposing a route removes
+only its own guard. The existing discard, busy/AI and save/list-return behavior
+is retained. The posting regression suite uses this production route factory.
+
+The real Admin dashboard sidebar now owns a white `Material` surface, with only
+the border on its intervening decoration. ListTile ink/background is no longer
+covered by an opaque box. The account dropdown also constrains its two labels
+to one line. Its test renders the real dashboard shell, pushes Job Moderation,
+returns and disposes the shell with no live account or Supabase requests.
+
+Company logo picking now retains the chosen image bytes/type and preserves the
+selected supporting PDF. Independent Company logo updates and Job Seeker resume
+management are now implemented in Flutter with a pending backend migration
+(see the deployment section below). They are not live until that SQL is approved
+and successfully executed against the existing project.
+`supabase/diagnostics/profile_assets_inspection.sql` is a read-only catalogue
+query for the existing columns, functions, triggers, policies and bucket limits.
+It reads no user rows and applies no migration. Keep the existing verification
+and owner/member checks; the migration is based on the supplied inspection output.
+
+Focused verification: all 40 posting/Admin Material regression tests pass,
+including duplicate Create/Edit route instances and preserving the active form's
+exit guard. `flutter analyze` retains the same eight pre-existing diagnostics.
+No live upload, Supabase permission change or real account sign-out is tested by
+these local fixtures.
+
+### Company photos and personal resumes — pending deployment
+
+The user reports applying `20261103000100_profile_assets.sql`. Do not rerun it.
+The follow-up `supabase/migrations/20261103000200_company_logo_approval.sql` is
+prepared for review and manual execution, **not applied by the agent**. It upgrades
+the existing project; all Resume data and stored images are retained. It creates
+new objects without silently replacing conflicting tables. If a new object already
+exists, stop and inspect rather than deleting it. No environment changes are needed.
+
+Company Owners click their saved photo to submit JPG/PNG/WebP up to 2 MiB for
+Admin approval. Uploads retain the immutable
+`<owner-id>/profile-<upload-id>/logo.<extension>` namespace in the existing private
+`jobmate-company-logos` bucket. `submit_company_logo_change` checks active Employer,
+Owner membership, expected current logo, own exact path and stored MIME/size.
+Only one request may be pending per Company; the server accepts an identical
+request-ID replay idempotently, but the Logo UI does not offer or perform retries.
+The displayed/current logo remains unchanged while pending or rejected.
+Owners see their latest request status/rejection reason, with a status refresh.
+Refresh the Company profile after approval to fetch the newly approved image.
+
+Company Verification has separate Company documents and Logo changes queues.
+The existing Company Review permission is required; reviewers cannot approve or
+reject a Company they created or belong to. Rejection requires a reason. Approval
+atomically updates only the Company's logo, records the review/history and sends
+an in-app notification; verification status, ownership and job permissions stay
+unchanged. The dashboard application count continues to count document reviews.
+The old `update_company_logo` RPC now rejects direct updates, including old clients.
+Regular members have read-only photo UI. Initial company registration still
+submits its optional logo alongside the supporting PDF through the existing flow.
+
+`company_logo_change_requests` keeps request/review records. `company_logo_history`
+records old/new paths, reviewer and request ID for approved changes, and records
+other actual path changes (including onboarding) separately. Its baseline for
+already-existing logos records observation time, leaving unknown change/reviewer
+dates null. This does not label past logos as Admin-approved. History has RLS with
+no client grants/policies: inspect it only through the Supabase Dashboard for now.
+There is no logo-history browsing UI or new public/history image-read permission.
+Restrictive Storage policies prevent client overwrite/deletion of logo objects;
+existing private-read rules remain in effect. Failed/unused uploads are retained;
+automatic file cleanup is not implemented.
+
+Job Seeker Resume management reuses `/document-submission`; the legacy Employer
+personal-document branch remains available. New versions go to an additive
+`personal_resumes` table and private `jobmate-resumes` bucket (PDF, 5 MiB), via
+`save_personal_resume`. Active Job Seekers can save regardless of legacy personal
+verification status. The server serializes saves per user, validates the actual
+stored object/path/metadata, and makes an identical upload-ID retry idempotent.
+Neither `users.verification_status` nor Company verification changes. Auth email
+confirmation is unchanged. `list_personal_resumes` returns the latest ten versions
+and the same user's legacy resume files, newest first; the first is current.
+Older files/records are retained; no automatic deletion/cleanup is introduced.
+
+Resume RLS and signed-link creation permit the active owner only. No employer
+or public resume-read permission is introduced. Legacy files retain their original
+private-bucket permissions. A trigger rejects new Job Seeker verification-request
+inserts (including old clients) without rewriting old requests or auto-verifying
+accounts. Profile/Home/Admin directory omit the seeker's obsolete resume-review
+badge. Actual application/resume sharing is still not connected to the demo Apply
+flow; uploading a personal resume does not silently send it to an employer.
+
+`CompanyLogoEditor` releases its selection after a failed upload and offers
+Choose photo again; selecting the same image is allowed with a fresh immutable
+path. It does not automatically re-upload or resubmit, and no Retry same photo
+button is shown. A Storage 403 is reported as denied access, not an uncertain
+successful request. Before upload, the client rechecks active Employer/Owner
+membership for a clearer error; Storage RLS and submission RPC authorization
+remain authoritative. A duplicate-path response is no longer ignored.
+After a failed submission RPC, a read-only status lookup checks for an existing
+Pending request before another selection is allowed. If the lookup fails, Refresh
+logo review status is required; if a request is already Pending, choosing another
+photo remains disabled. The database's one-Pending-request constraint also guards
+against a delayed response racing a new selection. Old/unused uploads are retained.
+
+For a repeated Storage RLS 403, run the read-only
+`supabase/diagnostics/company_logo_upload_inspection.sql` in the existing project's
+SQL Editor and inspect the deployed INSERT/ALL policies and bucket limits. Compare
+`company_profile_logo_insert` against the original migration's Owner/path checks;
+do not rerun entire applied migrations, disable RLS, change the bucket to public,
+or add broad upload policies. The November 4 diagnostic result confirms that
+`company_profile_logo_insert` is absent, the private 2 MiB image bucket is correct,
+and the approval RPC exists. The old onboarding policy alone only permits users
+without a membership or Owners of rejected Companies; it cannot authorize other
+Company Owners' profile uploads. The targeted repair is
+`supabase/migrations/20261104000100_restore_company_logo_upload_policy.sql`.
+Review it and run once in the existing project: it adds only the missing scoped
+INSERT policy and preserves the approval flow. It deliberately fails rather than
+replacing a policy if that name already exists. Do not rerun the older full
+migrations to repair this one missing object. No remote policies have been changed
+by the agent. After this upload-error UI change, all 37 focused profile-assets and
+Company-review tests pass, including denied upload, same-image reselection, lost
+submission response and unavailable-status recovery. Analysis retains the same
+eight pre-existing diagnostics. Live upload after applying the targeted policy
+repair still requires manual verification.
+
+`ResumePage` retains its upload ID/path and bytes for an uncertain result instead
+of duplicating a version on retry. Signed PDF links expire after 60 seconds; if the browser blocks the first
+window, a retry uses the prepared link. Resume explicit/native Back confirms before
+discarding selected input, and busy operations retain loading/navigation locking.
+Browser refresh/tab close still requires manual caution, as in the existing forms.
+File-header/MIME/size checks are not a full PDF parser or malware scan.
+
+After reviewing/approving the **new upgrade** migration, run that complete file
+once in the existing project's SQL Editor, then Hot Restart Flutter. No SMTP,
+Gemini, role initialization or separate project is required. Manually verify:
+Owner submits a logo; current photo remains; duplicate pending submissions are
+rejected; permitted Admin previews both images and approves/rejects; own-company
+and unpermitted Admin reviews fail; rejection reason and notification appear;
+approved logo loads on Company refresh; history retains both paths; legacy direct
+RPC cannot change the image; Company verification stays unchanged. Also verify
+existing Resume replacement/read restrictions and legacy files still work.
+These server/RLS and native-picker checks are not established by fixture tests.
+
+Local validation before the approval upgrade: the full suite reported 387 passes
+and two existing failures in the obsolete registration lookup and router-
+uninitialized counter smoke test. After the approval upgrade, all 77 affected
+Resume/logo/review/dashboard/job regression tests pass, including 320/1440-width
+logo previews with 1.6 text scaling. Analysis retains eight existing diagnostics
+in registration/Home/password verification, with no new diagnostics. Neither migration has been executed
+or authorization-tested in PostgreSQL by the agent. Native file pickers, live
+Storage permissions and physical Android behavior require manual verification.
+
 - Never commit Gemini API keys, service-role keys, JWTs, credentials or private tokens. Keep Gemini API calls inside the Supabase Edge Function, never directly in Flutter.
 - Use the existing Supabase project configuration. Never weaken authentication, authorization, RLS or company-verification checks to make a feature work.
 - Inspect shared code and contracts before editing. Do not modify unrelated teammates' modules without explicit instructions. Prefer small changes; when commits are requested, keep them focused and descriptive.

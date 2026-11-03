@@ -292,12 +292,15 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
+                              fontSize: 14,
                               fontWeight: FontWeight.w600,
                               height: 1.2,
                             ),
                           ),
                           const Text(
                             'System Administrator',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 12,
                               color: Color(0xFF64748B),
@@ -410,72 +413,77 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   Widget _buildSidebar(BuildContext context) {
     return SizedBox(
       width: 240,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(right: BorderSide(color: const Color(0xFFE2E8F0))),
-        ),
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 12, 12, 20),
-              child: AuthWordmark(),
-            ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(12, 8, 12, 24),
-              child: Text(
-                'ADMINISTRATION',
-                style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
+      child: Material(
+        color: Colors.white,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(right: BorderSide(color: const Color(0xFFE2E8F0))),
+          ),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 12, 12, 20),
+                child: AuthWordmark(),
               ),
-            ),
-            const ListTile(
-              selected: true,
-              selectedTileColor: Color(0xFFE7F5F2),
-              leading: Icon(Icons.dashboard_outlined),
-              title: Text('Dashboard'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.people_outline),
-              title: const Text('Users'),
-              onTap: () => context.push<void>(AppRoutes.adminUsers),
-            ),
-            if (!_loadingAccess && _error == null)
-              for (final item in <(String, String, IconData)>[
-                (
-                  AppRoutes.adminDemoJobs,
-                  'Job Posts (demo)',
-                  Icons.work_outline,
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 8, 12, 24),
+                child: Text(
+                  'ADMINISTRATION',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
                 ),
-                (
-                  AppRoutes.adminDemoDisputes,
-                  'Disputes (demo)',
-                  Icons.gavel_outlined,
-                ),
-                (
-                  AppRoutes.adminDemoReports,
-                  'Reports (demo)',
-                  Icons.analytics_outlined,
-                ),
-              ])
+              ),
+              const ListTile(
+                selected: true,
+                selectedTileColor: Color(0xFFE7F5F2),
+                leading: Icon(Icons.dashboard_outlined),
+                title: Text('Dashboard'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.people_outline),
+                title: const Text('Users'),
+                onTap: () => context.push<void>(AppRoutes.adminUsers),
+              ),
+              if (!_loadingAccess && _error == null)
+                for (final item in <(String, String, IconData)>[
+                  (
+                    AppRoutes.adminDemoJobs,
+                    'Job Posts (demo)',
+                    Icons.work_outline,
+                  ),
+                  (
+                    AppRoutes.adminDemoDisputes,
+                    'Disputes (demo)',
+                    Icons.gavel_outlined,
+                  ),
+                  (
+                    AppRoutes.adminDemoReports,
+                    'Reports (demo)',
+                    Icons.analytics_outlined,
+                  ),
+                ])
+                  ListTile(
+                    leading: Icon(item.$3),
+                    title: Text(item.$2),
+                    onTap: () => context.push<void>(item.$1),
+                  ),
+              if (_canReviewCompanies)
                 ListTile(
-                  leading: Icon(item.$3),
-                  title: Text(item.$2),
-                  onTap: () => context.push<void>(item.$1),
+                  leading: const Icon(Icons.business_outlined),
+                  title: const Text('Company Verification'),
+                  onTap: _openCompanyReviews,
                 ),
-            if (_canReviewCompanies)
-              ListTile(
-                leading: const Icon(Icons.business_outlined),
-                title: const Text('Company Verification'),
-                onTap: _openCompanyReviews,
-              ),
-            if (_canManageAdminPermissions)
-              ListTile(
-                leading: const Icon(Icons.admin_panel_settings_outlined),
-                title: const Text('Admin permissions'),
-                onTap: () => context.push<void>(AppRoutes.adminPermissions),
-              ),
-          ],
+              if (_canManageAdminPermissions)
+                ListTile(
+                  leading: const Icon(Icons.admin_panel_settings_outlined),
+                  title: const Text('Admin permissions'),
+                  onTap: () => context.push<void>(AppRoutes.adminPermissions),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -527,7 +535,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         value:
             _pendingCompanyReviews?.toString() ??
             (_loadingAccess ? '...' : '--'),
-        detail: 'Applications waiting for review',
+        detail: 'Documents waiting for review',
         icon: Icons.business_outlined,
         accent: const Color(0xFFD97706),
       ),
@@ -594,8 +602,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         _ToolCard(
           icon: Icons.business_outlined,
           title: 'Company Verification',
-          description:
-              'Check submitted Company details and supporting documents.',
+          description: 'Review Company documents and proposed logo changes.',
           onTap: _openCompanyReviews,
         ),
       );

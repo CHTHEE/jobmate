@@ -12,6 +12,7 @@ import '../../shared/widgets/design_primitives.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import 'company_logo.dart';
+import 'company_logo_editor.dart';
 
 class CreateCompanyPage extends StatefulWidget {
   const CreateCompanyPage({super.key});
@@ -352,16 +353,13 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
 
       if (!mounted) return;
 
+      _requireUser();
+
       setState(() {
-        _attempt = null;
-
-        _fileBytes = null;
-        _fileName = null;
-        _fileUploaded = false;
-
-        _selectedLogoBytes = null;
-        _logoMimeType = null;
-        _logoExtension = null;
+        // Keep the company form and selected PDF; a logo selection is separate.
+        _selectedLogoBytes = bytes;
+        _logoMimeType = mimeType;
+        _logoExtension = extension;
         _logoUploaded = false;
       });
     } on FormatException catch (error) {
@@ -505,6 +503,10 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
         _fileBytes = null;
         _fileName = null;
         _fileUploaded = false;
+        _selectedLogoBytes = null;
+        _logoMimeType = null;
+        _logoExtension = null;
+        _logoUploaded = false;
       });
 
       await _loadCompany();
@@ -762,6 +764,32 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
   }
 
   Widget _buildLogo() {
+    final company = _company;
+    if (company != null && _user != null) {
+      return CompanyLogoEditor(
+        key: ValueKey(company['company_id']),
+        gateway: SupabaseCompanyLogoGateway(
+          _supabase,
+          companyId: company['company_id'] as String,
+          actorId: _user.id,
+        ),
+        canEdit:
+            !_isBusy &&
+            _loadError == null &&
+            _memberRole == 'owner' &&
+            _attempt == null,
+        currentPath: company['logo_storage_path'] as String?,
+        initialBytes: _savedLogoBytes,
+        showRequestStatus: _memberRole == 'owner',
+        onBusyChanged: (working) {
+          if (!mounted) return;
+          setState(() {
+            _isWorking = working;
+            _message = 'Submitting company photo for review...';
+          });
+        },
+      );
+    }
     final bytes = _selectedLogoBytes ?? _savedLogoBytes;
     final colors = Theme.of(context).colorScheme;
 
