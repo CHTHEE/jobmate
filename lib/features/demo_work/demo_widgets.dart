@@ -34,6 +34,7 @@ class DemoPage extends StatelessWidget {
     title: title,
     path: path,
     role: role,
+    focused: back != null,
     leading: back != null && !kIsWeb
         ? BackButton(onPressed: () => moduleBack(context, back!))
         : null,
@@ -48,7 +49,7 @@ class DemoPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (back != null)
+          if (back != null && kIsWeb)
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(

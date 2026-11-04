@@ -14,6 +14,41 @@ JobMate is a Final Year Project (FYP): an AI-assisted recruitment and workforce 
 
 These are codebase capabilities, not confirmation that every workflow works against the deployed backend. The formatting Edge Function source is **absent from this checkout**; its deployment and Gemini configuration require team confirmation.
 
+### Payment Handling update — November 4, 2026
+
+The main Payments routes now use `lib/features/payments/` for the Billplz Sandbox
+integration foundation, superseding the older Phase 4 external-payment demo below.
+Employer may add a voluntary nonnegative Bonus to the agreed assignment minimum
+without worker acceptance. Only Part-time/Temporary accepted, completed and
+work-verified assignments without unresolved work-completion disputes are eligible.
+Worker and Admin views are read-only; browser redirects never establish success
+or worker payout.
+
+See [Payment Handling integration and setup](docs/payment_handling.md) for the
+confirmed rules, new API/adapter contract, database invariants and account setup.
+Flutter pages and Billplz/domain code are implemented; real AssignmentSource and
+durable PaymentStore/FK/RLS/notification integration remain dependent on the
+teammate-owned schema. Edge entry points fail closed until wired. No payment
+migrations or remote setup were applied. The old demo classes remain for existing
+tests; `/employer-payments/record` now redirects to the Sandbox workspace. App pages
+show integration pending instead of fictional payment data while disconnected.
+The server-only settings loader is now in `supabase/functions/_shared/payments/config.ts`.
+Its four new setting names and Dashboard setup steps are documented in the
+integration guide. The user reports having the Sandbox Collection and both keys;
+values have not been read or verified by the agent. Saving configuration does not
+enable the missing Assignment/PaymentStore adapters.
+For fixed-port local Payment testing on this Windows machine, use
+`flutter run -d chrome --web-hostname localhost --web-port 8765` and set the server
+return URL to `http://localhost:8765/#/payments/return`. Port 8080 was denied with
+socket error 10013; loopback bind checks for 8765 passed. The ordinary random-port
+Web command below remains available for development without a fixed payment return URL.
+For manual UI testing before Assignment integration, stop any run on that port and
+use `flutter run -d chrome --target test/support/payment_preview.dart --web-hostname localhost --web-port 8765`.
+This separate entry point clearly labels fictional records, shares them between
+role previews and simulates checkout locally without Supabase/Billplz calls. It
+does not enable payment or validate real backend integration; see the guide's
+manual walkthrough. The normal lib/main.dart does not import preview fixtures.
+
 ### Planned features
 
 Modules 2–10 now have explicitly labeled demo UI environments for the screens
@@ -39,6 +74,12 @@ Web and Android.
 | `web/`, `android/` | Target platform projects |
 
 The app uses `MaterialApp.router` with `go_router`, authentication redirects and an auth-state refresh listener. Job routes include `/job-postings`, `/job-postings/create` and `/job-postings/:jobId/edit`; the list reads a `status` query parameter. Preserve this routing system. Authentication email state is transient in-memory state rather than URL data, so not every in-progress flow survives refresh.
+
+`configureAppNavigation` enables GoRouter's Web imperative-URL compatibility
+option for existing pushed detail flows; root menu/tab links use `go`.
+This keeps pushed route URLs visible without replacing the router/history API.
+It does not make transient OTP state or fictional demo records survive refresh;
+live browser Back/Forward and direct-link acceptance remain to be verified.
 
 ## 2. Project Setup
 
@@ -90,16 +131,25 @@ Replace the placeholder with the actual device ID. Current startup uses `.env`, 
 
 These are mandatory development conventions, not a claim that every existing screen already satisfies them.
 
+The current acceptance criteria are in [Flutter Web + Android UI/UX standards](docs/flutter_ui_ux_standards.md).
+The November 4 platform-navigation update supersedes older Phase 2–5 descriptions
+of width-only navigation. See [UI review and verification](docs/ui_ux_review.md)
+for this pass's scope, code examples, test coverage and remaining device checks.
+The shared shell affects existing workspace screens automatically. Standalone
+authentication/security/upload flows remain focused pages with their own safe
+return actions; they do not get a second workspace shell.
+
 ### General principles
 
 - Share business logic, validation, authentication and the Supabase backend across platforms. Keep branding, terminology, colors and functionality consistent.
 - Use `kIsWeb` for actual platform behavior; use responsive layout constraints for screen-size adaptation. A narrow screen does not mean Android; a wide screen does not mean Web.
-- Reuse `LayoutBuilder`, `ResponsiveLayout`, `ResponsiveContent` and existing workspace patterns where appropriate. Shared content breakpoints are 600 and 1024 logical pixels; the current workspace/sidebar breakpoint is separately defined as 768 in `ResponsiveLayout.navigationBreakpoint` (the Phase 5.1 convention).
+- Reuse `LayoutBuilder`, `ResponsiveLayout`, `ResponsiveContent` and existing workspace patterns. Width classes start at 600, 840 and 1200 logical pixels. Web's persistent sidebar begins at 840; smaller Web windows use a left drawer. Width never chooses the navigation platform.
 - Avoid horizontal overflow and inaccessible controls.
 
 ### Web requirements
 
-- Use responsive desktop-friendly layouts with suitable maximum content widths. Prefer sidebar, navigation rail or existing desktop navigation where appropriate.
+- Use the shared left sidebar on Web: persistent from 840 logical pixels, an off-canvas left drawer below that. Never render Android bottom navigation on Web. General content can grow to 1280 logical pixels; forms retain their narrower feature-specific limits.
+- Job Seeker and Employer workspace pages place the account avatar/menu at the top right of the AppBar, matching the Admin dashboard. Wide layouts show the person's name and role; compact layouts show the avatar and chevron. The menu opens Personal profile, Account settings and Sign out. The Job Seeker's clearly labeled reputation demo is embedded alongside the real personal profile on wide layouts and below it on compact layouts; the existing reputation URL remains available. Employer company reputation remains a separate demo reachable from the account menu. Payments (sandbox) stays in the sidebar/More menu for both roles. Sidebar section labels are hidden while its navigation links remain. Admin also reaches Personal profile and Account settings from its top-right menu.
 - Do not stretch mobile-style full-width forms across large desktop screens. Size forms and dialogs appropriately for desktop.
 - Avoid redundant top-left AppBar back arrows when clear in-app navigation exists. Provide Cancel, Back to Job Postings, breadcrumbs or sidebar navigation as appropriate. Never rely exclusively on browser Back.
 - Preserve browser Back, Forward, refresh and direct URL navigation through the existing router. Verify authentication and route-state behavior rather than assuming every flow survives refresh.
@@ -109,6 +159,8 @@ These are mandatory development conventions, not a claim that every existing scr
 ### Android requirements
 
 - Use touch-friendly layouts, comfortably sized targets and mobile-appropriate dialogs, spacing and navigation.
+- Use the shared bottom NavigationBar at root destinations, including wide tablets. Three primary role destinations plus More expose the full grouped role menu. Do not render the Web sidebar/drawer as native primary navigation.
+- Root tab switches use GoRouter `go` and `NoTransitionPage` rather than stacking duplicate root pages or sliding the bottom bar. Route selection remains synchronized with the URL; this does not introduce a StatefulShellRoute or preserve every disposed root widget's local filter/scroll state. Existing store-backed drafts are retained. Focused forms/details hide the bar and keep guarded contextual Back with native Material transitions. The bar also hides while the software keyboard is open to preserve form space.
 - Keep contextual AppBar back arrows on pushed detail, create and edit screens where appropriate. Respect Android system Back.
 - Use scrollable forms that remain usable when the keyboard opens. Respect SafeArea and system insets.
 - Do not rely on hover-dependent controls. Protect unsaved changes when navigating back.
@@ -117,7 +169,7 @@ These are mandatory development conventions, not a claim that every existing scr
 
 Web should hide redundant AppBar back arrows where existing desktop navigation provides a clear alternative. Android should retain contextual AppBar navigation on pushed screens. Never remove the only practical way to leave a screen.
 
-Web sidebar destinations, including Personal Profile, Company Profile and My Job Postings, must not show redundant top-left AppBar back arrows. `AppWorkspace` disables inferred leading controls on Web and explicitly retains the navigation menu at narrow widths. Directly opened pages can use the sidebar or drawer to reach Dashboard. Native platforms retain Flutter's existing inferred leading behavior; explicit form back actions and unsaved-change guards remain in effect.
+Web sidebar destinations, including Personal Profile, Company Profile and My Job Postings, must not show redundant top-left AppBar back arrows. `AppWorkspace` disables inferred leading controls on both platforms: Web uses its sidebar/menu; native roots use bottom tabs/More, while focused details use explicit contextual Back. Direct routes retain a safe fallback. Existing job/payment guards remain in effect. Company form menu exits now confirm unsaved text, selected files and uncertain submissions; its native Back path also confirms. Browser refresh/tab closing are not guarded.
 
 Inspect `main.dart`, `AppRoutes`, `AppWorkspace`, `MobileBackAction` and the affected screen before changing navigation. Reuse GoRouter and safe navigation patterns. Never call `Navigator.pop` blindly on a potentially initial or directly opened route: check whether it can pop and provide a safe route fallback where needed. The job form already has a list-route fallback after saving when it cannot return to the originating list.
 
@@ -585,6 +637,9 @@ invitation/permission infrastructure must not be weakened or inferred to grant
 new production moderation permissions.
 
 #### FUTURE BACKEND INTEGRATION — Module 9
+
+This older external-record proposal is superseded by the November 4 Sandbox
+scope and [current Payment Handling contract](docs/payment_handling.md).
 
 Needs external payment declaration, proof metadata, recipient confirmation,
 revision history and dispute-link entities, completed-assignment/party RLS and

@@ -7,9 +7,7 @@ import '../../shared/widgets/app_workspace.dart';
 import 'dashboard_content.dart';
 import '../jobs/job_postings_repository.dart';
 import '../../shared/navigation/app_routes.dart';
-import '../../shared/widgets/responsive_layout.dart';
-
-enum _HomeMenuAction { profile, company, signOut }
+import '../../shared/navigation/workspace_destinations.dart';
 
 class HomePage extends StatefulWidget {
   final String email;
@@ -44,6 +42,10 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _openSection(String path) async {
     if (path == AppRoutes.home) return;
+    if (isWorkspaceRootPath(path)) {
+      context.go(path);
+      return;
+    }
     await context.push<void>(path);
     if (!mounted) return;
     await _loadAccountRole();
@@ -51,8 +53,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final compact = ResponsiveLayout.isCompact(context);
-
     return LoadingOverlay(
       isLoading: _isLoadingOut,
       message: 'Logging out...',
@@ -60,6 +60,9 @@ class _HomePageState extends State<HomePage> {
         title: 'Dashboard',
         path: AppRoutes.home,
         role: _accountRole,
+        accountName: _profile?['name'] as String?,
+        accountAvatarUrl: _profile?['profile_image_url'] as String?,
+        onSignOut: _handleLogout,
         onNavigate: _openSection,
         navigationLocked: _isLoadingOut,
         actions: [
@@ -69,10 +72,6 @@ class _HomePageState extends State<HomePage> {
                 ? null
                 : () => context.push<void>(AppRoutes.notifications),
             icon: const Icon(Icons.notifications_none_outlined),
-          ),
-          TextButton(
-            onPressed: _isLoadingOut ? null : _handleLogout,
-            child: const Text('Log out'),
           ),
         ],
         child: _loading
@@ -120,46 +119,30 @@ class _HomePageState extends State<HomePage> {
                         jobPostingsError: _jobPostingsError,
                       ),
                     const SizedBox(height: 20),
-                    WorkspaceCard(
-                      title: 'Administrator access',
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          OutlinedButton(
-                            onPressed: _isLoadingOut || _checkingAdminAccess
-                                ? null
-                                : () => _checkAdminAccess(),
-                            child: Text(
-                              _checkingAdminAccess
-                                  ? 'Checking access...'
-                                  : 'Check admin access',
-                            ),
-                          ),
-                          if (_canInviteAdmins) ...[
-                            const SizedBox(height: 12),
-                            FilledButton(
-                              onPressed: _isLoadingOut
+                    if (_accountRole == 'administrator')
+                      WorkspaceCard(
+                        title: 'Administrator access',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            OutlinedButton(
+                              onPressed: _isLoadingOut || _checkingAdminAccess
                                   ? null
-                                  : () async {
-                                      await context.push<void>(
-                                        AppRoutes.inviteAdmin,
-                                      );
-                                      if (mounted) {
-                                        await _checkAdminAccess(
-                                          showMessage: false,
-                                        );
-                                      }
-                                    },
-                              child: const Text('Invite administrator'),
+                                  : () => _checkAdminAccess(),
+                              child: Text(
+                                _checkingAdminAccess
+                                    ? 'Checking access...'
+                                    : 'Check admin access',
+                              ),
                             ),
-                            if (_canManageAdminPermissions) ...[
+                            if (_canInviteAdmins) ...[
                               const SizedBox(height: 12),
-                              OutlinedButton(
+                              FilledButton(
                                 onPressed: _isLoadingOut
                                     ? null
                                     : () async {
                                         await context.push<void>(
-                                          AppRoutes.adminPermissions,
+                                          AppRoutes.inviteAdmin,
                                         );
                                         if (mounted) {
                                           await _checkAdminAccess(
@@ -167,13 +150,30 @@ class _HomePageState extends State<HomePage> {
                                           );
                                         }
                                       },
-                                child: const Text('Manage admin permissions'),
+                                child: const Text('Invite administrator'),
                               ),
+                              if (_canManageAdminPermissions) ...[
+                                const SizedBox(height: 12),
+                                OutlinedButton(
+                                  onPressed: _isLoadingOut
+                                      ? null
+                                      : () async {
+                                          await context.push<void>(
+                                            AppRoutes.adminPermissions,
+                                          );
+                                          if (mounted) {
+                                            await _checkAdminAccess(
+                                              showMessage: false,
+                                            );
+                                          }
+                                        },
+                                  child: const Text('Manage admin permissions'),
+                                ),
+                              ],
                             ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -331,11 +331,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _openCompanyPage() async {
-    await context.push<void>(AppRoutes.company);
-
-    if (!mounted) return;
-
-    await _loadAccountRole();
+    await _openSection(AppRoutes.company);
   }
 
   void _showMessage(String message) {

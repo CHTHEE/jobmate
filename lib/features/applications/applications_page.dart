@@ -318,14 +318,15 @@ class ApplicationDetailsPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () => moduleBack(context, path),
-                    icon: kIsWeb ? null : const Icon(Icons.arrow_back),
-                    label: const Text('Back to Applications'),
+                if (kIsWeb)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => moduleBack(context, path),
+                      icon: kIsWeb ? null : const Icon(Icons.arrow_back),
+                      label: const Text('Back to Applications'),
+                    ),
                   ),
-                ),
                 const DemoNotice(),
                 if (a == null || j == null || (!employer && !a.mine))
                   const ModuleState(

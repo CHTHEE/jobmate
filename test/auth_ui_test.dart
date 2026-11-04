@@ -36,11 +36,11 @@ void main() {
       await tester.enterText(fields.at(1), 'test@example.com');
       await tester.enterText(fields.at(2), 'Password123!');
       await tester.enterText(fields.at(3), 'Different123!');
-      await tester.ensureVisible(find.byType(CheckboxListTile));
-      await tester.tap(find.byType(CheckboxListTile));
+      await tester.ensureVisible(find.byType(Checkbox));
+      await tester.tap(find.byType(Checkbox));
       await tester.pump();
-      await tester.ensureVisible(find.text('Create Account'));
-      await tester.tap(find.text('Create Account'));
+      await tester.ensureVisible(find.text('Create account'));
+      await tester.tap(find.text('Create account'));
       await tester.pump();
       expect(find.text('Passwords do not match'), findsOneWidget);
       await tester.ensureVisible(find.byTooltip('Show password').first);

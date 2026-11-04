@@ -14,6 +14,8 @@ import 'package:jobmate/shared/theme/jobmate_theme.dart';
 import 'package:jobmate/shared/widgets/app_workspace.dart';
 import 'package:jobmate/shared/navigation/app_routes.dart';
 
+import 'support/workspace_navigation_test_helper.dart';
+
 void main() {
   for (final width in [320.0, 1440.0]) {
     for (final role in ['job_seeker', 'employer']) {
@@ -50,12 +52,9 @@ void main() {
         );
         await tester.pumpAndSettle();
         for (final entry in entries.entries) {
-          if (width < 1024) {
-            await tester.tap(find.byTooltip('Open navigation menu'));
-            await tester.pumpAndSettle();
-          }
+          await openWorkspaceMenu(tester);
           final tile = find.widgetWithText(ListTile, entry.key);
-          await tester.ensureVisible(tile);
+          await scrollWorkspaceMenuTo(tester, entry.key);
           await tester.tap(tile);
           await tester.pumpAndSettle();
           expect(destination, entry.value);

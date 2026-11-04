@@ -20,6 +20,16 @@ abstract final class JobMateTheme {
   static const error = Color(0xFFDC2626);
   static const controlRadius = 8.0;
   static const dialogRadius = 16.0;
+  static const sidebarWidth = 240.0;
+  static const contentMaxWidth = 1280.0;
+  static const formMaxWidth = 640.0;
+  static const space4 = 4.0;
+  static const space8 = 8.0;
+  static const space12 = 12.0;
+  static const space16 = 16.0;
+  static const space24 = 24.0;
+  static const space32 = 32.0;
+  static const space48 = 48.0;
 
   static ThemeData light() => apply(ThemeData(useMaterial3: true));
 
@@ -42,7 +52,7 @@ abstract final class JobMateTheme {
     return base.copyWith(
       colorScheme: ColorScheme.fromSeed(
         seedColor: primary,
-        primary: teal,
+        primary: darkTeal,
         onPrimary: Colors.white,
         surface: Colors.white,
         onSurface: heading,
@@ -99,6 +109,25 @@ abstract final class JobMateTheme {
           ),
       cardColor: Colors.white,
       visualDensity: VisualDensity.standard,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      focusColor: darkTeal.withValues(alpha: .16),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: teal100,
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            fontSize: 12,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w600
+                : FontWeight.w400,
+            color: states.contains(WidgetState.selected) ? darkTeal : heading,
+          ),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
+      ),
       listTileTheme: const ListTileThemeData(
         iconColor: body,
         textColor: heading,
@@ -151,14 +180,14 @@ abstract final class JobMateTheme {
         ),
         border: outline(border),
         enabledBorder: outline(border),
-        focusedBorder: outline(primary, 2),
+        focusedBorder: outline(darkTeal, 2),
         errorBorder: outline(error),
         focusedErrorBorder: outline(error, 2),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style:
             FilledButton.styleFrom(
-              backgroundColor: teal,
+              backgroundColor: darkTeal,
               foregroundColor: Colors.white,
               minimumSize: const Size(48, 48),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -168,7 +197,9 @@ abstract final class JobMateTheme {
               backgroundColor: WidgetStateProperty.resolveWith((states) {
                 if (states.contains(WidgetState.disabled)) return null;
                 if (states.contains(WidgetState.pressed)) return teal800;
-                return states.contains(WidgetState.hovered) ? darkTeal : teal;
+                return states.contains(WidgetState.hovered)
+                    ? teal800
+                    : darkTeal;
               }),
             ),
       ),

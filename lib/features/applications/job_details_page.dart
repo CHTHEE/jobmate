@@ -52,14 +52,16 @@ class JobDetailsPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () => moduleBack(context, AppRoutes.browseJobs),
-                    icon: kIsWeb ? null : const Icon(Icons.arrow_back),
-                    label: const Text('Back to Browse Jobs'),
+                if (kIsWeb)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () =>
+                          moduleBack(context, AppRoutes.browseJobs),
+                      icon: kIsWeb ? null : const Icon(Icons.arrow_back),
+                      label: const Text('Back to Browse Jobs'),
+                    ),
                   ),
-                ),
                 const DemoNotice(),
                 if (job == null)
                   const ModuleState(

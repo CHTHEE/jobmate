@@ -4,11 +4,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/design_primitives.dart';
-import '../../shared/widgets/auth_style.dart';
+import '../../shared/widgets/app_workspace.dart';
+import '../../shared/navigation/workspace_destinations.dart';
 import '../phase4/phase4_store.dart';
 import '../../shared/widgets/responsive_layout.dart';
 
-enum _AdminProfileAction { profile, refresh, signOut }
+enum _AdminProfileAction { profile, settings, refresh, signOut }
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key, required this.email});
@@ -76,11 +77,22 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   Future<void> _loadAccess() async {
     final actorId = Supabase.instance.client.auth.currentUser?.id;
-    if (actorId == null) return;
+    if (actorId == null) {
+      setState(() {
+        _loadingAccess = false;
+        _canInviteAdmins = false;
+        _canManageAdminPermissions = false;
+        _canReviewCompanies = false;
+        _error = 'Sign in again to view administrator tools.';
+      });
+      return;
+    }
     var checkingDatabase = false;
 
     setState(() {
       _loadingAccess = true;
+      _canInviteAdmins = false;
+      _canManageAdminPermissions = false;
       _canReviewCompanies = false;
       _error = null;
     });
@@ -133,10 +145,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       if (!mounted) return;
       setState(() {
         _error = checkingDatabase
-            ? 'The Admin database setup is incomplete. Run the JobMate Admin '
-                  'SQL migration in Supabase, then tap Retry.'
-            : 'Unable to verify Admin access. Check the admin-invitations '
-                  'Edge Function, then tap Retry.';
+            ? 'Platform information is temporarily unavailable. Retry, or '
+                  'contact the system owner if the problem continues.'
+            : 'Unable to verify administrator access. Retry, or sign in again.';
       });
     } finally {
       if (mounted) {
@@ -203,320 +214,208 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    // A phone has considerably less room in the AppBar than a tablet or web.
-    // Keep the account actions available, but use a concise title on phones.
     final narrowPhone = MediaQuery.sizeOf(context).width < 420;
-
-    return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 56,
-        automaticallyImplyLeading: false,
-        title: Text(narrowPhone ? 'Admin' : 'JobMate Admin'),
-        actions: [
-          IconButton(
-            tooltip: 'Notifications',
-            onPressed: () => context.push<void>(AppRoutes.notifications),
-            icon: const Icon(Icons.notifications_none_outlined),
+    final groups = workspaceDestinations('administrator');
+    if (!_loadingAccess && _error == null) {
+      groups['ADMIN TOOLS'] = [
+        if (_canReviewCompanies)
+          (
+            AppRoutes.companyReviews,
+            'Company Verification',
+            Icons.business_outlined,
           ),
-          IconButton(
-            tooltip: 'Refresh permissions',
-            onPressed: _loadingAccess ? null : _loadAccess,
-            icon: const Icon(Icons.refresh),
+        if (_canInviteAdmins)
+          (
+            AppRoutes.inviteAdmin,
+            'Invite administrator',
+            Icons.person_add_alt_1_outlined,
           ),
-          PopupMenuButton<_AdminProfileAction>(
-            tooltip: 'Admin profile and account actions',
-            onSelected: (action) {
-              if (action == _AdminProfileAction.profile) {
-                context.push<void>(AppRoutes.profile);
-              } else if (action == _AdminProfileAction.refresh) {
-                _loadAccess();
-              } else {
-                _signOut();
-              }
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: _AdminProfileAction.profile,
-                child: Row(
-                  children: [
-                    Icon(Icons.person_outline),
-                    SizedBox(width: 12),
-                    Text('My profile'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: _AdminProfileAction.refresh,
-                child: Row(
-                  children: [
-                    Icon(Icons.refresh),
-                    SizedBox(width: 12),
-                    Text('Refresh dashboard'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: _AdminProfileAction.signOut,
-                child: Row(
-                  children: [
-                    Icon(Icons.logout),
-                    SizedBox(width: 12),
-                    Text('Sign out'),
-                  ],
-                ),
-              ),
-            ],
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        if (_canManageAdminPermissions)
+          (
+            AppRoutes.adminPermissions,
+            'Admin permissions',
+            Icons.admin_panel_settings_outlined,
+          ),
+      ];
+    }
+    return AppWorkspace(
+      title: narrowPhone ? 'Admin' : 'JobMate Admin',
+      path: AppRoutes.home,
+      role: 'administrator',
+      showAccountMenu: false,
+      navigationGroups: groups,
+      actions: [
+        IconButton(
+          tooltip: 'Notifications',
+          onPressed: () => context.push<void>(AppRoutes.notifications),
+          icon: const Icon(Icons.notifications_none_outlined),
+        ),
+        IconButton(
+          tooltip: 'Refresh permissions',
+          onPressed: _loadingAccess ? null : _loadAccess,
+          icon: const Icon(Icons.refresh),
+        ),
+        PopupMenuButton<_AdminProfileAction>(
+          tooltip: 'Admin profile and account actions',
+          onSelected: (action) {
+            if (action == _AdminProfileAction.profile) {
+              context.push<void>(AppRoutes.profile);
+            } else if (action == _AdminProfileAction.settings) {
+              context.push<void>(AppRoutes.adminSettings);
+            } else if (action == _AdminProfileAction.refresh) {
+              _loadAccess();
+            } else {
+              _signOut();
+            }
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              value: _AdminProfileAction.profile,
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: const Color(0xFFCCFBF1),
-                    child: _buildAdminAvatar(),
+                  Icon(Icons.person_outline),
+                  SizedBox(width: 12),
+                  Text('My profile'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: _AdminProfileAction.settings,
+              child: Row(
+                children: [
+                  Icon(Icons.settings_outlined),
+                  SizedBox(width: 12),
+                  Text('Account settings'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: _AdminProfileAction.refresh,
+              child: Row(
+                children: [
+                  Icon(Icons.refresh),
+                  SizedBox(width: 12),
+                  Text('Refresh dashboard'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: _AdminProfileAction.signOut,
+              child: Row(
+                children: [
+                  Icon(Icons.logout),
+                  SizedBox(width: 12),
+                  Text('Sign out'),
+                ],
+              ),
+            ),
+          ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: const Color(0xFFCCFBF1),
+                  child: _buildAdminAvatar(),
+                ),
+                if (ResponsiveLayout.usesSidebar(
+                      MediaQuery.sizeOf(context).width,
+                    ) &&
+                    MediaQuery.textScalerOf(context).scale(14) <= 18) ...[
+                  const SizedBox(width: 10),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 240),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Admin - $_adminName',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            height: 1.2,
+                          ),
+                        ),
+                        const Text(
+                          'System Administrator',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF64748B),
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  if (ResponsiveLayout.usesSidebar(
-                        MediaQuery.sizeOf(context).width,
-                      ) &&
-                      MediaQuery.textScalerOf(context).scale(14) <= 18) ...[
-                    const SizedBox(width: 10),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 240),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Admin - $_adminName',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              height: 1.2,
-                            ),
-                          ),
-                          const Text(
-                            'System Administrator',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF64748B),
-                              height: 1.2,
-                            ),
-                          ),
-                        ],
-                      ),
+                ],
+                const SizedBox(width: 4),
+                const Icon(Icons.expand_more, size: 20),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+      ],
+      child: WorkspaceContent(
+        maxWidth: 1280,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PageHeading(
+              title: 'Platform overview',
+              description: 'Manage accounts, review companies and keep JobMate running smoothly.',
+              eyebrow: 'Administration',
+            ),
+            if (_error != null) _buildError(context),
+            _buildOverview(context),
+            const SizedBox(height: 24),
+            if (!_loadingAccess && _error == null)
+              BrandPanel(
+                title: 'A clear view of your platform',
+                description: 'Real user and company metrics appear above. Job moderation, disputes and reports below remain a separate demo workspace.',
+                icon: Icons.admin_panel_settings_outlined,
+              ),
+            const SizedBox(height: 20),
+            if (!_loadingAccess && _error == null)
+              ListenableBuilder(
+                listenable: Phase4Store.session,
+                builder: (context, _) => StatGrid(
+                  children: [
+                    StatTile(
+                      label: 'Job moderation',
+                      value: '${Phase4Store.session.jobs.length}',
+                      icon: Icons.work_outline,
+                      note: 'DEMO posts',
+                    ),
+                    StatTile(
+                      label: 'Open disputes',
+                      value:
+                          '${Phase4Store.session.disputes.where((d) => !d.state.terminal).length}',
+                      icon: Icons.gavel_outlined,
+                      note: 'DEMO cases',
+                    ),
+                    StatTile(
+                      label: 'Review history',
+                      value: '${Phase4Store.session.audit.length}',
+                      icon: Icons.history,
+                      note: 'DEMO local actions',
                     ),
                   ],
-                  const SizedBox(width: 4),
-                  const Icon(Icons.expand_more, size: 20),
-                ],
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: SafeArea(
-        child: ColoredBox(
-          color: const Color(0xFFF8FAFC),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = !ResponsiveLayout.usesSidebar(
-                constraints.maxWidth,
-              );
-              return Row(
-                children: [
-                  if (!compact) _buildSidebar(context),
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 896),
-                        child: ListView(
-                          padding: ResponsiveLayout.pagePaddingForWidth(
-                            constraints.maxWidth,
-                          ),
-                          children: [
-                            PageHeading(
-                              title: 'Platform overview',
-                              description: 'Manage accounts, review companies and keep JobMate running smoothly.',
-                              eyebrow: 'Administration',
-                            ),
-                            if (compact) ...[
-                              _buildMobileNavigation(context),
-                              const SizedBox(height: 20),
-                            ],
-                            if (_error != null) _buildError(context),
-                            _buildOverview(context),
-                            const SizedBox(height: 24),
-                            if (!_loadingAccess && _error == null)
-                              BrandPanel(
-                                title: 'A clear view of your platform',
-                                description: 'Real user and company metrics appear above. Job moderation, disputes and reports below remain a separate demo workspace.',
-                                icon: Icons.admin_panel_settings_outlined,
-                              ),
-                            const SizedBox(height: 20),
-                            if (!_loadingAccess && _error == null)
-                              ListenableBuilder(
-                                listenable: Phase4Store.session,
-                                builder: (context, _) => StatGrid(
-                                  children: [
-                                    StatTile(
-                                      label: 'Job moderation',
-                                      value:
-                                          '${Phase4Store.session.jobs.length}',
-                                      icon: Icons.work_outline,
-                                      note: 'DEMO posts',
-                                    ),
-                                    StatTile(
-                                      label: 'Open disputes',
-                                      value:
-                                          '${Phase4Store.session.disputes.where((d) => !d.state.terminal).length}',
-                                      icon: Icons.gavel_outlined,
-                                      note: 'DEMO cases',
-                                    ),
-                                    StatTile(
-                                      label: 'Review history',
-                                      value:
-                                          '${Phase4Store.session.audit.length}',
-                                      icon: Icons.history,
-                                      note: 'DEMO local actions',
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            const SizedBox(height: 28),
-                            Text(
-                              'Admin tools',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildTools(context, compact),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
+            const SizedBox(height: 28),
+            Text('Admin tools', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            _buildTools(context),
+          ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildSidebar(BuildContext context) {
-    return SizedBox(
-      width: 240,
-      child: Material(
-        color: Colors.white,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(right: BorderSide(color: const Color(0xFFE2E8F0))),
-          ),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 12, 12, 20),
-                child: AuthWordmark(),
-              ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 8, 12, 24),
-                child: Text(
-                  'ADMINISTRATION',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-              const ListTile(
-                selected: true,
-                selectedTileColor: Color(0xFFE7F5F2),
-                leading: Icon(Icons.dashboard_outlined),
-                title: Text('Dashboard'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.people_outline),
-                title: const Text('Users'),
-                onTap: () => context.push<void>(AppRoutes.adminUsers),
-              ),
-              if (!_loadingAccess && _error == null)
-                for (final item in <(String, String, IconData)>[
-                  (
-                    AppRoutes.adminDemoJobs,
-                    'Job Posts (demo)',
-                    Icons.work_outline,
-                  ),
-                  (
-                    AppRoutes.adminDemoDisputes,
-                    'Disputes (demo)',
-                    Icons.gavel_outlined,
-                  ),
-                  (
-                    AppRoutes.adminDemoReports,
-                    'Reports (demo)',
-                    Icons.analytics_outlined,
-                  ),
-                ])
-                  ListTile(
-                    leading: Icon(item.$3),
-                    title: Text(item.$2),
-                    onTap: () => context.push<void>(item.$1),
-                  ),
-              if (_canReviewCompanies)
-                ListTile(
-                  leading: const Icon(Icons.business_outlined),
-                  title: const Text('Company Verification'),
-                  onTap: _openCompanyReviews,
-                ),
-              if (_canManageAdminPermissions)
-                ListTile(
-                  leading: const Icon(Icons.admin_panel_settings_outlined),
-                  title: const Text('Admin permissions'),
-                  onTap: () => context.push<void>(AppRoutes.adminPermissions),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMobileNavigation(BuildContext context) {
-    return Card.outlined(
-      child: Column(
-        children: [
-          const ListTile(
-            selected: true,
-            selectedTileColor: Color(0xFFE7F5F2),
-            leading: Icon(Icons.dashboard_outlined),
-            title: Text('Dashboard'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.people_outline),
-            title: const Text('Users'),
-            onTap: () => context.push<void>(AppRoutes.adminUsers),
-          ),
-          if (_canReviewCompanies)
-            ListTile(
-              leading: const Icon(Icons.business_outlined),
-              title: const Text('Company Verification'),
-              onTap: _openCompanyReviews,
-            ),
-          if (_canManageAdminPermissions)
-            ListTile(
-              leading: const Icon(Icons.admin_panel_settings_outlined),
-              title: const Text('Admin permissions'),
-              onTap: () => context.push<void>(AppRoutes.adminPermissions),
-            ),
-        ],
       ),
     );
   }
@@ -559,7 +458,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  Widget _buildTools(BuildContext context, bool compact) {
+  Widget _buildTools(BuildContext context) {
     final actions = <Widget>[];
     if (!_loadingAccess && _error == null) {
       actions.add(

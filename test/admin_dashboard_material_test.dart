@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,8 @@ import 'package:jobmate/features/phase4/admin_preview_pages.dart';
 import 'package:jobmate/features/phase4/phase4_store.dart';
 import 'package:jobmate/shared/navigation/app_routes.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'support/workspace_navigation_test_helper.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -55,7 +58,14 @@ void main() {
       addTearDown(router.dispose);
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await tester.pump(const Duration(milliseconds: 300));
+      await openWorkspaceMenu(tester);
       expect(find.widgetWithText(ListTile, 'Users'), findsOneWidget);
+      if (!kIsWeb) {
+        Navigator.of(
+          tester.element(find.byKey(const ValueKey('workspace-navigation'))),
+        ).pop();
+      }
+      await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       router.push(AppRoutes.adminDemoJobs);
       await tester.pump(const Duration(seconds: 1));
@@ -63,6 +73,7 @@ void main() {
       expect(tester.takeException(), isNull);
       router.pop();
       await tester.pump(const Duration(seconds: 1));
+      await openWorkspaceMenu(tester);
       expect(find.widgetWithText(ListTile, 'Users'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(

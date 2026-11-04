@@ -30,7 +30,7 @@ abstract final class AuthStyle {
         );
     return base.copyWith(
       colorScheme: base.colorScheme.copyWith(
-        primary: teal,
+        primary: darkTeal,
         onPrimary: Colors.white,
         error: error,
       ),
@@ -59,7 +59,7 @@ abstract final class AuthStyle {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: teal,
+          backgroundColor: darkTeal,
           foregroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 48),
           textStyle: const TextStyle(

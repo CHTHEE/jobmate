@@ -428,7 +428,9 @@ void main() {
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await tester.pumpAndSettle();
     expect(find.text('Job unavailable'), findsOneWidget);
-    await tester.tap(find.text('Back to Browse Jobs'));
+    await tester.tap(
+      kIsWeb ? find.text('Back to Browse Jobs') : find.byType(BackButton),
+    );
     await tester.pumpAndSettle();
     expect(
       router.routeInformationProvider.value.uri.path,

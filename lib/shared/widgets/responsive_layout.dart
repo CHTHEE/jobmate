@@ -9,9 +9,10 @@ enum JobMateScreenSize { compact, medium, expanded }
 
 abstract final class ResponsiveLayout {
   static const double compactBreakpoint = 600;
-  static const double expandedBreakpoint = 1024;
-  // Retain the workspace's existing sidebar/drawer switch on every screen.
-  static const double navigationBreakpoint = 768;
+  static const double expandedBreakpoint = 840;
+  static const double wideBreakpoint = 1200;
+  // This controls Web presentation only, never the navigation platform.
+  static const double navigationBreakpoint = expandedBreakpoint;
 
   static bool usesSidebar(double width) => width >= navigationBreakpoint;
 
