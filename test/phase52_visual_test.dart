@@ -1,3 +1,5 @@
+import 'fixtures/published_jobs_source.dart';
+
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -7,7 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jobmate/shared/theme/jobmate_theme.dart';
-import 'package:jobmate/features/applications/module2_repository.dart';
+
 import 'package:jobmate/features/applications/browse_jobs_page.dart';
 import 'package:jobmate/features/applications/job_details_page.dart';
 import 'package:jobmate/features/applications/applications_page.dart';
@@ -96,7 +98,7 @@ void main() {
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
-        final jobs = Module2Repository(),
+        final jobs = fixtureModule2(),
             work = Phase3Store(),
             data = Phase4Store();
         addTearDown(jobs.dispose);
@@ -196,7 +198,16 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        if (screen != 'settings' && screen != 'apply') {
+        if (![
+          'settings',
+          'apply',
+          'browse',
+          'job-detail',
+          'applications',
+          'application-detail',
+          'applicants',
+          'applicant-detail',
+        ].contains(screen)) {
           expect(find.text('DEMO / PREVIEW'), findsOneWidget);
         }
         final boundary =

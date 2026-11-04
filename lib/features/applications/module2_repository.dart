@@ -1,4 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'job_application_repository.dart';
+import 'my_applications_repository.dart';
+import 'employer_applicants_repository.dart';
+
+// Temporary diagnostics: never log raw exceptions, object paths or signed URLs.
+void debugPublishedLogo(String message) {
+  if (kDebugMode) debugPrint('[JobMate logo] $message');
+}
+
+String sanitizedLogoStorageMessage(String message) => message
+    .replaceAll(RegExp(r'https?://\S+', caseSensitive: false), '[URL omitted]')
+    .replaceAll(
+      RegExp(
+        r'(?:bearer\s+|(?:token|apikey|authorization|signature|secret|key)\s*[:=]\s*)\S+',
+        caseSensitive: false,
+      ),
+      '[credential omitted]',
+    )
+    .replaceAll(RegExp(r'[A-Za-z0-9_=.\-]{20,}'), '[value omitted]');
 
 enum ApplicationStage {
   applied('Applied'),
@@ -41,6 +64,7 @@ class BrowseJob {
     : fields = Map.unmodifiable({
         for (final key in const [
           'job_id',
+          'logo_storage_path',
           'title',
           'department',
           'location',
@@ -50,6 +74,7 @@ class BrowseJob {
           'application_deadline',
           'status',
           'role_overview',
+          'original_description',
           'responsibilities',
           'requirements',
           'benefits',
@@ -63,6 +88,11 @@ class BrowseJob {
       });
   final Map<String, dynamic> fields;
   final String company;
+  String? get logoStoragePath => fields['logo_storage_path'] as String?;
+  factory BrowseJob.published(Map<String, dynamic> row) => BrowseJob({
+    ...row,
+    'status': 'published',
+  }, company: row['company_name'] as String? ?? '');
   String text(String key) => '${fields[key] ?? ''}';
   String get id => text('job_id');
   String get title => text('title');
@@ -79,6 +109,254 @@ class BrowseJob {
       return 'Application deadline has passed.';
     }
     return null;
+  }
+}
+
+abstract class PublishedJobsSource {
+  String? get userId;
+  Stream<String?> get accountChanges;
+  Future<List<Map<String, dynamic>>> list();
+  Future<String> signLogo(String path);
+}
+
+class SupabasePublishedJobsSource implements PublishedJobsSource {
+  SupabasePublishedJobsSource(this.client);
+  final SupabaseClient client;
+  @override
+  Future<String> signLogo(String path) =>
+      client.storage.from('jobmate-company-logos').createSignedUrl(path, 300);
+  @override
+  String? get userId => client.auth.currentUser?.id;
+  @override
+  Stream<String?> get accountChanges =>
+      client.auth.onAuthStateChange.map((event) => event.session?.user.id);
+  @override
+  Future<List<Map<String, dynamic>>> list() async {
+    debugPublishedLogo(
+      'RPC list_published_jobs project=${Uri.parse(client.rest.url).host}',
+    );
+    final rows = await client.rpc('list_published_jobs');
+    if (kDebugMode && rows is List) {
+      for (var index = 0; index < rows.length; index++) {
+        final row = rows[index] as Map;
+        final path = row['logo_storage_path'];
+        debugPublishedLogo(
+          'RPC row=$index logo_field=${row.containsKey('logo_storage_path')} '
+          'logo_path=${path == null
+              ? 'null'
+              : path is String && path.trim().isNotEmpty
+              ? 'nonempty'
+              : 'empty/invalid'}',
+        );
+      }
+    }
+    return (rows as List)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+  }
+}
+
+/// Real browsing stays separate from the application demo's fictional jobs.
+class PublishedJobsRepository extends ChangeNotifier {
+  PublishedJobsRepository(this.source, {DateTime Function()? now})
+    : _now = now ?? DateTime.now,
+      _actorId = source.userId {
+    _subscription = source.accountChanges.listen((id) {
+      if (id == _actorId) return;
+      reset();
+      if (id != null) load();
+    });
+  }
+  final PublishedJobsSource source;
+  final DateTime Function() _now;
+  final _logoUrls = <String, (DateTime, Future<String?>)>{};
+  final _failedLogos = <String>{};
+  int _logoGeneration = 0;
+
+  Future<String?> logoUrl(String? path) {
+    if (_disposed ||
+        source.userId == null ||
+        source.userId != _actorId ||
+        path == null ||
+        path.trim().isEmpty ||
+        !jobs.any((job) => job.logoStoragePath == path)) {
+      debugPublishedLogo(
+        'Signing skipped: missing path, unavailable job or changed session.',
+      );
+      return Future.value(null);
+    }
+    final cached = _logoUrls[path];
+    if (cached != null && _now().isBefore(cached.$1)) {
+      debugPublishedLogo(
+        'Signing cache hit; failed=${_failedLogos.contains(path)}',
+      );
+      return cached.$2;
+    }
+    final actor = _actorId;
+    final generation = _logoGeneration;
+    final future = () async {
+      try {
+        debugPublishedLogo(
+          'createSignedUrl start bucket=jobmate-company-logos ttl=300',
+        );
+        final url = await source.signLogo(path);
+        if (_disposed ||
+            generation != _logoGeneration ||
+            source.userId != actor) {
+          return null;
+        }
+        _failedLogos.remove(path);
+        debugPublishedLogo('createSignedUrl succeeded');
+        return url;
+      } catch (failure) {
+        if (!_disposed &&
+            generation == _logoGeneration &&
+            source.userId == actor) {
+          _failedLogos.add(path);
+        }
+        if (failure is StorageException) {
+          debugPublishedLogo(
+            'createSignedUrl failed Storage status=${sanitizedLogoStorageMessage(failure.statusCode ?? 'unknown')} '
+            'message=${sanitizedLogoStorageMessage(failure.message)}',
+          );
+        } else {
+          debugPublishedLogo(
+            'createSignedUrl failed type=${failure.runtimeType}',
+          );
+        }
+        // Logo failures never prevent viewing jobs or show a broken image.
+        return null;
+      }
+    }();
+    // Reuse pending requests too, and renew before the five-minute URL expires.
+    _logoUrls[path] = (_now().add(const Duration(seconds: 285)), future);
+    return future;
+  }
+
+  late final StreamSubscription<String?> _subscription;
+  String? _actorId;
+  int _generation = 0;
+  bool _disposed = false;
+  bool loading = false, loaded = false;
+  String? error;
+  final List<BrowseJob> _jobs = [];
+  final Set<String> _saved = {};
+  List<BrowseJob> get jobs =>
+      source.userId == _actorId ? List.unmodifiable(_jobs) : const [];
+  BrowseJob? job(String id) => jobs.where((j) => j.id == id).firstOrNull;
+  bool saved(String id) => source.userId == _actorId && _saved.contains(id);
+  void toggleSave(String id) {
+    if (job(id) == null) return;
+    if (!_saved.remove(id)) _saved.add(id);
+    notifyListeners();
+  }
+
+  Future<void> load() async {
+    if (_disposed) return;
+    if (source.userId != _actorId) reset();
+    if (loading) return;
+    // Explicit refresh should recover after a transient Storage/policy failure.
+    for (final path in _failedLogos) {
+      _logoUrls.remove(path);
+    }
+    _failedLogos.clear();
+    final actor = source.userId;
+    final generation = ++_generation;
+    _jobs.clear();
+    error = null;
+    loaded = false;
+    loading = true;
+    notifyListeners();
+    try {
+      if (actor == null) throw StateError('Sign in to browse jobs.');
+      final rows = await source.list();
+      if (_disposed || generation != _generation || source.userId != actor) {
+        return;
+      }
+      final jobs = rows.map(BrowseJob.published).toList();
+      _jobs.addAll(jobs);
+      loaded = true;
+    } catch (failure) {
+      if (_disposed || generation != _generation || source.userId != actor) {
+        return;
+      }
+      error = failure is StateError
+          ? failure.message.toString()
+          : failure is PostgrestException && failure.code == '42501'
+          ? 'An active Job Seeker account is required to browse jobs.'
+          : 'Unable to load jobs. Please retry.';
+    } finally {
+      if (!_disposed && generation == _generation) {
+        if (source.userId != actor) {
+          reset();
+        } else {
+          loading = false;
+          notifyListeners();
+        }
+      }
+    }
+  }
+
+  List<BrowseJob> searchJobs({
+    String query = '',
+    String type = '',
+    String arrangement = '',
+    String location = '',
+    String sort = 'Newest',
+    bool savedOnly = false,
+  }) {
+    final result = jobs
+        .where(
+          (j) =>
+              '${j.title} ${j.company} ${j.text('role_overview')} ${j.text('original_description')} ${j.text('department')} ${j.bullets('requirements').join(' ')}'
+                  .toLowerCase()
+                  .contains(query.trim().toLowerCase()) &&
+              (type.isEmpty || j.text('employment_type') == type) &&
+              (arrangement.isEmpty ||
+                  j.text('work_arrangement') == arrangement) &&
+              j
+                  .text('location')
+                  .toLowerCase()
+                  .contains(location.toLowerCase()) &&
+              (!savedOnly || saved(j.id)),
+        )
+        .toList();
+    result.sort(
+      (a, b) => switch (sort) {
+        'Title' => a.title.compareTo(b.title),
+        'Deadline' =>
+          a
+              .text('application_deadline')
+              .compareTo(b.text('application_deadline')),
+        _ => b.text('published_at').compareTo(a.text('published_at')),
+      },
+    );
+    return result;
+  }
+
+  void reset() {
+    ++_logoGeneration;
+    _logoUrls.clear();
+    _failedLogos.clear();
+    ++_generation;
+    _actorId = source.userId;
+    _jobs.clear();
+    _saved.clear();
+    loading = false;
+    loaded = false;
+    error = 'Your session changed. Refresh to load jobs.';
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    ++_logoGeneration;
+    _logoUrls.clear();
+    _failedLogos.clear();
+    ++_generation;
+    _subscription.cancel();
+    super.dispose();
   }
 }
 
@@ -107,10 +385,43 @@ class DemoApplication {
 
 /// Isolated fictional environment. No job, user, application or resume writes.
 class Module2Repository extends ChangeNotifier {
-  Module2Repository() {
+  Module2Repository({
+    this.publishedSource,
+    this.applicationGatewayFactory,
+    this.myApplicationsSource,
+    this.employerApplicantsSource,
+  }) {
     reset();
   }
   static final session = Module2Repository();
+  final PublishedJobsSource? publishedSource;
+  final MyApplicationsSource? myApplicationsSource;
+  final EmployerApplicantsSource? employerApplicantsSource;
+  EmployerApplicantsSource createEmployerApplicantsSource() =>
+      employerApplicantsSource ??
+      SupabaseEmployerApplicantsSource(Supabase.instance.client);
+  MyApplicationsRepository? _myApplications;
+  MyApplicationsRepository get myApplications =>
+      _myApplications ??= MyApplicationsRepository(
+        myApplicationsSource ??
+            SupabaseMyApplicationsSource(Supabase.instance.client),
+      );
+  final JobApplicationGateway Function()? applicationGatewayFactory;
+  JobApplicationGateway createApplicationGateway() =>
+      applicationGatewayFactory?.call() ??
+      SupabaseJobApplicationGateway(Supabase.instance.client);
+  PublishedJobsRepository? _browse;
+  PublishedJobsRepository get browse => _browse ??= PublishedJobsRepository(
+    publishedSource ?? SupabasePublishedJobsSource(Supabase.instance.client),
+  );
+
+  @override
+  void dispose() {
+    _browse?.dispose();
+    _myApplications?.dispose();
+    super.dispose();
+  }
+
   final List<BrowseJob> _jobs = [];
   final List<DemoApplication> _applications = [];
   final Set<String> _saved = {};
@@ -254,6 +565,8 @@ class Module2Repository extends ChangeNotifier {
   }
 
   void reset() {
+    _browse?.reset();
+    _myApplications?.reset();
     _saved.clear();
     _noteDrafts.clear();
     _applications.clear();

@@ -1,98 +1,95 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/mobile_back_action.dart';
 import '../../shared/widgets/responsive_layout.dart';
+import 'notifications_repository.dart';
+
+String notificationLocalTime(BuildContext context, DateTime timestamp) {
+  final local = timestamp.toLocal();
+  final format = MaterialLocalizations.of(context);
+  return '${format.formatMediumDate(local)}, ${format.formatTimeOfDay(TimeOfDay.fromDateTime(local), alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context))}';
+}
 
 class NotificationsPage extends StatefulWidget {
-  const NotificationsPage({super.key});
-
+  const NotificationsPage({super.key, this.source});
+  final NotificationsSource? source;
   @override
   State<NotificationsPage> createState() => _NotificationsPageState();
 }
 
-class _NotificationsPageState extends State<NotificationsPage> {
-  final _supabase = Supabase.instance.client;
-  final _actorId = Supabase.instance.client.auth.currentUser?.id;
-  List<Map<String, dynamic>> _notifications = [];
-  bool _loading = false;
-  String? _error;
-
+class _NotificationsPageState extends State<NotificationsPage>
+    with WidgetsBindingObserver {
+  late final repo = NotificationsRepository(
+    widget.source ?? SupabaseNotificationsSource(Supabase.instance.client),
+  );
+  Listenable? routerChanges;
+  bool wasCurrent = true;
   @override
   void initState() {
     super.initState();
-    _loadNotifications();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) repo.load();
+    });
   }
 
-  Future<void> _loadNotifications() async {
-    if (_loading) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      if (_actorId == null || _supabase.auth.currentUser?.id != _actorId) {
-        throw StateError('Your signed-in account has changed.');
-      }
-      final result = await _supabase.rpc(
-        'list_my_notifications',
-        params: {'p_limit': 101, 'p_offset': 0},
-      );
-      if (!mounted) return;
-      if (_supabase.auth.currentUser?.id != _actorId) {
-        throw StateError('Your signed-in account has changed.');
-      }
-      if (result is! List) {
-        throw const FormatException('Unexpected notifications response.');
-      }
-      setState(() {
-        _notifications = result
-            .map((item) => Map<String, dynamic>.from(item as Map))
-            .toList();
-      });
-    } on PostgrestException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    } catch (error) {
-      debugPrint('Notifications load failed: $error');
-      if (!mounted) return;
-      setState(() {
-        _error = error is StateError
-            ? error.message.toString()
-            : 'Unable to load notifications. Please retry.';
-      });
-    } finally {
-      if (mounted) setState(() => _loading = false);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final changes = GoRouter.maybeOf(context)?.routerDelegate;
+    if (!identical(changes, routerChanges)) {
+      routerChanges?.removeListener(routeChanged);
+      routerChanges = changes;
+      routerChanges?.addListener(routeChanged);
+      wasCurrent = ModalRoute.of(context)?.isCurrent ?? true;
     }
   }
 
-  Future<void> _markRead(Map<String, dynamic> notification) async {
-    if (notification['read_at'] != null) return;
-    final actorId = _actorId;
-    if (actorId == null || _supabase.auth.currentUser?.id != actorId) return;
-    try {
-      await _supabase.rpc(
-        'mark_my_notification_read',
-        params: {'p_notification_id': notification['notification_id']},
-      );
-      if (!mounted || _supabase.auth.currentUser?.id != actorId) return;
-      await _loadNotifications();
-    } on PostgrestException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error.message)));
-      }
+  void routeChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final current = ModalRoute.of(context)?.isCurrent ?? true;
+      if (current && !wasCurrent) repo.load();
+      wasCurrent = current;
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        (ModalRoute.of(context)?.isCurrent ?? true)) {
+      repo.load();
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    routerChanges?.removeListener(routeChanged);
+    repo.dispose();
+    super.dispose();
+  }
+
+  Future<void> markRead(JobMateNotification item) async {
+    final generation = repo.sessionGeneration;
+    final message = await repo.markRead(item.id);
+    if (!mounted || !repo.currentSession(generation) || message == null) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: repo,
+    builder: (context, _) => Scaffold(
       appBar: ResponsivePageAppBar(
         title: const Text('Notifications'),
         actions: [
           IconButton(
             tooltip: 'Refresh',
-            onPressed: _loading ? null : _loadNotifications,
+            onPressed: repo.loading ? null : repo.load,
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -100,75 +97,78 @@ class _NotificationsPageState extends State<NotificationsPage> {
       body: SafeArea(
         child: ResponsiveContent(
           maxWidth: 900,
-          child: _loading
+          child: repo.loading
               ? const Center(child: CircularProgressIndicator())
-              : _error != null
+              : repo.error != null
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(_error!, textAlign: TextAlign.center),
+                        Text(repo.error!, textAlign: TextAlign.center),
                         const SizedBox(height: 12),
                         FilledButton(
-                          onPressed: _loadNotifications,
+                          onPressed: repo.load,
                           child: const Text('Retry'),
                         ),
                       ],
                     ),
                   ),
                 )
-              : _notifications.isEmpty
+              : repo.notifications.isEmpty
               ? const Center(
                   child: Text('You do not have any notifications yet.'),
                 )
               : ListView.builder(
                   padding: ResponsiveLayout.pagePadding(context),
-                  itemCount: _notifications.length,
+                  itemCount: repo.notifications.length,
                   itemBuilder: (context, index) {
-                    final item = _notifications[index];
-                    final read = item['read_at'] != null;
-                    final createdAt = item['created_at']?.toString();
+                    final item = repo.notifications[index];
                     return Card.outlined(
+                      key: ValueKey(item.id),
                       child: ListTile(
                         leading: Icon(
-                          read
+                          item.read
                               ? Icons.notifications_none
                               : Icons.notifications_active_outlined,
-                          color: read
+                          color: item.read
                               ? null
                               : Theme.of(context).colorScheme.primary,
                         ),
-                        title: Text(item['title'] as String? ?? 'Notification'),
+                        title: Text(item.title),
                         subtitle: Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(item['message'] as String? ?? ''),
-                              if (createdAt != null) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  createdAt
-                                      .replaceFirst('T', ' ')
-                                      .split('.')
-                                      .first,
-                                ),
-                              ],
+                              Text(item.message),
+                              const SizedBox(height: 6),
+                              Text(
+                                notificationLocalTime(context, item.createdAt),
+                              ),
                             ],
                           ),
                         ),
-                        trailing: read
+                        trailing: repo.marking(item.id)
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : item.read
                             ? const Icon(Icons.check, size: 18)
                             : const Icon(Icons.circle, size: 10),
-                        onTap: read ? null : () => _markRead(item),
+                        onTap: item.read || repo.marking(item.id)
+                            ? null
+                            : () => markRead(item),
                       ),
                     );
                   },
                 ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }

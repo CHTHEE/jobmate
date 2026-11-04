@@ -9,6 +9,7 @@ import '../jobs/job_display.dart';
 import 'module2_repository.dart';
 import 'module2_widgets.dart';
 import 'job_details_page.dart';
+import 'published_company_logo.dart';
 
 class BrowseJobsPage extends StatefulWidget {
   const BrowseJobsPage({super.key, this.repository});
@@ -18,11 +19,19 @@ class BrowseJobsPage extends StatefulWidget {
 }
 
 class _BrowseJobsPageState extends State<BrowseJobsPage> {
-  late final repo = widget.repository ?? Module2Repository.session;
+  late final repo = (widget.repository ?? Module2Repository.session).browse;
   final search = TextEditingController();
   final location = TextEditingController();
   String type = '', arrangement = '', sort = 'Newest';
   bool savedOnly = false;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) repo.load();
+    });
+  }
+
   @override
   void dispose() {
     search.dispose();
@@ -54,14 +63,20 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
         title: 'Browse Jobs',
         path: AppRoutes.browseJobs,
         role: 'job_seeker',
+        actions: [
+          IconButton(
+            tooltip: 'Refresh jobs',
+            onPressed: repo.loading ? null : repo.load,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
         child: WorkspaceContent(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const DemoNotice(),
               const PageHeading(
                 title: 'Find your next opportunity',
-                description: 'Explore the demo catalogue. Real job browsing is awaiting a verified public read contract.',
+                description: 'Explore published jobs and find your next role.',
               ),
               TextField(
                 controller: search,
@@ -124,7 +139,7 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   FilterChip(
-                    label: const Text('Saved in demo'),
+                    label: const Text('Saved this session'),
                     selected: savedOnly,
                     onSelected: (v) => setState(() => savedOnly = v),
                   ),
@@ -135,26 +150,35 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                 ],
               ),
               const SizedBox(height: 16),
-              Text('${jobs.length} demo results'),
-              const SizedBox(height: 16),
-              if (jobs.isEmpty)
+              if (repo.loading || (!repo.loaded && repo.error == null))
+                const Center(child: CircularProgressIndicator())
+              else if (repo.error != null)
                 ModuleState(
-                  title: 'No matching jobs',
-                  message: 'Try another keyword or clear your filters.',
-                  action: clear,
-                  actionLabel: 'Clear filters',
+                  title: 'Unable to load jobs',
+                  message: repo.error!,
+                  action: repo.load,
+                  actionLabel: 'Retry',
+                )
+              else
+                Text('${jobs.length} results'),
+              const SizedBox(height: 16),
+              if (repo.loaded && jobs.isEmpty)
+                ModuleState(
+                  title: repo.jobs.isEmpty
+                      ? 'No published jobs yet'
+                      : 'No matching jobs',
+                  message: repo.jobs.isEmpty
+                      ? 'Check back later or refresh for new opportunities.'
+                      : 'Try another keyword or clear your filters.',
+                  action: repo.jobs.isEmpty ? repo.load : clear,
+                  actionLabel: repo.jobs.isEmpty ? 'Refresh' : 'Clear filters',
                 ),
               for (final job in jobs)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: WorkspaceCard(
                     title: job.title,
-                    leading: CircleAvatar(
-                      radius: 20,
-                      child: Text(
-                        job.company.replaceFirst('Demo ', '').substring(0, 1),
-                      ),
-                    ),
+                    leading: PublishedCompanyLogo(job: job, repository: repo),
                     subtitle: job.company,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -162,7 +186,9 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                         JobFacts(job),
                         const SizedBox(height: 12),
                         Text(
-                          job.text('role_overview'),
+                          job.text('role_overview').isEmpty
+                              ? job.text('original_description')
+                              : job.text('role_overview'),
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -190,13 +216,9 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                                     : Icons.bookmark_border,
                               ),
                               label: Text(
-                                repo.saved(job.id)
-                                    ? 'Unsave (demo)'
-                                    : 'Save (demo)',
+                                repo.saved(job.id) ? 'Unsave' : 'Save',
                               ),
                             ),
-                            if (repo.applied(job.id))
-                              const Chip(label: Text('Applied in demo')),
                           ],
                         ),
                       ],

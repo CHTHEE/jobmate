@@ -9,6 +9,7 @@ import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/mobile_back_action.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import 'module2_repository.dart';
+import 'my_applications_repository.dart';
 
 class Module2Gate extends StatefulWidget {
   const Module2Gate({
@@ -125,8 +126,9 @@ class ModuleState extends StatelessWidget {
 }
 
 class StageBadge extends StatelessWidget {
-  const StageBadge(this.stage, {super.key});
+  const StageBadge(this.stage, {super.key, this.label});
   final ApplicationStage stage;
+  final String? label;
   @override
   Widget build(BuildContext context) {
     final color = switch (stage) {
@@ -140,7 +142,7 @@ class StageBadge extends StatelessWidget {
     };
     return Chip(
       label: Text(
-        stage.label,
+        label ?? stage.label,
         style: TextStyle(
           color: color,
           fontSize: 11,
@@ -152,6 +154,23 @@ class StageBadge extends StatelessWidget {
       backgroundColor: color.withValues(alpha: .07),
     );
   }
+}
+
+class MyApplicationStatusBadge extends StatelessWidget {
+  const MyApplicationStatusBadge(this.status, {super.key, this.label});
+  final MyApplicationStatus status;
+  final String? label;
+  @override
+  Widget build(BuildContext context) => StageBadge(switch (status) {
+    MyApplicationStatus.submitted => ApplicationStage.applied,
+    MyApplicationStatus.shortlisted => ApplicationStage.shortlisted,
+    MyApplicationStatus.interview => ApplicationStage.interview,
+    MyApplicationStatus.offered => ApplicationStage.offered,
+    MyApplicationStatus.hired => ApplicationStage.hired,
+    MyApplicationStatus.rejected ||
+    MyApplicationStatus.declined => ApplicationStage.rejected,
+    MyApplicationStatus.withdrawn => ApplicationStage.withdrawn,
+  }, label: label ?? status.label);
 }
 
 class ModuleSelect extends StatelessWidget {

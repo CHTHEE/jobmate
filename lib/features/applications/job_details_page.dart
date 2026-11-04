@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
@@ -7,6 +8,8 @@ import '../../shared/widgets/design_primitives.dart';
 import '../jobs/job_display.dart';
 import 'module2_repository.dart';
 import 'module2_widgets.dart';
+import 'published_company_logo.dart';
+import 'job_application_form.dart';
 
 class JobFacts extends StatelessWidget {
   const JobFacts(this.job, {super.key});
@@ -20,25 +23,71 @@ class JobFacts extends StatelessWidget {
         Chip(label: Text(jobLabel(job.text(key)))),
       Text('Vacancies: ${job.text('vacancies')}'),
       Text('Deadline: ${jobDate(job.fields['application_deadline'])}'),
-      if (job.fields['salary_visible'] == true)
+      if (job.fields['salary_visible'] == true &&
+          job.fields['salary_min'] != null &&
+          job.fields['salary_max'] != null)
         Text('Salary: ${jobSalary(job.fields)}')
       else
-        const Text('Salary not disclosed'),
+        const Text('Not disclosed'),
     ],
   );
 }
 
-class JobDetailsPage extends StatelessWidget {
+class JobDetailsPage extends StatefulWidget {
   const JobDetailsPage({super.key, required this.jobId, this.repository});
   final String jobId;
   final Module2Repository? repository;
   @override
+  State<JobDetailsPage> createState() => _JobDetailsPageState();
+}
+
+class _JobDetailsPageState extends State<JobDetailsPage> {
+  late final repo = (widget.repository ?? Module2Repository.session).browse;
+  Future<void> apply(BrowseJob job) async {
+    final module = widget.repository ?? Module2Repository.session;
+    final actor = repo.source.userId;
+    final route = await moduleModal<String>(
+      context,
+      JobApplicationForm(
+        job: job,
+        repository: module,
+        gateway: module.createApplicationGateway(),
+      ),
+    );
+    if (!mounted || route == null || repo.source.userId != actor) return;
+    await context.push<void>(route);
+    if (mounted &&
+        route == AppRoutes.documentSubmission &&
+        repo.source.userId == actor) {
+      final current = repo.job(job.id);
+      if (current != null) await apply(current);
+    }
+  }
+
+  void refresh() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) repo.load();
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    refresh();
+  }
+
+  @override
+  void didUpdateWidget(covariant JobDetailsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.jobId != widget.jobId) refresh();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final repo = repository ?? Module2Repository.session;
     return ListenableBuilder(
       listenable: repo,
       builder: (context, _) {
-        final job = repo.job(jobId);
+        final job = repo.job(widget.jobId);
         return AppWorkspace(
           title: 'Job Details',
           leading: kIsWeb
@@ -48,6 +97,13 @@ class JobDetailsPage extends StatelessWidget {
                 ),
           path: AppRoutes.browseJobs,
           role: 'job_seeker',
+          actions: [
+            IconButton(
+              tooltip: 'Refresh job',
+              onPressed: repo.loading ? null : repo.load,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
           child: WorkspaceContent(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -60,46 +116,46 @@ class JobDetailsPage extends StatelessWidget {
                     label: const Text('Back to Browse Jobs'),
                   ),
                 ),
-                const DemoNotice(),
-                if (job == null)
+                if (repo.loading || (!repo.loaded && repo.error == null))
+                  const Center(child: CircularProgressIndicator())
+                else if (repo.error != null)
+                  ModuleState(
+                    title: 'Unable to load job',
+                    message: repo.error!,
+                    action: repo.load,
+                    actionLabel: 'Retry',
+                  )
+                else if (job == null)
                   const ModuleState(
                     title: 'Job unavailable',
-                    message: 'This demo job does not exist. Refresh resets the demo environment.',
+                    message: 'This job is unavailable or no longer published.',
                   )
                 else ...[
                   PageHeading(title: job.title, description: job.company),
                   WorkspaceCard(
-                    leading: const Icon(Icons.business_outlined),
+                    leading: PublishedCompanyLogo(
+                      job: job,
+                      repository: repo,
+                      size: 24,
+                      fallback: const Icon(Icons.business_outlined),
+                    ),
                     title: job.title,
                     subtitle: job.company,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
-                          'Fictional company • verification not connected',
-                        ),
-                        const SizedBox(height: 16),
                         JobFacts(job),
                         const SizedBox(height: 16),
                         if (job.unavailable() case final String reason)
                           Text(reason),
-                        if (repo.applied(job.id))
-                          const Text(
-                            'Already applied in this demo session. View My Applications for the current status.',
-                          ),
                         const SizedBox(height: 12),
                         Align(
                           alignment: Alignment.centerLeft,
                           child: FilledButton(
-                            onPressed:
-                                job.unavailable() != null ||
-                                    repo.applied(job.id)
+                            onPressed: job.unavailable() != null
                                 ? null
-                                : () => moduleModal<void>(
-                                    context,
-                                    ApplyDemoForm(job: job, repository: repo),
-                                  ),
-                            child: const Text('Apply Now (demo)'),
+                                : () => apply(job),
+                            child: const Text('Apply Now'),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -113,9 +169,7 @@ class JobDetailsPage extends StatelessWidget {
                                   : Icons.bookmark_border,
                             ),
                             label: Text(
-                              repo.saved(job.id)
-                                  ? 'Unsave Job (demo)'
-                                  : 'Save Job (demo)',
+                              repo.saved(job.id) ? 'Unsave Job' : 'Save Job',
                             ),
                           ),
                         ),
@@ -127,10 +181,21 @@ class JobDetailsPage extends StatelessWidget {
                     title: 'Role Overview',
                     child: Text(
                       job.text('role_overview').isEmpty
-                          ? 'Not provided'
+                          ? (job.text('original_description').isEmpty
+                                ? 'Not provided'
+                                : job.text('original_description'))
                           : job.text('role_overview'),
                     ),
                   ),
+                  if (job.text('original_description').isNotEmpty &&
+                      job.text('role_overview').isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 20),
+                      child: WorkspaceCard(
+                        title: 'Job Description',
+                        child: Text(job.text('original_description')),
+                      ),
+                    ),
                   for (final key in [
                     'responsibilities',
                     'requirements',

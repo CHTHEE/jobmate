@@ -97,12 +97,15 @@ class JobPostingsRepository {
     return JobAccess(company, null, logo: logo);
   }
 
-  Future<List<Map<String, dynamic>>> list(String companyId) async =>
-      await client
-          .from('job_postings')
-          .select()
-          .eq('company_id', companyId)
-          .order('created_at', ascending: false);
+  Future<List<Map<String, dynamic>>> list(String companyId) async {
+    final rows = await client.rpc(
+      'list_employer_job_postings',
+      params: {'p_company_id': companyId},
+    );
+    return (rows as List)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+  }
 
   Future<Map<String, dynamic>> save(
     Map<String, dynamic> values, {
@@ -118,48 +121,40 @@ class JobPostingsRepository {
       ..remove('published_at')
       ..remove('created_at')
       ..remove('job_id');
-    if (jobId == null) {
-      return await client
-          .from('job_postings')
-          .insert({
-            ...data,
-            'company_id': companyId,
-            'created_by': client.auth.currentUser!.id,
-            'ai_assisted': data['ai_assisted'] == true,
-          })
-          .select()
-          .single();
-    }
-    if (!['draft', 'published'].contains(expectedStatus)) {
+    if (jobId != null && !['draft', 'published'].contains(expectedStatus)) {
       throw StateError('Closed jobs cannot be edited.');
     }
-    if (expectedStatus == 'published') {
+    if (jobId != null && expectedStatus == 'published') {
       final validation = jobPublishError(data);
       if (validation != null) throw StateError(validation);
       data['status'] = 'published';
     }
-    // Compare status as well as company to avoid editing a job closed elsewhere.
+    if (jobId == null) data['ai_assisted'] = data['ai_assisted'] == true;
+    // The RPC scopes ownership and compares status atomically. Keep updates
+    // partial: publishing from the list sends only the status field.
     return await client
-        .from('job_postings')
-        .update(data)
-        .eq('job_id', jobId)
-        .eq('company_id', companyId)
-        .eq('status', expectedStatus)
-        .select()
+        .rpc(
+          'save_employer_job_posting',
+          params: {
+            'p_company_id': companyId,
+            'p_values': data,
+            'p_job_id': jobId,
+            'p_expected_status': expectedStatus,
+          },
+        )
         .single();
   }
 
   Future<void> close(String jobId) async {
     final access = await loadAccess();
     if (!access.allowed) throw StateError(access.message!);
-    await client
-        .from('job_postings')
-        .update({'status': 'closed'})
-        .eq('job_id', jobId)
-        .eq('company_id', access.company!['company_id'])
-        .eq('status', 'published')
-        .select('job_id')
-        .single();
+    await client.rpc(
+      'close_employer_job_posting',
+      params: {
+        'p_company_id': access.company!['company_id'],
+        'p_job_id': jobId,
+      },
+    );
   }
 }
 

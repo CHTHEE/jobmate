@@ -170,13 +170,13 @@ Implemented routes:
 
 | Route | Screen | Data |
 | --- | --- | --- |
-| `/jobs` | Search/filter/sort and session-saved jobs | Fictional demo catalogue |
-| `/jobs/:jobId` | Job details and responsive Apply modal | Demo only |
-| `/applications` | My Applications, All/Active/Completed, search/status filters | Shared session demo |
-| `/applications/:applicationId` | Application details, timeline, withdraw and offer actions | Shared session demo candidate |
-| `/applicants` | Employer pipeline, posting/status filters, search/sort | Fictional candidates only |
-| `/applicants/:applicationId` | Applicant details, stage actions, rejection note | Shared session demo |
-| `/applicants?posting=<jobId>` | Entry from a real employer posting | Explicit unconnected state; separate demo exploration |
+| `/jobs` | Search/filter/sort and session-saved jobs | Supabase `list_published_jobs` RPC |
+| `/jobs/:jobId` | Published job details and Apply with optional resume | Supabase browsing and submission RPCs |
+| `/applications` | My Applications, All/Active/Completed, search/status filters | Supabase `list_my_job_applications` RPC |
+| `/applications/:applicationId` | Application details and chronological status history | Supabase seeker list and history RPCs |
+| `/applicants` | Authorized employer posting selector | Existing employer posting RPC |
+| `/applicants/:applicationId` | Safe return to applicants | Applicant detail/actions not implemented |
+| `/applicants?posting=<jobId>` | Real applicants, search/status filters and sorting | `list_job_applicants(p_job_id)` RPC |
 
 The existing employer list/create/edit/preview/draft/publish/close screens are
 reused. Registration/login, company verification/logo access, ownership checks,
@@ -184,30 +184,124 @@ job repositories/validation and `format-job-description` are unchanged. The new
 route gate reads the existing signed-in `users.role` and `users.status`, requires
 an active Job Seeker or Employer as appropriate, and provides loading/error/retry
 and Dashboard exits. Existing auth redirects remain in place. This UI gate does
-not replace RLS or grant employer access to real applicant records.
+not replace RPC authorization or RLS.
 
-**Why Browse Jobs is demo-only:** inspection found no Job Seeker/public job-read
-service and no checked-in `job_postings` policies or public projection. The
-existing repository is for employer-scoped management and selects full rows.
-Reusing that path for public browsing would not establish permission or salary
-privacy. No new Supabase job read is attempted. The deployed public-read and
-salary-protection rules remain unverified; this is an integration/security review
-blocker, not a confirmed deployed vulnerability. If an unauthorized client can
-select hidden compensation, UI hiding cannot fix the exposure. Before enabling
-real browsing, verify existing grants/RLS and a server-enforced safe projection
-that omits hidden salary values. RLS alone does not redact individual columns.
+**Real browsing, Phase 1:** Browse Jobs and Job Details now read only through the
+existing deployed `list_published_jobs()` RPC for active authenticated Job Seekers.
+`PublishedJobsRepository`, in `module2_repository.dart`, isolates this catalogue
+and its session-only saved IDs from the unchanged application demo. Both pages
+fetch on entry (including direct detail URLs), offer refresh/retry, and show
+loading, empty or unavailable states. RPC failures never fall back to sample jobs.
+Account changes clear cached jobs/saves and invalidate pending responses.
+The existing layouts, routes, search/filter/sort and responsive modals remain.
+**Real submission, Phase 2A:** Apply opens `JobApplicationForm`, reusing the
+existing responsive modal and `ResumeFile`/`SupabaseResumeGateway` contract.
+Resumes load through `list_personal_resumes`; selecting a PDF is optional and
+the cover note retains its 1,000-character UI limit. `submit_job_application`
+receives the real job ID, optional resume ID and optional trimmed cover note.
+Success is shown only after the server returns an application ID. Server errors
+are retained, and account changes invalidate selections and pending responses.
+Visiting My Resume preserves the note and reopens Apply on return. Cancel/Back
+confirms before discarding input; unexpected disposal retains the account-scoped
+note until session reset. Browser refresh/tab closing do not retain drafts.
+**My Applications, Phase 2B:** the seeker list now calls the existing no-argument
+`list_my_job_applications()` RPC. Its exact projection is `application_id`,
+`job_id`, `job_title`, `company_name`, nullable `resume_id`/`cover_note`, `status`,
+`applied_at`, `updated_at`, and nullable `withdrawn_at`. Cards use the returned
+title, company, date and status, with a neutral work icon. No logo, resume
+filename, location or salary is inferred. Submitted displays as Applied;
+Declined and Withdrawn remain distinct completed statuses. The list preserves
+search, status filters, tabs and sorting (applied date then application ID), and
+refreshes on entry, explicit refresh and return from its navigation actions.
+Loading, error/retry and empty states never fall back to fictional records;
+account changes clear cached applications and invalidate pending requests.
+**Application details, Phase 2C:** View Application opens the existing detail
+route using the real application ID. On entry/direct URL, the page reloads the
+owning seeker's application list before calling `list_application_history` with
+`p_application_id`. The seven history fields map directly: `history_id`, nullable
+`previous_status`, `new_status`, `changed_by`, `changed_by_name`, nullable `note`,
+and `changed_at`. The timeline shows only returned events in RPC order, with
+status, local date/time, available actor name and note. Initial submissions never
+gain inferred future events. Details show the real job/company, applied date,
+cover note when present and a resume-attached indicator, without download access.
+Details/history reload on entry, explicit refresh and return from View Job or
+workspace navigation. Missing ownership, loading, empty history and retry states
+are explicit; account switches invalidate both details and history responses.
+Back has a safe list fallback for direct URLs. View Job retains the real job ID.
+Status changes, withdrawal, offers and resume viewing remain
+outside this phase. The submission confirmation now links to the connected list.
+**Employer View Applicants, Phase 2D:** My Job Postings now links to the existing
+`/applicants?posting=<jobId>` route using View Applicants. Company/job context is
+revalidated through the existing employer access checks and posting RPC before
+`list_job_applicants` is called. The exact eight-column projection maps
+`application_id`, `applicant_id`, `applicant_name`, nullable `resume_id` and
+`cover_note`, `status`, `applied_at`, and `updated_at`. Cards show the real name,
+status, applied date/time, resume indicator, optional note and application ID.
+No contact details, profile images, filenames or download URLs are inferred.
+The existing layout retains search, status filters, All/Active/Completed tabs,
+summary counts and newest/oldest/name sorting. All eight statuses remain distinct.
+View Job reuses the employer preview; Edit Job retains the existing route for
+draft/published jobs and is absent for closed jobs. The unfiltered sidebar entry
+offers an authorized job selector. Loading/error/retry/empty states never fall
+back to sample applicants; refresh rechecks company context, and account/job
+changes invalidate pending results. Employer detail URLs now provide a neutral
+return state, with no demo actions or records. Employer history, resume downloads,
+notification UI and interview scheduling remain outside this phase.
+**Employer status updates, Phase 2E:** applicant cards offer only Submitted →
+Shortlisted/Rejected, Shortlisted → Interview/Rejected, and Interview →
+Offered/Rejected. Offered and all completed statuses have no employer actions.
+The existing responsive modal confirms each action and accepts an optional note
+of at most 2,000 characters; notes are trimmed and blank notes are sent as null.
+`update_job_application_status` receives only `p_application_id`, `p_new_status`
+and `p_note`. Repeated submissions are locked, account/company/job context is
+checked before submission, and stale responses cannot show success. The client
+never changes a card optimistically: it reloads the selected job's applicants
+after RPC success or failure, preserving server errors and an unsubmitted note.
+If a concurrent transition makes the original action invalid, confirmation is
+disabled after refresh. History insertion and applicant notifications remain
+entirely server-side. No status update is made against a live test application
+by automated tests; they use isolated fakes and a local HTTP server.
+**Employer resume viewing, Phase 2F:** cards with a resume offer one View Resume
+action. It POSTs the real `application_id` through the authenticated client's
+`view-application-resume` Edge Function, validates absolute HTTPS `signed_url`
+and positive integral `expires_in` seconds, then opens the PDF automatically.
+Web reserves a new tab synchronously during the click and detaches its opener
+before awaiting the request; Android uses the existing external PDF/browser
+launcher. Only blocked Web opening reveals an Open PDF fallback. Valid links
+are retained only in the button's account/application/job context until expiry;
+pending tabs and cached links are cleared on context invalidation/disposal.
+Failures/timeouts close waiting tabs and expose safe retryable errors without
+logging signed URLs or credentials. A 30-second request timeout prevents an
+indefinite loading state. The client never calls `get_application_resume_url`
+as a URL service or signs applicant Storage objects itself; authorization and
+signing stay in the deployed Edge Function. No bucket/policy/function changes
+or new dependencies are needed. Browser popup behavior and Android PDF handlers
+still require live acceptance checks.
+The old `ApplyDemoForm` remains solely for isolated demo/preview fixtures and is
+not reachable from real job details. Real submission never creates demo records.
+This client change creates no SQL, policies, permissions or deployment changes.
 
-The demo `BrowseJob` display projection keeps existing posting field names and
+The `BrowseJob` display projection keeps existing posting field names and
 list formats and excludes `salary_min`, `salary_max` and `salary_period` unless
 `salary_visible` is exactly true. Cards/details never render hidden compensation.
-Only published sample jobs appear in browsing; expired samples are labeled and
-cannot receive applications. Closed/missing direct detail routes show unavailable
-states. Company verification and trust scores are not fabricated.
+Only rows returned by the published-job RPC appear in browsing; expired jobs are
+labeled and Apply is disabled. Hidden or missing salary displays as Not disclosed.
+Closed/missing direct detail routes show unavailable states. Company names and
+descriptions come from the RPC; verification and trust scores are not fabricated.
+Nullable `logo_storage_path` values use authenticated five-minute signed URLs
+from the private `jobmate-company-logos` bucket. Browse/detail logo slots retain
+their existing dimensions and fallbacks during loading or image/signing errors.
+URLs and pending signing requests are cached by path in memory, renewed before
+expiry, and cleared on account changes; previous-account results are ignored.
+Refreshing jobs retries failed signing requests while preserving valid cached
+URLs. Temporary debug-build-only `[JobMate logo]` diagnostics report project host,
+RPC path presence, signing errors/status and image HTTP/decode outcomes; they
+omit object paths, credentials and signed URLs.
 
-`Module2Repository.session` is one in-memory `ChangeNotifier`, shared by all new
-screens. Saved jobs, duplicate checks, stage changes, summary counts and timelines
-use that same source. Candidate/Employer pages are two views into a fictional
-environment, not relationships between real accounts and jobs. Changes reset on
+`Module2Repository.session` retains the isolated fixture application demo,
+separate from its real `browse` and `myApplications` repositories. Demo duplicate
+checks, stage changes, summary counts and timelines use the fictional source;
+the seeker list never reads it. Demo changes reset on
 refresh/restart or sign-out/account change. New applications are attributed to
 the explicitly fictional “Demo candidate (you)”; the signed-in profile/resume is
 not read, attached or uploaded. Sample resume availability never enables a fake
@@ -1095,6 +1189,39 @@ For focused job changes, use `flutter test test/job_postings_test.dart`. Run oth
 ### Details requiring team confirmation
 
 Confirm the deployed `format-job-description` implementation, Gemini configuration, server-side secret names and deployment ownership. Confirm the existing Supabase schema/RPC/storage/policy baseline and authentication settings before attempting a fresh environment; checked-in migrations are partial. Web hosting and its URL behavior require deployment-specific verification. This documentation does not imply live-backend or platform acceptance testing.
+
+### Real in-app notifications (Module 2 Step 25C)
+
+`NotificationsPage` uses the authenticated client through `NotificationsRepository`.
+Both Job Seekers and Employers load server-provided content with
+`list_my_notifications(p_limit: 50, p_offset: 0)`. Both parameters are mandatory
+in Flutter to select the deployed two-argument overload unambiguously.
+`mark_notification_read(p_notification_id)` must return a boolean: true and false
+both trigger a fresh list read; false also displays an unavailable message.
+Read indicators come only from `read_at`, without optimistic updates.
+
+Account changes clear the list, discard stale reads/mutations and reload for the
+new session. Initial load, manual refresh, retry, returning through navigation
+and app resume refresh the list. Timestamps display in device/browser local time.
+The 50-record list is not a complete unread count. Deep links, dashboard counts
+and email delivery are intentionally absent pending their backend contracts.
+Focused checks: `flutter test test/notifications_repository_test.dart test/notifications_page_test.dart`.
+
+### Real Job Seeker application actions (Module 2 Step 27A)
+
+Application Details uses the authenticated `respond_to_job_application`
+RPC with `p_application_id` and `p_action`. Accept/decline are available only
+for Offered applications; withdrawal is available for Applied, Shortlisted,
+Interview and Offered applications. Every action requires confirmation.
+Declined and Withdrawn remain distinct terminal statuses.
+
+Actions are locked while submitting and refreshing. Both successful requests
+and failures refresh the owned application and real history without optimistic
+status changes; account changes discard stale responses. Returning to My
+Applications reloads the list. Tests use local fakes/mock HTTP only and never
+change live applications. Live acceptance testing starts by inspecting Interview
+withdrawal without pressing it, followed by an employer offer and deliberate
+Job Seeker acceptance after verifying Offered status.
 
 ### Flutter learning resources
 

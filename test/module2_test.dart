@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'fixtures/published_jobs_source.dart';
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -106,12 +108,22 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      final repo = Module2Repository();
+      final repo = fixtureModule2();
       addTearDown(repo.dispose);
-      final router = demoRouter(repo, '${AppRoutes.applicants}/demo-seed-0');
-      addTearDown(router.dispose);
       await tester.pumpWidget(
-        MaterialApp.router(theme: JobMateTheme.light(), routerConfig: router),
+        MaterialApp(
+          theme: JobMateTheme.light(),
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: repo,
+              builder: (_, _) => ApplicationActions(
+                application: repo.application('demo-seed-0')!,
+                repository: repo,
+                employer: true,
+              ),
+            ),
+          ),
+        ),
       );
       await tester.pumpAndSettle();
       final reject = find.widgetWithText(OutlinedButton, 'Reject');
@@ -128,7 +140,14 @@ void main() {
         'Internal demo reason',
       );
       expect(tester.widget<OutlinedButton>(reject).onPressed, isNull);
-      router.go('${AppRoutes.applications}/demo-seed-0');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ApplicationDetailsPage(
+            applicationId: 'demo-seed-0',
+            repository: repo,
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Internal demo reason'), findsNothing);
       expect(tester.takeException(), isNull);
@@ -160,16 +179,18 @@ void main() {
       'salary_min': 900001,
       'salary_max': 900002,
       'salary_period': 'monthly',
-      'original_description': 'private draft input',
+      'original_description': 'Published description',
+      'created_by': 'private account ID',
     }, company: 'Test');
     expect(job.fields.keys, isNot(contains('salary_min')));
     expect(job.fields.keys, isNot(contains('salary_max')));
     expect(job.fields.keys, isNot(contains('salary_period')));
-    expect(job.fields.keys, isNot(contains('original_description')));
+    expect(job.text('original_description'), 'Published description');
+    expect(job.fields.keys, isNot(contains('created_by')));
     expect(job.fields.toString(), isNot(contains('900001')));
   });
   test('Catalogue filtering, saving and sorting exclude closed jobs', () {
-    final repo = Module2Repository();
+    final repo = fixtureModule2();
     addTearDown(repo.dispose);
     expect(repo.searchJobs().length, 4);
     expect(
@@ -202,7 +223,7 @@ void main() {
   test(
     'Application preview validates duplicates, closed jobs, deadline and note',
     () async {
-      final repo = Module2Repository();
+      final repo = fixtureModule2();
       addTearDown(repo.dispose);
       await expectLater(repo.submit('demo-job-1', ''), throwsStateError);
       await expectLater(repo.submit('demo-job-4', ''), throwsStateError);
@@ -225,7 +246,7 @@ void main() {
     },
   );
   test('Both roles share stages, counts and chronological history', () async {
-    final repo = Module2Repository();
+    final repo = fixtureModule2();
     addTearDown(repo.dispose);
     await repo.submit('demo-job-2', 'Hello');
     final a = repo.searchApplications(mineOnly: true).first;
@@ -262,7 +283,7 @@ void main() {
     );
   });
   test('Withdrawal, rejection and reset retain coherent local state', () {
-    final repo = Module2Repository();
+    final repo = fixtureModule2();
     addTearDown(repo.dispose);
     final mine = repo
         .searchApplications(mineOnly: true, stage: ApplicationStage.applied)
@@ -299,14 +320,15 @@ void main() {
   testWidgets('Route exit retains an unsubmitted cover note in the session', (
     tester,
   ) async {
-    final repo = Module2Repository();
+    final repo = fixtureModule2();
     addTearDown(repo.dispose);
-    final router = demoRouter(repo, '${AppRoutes.browseJobs}/demo-job-2');
-    addTearDown(router.dispose);
-    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Apply Now (demo)'));
-    await tester.tap(find.text('Apply Now (demo)'));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ApplyDemoForm(job: repo.job('demo-job-2')!, repository: repo),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Retained demo draft');
     expect(repo.noteDraft('cover:demo-job-2'), 'Retained demo draft');
@@ -343,7 +365,7 @@ void main() {
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
-        final repo = Module2Repository();
+        final repo = fixtureModule2();
         addTearDown(repo.dispose);
         final router = demoRouter(repo, page);
         addTearDown(router.dispose);
@@ -351,7 +373,7 @@ void main() {
           MaterialApp.router(theme: JobMateTheme.light(), routerConfig: router),
         );
         await tester.pumpAndSettle();
-        expect(find.text('DEMO / PREVIEW'), findsOneWidget);
+        expect(find.text('DEMO / PREVIEW'), findsNothing);
         expect(tester.takeException(), isNull);
         if (page == AppRoutes.browseJobs) {
           await tester.enterText(
@@ -362,7 +384,7 @@ void main() {
           expect(find.text('No matching jobs'), findsOneWidget);
         }
         if (page == '${AppRoutes.browseJobs}/demo-job-2') {
-          expect(find.text('Salary not disclosed'), findsOneWidget);
+          expect(find.text('Not disclosed'), findsOneWidget);
           expect(
             find.byType(BackButton),
             kIsWeb ? findsNothing : findsOneWidget,
@@ -377,12 +399,26 @@ void main() {
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
-        final repo = Module2Repository();
+        final repo = fixtureModule2();
         addTearDown(repo.dispose);
-        final router = demoRouter(repo, '${AppRoutes.browseJobs}/demo-job-2');
-        addTearDown(router.dispose);
         await tester.pumpWidget(
-          MaterialApp.router(theme: JobMateTheme.light(), routerConfig: router),
+          MaterialApp(
+            theme: JobMateTheme.light(),
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: TextButton(
+                  onPressed: () => moduleModal<void>(
+                    context,
+                    ApplyDemoForm(
+                      job: repo.job('demo-job-2')!,
+                      repository: repo,
+                    ),
+                  ),
+                  child: const Text('Apply Now (demo)'),
+                ),
+              ),
+            ),
+          ),
         );
         await tester.pumpAndSettle();
         await tester.ensureVisible(find.text('Apply Now (demo)'));
@@ -407,7 +443,7 @@ void main() {
   testWidgets('Real posting entry does not manufacture applicants', (
     tester,
   ) async {
-    final repo = Module2Repository();
+    final repo = fixtureModule2();
     addTearDown(repo.dispose);
     final router = demoRouter(
       repo,
@@ -416,12 +452,12 @@ void main() {
     addTearDown(router.dispose);
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await tester.pumpAndSettle();
-    expect(find.text('Live applications are not connected'), findsOneWidget);
+    expect(find.text('No applicants yet'), findsOneWidget);
     expect(find.textContaining('Sample candidate'), findsNothing);
     expect(find.textContaining('demo applications'), findsNothing);
   });
   testWidgets('Direct job route has in-app return fallback', (tester) async {
-    final repo = Module2Repository();
+    final repo = fixtureModule2();
     addTearDown(repo.dispose);
     final router = demoRouter(repo, '${AppRoutes.browseJobs}/unknown');
     addTearDown(router.dispose);

@@ -455,7 +455,7 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                                       Icons.people_outline,
                                       size: 18,
                                     ),
-                                    label: const Text('Applications (preview)'),
+                                    label: const Text('View Applicants'),
                                   ),
                                 ],
                               ),
