@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'app_routes.dart';
 
@@ -29,7 +30,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
       ),
       (
         AppRoutes.employerPayments,
-        'Payments (demo)',
+        'Payments (sandbox)',
         Icons.receipt_long_outlined,
       ),
     ],
@@ -40,27 +41,29 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
         Icons.chat_bubble_outline,
       ),
     ],
-    'COMPANY & ACCOUNT': [
+    'COMPANY': [
       (AppRoutes.company, 'Company profile', Icons.business_outlined),
       (
         AppRoutes.employerEvaluations,
         'Evaluations (demo)',
         Icons.rate_review_outlined,
       ),
-      (AppRoutes.employerReputation, 'Reputation (demo)', Icons.stars_outlined),
-      (AppRoutes.profile, 'Personal profile', Icons.person_outline),
-      (AppRoutes.employerSettings, 'Account Settings', Icons.settings_outlined),
     ],
   },
-  'administrator' => {
+  'administrator' || 'admin' => {
     'ADMINISTRATION': [
       (AppRoutes.home, 'Dashboard', Icons.grid_view_rounded),
-      (AppRoutes.adminUsers, 'Real User Directory', Icons.people_outline),
+      (AppRoutes.adminUsers, 'Users', Icons.people_outline),
       (AppRoutes.adminDemoJobs, 'Job Moderation (demo)', Icons.work_outline),
       (AppRoutes.adminDemoDisputes, 'Disputes (demo)', Icons.gavel_outlined),
       (AppRoutes.adminDemoReports, 'Reports (demo)', Icons.analytics_outlined),
+      (
+        AppRoutes.adminPayments,
+        'Payments (sandbox)',
+        Icons.receipt_long_outlined,
+      ),
     ],
-    'PREVIEW & ACCOUNT': [
+    'PREVIEW': [
       (
         AppRoutes.adminPreview,
         'UI Sandbox (demo)',
@@ -71,8 +74,6 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
         'Account Actions (demo)',
         Icons.manage_accounts_outlined,
       ),
-      (AppRoutes.profile, 'Personal profile', Icons.person_outline),
-      (AppRoutes.adminSettings, 'Account Settings', Icons.settings_outlined),
     ],
   },
   _ => {
@@ -106,13 +107,63 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
         (AppRoutes.messages, 'Messages (demo)', Icons.chat_bubble_outline),
       ],
     },
-    'PROFILE': [
-      (AppRoutes.profile, 'Personal profile', Icons.person_outline),
-      if (role == 'job_seeker') ...[
-        (AppRoutes.reputation, 'Reputation (demo)', Icons.stars_outlined),
-        (AppRoutes.payments, 'Payments (demo)', Icons.receipt_long_outlined),
+    if (role == 'job_seeker')
+      'PAYMENTS': [
+        (AppRoutes.payments, 'Payments (sandbox)', Icons.receipt_long_outlined),
       ],
-      (AppRoutes.settings, 'Account Settings', Icons.settings_outlined),
-    ],
   },
 };
+
+/// Native primary tabs are drawn from the same role configuration as Web.
+/// Less frequent destinations remain available through the grouped More menu.
+List<WorkspaceDestination> workspacePrimaryDestinations(String role) {
+  final paths = switch (role) {
+    'employer' => [AppRoutes.home, AppRoutes.jobPostings, AppRoutes.applicants],
+    'administrator' ||
+    'admin' => [AppRoutes.home, AppRoutes.adminUsers, AppRoutes.adminPayments],
+    'job_seeker' => [
+      AppRoutes.home,
+      AppRoutes.browseJobs,
+      AppRoutes.applications,
+    ],
+    _ => [AppRoutes.home],
+  };
+  final all = workspaceDestinations(role).values.expand((items) => items);
+  return [for (final path in paths) all.firstWhere((item) => item.$1 == path)];
+}
+
+/// Exactly one destination matches, preferring the most specific nested path.
+String? selectedWorkspacePath(
+  String location,
+  Iterable<WorkspaceDestination> destinations,
+) {
+  final path = Uri.parse(location).path;
+  String? selected;
+  for (final item in destinations) {
+    final candidate = item.$1;
+    if ((path == candidate ||
+            (candidate != AppRoutes.home && path.startsWith('$candidate/'))) &&
+        (selected == null || candidate.length > selected.length)) {
+      selected = candidate;
+    }
+  }
+  return selected;
+}
+
+/// Replacing the matched root avoids accumulating duplicate native root pages.
+/// Web navigation remains URL/history based through GoRouter.
+void openWorkspaceDestination(BuildContext context, String destination) {
+  // Keep GoRouter's URL/history synchronization and route-exit guards.
+  GoRouter.of(context).go(destination);
+}
+
+bool isWorkspaceRootPath(String path) =>
+    path != AppRoutes.createJob &&
+    (path == AppRoutes.adminPermissions ||
+        path == AppRoutes.companyReviews ||
+        ['job_seeker', 'employer', 'administrator'].any(
+          (role) =>
+              workspaceDestinations(role).values
+                  .expand((items) => items)
+                  .any((item) => item.$1 == path),
+        ));

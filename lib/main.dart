@@ -29,7 +29,7 @@ import 'features/location/location_pages.dart';
 import 'features/phase4/phase4_store.dart';
 import 'features/phase4/evaluation_pages.dart';
 import 'features/phase4/reputation_page.dart';
-import 'features/phase4/payment_pages.dart';
+import 'features/payments/payment_routes.dart';
 import 'features/phase4/admin_preview_pages.dart';
 import 'features/phase4/account_settings_page.dart';
 import 'features/jobs/job_postings_page.dart';
@@ -81,6 +81,7 @@ Future<void> _initializeApp() async {
 }
 
 GoRouter _createRouter() {
+  configureAppNavigation();
   return GoRouter(
     initialLocation: AppRoutes.home,
     refreshListenable: _authRouterRefresh,
@@ -196,42 +197,24 @@ GoRouter _createRouter() {
           child: ReputationPage(employer: true),
         ),
       ),
-      _appRoute(
-        AppRoutes.recordPayment,
-        (_, _) =>
-            const Module2Gate(role: 'employer', child: PaymentRecordPage()),
+      // The legacy external-payment entry now opens the Sandbox workspace.
+      GoRoute(
+        path: AppRoutes.recordPayment,
+        redirect: (_, _) => AppRoutes.employerPayments,
       ),
-      _appRoute(
-        AppRoutes.payments,
-        (_, _) =>
-            const Module2Gate(role: 'job_seeker', child: PaymentHistoryPage()),
-      ),
-      _appRoute(
-        '${AppRoutes.payments}/:paymentId',
-        (_, state) => Module2Gate(
-          role: 'job_seeker',
-          child: PaymentDetailPage(
-            paymentId: state.pathParameters['paymentId']!,
-          ),
+      sandboxPaymentRoute(AppRoutes.paymentReturn, returnFromCheckout: true),
+      for (final entry in <(String, String)>[
+        (AppRoutes.payments, 'job_seeker'),
+        (AppRoutes.employerPayments, 'employer'),
+        (AppRoutes.adminPayments, 'administrator'),
+      ]) ...[
+        sandboxPaymentRoute(entry.$1, role: entry.$2),
+        sandboxPaymentRoute(
+          '${entry.$1}/assignments/:assignmentId',
+          role: entry.$2,
         ),
-      ),
-      _appRoute(
-        AppRoutes.employerPayments,
-        (_, _) => const Module2Gate(
-          role: 'employer',
-          child: PaymentHistoryPage(employer: true),
-        ),
-      ),
-      _appRoute(
-        '${AppRoutes.employerPayments}/:paymentId',
-        (_, state) => Module2Gate(
-          role: 'employer',
-          child: PaymentDetailPage(
-            employer: true,
-            paymentId: state.pathParameters['paymentId']!,
-          ),
-        ),
-      ),
+        sandboxPaymentRoute('${entry.$1}/:paymentId', role: entry.$2),
+      ],
       _appRoute(
         AppRoutes.adminPreview,
         (_, _) => const AdminPreviewGate(child: AdminPreviewPage()),

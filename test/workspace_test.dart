@@ -6,7 +6,110 @@ import 'package:jobmate/features/home/dashboard_content.dart';
 import 'package:jobmate/shared/navigation/app_routes.dart';
 import 'package:jobmate/shared/widgets/app_workspace.dart';
 
+import 'support/workspace_navigation_test_helper.dart';
+
 void main() {
+  for (final role in ['job_seeker', 'employer']) {
+    testWidgets('$role keeps Payments in navigation without section headings', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppWorkspace(
+            title: 'Dashboard',
+            path: AppRoutes.home,
+            role: role,
+            child: const SizedBox(),
+          ),
+        ),
+      );
+      await openWorkspaceMenu(tester);
+      await scrollWorkspaceMenuTo(tester, 'Payments (sandbox)');
+      expect(
+        find.widgetWithText(ListTile, 'Payments (sandbox)'),
+        findsOneWidget,
+      );
+      for (final heading in ['COMMUNICATION', 'PROFILE', 'WORKERS']) {
+        expect(find.text(heading), findsNothing);
+      }
+      expect(find.widgetWithText(ListTile, 'Personal profile'), findsNothing);
+      expect(find.widgetWithText(ListTile, 'Account Settings'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final role in ['job_seeker', 'employer']) {
+    for (final width in [320.0, 1440.0]) {
+      testWidgets('$role account menu routes correctly at $width', (
+        tester,
+      ) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        String? destination;
+        var signedOut = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: AppWorkspace(
+              title: 'My Applications',
+              path: AppRoutes.applications,
+              role: role,
+              accountName: 'Alex Tan',
+              onNavigate: (path) => destination = path,
+              onSignOut: () async => signedOut = true,
+              child: const SizedBox(),
+            ),
+          ),
+        );
+        expect(
+          find.byKey(const ValueKey('workspace-account-menu')),
+          findsOneWidget,
+        );
+        expect(
+          find.text('Alex Tan'),
+          width == 1440 ? findsOneWidget : findsNothing,
+        );
+
+        await tester.tap(find.byKey(const ValueKey('workspace-account-menu')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('My profile'));
+        await tester.pumpAndSettle();
+        expect(destination, AppRoutes.profile);
+
+        if (role == 'employer') {
+          await tester.tap(
+            find.byKey(const ValueKey('workspace-account-menu')),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Reputation (demo)'));
+          await tester.pumpAndSettle();
+          expect(destination, AppRoutes.employerReputation);
+        }
+
+        await tester.tap(find.byKey(const ValueKey('workspace-account-menu')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Account settings'));
+        await tester.pumpAndSettle();
+        expect(
+          destination,
+          role == 'employer' ? AppRoutes.employerSettings : AppRoutes.settings,
+        );
+
+        await tester.tap(find.byKey(const ValueKey('workspace-account-menu')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Sign out'));
+        await tester.pumpAndSettle();
+        expect(signedOut, isTrue);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
   for (final width in [320.0, 1440.0]) {
     for (final destination in [
       (AppRoutes.profile, 'Personal profile'),
@@ -46,23 +149,17 @@ void main() {
             tester
                 .widget<AppBar>(find.byType(AppBar))
                 .automaticallyImplyLeading,
-            !kIsWeb,
+            false,
           );
           expect(find.byType(BackButton), findsNothing);
-          if (width < 768) {
-            await tester.tap(find.byTooltip('Open navigation menu'));
-            await tester.pumpAndSettle();
-          }
+          await openWorkspaceMenu(tester);
           await tester.tap(find.widgetWithText(ListTile, 'Dashboard'));
           await tester.pumpAndSettle();
           expect(find.text('Dashboard root'), findsOneWidget);
           router.push(destination.$1);
           await tester.pumpAndSettle();
           expect(router.canPop(), true);
-          expect(
-            find.byType(BackButton),
-            !kIsWeb && width >= 768 ? findsOneWidget : findsNothing,
-          );
+          expect(find.byType(BackButton), findsNothing);
           expect(find.text('Page content'), findsOneWidget);
           // Back remains routed even when Web omits the visual arrow.
           await tester.binding.handlePopRoute();
@@ -89,6 +186,7 @@ void main() {
         ),
       ),
     );
+    await openWorkspaceMenu(tester);
     for (final module in upcomingModules) {
       final tile = tester.widget<ListTile>(
         find.widgetWithText(ListTile, module.$1),
@@ -96,19 +194,10 @@ void main() {
       expect(tile.enabled, isFalse);
       expect(tile.onTap, isNull);
     }
-    await tester.scrollUntilVisible(
-      find.widgetWithText(ListTile, 'Personal profile'),
-      160,
-      scrollable: find.descendant(
-        of: find.byKey(const ValueKey('workspace-navigation')),
-        matching: find.byType(Scrollable),
-      ),
-    );
+    expect(find.widgetWithText(ListTile, 'Personal profile'), findsNothing);
     expect(
-      tester
-          .widget<ListTile>(find.widgetWithText(ListTile, 'Personal profile'))
-          .selected,
-      isTrue,
+      find.byKey(const ValueKey('workspace-account-menu')),
+      findsOneWidget,
     );
     expect(tester.takeException(), isNull);
   });
@@ -132,16 +221,21 @@ void main() {
         ),
       ),
     );
-    await tester.scrollUntilVisible(
-      find.widgetWithText(ListTile, 'Company profile'),
-      180,
-      scrollable: find.descendant(
-        of: find.byKey(const ValueKey('workspace-navigation')),
-        matching: find.byType(Scrollable),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ListTile, 'Company profile'));
+    if (kIsWeb) {
+      expect(
+        tester
+            .widget<ListTile>(find.widgetWithText(ListTile, 'Company profile'))
+            .enabled,
+        isFalse,
+      );
+    } else {
+      expect(
+        tester
+            .widget<NavigationBar>(find.byType(NavigationBar))
+            .onDestinationSelected,
+        isNull,
+      );
+    }
     expect(navigated, isFalse);
   });
   for (final width in [320.0, 768.0, 1024.0, 1440.0]) {
@@ -181,10 +275,7 @@ void main() {
           find.text('Set up company'),
           role == 'employer' ? findsOneWidget : findsNothing,
         );
-        if (width < 768) {
-          await tester.tap(find.byTooltip('Open navigation menu'));
-          await tester.pumpAndSettle();
-        }
+        await openWorkspaceMenu(tester);
         if (role == 'employer') {
           await tester.scrollUntilVisible(
             find.widgetWithText(ListTile, 'Company profile'),
@@ -199,19 +290,17 @@ void main() {
           find.text('Company profile'),
           role == 'employer' ? findsOneWidget : findsNothing,
         );
-        await tester.scrollUntilVisible(
-          find.widgetWithText(ListTile, 'Personal profile'),
-          180,
-          scrollable: find.descendant(
-            of: find.byKey(const ValueKey('workspace-navigation')),
-            matching: find.byType(Scrollable),
-          ),
-        );
-        await tester.ensureVisible(
-          find.widgetWithText(ListTile, 'Personal profile'),
-        );
+        expect(find.widgetWithText(ListTile, 'Personal profile'), findsNothing);
+        if (find
+            .byKey(const ValueKey('workspace-sidebar'))
+            .evaluate()
+            .isEmpty) {
+          await tester.tapAt(Offset(width - 2, 100));
+          await tester.pumpAndSettle();
+        }
+        await tester.tap(find.byKey(const ValueKey('workspace-account-menu')));
         await tester.pumpAndSettle();
-        await tester.tap(find.widgetWithText(ListTile, 'Personal profile'));
+        await tester.tap(find.text('My profile'));
         await tester.pumpAndSettle();
         expect(destination, AppRoutes.profile);
         expect(tester.takeException(), isNull);

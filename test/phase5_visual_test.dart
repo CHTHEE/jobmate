@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -145,7 +146,7 @@ void main() {
           content.maxWidth,
           screen == 'jobs' || screen == 'employer-home' ? 768 : 672,
         );
-        if (width >= 768) {
+        if (!kIsWeb || width >= 840) {
           expect(find.byType(Drawer), findsNothing);
         } else {
           expect(

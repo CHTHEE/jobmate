@@ -9,23 +9,44 @@ import '../demo_work/demo_widgets.dart';
 import 'phase4_store.dart';
 import 'evaluation_pages.dart';
 
-class ReputationPage extends StatefulWidget {
+class ReputationPage extends StatelessWidget {
   const ReputationPage({super.key, this.employer = false, this.store});
   final bool employer;
   final Phase4Store? store;
+
   @override
-  State<ReputationPage> createState() => _ReputationPageState();
+  Widget build(BuildContext context) => DemoPage(
+    title: employer ? 'Company Reputation' : 'My Reputation',
+    path: employer ? AppRoutes.employerReputation : AppRoutes.reputation,
+    role: employer ? 'employer' : 'job_seeker',
+    children: [ReputationContent(employer: employer, store: store)],
+  );
 }
 
-class _ReputationPageState extends State<ReputationPage> {
+/// Reused inside Personal profile without nesting another workspace scaffold.
+class ReputationContent extends StatefulWidget {
+  const ReputationContent({
+    super.key,
+    this.employer = false,
+    this.store,
+    this.interactive = true,
+  });
+  final bool employer;
+  final Phase4Store? store;
+  final bool interactive;
+
+  @override
+  State<ReputationContent> createState() => _ReputationContentState();
+}
+
+class _ReputationContentState extends State<ReputationContent> {
   late final store = widget.store ?? Phase4Store.session;
   bool enough = true;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: store,
     builder: (context, _) {
-      final role = widget.employer ? 'employer' : 'job_seeker',
-          other = widget.employer ? 'job_seeker' : 'employer',
+      final other = widget.employer ? 'job_seeker' : 'employer',
           score = widget.employer ? 90 : 84;
       final received = store.evaluations
           .where(
@@ -42,12 +63,8 @@ class _ReputationPageState extends State<ReputationPage> {
           ? null
           : received.map((e) => e.average).reduce((a, b) => a + b) /
                 received.length;
-      return DemoPage(
-        title: widget.employer ? 'Company Reputation' : 'My Reputation',
-        path: widget.employer
-            ? AppRoutes.employerReputation
-            : AppRoutes.reputation,
-        role: role,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Phase3Notice(
             'Every trust score, factor and trend below is an illustrative fixture, not a score for your real account/company. No production scoring algorithm is implemented. Past performance does not guarantee future outcomes.',
@@ -59,7 +76,9 @@ class _ReputationPageState extends State<ReputationPage> {
               'Turn off to preview the not-enough-data state.',
             ),
             value: enough,
-            onChanged: (v) => setState(() => enough = v),
+            onChanged: widget.interactive
+                ? (v) => setState(() => enough = v)
+                : null,
           ),
           if (!enough)
             const ModuleState(
@@ -149,8 +168,9 @@ class _ReputationPageState extends State<ReputationPage> {
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton(
-                    onPressed: () =>
-                        context.push(evaluationRoot(widget.employer)),
+                    onPressed: widget.interactive
+                        ? () => context.push(evaluationRoot(widget.employer))
+                        : null,
                     child: const Text('View Evaluations'),
                   ),
                 ],

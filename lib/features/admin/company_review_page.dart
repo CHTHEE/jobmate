@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../shared/widgets/mobile_back_action.dart';
+import '../../shared/widgets/app_workspace.dart';
+import '../../shared/navigation/app_routes.dart';
+import '../../shared/navigation/workspace_destinations.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import 'company_rejection_dialog.dart';
 import 'company_review_details.dart';
@@ -235,19 +237,29 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: !_working,
-    child: Scaffold(
-      appBar: ResponsivePageAppBar(
-        enabled: !_busy,
-        title: const Text('Company Verification'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _busy ? null : _loadRequests,
-            icon: const Icon(Icons.refresh),
+    child: AppWorkspace(
+      title: 'Company Verification',
+      path: AppRoutes.companyReviews,
+      role: 'administrator',
+      navigationLocked: _busy,
+      navigationGroups: {
+        ...workspaceDestinations('administrator'),
+        'ADMIN TOOLS': [
+          (
+            AppRoutes.companyReviews,
+            'Company Verification',
+            Icons.business_outlined,
           ),
         ],
-      ),
-      body: SafeArea(
+      },
+      actions: [
+        IconButton(
+          tooltip: 'Refresh',
+          onPressed: _busy ? null : _loadRequests,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+      child: SafeArea(
         child: Stack(
           children: [
             ResponsiveContent(

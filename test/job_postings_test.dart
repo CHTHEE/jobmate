@@ -184,20 +184,11 @@ void main() {
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await tester.pumpAndSettle();
       field(tester, 'Job title').text = 'First form draft';
-      final sidebar = find.byKey(const ValueKey('workspace-navigation'));
-      await tester.scrollUntilVisible(
-        find.widgetWithText(ListTile, 'Location Picker (demo)'),
-        160,
-        scrollable: find.descendant(
-          of: sidebar,
-          matching: find.byType(Scrollable),
-        ),
-      );
-      await tester.tap(find.widgetWithText(ListTile, 'Location Picker (demo)'));
+      // Deliberately stack distinct routes to exercise form-key ownership.
+      // Primary native tabs now replace roots instead of stacking duplicates.
+      router.push(AppRoutes.jobLocationDemo);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Discard changes'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(ListTile, 'Create Job'));
+      router.push(AppRoutes.createJob);
       await tester.pumpAndSettle();
       final forms = tester
           .widgetList<JobFormPage>(

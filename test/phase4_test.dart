@@ -352,6 +352,32 @@ void main() {
     }
   }
   testWidgets(
+    'Embedded Job Seeker reputation stays a demo and locks during profile edits',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final store = Phase4Store();
+      addTearDown(store.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ReputationContent(store: store, interactive: false),
+            ),
+          ),
+        ),
+      );
+      expect(find.textContaining('illustrative fixture'), findsOneWidget);
+      expect(
+        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).onChanged,
+        isNull,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
     'Rating confirmation produces a demo success and visibility state',
     (tester) async {
       final store = Phase4Store();

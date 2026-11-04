@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show listEquals;
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,6 +13,7 @@ import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/loading_overlay.dart';
+import '../../shared/widgets/mobile_back_action.dart';
 import 'company_logo.dart';
 import 'company_logo_editor.dart';
 
@@ -66,6 +69,48 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
 
   // Frozen parameters for one submission attempt.
   Map<String, dynamic>? _attempt;
+  List<String>? _savedInput;
+  bool _leaving = false;
+  bool _confirmingExit = false;
+
+  List<String> get _input => [
+    _nameController.text,
+    _descriptionController.text,
+    _industryController.text,
+    _locationController.text,
+    _registrationController.text,
+    _yearController.text,
+    _websiteController.text,
+    _contactEmailController.text,
+    _contactPhoneController.text,
+  ];
+
+  bool get _hasUnsavedInput =>
+      _fileBytes != null ||
+      _selectedLogoBytes != null ||
+      _attempt != null ||
+      (_savedInput != null && !listEquals(_input, _savedInput));
+
+  Future<bool> _confirmLeave() async {
+    if (_isBusy || _confirmingExit) return false;
+    if (_leaving) return true;
+    _confirmingExit = true;
+    final leave = await confirmDiscardChanges(context, _hasUnsavedInput);
+    _confirmingExit = false;
+    if (mounted && leave) setState(() => _leaving = true);
+    return leave;
+  }
+
+  Future<void> _navigate(String destination) async {
+    if (await _confirmLeave() && mounted) context.go(destination);
+  }
+
+  Future<void> _back() async {
+    if (!await _confirmLeave() || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) returnToPage(context, AppRoutes.home);
+    });
+  }
 
   bool get _isBusy => _isLoading || _isWorking;
 
@@ -228,6 +273,9 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
 
           _contactPhoneController.text =
               (company['contact_phone'] as String?) ?? '';
+        }
+        if (_savedInput == null || (company != null && _attempt == null)) {
+          _savedInput = _input;
         }
       });
     } catch (error) {
@@ -603,6 +651,7 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
         controller: controller,
+        onChanged: (_) => setState(() {}),
         enabled: _canEdit,
         maxLength: limit,
         minLines: multiline ? 3 : 1,
@@ -910,154 +959,162 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
 
   @override
   Widget build(BuildContext context) {
-    return LoadingOverlay(
-      isLoading: _isBusy,
-      message: _isWorking ? _message : 'Loading company details...',
-      child: AppWorkspace(
-        title: 'Company profile',
-        path: AppRoutes.company,
-        role: _loadError == null && !_isLoading ? 'employer' : '',
-        navigationLocked: _isBusy,
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _isBusy ? null : _loadCompany,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-        child: WorkspaceContent(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ProfileHeading(
-                title:
-                    _company?['company_name'] as String? ??
-                    'Company profile & verification',
-                description: 'Your company identity, membership and supporting documents.',
-                icon: Icons.business_outlined,
-                avatar: _savedLogoBytes == null
-                    ? null
-                    : Image.memory(
-                        _savedLogoBytes!,
-                        width: 56,
-                        height: 56,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) =>
-                            const Icon(Icons.business_outlined, size: 28),
-                      ),
-                trailing: _company == null
-                    ? null
-                    : Align(
-                        alignment: Alignment.centerLeft,
-                        child: WorkspaceStatus(_status),
-                      ),
-              ),
-              if (_loadError != null)
-                WorkspaceCard(
-                  title: 'Company unavailable',
-                  child: Column(
-                    children: [
-                      Text(_loadError!),
-                      const SizedBox(height: 16),
-                      OutlinedButton(
-                        onPressed: _isBusy ? null : _loadCompany,
-                        child: const Text('Try again'),
-                      ),
-                    ],
-                  ),
-                )
-              else if (!_isLoading) ...[
-                if (_company == null) ...[
-                  const WorkspaceCard(
-                    title: 'Set up your company',
-                    subtitle: 'Your personal account and company profile are separate.',
-                    child: Text(
-                      'Submit your company details and a supporting PDF for review. Your employer account becomes the permanent company owner.',
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ] else ...[
-                  _companyDetails(),
-                  const SizedBox(height: 20),
-                  WorkspaceCard(
-                    title: 'Company verification',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text('Status: ${_statusLabel(_status)}'),
-                        const SizedBox(height: 12),
-                        Text(
-                          _status == 'pending'
-                              ? 'Your company is awaiting review. Changes are locked during review.'
-                              : _status == 'verified'
-                              ? 'Your company is verified. Verification does not change your membership permissions.'
-                              : _memberRole == 'owner' && _status == 'rejected'
-                              ? 'Review the feedback and resubmit your supporting document below.'
-                              : 'Available actions depend on your company membership and review status.',
+    return PopScope(
+      canPop: _leaving || (!_isBusy && !_hasUnsavedInput),
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back();
+      },
+      child: LoadingOverlay(
+        isLoading: _isBusy,
+        message: _isWorking ? _message : 'Loading company details...',
+        child: AppWorkspace(
+          title: 'Company profile',
+          path: AppRoutes.company,
+          role: _loadError == null && !_isLoading ? 'employer' : '',
+          navigationLocked: _isBusy,
+          onNavigate: _navigate,
+          actions: [
+            IconButton(
+              tooltip: 'Refresh',
+              onPressed: _isBusy ? null : _loadCompany,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+          child: WorkspaceContent(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ProfileHeading(
+                  title:
+                      _company?['company_name'] as String? ??
+                      'Company profile & verification',
+                  description: 'Your company identity, membership and supporting documents.',
+                  icon: Icons.business_outlined,
+                  avatar: _savedLogoBytes == null
+                      ? null
+                      : Image.memory(
+                          _savedLogoBytes!,
+                          width: 56,
+                          height: 56,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) =>
+                              const Icon(Icons.business_outlined, size: 28),
                         ),
-                        if ((_reviewComment ?? '').trim().isNotEmpty) ...[
-                          const Divider(height: 32),
-                          WorkspaceInfo(
-                            'Latest review comment',
-                            _reviewComment!,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-                WorkspaceCard(title: 'Company logo', child: _buildLogo()),
-                const SizedBox(height: 20),
-                if (_eligible || _attempt != null)
+                  trailing: _company == null
+                      ? null
+                      : Align(
+                          alignment: Alignment.centerLeft,
+                          child: WorkspaceStatus(_status),
+                        ),
+                ),
+                if (_loadError != null)
                   WorkspaceCard(
-                    title: _company == null
-                        ? 'Company registration'
-                        : 'Resubmit for review',
-                    child: _buildForm(),
-                  )
-                else
-                  WorkspaceCard(
-                    title: 'Supporting documents',
-                    child: Text(
-                      _status == 'pending'
-                          ? 'Submitted for review. Changes are locked while review is pending.'
-                          : _memberRole != 'owner'
-                          ? 'Company submission and resubmission actions belong to the owner.'
-                          : 'This workflow supports registration and resubmission after rejection.',
-                    ),
-                  ),
-                if (_company != null && _memberRole == 'owner') ...[
-                  const SizedBox(height: 20),
-                  WorkspaceCard(
-                    title: 'Your submission history',
-                    subtitle: 'Your latest 10 company submissions. Review information is shown only when available.',
+                    title: 'Company unavailable',
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (_historyError != null)
-                          Text(_historyError!)
-                        else if (_history.isEmpty)
-                          const Text('No submissions available.')
-                        else
-                          for (final entry in _history) ...[
-                            WorkspaceInfo(
-                              'Submitted',
-                              _submissionDate(entry['submitted_at']),
-                            ),
-                            WorkspaceInfo(
-                              'Review comment',
-                              entry['review_comment'] as String? ??
-                                  'No review comment available',
-                            ),
-                            const Divider(),
-                          ],
+                        Text(_loadError!),
+                        const SizedBox(height: 16),
+                        OutlinedButton(
+                          onPressed: _isBusy ? null : _loadCompany,
+                          child: const Text('Try again'),
+                        ),
                       ],
                     ),
-                  ),
+                  )
+                else if (!_isLoading) ...[
+                  if (_company == null) ...[
+                    const WorkspaceCard(
+                      title: 'Set up your company',
+                      subtitle: 'Your personal account and company profile are separate.',
+                      child: Text(
+                        'Submit your company details and a supporting PDF for review. Your employer account becomes the permanent company owner.',
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ] else ...[
+                    _companyDetails(),
+                    const SizedBox(height: 20),
+                    WorkspaceCard(
+                      title: 'Company verification',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text('Status: ${_statusLabel(_status)}'),
+                          const SizedBox(height: 12),
+                          Text(
+                            _status == 'pending'
+                                ? 'Your company is awaiting review. Changes are locked during review.'
+                                : _status == 'verified'
+                                ? 'Your company is verified. Verification does not change your membership permissions.'
+                                : _memberRole == 'owner' &&
+                                      _status == 'rejected'
+                                ? 'Review the feedback and resubmit your supporting document below.'
+                                : 'Available actions depend on your company membership and review status.',
+                          ),
+                          if ((_reviewComment ?? '').trim().isNotEmpty) ...[
+                            const Divider(height: 32),
+                            WorkspaceInfo(
+                              'Latest review comment',
+                              _reviewComment!,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                  WorkspaceCard(title: 'Company logo', child: _buildLogo()),
+                  const SizedBox(height: 20),
+                  if (_eligible || _attempt != null)
+                    WorkspaceCard(
+                      title: _company == null
+                          ? 'Company registration'
+                          : 'Resubmit for review',
+                      child: _buildForm(),
+                    )
+                  else
+                    WorkspaceCard(
+                      title: 'Supporting documents',
+                      child: Text(
+                        _status == 'pending'
+                            ? 'Submitted for review. Changes are locked while review is pending.'
+                            : _memberRole != 'owner'
+                            ? 'Company submission and resubmission actions belong to the owner.'
+                            : 'This workflow supports registration and resubmission after rejection.',
+                      ),
+                    ),
+                  if (_company != null && _memberRole == 'owner') ...[
+                    const SizedBox(height: 20),
+                    WorkspaceCard(
+                      title: 'Your submission history',
+                      subtitle: 'Your latest 10 company submissions. Review information is shown only when available.',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_historyError != null)
+                            Text(_historyError!)
+                          else if (_history.isEmpty)
+                            const Text('No submissions available.')
+                          else
+                            for (final entry in _history) ...[
+                              WorkspaceInfo(
+                                'Submitted',
+                                _submissionDate(entry['submitted_at']),
+                              ),
+                              WorkspaceInfo(
+                                'Review comment',
+                                entry['review_comment'] as String? ??
+                                    'No review comment available',
+                              ),
+                              const Divider(),
+                            ],
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ],
-            ],
+            ),
           ),
         ),
       ),

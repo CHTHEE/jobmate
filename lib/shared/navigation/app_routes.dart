@@ -35,6 +35,8 @@ abstract final class AppRoutes {
   static const employerReputation = '/employer-reputation';
   static const payments = '/payments';
   static const employerPayments = '/employer-payments';
+  static const adminPayments = '/admin-payments';
+  static const paymentReturn = '/payments/return';
   static const recordPayment = '/employer-payments/record';
   static const adminPreview = '/admin-preview';
   static const adminDemoAccounts = '/admin-preview/accounts';

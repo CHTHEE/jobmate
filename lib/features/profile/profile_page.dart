@@ -7,6 +7,7 @@ import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/responsive_layout.dart';
+import '../phase4/reputation_page.dart';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
@@ -631,6 +632,91 @@ class _ProfilePageState extends State<ProfilePage> {
         child: _buildPersonalDetails(),
       ),
     );
+    final profileSections = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) => constraints.maxWidth >= 800
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(width: 300, child: identity),
+                    const SizedBox(width: 20),
+                    Expanded(child: details),
+                  ],
+                )
+              : Column(
+                  children: [identity, const SizedBox(height: 20), details],
+                ),
+        ),
+        const SizedBox(height: 20),
+        WorkspaceCard(
+          title: 'Account security',
+          subtitle: 'Verify your email before setting a new password.',
+          child: OutlinedButton.icon(
+            onPressed: _canEdit ? _openPasswordVerification : null,
+            icon: const Icon(Icons.lock_outline),
+            label: const Text('Change password'),
+          ),
+        ),
+        if (_role == 'job_seeker' || _role == 'employer') ...[
+          const SizedBox(height: 20),
+          WorkspaceCard(
+            title: _role == 'job_seeker'
+                ? 'My Resume'
+                : 'Personal verification',
+            subtitle: _role == 'job_seeker'
+                ? 'Upload or replace your resume anytime. No administrator approval is required.'
+                : 'Personal documents and history are separate from company verification.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_role != 'job_seeker')
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: WorkspaceStatus(_verificationStatus),
+                  ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: _canEdit ? _openDocumentSubmission : null,
+                  icon: const Icon(Icons.folder_outlined),
+                  label: Text(
+                    _role == 'job_seeker'
+                        ? 'Manage resume'
+                        : 'Documents & submission history',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (_role == 'employer') ...[
+          const SizedBox(height: 20),
+          WorkspaceCard(
+            title: 'Company profile',
+            subtitle: 'View your company details, membership and company verification on the Company page.',
+            child: OutlinedButton.icon(
+              onPressed: _canEdit && !_isEditing
+                  ? () => context.push<void>(AppRoutes.company)
+                  : null,
+              icon: const Icon(Icons.business_outlined),
+              label: const Text('Open company profile'),
+            ),
+          ),
+        ],
+        const SizedBox(height: 20),
+        WorkspaceCard(
+          title: 'Account details',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _infoRow('Created', _formatDate(_createdAt)),
+              _infoRow('Last updated', _formatDate(_updatedAt)),
+            ],
+          ),
+        ),
+      ],
+    );
     return LoadingOverlay(
       isLoading: _isBusy,
       message: _isUploading
@@ -642,8 +728,11 @@ class _ProfilePageState extends State<ProfilePage> {
         title: 'Personal profile',
         path: AppRoutes.profile,
         role: _role,
+        accountName: _savedName,
+        accountAvatarUrl: _avatarUrl,
         navigationLocked: _isBusy || _isEditing,
         child: WorkspaceContent(
+          maxWidth: 1120,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -666,92 +755,35 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
                   ),
                 )
-              else ...[
+              else if (_role == 'job_seeker')
                 LayoutBuilder(
-                  builder: (context, constraints) => constraints.maxWidth >= 800
+                  builder: (context, constraints) => constraints.maxWidth >= 900
                       ? Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(width: 300, child: identity),
+                            Expanded(flex: 3, child: profileSections),
                             const SizedBox(width: 20),
-                            Expanded(child: details),
+                            Expanded(
+                              flex: 2,
+                              child: ReputationContent(
+                                interactive: !_isEditing && !_isBusy,
+                              ),
+                            ),
                           ],
                         )
                       : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            identity,
+                            profileSections,
                             const SizedBox(height: 20),
-                            details,
+                            ReputationContent(
+                              interactive: !_isEditing && !_isBusy,
+                            ),
                           ],
                         ),
-                ),
-                const SizedBox(height: 20),
-                WorkspaceCard(
-                  title: 'Account security',
-                  subtitle: 'Verify your email before setting a new password.',
-                  child: OutlinedButton.icon(
-                    onPressed: _canEdit ? _openPasswordVerification : null,
-                    icon: const Icon(Icons.lock_outline),
-                    label: const Text('Change password'),
-                  ),
-                ),
-                if (_role == 'job_seeker' || _role == 'employer') ...[
-                  const SizedBox(height: 20),
-                  WorkspaceCard(
-                    title: _role == 'job_seeker'
-                        ? 'My Resume'
-                        : 'Personal verification',
-                    subtitle: _role == 'job_seeker'
-                        ? 'Upload or replace your resume anytime. No administrator approval is required.'
-                        : 'Personal documents and history are separate from company verification.',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (_role != 'job_seeker')
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: WorkspaceStatus(_verificationStatus),
-                          ),
-                        const SizedBox(height: 16),
-                        OutlinedButton.icon(
-                          onPressed: _canEdit ? _openDocumentSubmission : null,
-                          icon: const Icon(Icons.folder_outlined),
-                          label: Text(
-                            _role == 'job_seeker'
-                                ? 'Manage resume'
-                                : 'Documents & submission history',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                if (_role == 'employer') ...[
-                  const SizedBox(height: 20),
-                  WorkspaceCard(
-                    title: 'Company profile',
-                    subtitle: 'View your company details, membership and company verification on the Company page.',
-                    child: OutlinedButton.icon(
-                      onPressed: _canEdit && !_isEditing
-                          ? () => context.push<void>(AppRoutes.company)
-                          : null,
-                      icon: const Icon(Icons.business_outlined),
-                      label: const Text('Open company profile'),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                WorkspaceCard(
-                  title: 'Account details',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _infoRow('Created', _formatDate(_createdAt)),
-                      _infoRow('Last updated', _formatDate(_updatedAt)),
-                    ],
-                  ),
-                ),
-              ],
+                )
+              else
+                profileSections,
             ],
           ),
         ),

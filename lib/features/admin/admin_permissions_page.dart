@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/loading_overlay.dart';
-import '../../shared/widgets/mobile_back_action.dart';
+import '../../shared/widgets/app_workspace.dart';
+import '../../shared/navigation/app_routes.dart';
+import '../../shared/navigation/workspace_destinations.dart';
 import '../../shared/widgets/responsive_layout.dart';
 
 class AdminPermissionsPage extends StatefulWidget {
@@ -340,19 +342,29 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
     return LoadingOverlay(
       isLoading: _isUpdating,
       message: 'Updating invitation permission...',
-      child: Scaffold(
-        appBar: ResponsivePageAppBar(
-          enabled: !_isBusy,
-          title: const Text('Admin permissions'),
-          actions: [
-            IconButton(
-              tooltip: 'Refresh',
-              onPressed: _isBusy ? null : _loadAdmins,
-              icon: const Icon(Icons.refresh),
+      child: AppWorkspace(
+        title: 'Admin permissions',
+        path: AppRoutes.adminPermissions,
+        role: 'administrator',
+        navigationLocked: _isBusy,
+        navigationGroups: {
+          ...workspaceDestinations('administrator'),
+          'ADMIN TOOLS': [
+            (
+              AppRoutes.adminPermissions,
+              'Admin permissions',
+              Icons.admin_panel_settings_outlined,
             ),
           ],
-        ),
-        body: SafeArea(child: _buildBody(context)),
+        },
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _isBusy ? null : _loadAdmins,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+        child: _buildBody(context),
       ),
     );
   }

@@ -137,7 +137,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           tester.widget<Scaffold>(find.byType(Scaffold).first).drawer,
-          size.width < 768 ? isNotNull : isNull,
+          kIsWeb && size.width < 840 ? isNotNull : isNull,
         );
         await tester.drag(
           find.byType(SingleChildScrollView).last,
