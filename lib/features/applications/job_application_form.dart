@@ -200,8 +200,9 @@ class _JobApplicationFormState extends State<JobApplicationForm> {
         if (!invalidSession) Text(widget.job.company),
         const SizedBox(height: 16),
         if (applicationId != null) ...[
-          const Text('Your application has been saved.'),
-          SelectableText('Application ID: $applicationId'),
+          const Text(
+            'Your application has been submitted successfully. You can follow its progress in My Applications.',
+          ),
         ] else if (!invalidSession) ...[
           if (loading)
             const LinearProgressIndicator()

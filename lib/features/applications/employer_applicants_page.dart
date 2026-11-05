@@ -67,8 +67,7 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
     if (mounted) await repo.load();
   }
 
-  String statusLabel(MyApplicationStatus s) =>
-      s == MyApplicationStatus.submitted ? 'Applied / Submitted' : s.label;
+  String statusLabel(MyApplicationStatus s) => s.label;
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: repo,

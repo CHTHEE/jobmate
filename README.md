@@ -51,6 +51,63 @@ manual walkthrough. The normal lib/main.dart does not import preview fixtures.
 
 ### Planned features
 
+Module 4 production worker attendance at `/work-attendance` now supports
+confirmed check-in/check-out through the deployed attendance RPCs. Device location
+is not collected: both requests send `unavailable` with null coordinates.
+The server controls timestamps and eligibility, including the check-in window
+from 60 minutes before scheduled start through scheduled end. Actions lock
+duplicate submissions and reload authoritative assignments without optimistic
+timestamps. Failed responses also refresh before retry; a lost response may have
+committed. Existing attendance demos remain separate. This describes the client
+implementation; live attendance actions and device acceptance require explicit
+testing approval.
+
+Production assignment cards now open read-only evidence metadata at
+`/work-attendance/:assignmentId/evidence` for active Job Seekers and
+`/work-verification/:assignmentId/evidence` for active Employers. Direct entries
+resolve fresh authorized assignment lists; employer company selection comes
+from existing company-access checks, never URL parameters. Submitted images can
+be previewed and PDFs opened in the browser/PDF app using private, 90-second
+signed links after fresh assignment and per-file authorization. No public links
+are created. The separate `/attendance/evidence` demo remains unchanged.
+
+Employers can create assignments from Work Verification after selecting an
+eligible hired application and explicitly confirming worker, job, company,
+MYT schedule and workplace. Fresh complete reads exclude already assigned
+applications. Creation uses the existing RPC with transport retries disabled;
+uncertain outcomes require fresh assignment reads and remain blocked when
+inconclusive. Attempt protection survives dialog/route reopening within the app,
+but is not durable across browser refresh/app restart; never restart to retry a
+lost response. Concurrent clients still depend on the deployed server constraints.
+No migration or live assignment creation was performed during implementation.
+
+Workers can prepare a local evidence draft in a responsive dialog/sheet from
+their authorized production evidence viewer. Description and selected files use
+the shared draft controller's validation. Submit Evidence remains disabled;
+nothing is uploaded or submitted. Closing the form discards its local contents
+after confirmation when needed. Account/assignment changes clear the draft.
+Employer evidence viewing remains read-only; no new route is introduced.
+
+The approved QA assignment `49f417e6-9645-4433-a1fd-76a99d6c0815` additionally
+offers an explicitly armed, supervised real evidence flow from its worker
+evidence viewer. Upload and submission require separate confirmations and fresh
+eligibility checks. A failed or uncertain action blocks further writes for that
+worker's running QA session; read-only reconciliation may establish commitment.
+Use only one browser tab/device. Browser refresh or app restart loses this local
+gate: stop and investigate manually after any uncertain outcome, never reopen to
+retry. Normal production submission stays disabled; no idempotency migration is
+required or deployed by this integration.
+
+Authorized employers can open a separate supervised real QA review dialog from
+that assignment's evidence viewer while it is pending review. Verify and Request
+More Evidence require confirmation and fresh company/evidence checks. One review
+dispatch closes further actions for that employer/company's running QA session;
+uncertain results require manual investigation, with no automatic retry. Status
+and evidence refresh through existing RPCs. Verification history is unavailable
+through the deployed API. Ordinary review and demo workflows remain unchanged.
+See [pre-commit UI cleanup and release blockers](docs/module4_precommit_ui_review.md)
+for completed polish, private-preview behavior and the safety plan for general use.
+
 Modules 2–10 now have explicitly labeled demo UI environments for the screens
 described below; these are not completed backend integrations. Phase 4 adds
 evaluations, reputation fixtures, external-payment records and an admin UI
@@ -149,7 +206,7 @@ return actions; they do not get a second workspace shell.
 ### Web requirements
 
 - Use the shared left sidebar on Web: persistent from 840 logical pixels, an off-canvas left drawer below that. Never render Android bottom navigation on Web. General content can grow to 1280 logical pixels; forms retain their narrower feature-specific limits.
-- Job Seeker and Employer workspace pages place the account avatar/menu at the top right of the AppBar, matching the Admin dashboard. Wide layouts show the person's name and role; compact layouts show the avatar and chevron. The menu opens Personal profile, Account settings and Sign out. The Job Seeker's clearly labeled reputation demo is embedded alongside the real personal profile on wide layouts and below it on compact layouts; the existing reputation URL remains available. Employer company reputation remains a separate demo reachable from the account menu. Payments (sandbox) stays in the sidebar/More menu for both roles. Sidebar section labels are hidden while its navigation links remain. Admin also reaches Personal profile and Account settings from its top-right menu.
+- Job Seeker and Employer workspace pages place the account avatar/menu at the top right of the AppBar, matching the Admin dashboard. Wide layouts show the person's name and role; compact layouts show the avatar and chevron. The menu opens Personal profile, Account settings and Sign out. The Job Seeker's clearly labeled reputation demo is embedded alongside the real personal profile on wide layouts and below it on compact layouts; the existing reputation URL remains available. Employer company reputation remains a separate demo reachable from the account menu. Payments (sandbox) stays in the sidebar/More menu for both roles. Sidebar destinations use expandable categories; the active category opens automatically and Dashboard remains directly available. Admin also reaches Personal profile and Account settings from its top-right menu.
 - Do not stretch mobile-style full-width forms across large desktop screens. Size forms and dialogs appropriately for desktop.
 - Avoid redundant top-left AppBar back arrows when clear in-app navigation exists. Provide Cancel, Back to Job Postings, breadcrumbs or sidebar navigation as appropriate. Never rely exclusively on browser Back.
 - Preserve browser Back, Forward, refresh and direct URL navigation through the existing router. Verify authentication and route-state behavior rather than assuming every flow survives refresh.

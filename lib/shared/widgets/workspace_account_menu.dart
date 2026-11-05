@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:go_router/go_router.dart';
 
 import '../navigation/app_routes.dart';
 import '../theme/jobmate_theme.dart';
@@ -65,12 +66,17 @@ class _WorkspaceAccountMenuState extends State<WorkspaceAccountMenu> {
   }
 
   Future<void> _signOut() async {
+    // Capture the root router before auth listeners dispose this nested page.
+    // Do not call its page-specific navigation callback, which may push Home
+    // onto the still-protected detail stack instead of replacing that stack.
+    final router = GoRouter.maybeOf(context);
     try {
       if (widget.onSignOut != null) {
         await widget.onSignOut!();
       } else {
         await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
       }
+      router?.go(AppRoutes.home);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

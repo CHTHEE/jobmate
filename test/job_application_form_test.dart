@@ -101,7 +101,7 @@ void main() {
       expect(find.text('Application submitted'), findsOneWidget);
       expect(
         find.text('Application ID: returned-application-id'),
-        findsOneWidget,
+        findsNothing,
       );
       expect(find.text('My Applications'), findsOneWidget);
       expect(repository.applied('real-job'), isFalse);

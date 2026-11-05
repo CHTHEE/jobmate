@@ -24,6 +24,8 @@ import 'features/demo_work/phase3_store.dart';
 import 'features/recommendations/recommendations_page.dart';
 import 'features/attendance/attendance_pages.dart';
 import 'features/attendance/workers_page.dart';
+import 'features/work_attendance/work_attendance_routes.dart';
+import 'features/work_attendance/work_verification_routes.dart';
 import 'features/chat/chat_page.dart';
 import 'features/location/location_pages.dart';
 import 'features/phase4/phase4_store.dart';
@@ -259,6 +261,10 @@ GoRouter _createRouter() {
         (_, _) =>
             const Module2Gate(role: 'job_seeker', child: AttendanceListPage()),
       ),
+      workAttendanceRoute(),
+      workVerificationRoute(),
+      workAttendanceRoute(evidence: true),
+      workVerificationRoute(evidence: true),
       _appRoute(
         AppRoutes.workEvidence,
         (_, _) => const Module2Gate(role: 'job_seeker', child: EvidencePage()),

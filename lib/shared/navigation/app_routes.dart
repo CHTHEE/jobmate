@@ -16,6 +16,12 @@ abstract final class AppRoutes {
   static const applicants = '/applicants';
   static const recommendations = '/recommendations';
   static const attendance = '/attendance';
+  static const workAttendance = '/work-attendance';
+  static const workVerification = '/work-verification';
+  static const workAttendanceEvidence =
+      '$workAttendance/:assignmentId/evidence';
+  static const workVerificationEvidence =
+      '$workVerification/:assignmentId/evidence';
   static const attendanceHistory = '/attendance/history';
   static const workEvidence = '/attendance/evidence';
   static const attendanceReview = '/attendance-review';

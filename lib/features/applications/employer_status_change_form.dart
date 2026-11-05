@@ -144,7 +144,13 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
       title: invalid
           ? 'Session changed'
           : success
-          ? 'Application status updated'
+          ? switch (widget.next) {
+              MyApplicationStatus.shortlisted => 'Application shortlisted',
+              MyApplicationStatus.interview => 'Interview stage updated',
+              MyApplicationStatus.offered => 'Offer sent',
+              MyApplicationStatus.rejected => 'Application rejected',
+              _ => 'Application status updated',
+            }
           : '${employerTransitionLabel(widget.next)} applicant?',
       actions: [
         TextButton(
@@ -167,9 +173,13 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
           const SizedBox(height: 12),
           if (success)
             Text(
-              widget.repository.error == null
-                  ? 'The server confirmed the change. The applicant list has been refreshed.'
-                  : 'The server confirmed the change, but the list could not refresh. Close this form and retry loading applicants.',
+              '${widget.applicant.name.trim().isEmpty ? 'This applicant' : widget.applicant.name} ${switch (widget.next) {
+                MyApplicationStatus.shortlisted => 'has been shortlisted successfully. You can continue reviewing this application.',
+                MyApplicationStatus.interview => 'has been moved to the interview stage successfully.',
+                MyApplicationStatus.offered => 'has been sent a job offer successfully.',
+                MyApplicationStatus.rejected => 'has been marked as rejected.',
+                _ => 'has an updated application status.',
+              }}${widget.repository.error == null ? '' : ' The applicant list could not refresh. Close this form and refresh the list.'}',
             )
           else ...[
             Text(

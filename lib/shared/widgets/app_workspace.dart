@@ -241,7 +241,7 @@ String _primaryLabel(String path) => switch (path) {
 };
 
 /// One grouped menu shared by wide Web, narrow Web and the native More sheet.
-class _WorkspaceMenu extends StatelessWidget {
+class _WorkspaceMenu extends StatefulWidget {
   const _WorkspaceMenu({
     required this.groups,
     required this.selected,
@@ -252,6 +252,36 @@ class _WorkspaceMenu extends StatelessWidget {
   final String? selected;
   final bool locked;
   final ValueChanged<String> onSelected;
+
+  @override
+  State<_WorkspaceMenu> createState() => _WorkspaceMenuState();
+}
+
+class _WorkspaceMenuState extends State<_WorkspaceMenu> {
+  final _expanded = <String, bool>{};
+  @override
+  void didUpdateWidget(covariant _WorkspaceMenu oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selected != widget.selected) {
+      for (final group in widget.groups.entries) {
+        if (group.value.any((item) => item.$1 == widget.selected)) {
+          _expanded[group.key] = true;
+        }
+      }
+    }
+  }
+
+  Widget destination(WorkspaceDestination item) => ListTile(
+    minTileHeight: 48,
+    selected: widget.selected == item.$1,
+    selectedTileColor: JobMateTheme.teal50,
+    selectedColor: JobMateTheme.darkTeal,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    leading: Icon(item.$3, size: 20),
+    title: Text(item.$2),
+    enabled: !widget.locked,
+    onTap: () => widget.onSelected(item.$1),
+  );
 
   @override
   Widget build(BuildContext context) => Material(
@@ -266,35 +296,33 @@ class _WorkspaceMenu extends StatelessWidget {
             padding: EdgeInsets.all(12),
             child: AuthWordmark(compact: true),
           ),
-          if (locked)
+          if (widget.locked)
             const Padding(
               padding: EdgeInsets.all(12),
               child: Text(
                 'Finish or cancel your current changes before navigating.',
               ),
             ),
-          for (final group in groups.values)
-            for (final item in group)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: ListTile(
-                  minTileHeight: 48,
-                  selected: selected == item.$1,
-                  selectedTileColor: JobMateTheme.teal50,
-                  selectedColor: JobMateTheme.darkTeal,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  minLeadingWidth: 24,
-                  leading: Icon(item.$3, size: 20),
-                  title: Text(item.$2),
-                  enabled: !locked,
-                  onTap: () => onSelected(item.$1),
-                ),
+          for (final group in widget.groups.values)
+            for (final item in group.where((item) => item.$1 == AppRoutes.home))
+              destination(item),
+          for (final group in widget.groups.entries)
+            if (group.value.any((item) => item.$1 != AppRoutes.home))
+              ExpansionTile(
+                key: ValueKey((group.key, widget.selected)),
+                title: Text(group.key),
+                maintainState: true,
+                enabled: !widget.locked,
+                initiallyExpanded:
+                    _expanded[group.key] ??
+                    group.value.any((item) => item.$1 == widget.selected),
+                onExpansionChanged: (value) => _expanded[group.key] = value,
+                children: [
+                  for (final item in group.value.where(
+                    (item) => item.$1 != AppRoutes.home,
+                  ))
+                    destination(item),
+                ],
               ),
         ],
       ),

@@ -124,7 +124,7 @@ void main() {
             .length,
         1,
       );
-      expect(find.text('Applied / Submitted'), findsNWidgets(2));
+      expect(find.text('Applied'), findsNWidgets(2));
       expect(find.text('Applicant'), findsOneWidget);
       expect(find.text('Interview'), findsNothing);
       expect(find.text('Withdraw'), findsNothing);

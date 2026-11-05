@@ -213,7 +213,7 @@ void main() {
       await tester.ensureVisible(find.text('Confirm Shortlist'));
       await tester.tap(find.text('Confirm Shortlist'));
       await tester.pump();
-      expect(find.text('Application status updated'), findsNothing);
+      expect(find.text('Application shortlisted'), findsNothing);
       expect(
         tester
             .widget<FilledButton>(
@@ -225,7 +225,7 @@ void main() {
       source.rows = [applicantRow('mock-application', status: 'shortlisted')];
       pending.complete();
       await tester.pumpAndSettle();
-      expect(find.text('Application status updated'), findsOneWidget);
+      expect(find.text('Application shortlisted'), findsOneWidget);
       expect(source.updates.single.$3, 'Reviewed');
       await tester.tap(find.text('Done'));
       await tester.pumpAndSettle();
@@ -251,7 +251,7 @@ void main() {
       await tester.tap(find.text('Confirm Shortlist'));
       await tester.pumpAndSettle();
       expect(find.text('Concurrent transition rejected'), findsOneWidget);
-      expect(find.text('Application status updated'), findsNothing);
+      expect(find.text('Application shortlisted'), findsNothing);
       expect(
         tester.widget<TextField>(find.byType(TextField).last).controller!.text,
         'Keep note',

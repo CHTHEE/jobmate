@@ -9,7 +9,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
 ) => switch (role) {
   'employer' => {
     'WORKSPACE': [(AppRoutes.home, 'Dashboard', Icons.grid_view_rounded)],
-    'JOB POSTS': [
+    'Job Management': [
       (AppRoutes.jobPostings, 'My Job Postings', Icons.work_outline),
       (AppRoutes.createJob, 'Create Job', Icons.add_circle_outline),
       (
@@ -17,11 +17,14 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
         'Location Picker (demo)',
         Icons.add_location_alt_outlined,
       ),
-    ],
-    'APPLICATIONS': [
       (AppRoutes.applicants, 'View Applicants', Icons.people_outline),
     ],
-    'WORKERS': [
+    'Work Management': [
+      (
+        AppRoutes.workVerification,
+        'Work Verification',
+        Icons.assignment_turned_in_outlined,
+      ),
       (AppRoutes.workers, 'Workers (demo)', Icons.groups_outlined),
       (
         AppRoutes.attendanceReview,
@@ -34,14 +37,14 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
         Icons.receipt_long_outlined,
       ),
     ],
-    'COMMUNICATION': [
+    'Communication': [
       (
         AppRoutes.employerMessages,
         'Messages (demo)',
         Icons.chat_bubble_outline,
       ),
     ],
-    'COMPANY': [
+    'Company': [
       (AppRoutes.company, 'Company profile', Icons.business_outlined),
       (
         AppRoutes.employerEvaluations,
@@ -79,7 +82,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
   _ => {
     'WORKSPACE': [(AppRoutes.home, 'Dashboard', Icons.grid_view_rounded)],
     if (role == 'job_seeker') ...{
-      'FIND WORK': [
+      'Find Work': [
         (AppRoutes.browseJobs, 'Browse Jobs', Icons.search),
         (
           AppRoutes.recommendations,
@@ -88,10 +91,15 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
         ),
         (AppRoutes.nearbyJobs, 'Nearby Jobs (demo)', Icons.map_outlined),
       ],
-      'APPLICATIONS': [
+      'Applications': [
         (AppRoutes.applications, 'My Applications', Icons.assignment_outlined),
       ],
-      'WORK': [
+      'My Work': [
+        (
+          AppRoutes.workAttendance,
+          'My Work Shifts',
+          Icons.calendar_month_outlined,
+        ),
         (
           AppRoutes.attendance,
           'Attendance (demo)',
@@ -103,12 +111,12 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
           Icons.rate_review_outlined,
         ),
       ],
-      'COMMUNICATION': [
+      'Communication': [
         (AppRoutes.messages, 'Messages (demo)', Icons.chat_bubble_outline),
       ],
     },
     if (role == 'job_seeker')
-      'PAYMENTS': [
+      'Payments': [
         (AppRoutes.payments, 'Payments (sandbox)', Icons.receipt_long_outlined),
       ],
   },

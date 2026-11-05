@@ -17,9 +17,30 @@ Future<void> openWorkspaceMenu(WidgetTester tester) async {
 }
 
 Future<void> scrollWorkspaceMenuTo(WidgetTester tester, String label) async {
+  final hidden = find.widgetWithText(ListTile, label, skipOffstage: false);
+  if (hidden.evaluate().isNotEmpty && find.text(label).evaluate().isEmpty) {
+    final groups = find.ancestor(
+      of: hidden,
+      matching: find.byType(ExpansionTile),
+    );
+    if (groups.evaluate().isNotEmpty) {
+      final group = groups.first;
+      final title = (tester.widget<ExpansionTile>(group).title as Text).data!;
+      await tester.ensureVisible(group);
+      await tester.tap(
+        find
+            .descendant(
+              of: group,
+              matching: find.widgetWithText(ListTile, title),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+    }
+  }
   await tester.scrollUntilVisible(
     find.widgetWithText(ListTile, label),
-    180,
+    label == 'Dashboard' ? -180 : 180,
     scrollable: find.descendant(
       of: find.byKey(const ValueKey('workspace-navigation')),
       matching: find.byType(Scrollable),

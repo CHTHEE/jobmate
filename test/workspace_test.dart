@@ -277,14 +277,7 @@ void main() {
         );
         await openWorkspaceMenu(tester);
         if (role == 'employer') {
-          await tester.scrollUntilVisible(
-            find.widgetWithText(ListTile, 'Company profile'),
-            160,
-            scrollable: find.descendant(
-              of: find.byKey(const ValueKey('workspace-navigation')),
-              matching: find.byType(Scrollable),
-            ),
-          );
+          await scrollWorkspaceMenuTo(tester, 'Company profile');
         }
         expect(
           find.text('Company profile'),

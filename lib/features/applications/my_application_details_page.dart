@@ -133,10 +133,7 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
     if (mounted) await repo.load();
   }
 
-  String statusLabel(MyApplicationStatus status) =>
-      status == MyApplicationStatus.submitted
-      ? 'Applied / Submitted'
-      : status.label;
+  String statusLabel(MyApplicationStatus status) => status.label;
   String dateTime(BuildContext context, DateTime value) {
     final local = value.toLocal();
     return '${jobDate(local)} • ${TimeOfDay.fromDateTime(local).format(context)}';

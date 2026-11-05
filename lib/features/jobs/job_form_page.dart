@@ -84,6 +84,9 @@ class JobFormPageState extends State<JobFormPage> {
   });
 
   Future<bool> confirmExit() async {
+    // A completed sign-out must leave protected routes. Keep dirty-form
+    // confirmation for ordinary navigation while the account is signed in.
+    if (!repo.signedIn) return true;
     if (busy) return false;
     if (_savedSnapshot == null || _snapshot == _savedSnapshot) return true;
     if (_exitConfirmation != null) return _exitConfirmation!;
