@@ -11,6 +11,7 @@ abstract final class AppRoutes {
   static const profile = '/profile';
   static const company = '/company';
   static const jobPostings = '/job-postings';
+  static const search = '/search';
   static const browseJobs = '/jobs';
   static const applications = '/applications';
   static const applicants = '/applicants';

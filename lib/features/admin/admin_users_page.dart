@@ -188,13 +188,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       title: 'Users',
       path: AppRoutes.adminUsers,
       role: 'administrator',
-      actions: [
-        IconButton(
-          tooltip: 'Refresh',
-          onPressed: _loading ? null : _loadUsers,
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
       child: SafeArea(
         child: ResponsiveContent(
           maxWidth: 896,
@@ -206,6 +199,13 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                 description: 'Review real account records using the existing administrator permissions.',
               ),
               _buildFilters(context),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _loading ? null : _loadUsers,
+                  child: const Text('Check for updates'),
+                ),
+              ),
               const SizedBox(height: 20),
               _loading
                   ? const Center(child: CircularProgressIndicator())

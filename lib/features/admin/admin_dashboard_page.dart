@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -7,6 +8,7 @@ import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/navigation/workspace_destinations.dart';
 import '../phase4/phase4_store.dart';
+import '../notifications/notifications_page.dart';
 import '../../shared/widgets/responsive_layout.dart';
 
 enum _AdminProfileAction { profile, settings, refresh, signOut }
@@ -247,13 +249,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       actions: [
         IconButton(
           tooltip: 'Notifications',
-          onPressed: () => context.push<void>(AppRoutes.notifications),
+          onPressed: () => kIsWeb
+              ? showNotificationsPanel(context)
+              : context.push<void>(AppRoutes.notifications),
           icon: const Icon(Icons.notifications_none_outlined),
-        ),
-        IconButton(
-          tooltip: 'Refresh permissions',
-          onPressed: _loadingAccess ? null : _loadAccess,
-          icon: const Icon(Icons.refresh),
         ),
         PopupMenuButton<_AdminProfileAction>(
           tooltip: 'Admin profile and account actions',
@@ -291,13 +290,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ),
             PopupMenuItem(
               value: _AdminProfileAction.refresh,
-              child: Row(
-                children: [
-                  Icon(Icons.refresh),
-                  SizedBox(width: 12),
-                  Text('Refresh dashboard'),
-                ],
-              ),
+              child: Text('Refresh dashboard'),
             ),
             PopupMenuItem(
               value: _AdminProfileAction.signOut,

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../navigation/app_routes.dart';
 import 'auth_style.dart';
@@ -58,6 +59,18 @@ class AppWorkspace extends StatelessWidget {
             kIsWeb && ResponsiveLayout.usesSidebar(constraints.maxWidth);
         final groups = navigationGroups ?? workspaceDestinations(role);
         final all = groups.values.expand((items) => items).toList();
+        final moreGroups = <String, List<WorkspaceDestination>>{};
+        for (final group in groups.entries) {
+          final visible = group.value
+              .where(
+                (item) =>
+                    item.$1 != AppRoutes.home &&
+                    item.$1 != AppRoutes.search &&
+                    item.$1 != AppRoutes.browseJobs,
+              )
+              .toList();
+          if (visible.isNotEmpty) moreGroups[group.key] = visible;
+        }
         final selected = selectedWorkspacePath(path, all);
         final primary = workspacePrimaryDestinations(role)
             .where((item) => all.any((entry) => entry.$1 == item.$1))
@@ -77,23 +90,114 @@ class AppWorkspace extends StatelessWidget {
           }
         }
 
-        Widget navigation(BuildContext menuContext, {bool overlay = false}) =>
-            _WorkspaceMenu(
-              groups: groups,
-              selected: selected,
-              locked: navigationLocked,
-              onSelected: (destination) {
-                if (navigationLocked) return;
-                if (overlay) {
-                  if (kIsWeb) {
-                    Scaffold.of(menuContext).closeDrawer();
-                  } else {
-                    Navigator.of(menuContext).pop();
-                  }
-                }
-                navigate(destination);
-              },
+        Widget navigation(
+          BuildContext menuContext, {
+          bool overlay = false,
+          Widget? accountActions,
+          bool moreSheet = false,
+        }) => _WorkspaceMenu(
+          groups: moreSheet ? moreGroups : groups,
+          selected: selected,
+          locked: navigationLocked,
+          accountActions: accountActions,
+          showBrand: !moreSheet,
+          onSelected: (destination) {
+            if (navigationLocked) return;
+            if (overlay) {
+              if (kIsWeb) {
+                Scaffold.of(menuContext).closeDrawer();
+              } else {
+                Navigator.of(menuContext).pop();
+              }
+            }
+            navigate(destination);
+          },
+        );
+
+        Future<void> signOut() async {
+          try {
+            if (onSignOut != null) {
+              await onSignOut!();
+            } else {
+              await Supabase.instance.client.auth.signOut(
+                scope: SignOutScope.local,
+              );
+            }
+          } catch (_) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Unable to sign out. Please retry.'),
+              ),
             );
+          }
+        }
+
+        final settingsPath = switch (role) {
+          'employer' => AppRoutes.employerSettings,
+          'administrator' || 'admin' => AppRoutes.adminSettings,
+          _ => AppRoutes.settings,
+        };
+
+        Future<void> account() async {
+          if (navigationLocked) return;
+          await showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            useSafeArea: true,
+            showDragHandle: true,
+            constraints: const BoxConstraints(maxWidth: 640),
+            builder: (sheetContext) => ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * .8,
+              ),
+              child: SafeArea(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    ListTile(
+                      leading: _MobileAccountAvatar(
+                        name: accountName,
+                        avatarUrl: accountAvatarUrl,
+                      ),
+                      title: Text(
+                        accountName?.trim().isNotEmpty == true
+                            ? accountName!.trim()
+                            : 'Your account',
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.person_outline),
+                      title: const Text('My profile'),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        navigate(AppRoutes.profile);
+                      },
+                    ),
+                    if (role == 'employer')
+                      ListTile(
+                        leading: const Icon(Icons.stars_outlined),
+                        title: const Text('Reputation (demo)'),
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          navigate(AppRoutes.employerReputation);
+                        },
+                      ),
+                    ListTile(
+                      leading: const Icon(Icons.settings_outlined),
+                      title: const Text('Account settings'),
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        navigate(settingsPath);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
 
         Future<void> more() async {
           if (navigationLocked) return;
@@ -105,12 +209,38 @@ class AppWorkspace extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 640),
             builder: (sheetContext) => SizedBox(
               height: MediaQuery.sizeOf(sheetContext).height * .8,
-              child: navigation(sheetContext, overlay: true),
+              child: navigation(
+                sheetContext,
+                overlay: true,
+                moreSheet: true,
+                accountActions: showAccountMenu
+                    ? Column(
+                        children: [
+                          const Divider(),
+                          ListTile(
+                            leading: const Icon(Icons.logout),
+                            title: const Text('Sign out'),
+                            onTap: () {
+                              Navigator.of(sheetContext).pop();
+                              signOut();
+                            },
+                          ),
+                        ],
+                      )
+                    : null,
+              ),
             ),
           );
         }
 
         final primaryIndex = primary.indexWhere((item) => item.$1 == selected);
+        final jobsIndex = primary.indexWhere(
+          (item) => item.$1 == AppRoutes.browseJobs,
+        );
+        final accountSelected =
+            selected == AppRoutes.profile ||
+            selected == settingsPath ||
+            (role == 'employer' && selected == AppRoutes.employerReputation);
         final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
         return Scaffold(
           drawer: kIsWeb && !sidebar
@@ -127,13 +257,20 @@ class AppWorkspace extends StatelessWidget {
               ? NavigationBar(
                   key: const ValueKey('workspace-bottom-navigation'),
                   height: 80 + 32 * (textScale - 1).clamp(0.0, 2.0),
-                  selectedIndex: primaryIndex < 0
+                  selectedIndex: primaryIndex >= 0
+                      ? primaryIndex
+                      : selected == AppRoutes.search && jobsIndex >= 0
+                      ? jobsIndex
+                      : showAccountMenu && accountSelected
                       ? primary.length
-                      : primaryIndex,
+                      : primary.length + (showAccountMenu ? 1 : 0),
                   onDestinationSelected: navigationLocked
                       ? null
                       : (index) {
-                          if (index == primary.length) {
+                          if (showAccountMenu && index == primary.length) {
+                            account();
+                          } else if (index ==
+                              primary.length + (showAccountMenu ? 1 : 0)) {
                             more();
                           } else {
                             navigate(primary[index].$1);
@@ -142,8 +279,20 @@ class AppWorkspace extends StatelessWidget {
                   destinations: [
                     for (final item in primary)
                       NavigationDestination(
-                        icon: Icon(item.$3),
+                        icon: Icon(
+                          item.$1 == AppRoutes.browseJobs
+                              ? Icons.work_outline
+                              : item.$3,
+                        ),
                         label: _primaryLabel(item.$1),
+                      ),
+                    if (showAccountMenu)
+                      NavigationDestination(
+                        icon: _MobileAccountAvatar(
+                          name: accountName,
+                          avatarUrl: accountAvatarUrl,
+                        ),
+                        label: 'Account',
                       ),
                     const NavigationDestination(
                       icon: Icon(Icons.more_horiz),
@@ -189,7 +338,8 @@ class AppWorkspace extends StatelessWidget {
             ),
             actions: [
               ...actions,
-              if (showAccountMenu &&
+              if (!showBottomBar &&
+                  showAccountMenu &&
                   (role == 'job_seeker' ||
                       role == 'employer' ||
                       role == 'administrator' ||
@@ -232,6 +382,7 @@ class AppWorkspace extends StatelessWidget {
 
 String _primaryLabel(String path) => switch (path) {
   AppRoutes.home => 'Home',
+  AppRoutes.search => 'Jobs',
   AppRoutes.browseJobs => 'Jobs',
   AppRoutes.jobPostings => 'Posts',
   AppRoutes.applications || AppRoutes.applicants => 'Applications',
@@ -247,11 +398,15 @@ class _WorkspaceMenu extends StatelessWidget {
     required this.selected,
     required this.locked,
     required this.onSelected,
+    this.accountActions,
+    this.showBrand = true,
   });
   final Map<String, List<WorkspaceDestination>> groups;
   final String? selected;
   final bool locked;
   final ValueChanged<String> onSelected;
+  final Widget? accountActions;
+  final bool showBrand;
 
   @override
   Widget build(BuildContext context) => Material(
@@ -262,10 +417,26 @@ class _WorkspaceMenu extends StatelessWidget {
         scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
         padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
         children: [
-          const Padding(
-            padding: EdgeInsets.all(12),
-            child: AuthWordmark(compact: true),
-          ),
+          if (showBrand)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: InkWell(
+                onTap: locked ? null : () => onSelected(AppRoutes.home),
+                borderRadius: BorderRadius.circular(8),
+                child: const Tooltip(
+                  message: 'Go to dashboard',
+                  child: AuthWordmark(compact: true),
+                ),
+              ),
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 8, 12, 20),
+              child: Text(
+                'More',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+              ),
+            ),
           if (locked)
             const Padding(
               padding: EdgeInsets.all(12),
@@ -296,10 +467,73 @@ class _WorkspaceMenu extends StatelessWidget {
                   onTap: () => onSelected(item.$1),
                 ),
               ),
+          ?accountActions,
         ],
       ),
     ),
   );
+}
+
+class _MobileAccountAvatar extends StatefulWidget {
+  const _MobileAccountAvatar({this.name, this.avatarUrl});
+  final String? name;
+  final String? avatarUrl;
+
+  @override
+  State<_MobileAccountAvatar> createState() => _MobileAccountAvatarState();
+}
+
+class _MobileAccountAvatarState extends State<_MobileAccountAvatar> {
+  String? _name;
+  String? _avatarUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.avatarUrl == null) _loadAvatar();
+  }
+
+  Future<void> _loadAvatar() async {
+    try {
+      final client = Supabase.instance.client;
+      final userId = client.auth.currentUser?.id;
+      if (userId == null) return;
+      final row = await client
+          .from('users')
+          .select('name, profile_image_url')
+          .eq('user_id', userId)
+          .maybeSingle();
+      if (!mounted || client.auth.currentUser?.id != userId) return;
+      setState(() {
+        _name = row?['name'] as String?;
+        _avatarUrl = row?['profile_image_url'] as String?;
+      });
+    } catch (_) {
+      // Navigation remains available if the optional photo cannot load.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (widget.name ?? _name ?? '').trim();
+    final avatarUrl = widget.avatarUrl ?? _avatarUrl;
+    return CircleAvatar(
+      radius: 14,
+      backgroundColor: JobMateTheme.teal100,
+      child: avatarUrl == null || avatarUrl.isEmpty
+          ? Text(name.isEmpty ? 'U' : name[0].toUpperCase())
+          : ClipOval(
+              child: Image.network(
+                avatarUrl,
+                width: 28,
+                height: 28,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) =>
+                    Text(name.isEmpty ? 'U' : name[0].toUpperCase()),
+              ),
+            ),
+    );
+  }
 }
 
 class WorkspaceContent extends StatelessWidget {

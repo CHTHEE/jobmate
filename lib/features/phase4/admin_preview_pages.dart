@@ -65,10 +65,7 @@ class _AdminPreviewGateState extends State<AdminPreviewGate> {
     builder: (context, snapshot) {
       if (snapshot.data == true) return widget.child;
       return Scaffold(
-        appBar: const ResponsivePageAppBar(
-          title: Text('Administrator access'),
-          showReturnAction: false,
-        ),
+        appBar: const ResponsivePageAppBar(title: Text('Administrator access')),
         body: Center(
           child: SingleChildScrollView(
             padding: ResponsiveLayout.pagePadding(context),
@@ -89,10 +86,6 @@ class _AdminPreviewGateState extends State<AdminPreviewGate> {
                           })
                         : null,
                   ),
-                TextButton(
-                  onPressed: () => context.go(AppRoutes.home),
-                  child: const Text('Back to Dashboard'),
-                ),
               ],
             ),
           ),

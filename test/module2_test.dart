@@ -95,7 +95,8 @@ void main() {
     pending.completeError(StateError('offline'));
     await tester.pumpAndSettle();
     expect(find.text('Unable to check access'), findsOneWidget);
-    expect(find.text('Back to Dashboard'), findsOneWidget);
+    expect(find.text('Back to Dashboard'), findsNothing);
+    expect(find.text('Account access'), findsOneWidget);
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(find.text('Page unavailable'), findsOneWidget);

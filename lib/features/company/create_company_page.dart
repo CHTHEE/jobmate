@@ -897,11 +897,16 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
           'JPG, PNG or WebP, maximum 2 MiB.',
           textAlign: TextAlign.center,
         ),
-        if (bytes == null && _logoLoadFailed)
+        if (bytes == null && _logoLoadFailed) ...[
           const Padding(
             padding: EdgeInsets.only(top: 8),
-            child: Text('Logo unavailable. Use Refresh to try again.'),
+            child: Text('Logo unavailable.'),
           ),
+          TextButton(
+            onPressed: _isBusy ? null : _loadCompany,
+            child: const Text('Try loading again'),
+          ),
+        ],
         if (_selectedLogoBytes != null && _canEdit)
           TextButton(
             onPressed: () {
@@ -973,13 +978,6 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
           role: _loadError == null && !_isLoading ? 'employer' : '',
           navigationLocked: _isBusy,
           onNavigate: _navigate,
-          actions: [
-            IconButton(
-              tooltip: 'Refresh',
-              onPressed: _isBusy ? null : _loadCompany,
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
           child: WorkspaceContent(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

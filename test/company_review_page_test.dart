@@ -226,7 +226,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(data.offsets, [0, 20]);
     expect(find.text('Company 20'), findsOneWidget);
-    await tester.tap(find.byTooltip('Refresh'));
+    await tester.tap(find.text('Check for updates'));
     await tester.pumpAndSettle();
     expect(data.offsets.last, 20);
     await tester.ensureVisible(find.text('Previous'));

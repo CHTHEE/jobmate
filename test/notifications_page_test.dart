@@ -8,6 +8,35 @@ import 'package:jobmate/features/notifications/notifications_page.dart';
 import 'fixtures/notifications_source.dart';
 
 void main() {
+  testWidgets('embedded notifications filter unread without a page AppBar', (
+    tester,
+  ) async {
+    final source = FakeNotificationsSource();
+    source.rows = [
+      notificationRow(),
+      notificationRow(id: 'read', readAt: '2026-11-05T00:00:00Z'),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 440,
+            height: 600,
+            child: NotificationsPage(source: source, embedded: true),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Application received'), findsNWidgets(2));
+    await tester.tap(find.text('Unread'));
+    await tester.pumpAndSettle();
+    expect(find.text('Application received'), findsOneWidget);
+    expect(find.byType(AppBar), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    await source.changes.close();
+  });
+
   for (final width in [320.0, 1440.0]) {
     testWidgets('notification layout at width $width with enlarged text', (
       tester,
@@ -77,9 +106,8 @@ void main() {
       final expected =
           '${format.formatMediumDate(local)}, ${format.formatTimeOfDay(TimeOfDay.fromDateTime(local))}';
       expect(find.text(expected), findsNWidgets(2));
-      await tester.tap(find.byTooltip('Refresh'));
-      await tester.pumpAndSettle();
-      expect(source.lists, 2);
+      expect(find.byTooltip('Refresh'), findsNothing);
+      expect(source.lists, 1);
       await tester.pumpWidget(const SizedBox());
       await source.changes.close();
     });

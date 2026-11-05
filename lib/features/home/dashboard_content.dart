@@ -7,6 +7,7 @@ import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/auth_style.dart';
 import '../../shared/widgets/design_primitives.dart';
 import 'dashboard_activity.dart';
+import 'job_seeker_dashboard.dart';
 
 /// Dashboard presentation, using records loaded by HomePage.
 class DashboardContent extends StatelessWidget {
@@ -41,6 +42,15 @@ class DashboardContent extends StatelessWidget {
     final role = profile['role'] as String? ?? '';
     final name = (profile['name'] as String? ?? '').trim();
     final photo = (profile['profile_image_url'] as String? ?? '').trim();
+    if (role == 'job_seeker') {
+      return JobSeekerDashboard(
+        name: name,
+        email: email,
+        phone: (profile['phone_num'] as String? ?? '').trim(),
+        photo: photo,
+        onProfile: onProfile,
+      );
+    }
     final fields = [
       name,
       email.trim(),
@@ -100,20 +110,22 @@ class DashboardContent extends StatelessWidget {
               WorkspaceStatus(profile['status'] as String? ?? ''),
             ],
           ),
-          const SizedBox(height: 16),
-          Text('Profile completion: ${completed * 25}%'),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(
-            value: completed / 4,
-            minHeight: 6,
-            borderRadius: BorderRadius.circular(6),
-            backgroundColor: AuthStyle.border,
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Based on name, email, phone and profile photo.',
-            style: TextStyle(fontSize: 12),
-          ),
+          if (completed < 4) ...[
+            const SizedBox(height: 16),
+            Text('Profile completion: ${completed * 25}%'),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: completed / 4,
+              minHeight: 6,
+              borderRadius: BorderRadius.circular(6),
+              backgroundColor: AuthStyle.border,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Based on name, email, phone and profile photo.',
+              style: TextStyle(fontSize: 12),
+            ),
+          ],
           const SizedBox(height: 20),
           OutlinedButton(
             onPressed: onProfile,

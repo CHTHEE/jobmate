@@ -18,8 +18,8 @@ class TermsAndPrivacyPage extends StatelessWidget {
 
     return Scaffold(
       appBar: ResponsivePageAppBar(
-        returnLabel: 'Close policy',
         title: Text(title),
+        returnLabel: 'Close policy',
       ),
       body: SafeArea(
         child: ResponsiveContent(

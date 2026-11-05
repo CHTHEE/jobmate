@@ -252,13 +252,6 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
           ),
         ],
       },
-      actions: [
-        IconButton(
-          tooltip: 'Refresh',
-          onPressed: _busy ? null : _loadRequests,
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
       child: SafeArea(
         child: Stack(
           children: [
@@ -293,6 +286,13 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
                             ],
                           ),
                           const SizedBox(height: 20),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: _busy ? null : _loadRequests,
+                              child: const Text('Check for updates'),
+                            ),
+                          ),
                           Text(
                             _isLogo
                                 ? 'Pending logo changes'
