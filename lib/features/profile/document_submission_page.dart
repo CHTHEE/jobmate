@@ -308,13 +308,6 @@ class _DocumentSubmissionPageState extends State<DocumentSubmissionPage> {
           enabled: !_isBusy,
           hasUnsavedChanges: () => _fileBytes != null,
           title: const Text('Verification Documents'),
-          actions: [
-            IconButton(
-              tooltip: 'Refresh',
-              onPressed: _isBusy ? null : _loadData,
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
         ),
         body: AuthLayout(
           child: Column(

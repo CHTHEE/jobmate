@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../shared/navigation/app_routes.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
@@ -48,10 +47,7 @@ class _Module2GateState extends State<Module2Gate> {
     builder: (context, snapshot) {
       if (snapshot.data == true) return widget.child;
       return Scaffold(
-        appBar: const ResponsivePageAppBar(
-          title: Text('JobMate'),
-          showReturnAction: false,
-        ),
+        appBar: const ResponsivePageAppBar(title: Text('Account access')),
         body: Center(
           child: SingleChildScrollView(
             child: Padding(
@@ -72,15 +68,8 @@ class _Module2GateState extends State<Module2Gate> {
                               ? () => setState(() {
                                   access = load();
                                 })
-                              : () => context.go(AppRoutes.home),
-                          actionLabel: snapshot.hasError
-                              ? 'Retry'
-                              : 'Dashboard',
+                              : null,
                         ),
-                  TextButton(
-                    onPressed: () => context.go(AppRoutes.home),
-                    child: const Text('Back to Dashboard'),
-                  ),
                 ],
               ),
             ),

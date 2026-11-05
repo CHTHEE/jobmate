@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jobmate/features/applications/employer_applicants_repository.dart';
@@ -57,7 +58,18 @@ void main() {
         addTearDown(router.dispose);
         await tester.pumpWidget(MaterialApp.router(routerConfig: router));
         await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const ValueKey('workspace-account-menu')));
+        if (kIsWeb ||
+            find
+                .byKey(const ValueKey('workspace-account-menu'))
+                .evaluate()
+                .isNotEmpty) {
+          await tester.tap(
+            find.byKey(const ValueKey('workspace-account-menu')),
+          );
+        } else {
+          await openWorkspaceMenu(tester);
+          await scrollWorkspaceMenuTo(tester, 'Sign out');
+        }
         await tester.pumpAndSettle();
         await tester.tap(find.text('Sign out'));
         await tester.pumpAndSettle();
@@ -176,16 +188,28 @@ void main() {
               .selected,
           isTrue,
         );
-        await scrollWorkspaceMenuTo(
-          tester,
-          role == 'employer' ? 'View Applicants' : 'Browse Jobs',
-        );
-        expect(
-          find.text(role == 'employer' ? 'View Applicants' : 'Browse Jobs'),
-          findsOneWidget,
-        );
-        await scrollWorkspaceMenuTo(tester, 'Dashboard');
-        expect(find.text('Dashboard'), findsWidgets);
+        if (kIsWeb || role == 'employer') {
+          await scrollWorkspaceMenuTo(
+            tester,
+            role == 'employer' ? 'View Applicants' : 'Browse Jobs',
+          );
+          expect(
+            find.text(role == 'employer' ? 'View Applicants' : 'Browse Jobs'),
+            findsOneWidget,
+          );
+        } else {
+          expect(find.widgetWithText(ListTile, 'Browse Jobs'), findsNothing);
+          expect(find.widgetWithText(ListTile, 'Search'), findsNothing);
+        }
+        if (kIsWeb) {
+          await scrollWorkspaceMenuTo(tester, 'Dashboard');
+          expect(find.text('Dashboard'), findsWidgets);
+        } else {
+          await tester.binding.handlePopRoute();
+          await tester.pumpAndSettle();
+          expect(find.text('Home'), findsOneWidget);
+          if (role == 'job_seeker') expect(find.text('Jobs'), findsOneWidget);
+        }
       },
     );
   }

@@ -245,16 +245,7 @@ class _ResumePageState extends State<ResumePage> {
           title: const Text('My Resume'),
           enabled: !_busy,
           fallback: AppRoutes.profile,
-          returnLabel: 'My profile',
-          hasUnsavedChanges: () =>
-              !Navigator.of(context).canPop() && _selected != null,
-          actions: [
-            IconButton(
-              tooltip: 'Refresh',
-              onPressed: _busy || _selected != null ? null : _load,
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
+          hasUnsavedChanges: () => _selected != null,
         ),
         body: WorkspaceContent(
           child: Column(

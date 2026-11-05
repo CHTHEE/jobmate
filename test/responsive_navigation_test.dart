@@ -231,7 +231,9 @@ void main() {
         kIsWeb ? findsNothing : findsOneWidget,
       );
       await tester.enterText(find.byType(TextField), 'Unsaved name');
-      final exit = kIsWeb ? find.text('Dashboard') : find.byTooltip('Back');
+      final exit = kIsWeb
+          ? find.byTooltip('Go to dashboard')
+          : find.byTooltip('Back');
       await tester.tap(exit);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Stay'));

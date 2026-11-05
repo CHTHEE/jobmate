@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../navigation/app_routes.dart';
+import 'auth_style.dart';
 
 /// Keep PopScope/route-exit guards active; direct URLs have no previous route.
 Future<void> returnToPage(BuildContext context, String fallback) async {
@@ -59,8 +60,7 @@ class MobileBackAction extends StatelessWidget {
   }
 }
 
-/// A standalone page still needs an in-app exit on Web. Text replaces the
-/// native arrow, and the same guarded return handles a direct URL safely.
+/// Standalone pages use the brand as a Web dashboard link and native Back.
 class ResponsivePageAppBar extends StatelessWidget
     implements PreferredSizeWidget {
   const ResponsivePageAppBar({
@@ -90,33 +90,65 @@ class ResponsivePageAppBar extends StatelessWidget
     if (leave && context.mounted) await returnToPage(context, fallback);
   }
 
+  Future<void> _goDashboard(BuildContext context) async {
+    final leave = await confirmDiscardChanges(
+      context,
+      hasUnsavedChanges?.call() ?? false,
+    );
+    if (leave && context.mounted) GoRouter.of(context).go(AppRoutes.home);
+  }
+
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
-  Widget build(BuildContext context) => AppBar(
-    automaticallyImplyLeading: false,
-    leading: kIsWeb || !showReturnAction
-        ? null
-        : IconButton(
-            tooltip: 'Back',
+  Widget build(BuildContext context) {
+    final dashboardLogo =
+        kIsWeb && showReturnAction && returnLabel == 'Dashboard';
+    return AppBar(
+      automaticallyImplyLeading: false,
+      leadingWidth: dashboardLogo
+          ? MediaQuery.sizeOf(context).width >= 600
+                ? 146
+                : 56
+          : null,
+      leading: dashboardLogo
+          ? Tooltip(
+              message: 'Go to dashboard',
+              child: InkWell(
+                onTap: enabled ? () => _goDashboard(context) : null,
+                child: Center(
+                  child: MediaQuery.sizeOf(context).width >= 600
+                      ? const AuthWordmark(compact: true)
+                      : const Icon(
+                          Icons.work_outline_rounded,
+                          color: AuthStyle.teal,
+                        ),
+                ),
+              ),
+            )
+          : kIsWeb || !showReturnAction
+          ? null
+          : IconButton(
+              tooltip: 'Back',
+              onPressed: enabled ? () => _return(context) : null,
+              icon: const Icon(Icons.arrow_back),
+            ),
+      title: title,
+      actions: [
+        ...actions,
+        if (kIsWeb && showReturnAction && !dashboardLogo)
+          TextButton(
             onPressed: enabled ? () => _return(context) : null,
-            icon: const Icon(Icons.arrow_back),
+            child: Text(
+              returnLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-    title: title,
-    actions: [
-      ...actions,
-      if (kIsWeb && showReturnAction)
-        TextButton(
-          onPressed: enabled ? () => _return(context) : null,
-          child: Text(
-            returnLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-    ],
-  );
+      ],
+    );
+  }
 }
 
 /// Returns a back button only when this native app route can go back.

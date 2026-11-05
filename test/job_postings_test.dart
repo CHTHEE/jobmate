@@ -966,7 +966,7 @@ void main() {
         'company_id': 'company',
         'company_name': 'New company name',
       }, null);
-      final refresh = find.widgetWithText(OutlinedButton, 'Refresh');
+      final refresh = find.widgetWithText(OutlinedButton, 'Check for updates');
       await tester.ensureVisible(refresh);
       await tester.tap(refresh);
       await tester.pumpAndSettle();

@@ -103,9 +103,23 @@ void main() {
         tester.widget<AppWorkspace>(find.byType(AppWorkspace)).path,
         AppRoutes.workVerification,
       );
-      await openWorkspaceMenu(tester);
-      await scrollWorkspaceMenuTo(tester, 'Dashboard');
-      await tester.tap(find.widgetWithText(ListTile, 'Dashboard'));
+            if (find.byKey(const ValueKey('workspace-bottom-navigation'))
+          .evaluate()
+          .isNotEmpty) {
+        // Native layout: Home is in the bottom navigation bar.
+        final home = find.descendant(
+          of: find.byKey(const ValueKey('workspace-bottom-navigation')),
+          matching: find.widgetWithText(NavigationDestination, 'Home'),
+        );
+        expect(home, findsOneWidget);
+        await tester.tap(home);
+      } else {
+        // Web layout: the workspace menu provides a dashboard shortcut.
+        await openWorkspaceMenu(tester);
+        final dashboard = find.byTooltip('Go to dashboard');
+        expect(dashboard, findsOneWidget);
+        await tester.tap(dashboard);
+      }
       await tester.pumpAndSettle();
       expect(router.routeInformationProvider.value.uri.path, '/');
       expect(source.changes.hasListener, isFalse);
@@ -124,7 +138,15 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Page unavailable'), findsOneWidget);
       expect(source.calls, 0);
-      await tester.tap(find.text('Back to Dashboard'));
+      final dashboardAction = find.byTooltip('Go to dashboard');
+      final backAction = find.byTooltip('Back');
+
+      if (dashboardAction.evaluate().isNotEmpty) {
+        await tester.tap(dashboardAction);
+      } else {
+        expect(backAction, findsOneWidget);
+        await tester.tap(backAction);
+      }
       await tester.pumpAndSettle();
       expect(find.text('Employer dashboard'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());

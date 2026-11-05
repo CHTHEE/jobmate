@@ -13,6 +13,7 @@ import 'package:jobmate/features/profile/resume_page.dart';
 import 'package:jobmate/features/profile/resume_repository.dart';
 import 'package:jobmate/shared/widgets/app_workspace.dart';
 import 'package:jobmate/shared/widgets/loading_overlay.dart';
+import 'package:jobmate/shared/widgets/mobile_back_action.dart';
 
 Uint8List pdf() => Uint8List.fromList('%PDF-1.4 fixture'.codeUnits);
 XFile pdfFile(String name) => XFile.fromData(pdf(), name: name, path: name);
@@ -159,6 +160,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Choose PDF'));
     await tester.pumpAndSettle();
+    final header = tester.widget<ResponsivePageAppBar>(
+      find.byType(ResponsivePageAppBar),
+    );
+    expect(header.returnLabel, 'Dashboard');
+    expect(header.hasUnsavedChanges!(), isTrue);
+    expect(find.text('My profile'), findsNothing);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(find.text('Leave this page?'), findsOneWidget);
@@ -632,7 +639,7 @@ void main() {
     },
   );
 
-  testWidgets('Seeker dashboard uses Resume without a verification badge', (
+  testWidgets('Seeker dashboard omits the old resume verification card', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -656,8 +663,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('My Resume'), findsOneWidget);
-    expect(find.text('Manage resume'), findsOneWidget);
+    expect(find.text('Complete your profile'), findsOneWidget);
+    expect(find.text('My Resume'), findsNothing);
     expect(find.text('Personal verification'), findsNothing);
   });
 }

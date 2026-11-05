@@ -321,6 +321,13 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
             'The Superadmin assigns invitation and Company review access. '
             'Administrators cannot change their own permissions.',
           ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _isBusy ? null : _loadAdmins,
+              child: const Text('Check for updates'),
+            ),
+          ),
           const SizedBox(height: 24),
           if (_admins.isEmpty) const Text('No administrators on this page.'),
           for (final admin in _admins) _buildAdminCard(admin),
@@ -357,13 +364,6 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
             ),
           ],
         },
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _isBusy ? null : _loadAdmins,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
         child: _buildBody(context),
       ),
     );

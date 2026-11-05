@@ -170,10 +170,9 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
 
                     description: 'Manage your opportunities, from the first draft to the final hire.',
                     actions: [
-                      OutlinedButton.icon(
+                      OutlinedButton(
                         onPressed: busy ? null : load,
-                        icon: const Icon(Icons.refresh, size: 18),
-                        label: const Text('Refresh'),
+                        child: const Text('Check for updates'),
                       ),
                       FilledButton.icon(
                         onPressed: access?.allowed == true && !busy

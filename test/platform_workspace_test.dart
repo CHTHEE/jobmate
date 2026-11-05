@@ -109,19 +109,27 @@ void main() {
             );
             expect(
               find.byKey(const ValueKey('workspace-account-menu')),
-              findsOneWidget,
+              kIsWeb ? findsOneWidget : findsNothing,
             );
-            final home = find.widgetWithText(ListTile, 'Dashboard');
-            await tester.scrollUntilVisible(
-              home,
-              -180,
-              scrollable: find.descendant(
-                of: find.byKey(const ValueKey('workspace-navigation')),
-                matching: find.byType(Scrollable),
-              ),
-            );
-            await tester.pumpAndSettle();
-            await tester.tap(home);
+            if (!kIsWeb) expect(find.text('Account'), findsOneWidget);
+            if (kIsWeb) {
+              final home = find.widgetWithText(ListTile, 'Dashboard');
+              await tester.scrollUntilVisible(
+                home,
+                -180,
+                scrollable: find.descendant(
+                  of: find.byKey(const ValueKey('workspace-navigation')),
+                  matching: find.byType(Scrollable),
+                ),
+              );
+              await tester.pumpAndSettle();
+              await tester.tap(home);
+            } else {
+              expect(find.widgetWithText(ListTile, 'Dashboard'), findsNothing);
+              await tester.binding.handlePopRoute();
+              await tester.pumpAndSettle();
+              await tester.tap(find.text('Home'));
+            }
             await tester.pumpAndSettle();
             expect(destination, AppRoutes.home);
             expect(tester.takeException(), isNull);

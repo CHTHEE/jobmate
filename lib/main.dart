@@ -18,6 +18,7 @@ import 'features/jobs/job_form_route.dart';
 import 'features/applications/module2_repository.dart';
 import 'features/applications/module2_widgets.dart';
 import 'features/applications/browse_jobs_page.dart';
+import 'features/search/universal_search_page.dart';
 import 'features/applications/job_details_page.dart';
 import 'features/applications/applications_page.dart';
 import 'features/demo_work/phase3_store.dart';
@@ -371,6 +372,11 @@ GoRouter _createRouter() {
         AppRoutes.jobLocationDemo,
         (_, _) =>
             const Module2Gate(role: 'employer', child: JobLocationDemoPage()),
+      ),
+      _appRoute(
+        AppRoutes.search,
+        (_, _) =>
+            const Module2Gate(role: 'job_seeker', child: UniversalSearchPage()),
       ),
       _appRoute(
         AppRoutes.browseJobs,
