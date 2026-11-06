@@ -102,11 +102,6 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
           Icons.calendar_month_outlined,
         ),
         (
-          AppRoutes.attendance,
-          'Attendance (demo)',
-          Icons.event_available_outlined,
-        ),
-        (
           AppRoutes.evaluations,
           'Evaluations (demo)',
           Icons.rate_review_outlined,

@@ -31,7 +31,7 @@ void main() {
             ? {
                 'For You (demo)': AppRoutes.recommendations,
                 'Nearby Jobs (demo)': AppRoutes.nearbyJobs,
-                'Attendance (demo)': AppRoutes.attendance,
+                'My Work Shifts': AppRoutes.workAttendance,
                 'Messages (demo)': AppRoutes.messages,
               }
             : {

@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_pages.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:jobmate/features/work_attendance/work_attendance_models.dart';
 
 import 'work_attendance_repository_test.dart'
     show FakeSource, assignment, id, other;
@@ -217,7 +218,13 @@ void main() {
     });
     Future<void> show(WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(home: WorkAttendancePage(repository: repo)),
+        MaterialApp(
+          home: WorkAttendancePage(
+            repository: repo,
+            captureLocation: () async =>
+                const WorkAttendanceLocation.unavailable(),
+          ),
+        ),
       );
       await tester.pumpAndSettle();
     }
@@ -228,21 +235,54 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets(
-      'confirmation and cancellation explain no GPS and never write before approval',
-      (tester) async {
-        await show(tester);
-        await tapAction(tester, 'Check in');
-        expect(
-          find.textContaining('This action is recorded without GPS.'),
-          findsOneWidget,
-        );
-        expect(source.checkIns, 0);
-        await tester.tap(find.text('Cancel'));
-        await tester.pumpAndSettle();
-        expect(source.checkIns, 0);
-      },
-    );
+    testWidgets('GPS fallback and cancellation never submit attendance', (
+      tester,
+    ) async {
+      await show(tester);
+      await tapAction(tester, 'Check in');
+      expect(
+        find.textContaining('Your device location is unavailable.'),
+        findsOneWidget,
+      );
+      expect(find.text('Retry GPS'), findsOneWidget);
+      expect(find.text('Continue without GPS'), findsOneWidget);
+      expect(source.checkIns, 0);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(source.checkIns, 0);
+    });
+
+    testWidgets('checkout is red and cancellation stops before GPS capture', (
+      tester,
+    ) async {
+      source.workerRead = () async => [
+        assignment()
+          ..['assignment_status'] = 'active'
+          ..['check_in_at'] = '2026-11-05T02:10:00Z',
+      ];
+      await show(tester);
+      final button = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Check out'),
+      );
+      final context = tester.element(
+        find.widgetWithText(FilledButton, 'Check out'),
+      );
+      expect(
+        button.style!.backgroundColor!.resolve({}),
+        Theme.of(context).colorScheme.error,
+      );
+      await tapAction(tester, 'Check out');
+      expect(find.text('Confirm Check-Out?'), findsOneWidget);
+      expect(
+        find.text(
+          'Once you check out, you cannot check in again for this shift. Are you sure you want to continue?',
+        ),
+        findsOneWidget,
+      );
+      await tapAction(tester, 'Cancel');
+      expect(find.text('Continue without GPS'), findsNothing);
+      expect(source.checkOuts, 0);
+    });
 
     testWidgets(
       'confirmed action locks duplicates and displays only refreshed server timestamps',
@@ -251,7 +291,9 @@ void main() {
         final pending = Completer<DateTime>();
         source.onCheckIn = (_) => pending.future;
         await tapAction(tester, 'Check in');
-        await tester.tap(find.widgetWithText(FilledButton, 'Confirm check-in'));
+        await tester.tap(
+          find.widgetWithText(FilledButton, 'Continue without GPS'),
+        );
         await tester.pump();
         expect(source.checkIns, 1);
         expect(find.textContaining('Checked in:'), findsNothing);
@@ -267,8 +309,9 @@ void main() {
         pending.complete(DateTime.utc(2026, 11, 5, 1));
         await tester.pumpAndSettle();
         expect(find.text('Checked in: 05/11/2026 10:10 MYT'), findsOneWidget);
-        expect(find.text('You’re checked in!'), findsOneWidget);
+        expect(find.text('Checked in successfully!'), findsOneWidget);
         await tapAction(tester, 'Check out');
+        await tapAction(tester, 'Confirm Check-Out');
         source.workerRead = () async => [
           assignment()
             ..['assignment_status'] = 'awaiting_verification'
@@ -276,7 +319,7 @@ void main() {
             ..['check_out_at'] = '2026-11-05T09:00:00Z',
         ];
         await tester.tap(
-          find.widgetWithText(FilledButton, 'Confirm check-out'),
+          find.widgetWithText(FilledButton, 'Continue without GPS'),
         );
         await tester.pumpAndSettle();
         expect(source.checkOuts, 1);
@@ -298,7 +341,9 @@ void main() {
         );
         await show(tester);
         await tapAction(tester, 'Check in');
-        await tester.tap(find.widgetWithText(FilledButton, 'Confirm check-in'));
+        await tester.tap(
+          find.widgetWithText(FilledButton, 'Continue without GPS'),
+        );
         await tester.pumpAndSettle();
         expect(source.checkIns, 1);
         expect(
@@ -316,13 +361,13 @@ void main() {
         await tapAction(tester, 'Check in');
         source.switchAccount(other);
         await tester.pumpAndSettle();
-        expect(find.text('Account changed'), findsOneWidget);
+        expect(find.textContaining('Your account changed.'), findsOneWidget);
         expect(
-          find.widgetWithText(FilledButton, 'Confirm check-in'),
+          find.widgetWithText(FilledButton, 'Continue without GPS'),
           findsNothing,
         );
-        expect(find.textContaining('Server job\n\n'), findsNothing);
-        await tester.tap(find.text('Close'));
+        expect(find.widgetWithText(TextButton, 'Retry GPS'), findsNothing);
+        await tester.tap(find.text('Cancel'));
         await tester.pumpAndSettle();
         expect(source.checkIns, 0);
       },
@@ -335,7 +380,9 @@ void main() {
       final pending = Completer<DateTime>();
       source.onCheckIn = (_) => pending.future;
       await tapAction(tester, 'Check in');
-      await tester.tap(find.widgetWithText(FilledButton, 'Confirm check-in'));
+      await tester.tap(
+        find.widgetWithText(FilledButton, 'Continue without GPS'),
+      );
       await tester.pump();
       source.workerRead = () async => [];
       source.switchAccount(other);

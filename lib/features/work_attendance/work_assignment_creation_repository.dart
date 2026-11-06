@@ -27,6 +27,8 @@ abstract class WorkAssignmentCreationSource {
   Future<WorkAssignmentCandidateRead> listJobs(String companyId);
   Future<WorkAssignmentCandidateRead> listApplicants(String jobId);
   Future<WorkAssignmentCandidateRead> listAssignments(String companyId);
+  Future<Object?> reserveAssignment(Map<String, dynamic> parameters);
+  Future<Object?> lookupAssignmentRequest(String requestId);
   Future<Object?> createAssignment(Map<String, dynamic> parameters);
 }
 
@@ -82,10 +84,27 @@ class SupabaseWorkAssignmentCreationSource
       });
 
   @override
+  Future<Object?> reserveAssignment(Map<String, dynamic> parameters) async {
+    if (userId == null) throw const AuthException('Authentication required');
+    return await client
+        .rpc('reserve_work_assignment_request', params: parameters)
+        .retry(enabled: false, requestTimeout: const Duration(seconds: 30));
+  }
+
+  @override
+  Future<Object?> lookupAssignmentRequest(String requestId) async {
+    if (userId == null) throw const AuthException('Authentication required');
+    return await client.rpc(
+      'lookup_work_assignment_request',
+      params: {'p_request_id': workUuid(requestId)},
+    );
+  }
+
+  @override
   Future<Object?> createAssignment(Map<String, dynamic> parameters) async {
     if (userId == null) throw const AuthException('Authentication required');
     return await client
-        .rpc('create_work_assignment', params: parameters)
+        .rpc('create_work_assignment_request', params: parameters)
         .retry(enabled: false, requestTimeout: const Duration(seconds: 30));
   }
 }
@@ -98,11 +117,12 @@ enum WorkAssignmentCreateStatus {
   uncertain,
 }
 
-/// Process-lifetime protection, including dialog/route recreation. This is NOT
-/// durable across browser refresh or app restart. Never infer failure from an
-/// absent assignment after a lost response. Tests inject a fresh ledger.
+/// Process-lifetime UI protection, including dialog/route recreation. Durable
+/// identity and identical-shift protection live on the server. Never infer
+/// failure from an absent request result after a lost response.
 class WorkAssignmentCreationLedger {
   final _attempts = <(String, String, String), _CreationAttempt>{};
+  final _completed = <(String, String, String), Set<(DateTime, DateTime)>>{};
 }
 
 final _creationLedger = WorkAssignmentCreationLedger();
@@ -113,6 +133,7 @@ class _CreationAttempt {
   final String location;
   WorkAssignmentCreateStatus status = WorkAssignmentCreateStatus.submitting;
   String? assignmentId;
+  String? requestId;
 }
 
 @immutable
@@ -266,10 +287,13 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
       return rejected('Sign in again or wait for the current request.');
     }
     final key = (actor, candidate.companyId, candidate.applicationId);
-    if (ledger._attempts.containsKey(key)) {
+    final previous = ledger._attempts[key];
+    if ((ledger._completed[key]?.contains((start, end)) ?? false) ||
+        (previous != null &&
+            previous.status != WorkAssignmentCreateStatus.success)) {
       return const WorkAssignmentCreateResult(
         WorkAssignmentCreateStatus.uncertain,
-        'This application already has a creation attempt. Check its current assignment; do not retry.',
+        'This shift already has a creation attempt, or an earlier outcome is unresolved. Check its request; do not retry.',
       );
     }
     if (!start.isUtc ||
@@ -310,12 +334,38 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
           state.error ?? 'Eligibility or account changed. Reload and confirm the application again.',
         );
       }
-      dispatched = true;
-      final response = await source.createAssignment({
+      if (_knownAssignments.any(
+        (a) =>
+            (a.applicationId == candidate.applicationId &&
+                a.scheduledStart == start &&
+                a.scheduledEnd == end) ||
+            (a.workerId == candidate.workerId &&
+                a.assignmentStatus != WorkAssignmentStatus.cancelled &&
+                start.isBefore(a.scheduledEnd) &&
+                end.isAfter(a.scheduledStart)),
+      )) {
+        ledger._attempts.remove(key);
+        return rejected(
+          'This shift already exists or overlaps another worker shift.',
+        );
+      }
+      final parameters = <String, dynamic>{
         'p_application_id': candidate.applicationId,
         'p_scheduled_start': start.toIso8601String(),
         'p_scheduled_end': end.toIso8601String(),
         'p_workplace_location': attempt.location,
+      };
+      dispatched = true;
+      attempt.requestId = workUuid(await source.reserveAssignment(parameters));
+      if (!current()) {
+        attempt.status = WorkAssignmentCreateStatus.uncertain;
+        return rejected(
+          'Account or company context changed. Check requests before continuing.',
+        );
+      }
+      final response = await source.createAssignment({
+        ...parameters,
+        'p_request_id': attempt.requestId,
       });
       // Even a stale completion must retain the attempt lock for its old account.
       if (!current()) {
@@ -326,6 +376,7 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
       }
       attempt.assignmentId = workUuid(response);
       attempt.status = WorkAssignmentCreateStatus.success;
+      (ledger._completed[key] ??= {}).add((start, end));
       return WorkAssignmentCreateResult(
         WorkAssignmentCreateStatus.success,
         'Assignment created. Refreshing company assignments.',
@@ -404,33 +455,28 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
       if (!current() || _company(access) != candidate.companyId) {
         return uncertain;
       }
-      final rows = _complete(await source.listAssignments(candidate.companyId));
-      _assigned(
-        rows,
-      ); // Reject incomplete/duplicate rows before using any match.
-      final matches = rows
-          .map(CompanyWorkAssignment.fromJson)
-          .where(
-            (a) =>
-                a.applicationId == candidate.applicationId &&
-                a.workerId == candidate.workerId &&
-                a.jobId == candidate.jobId &&
-                a.scheduledStart == attempt.start &&
-                a.scheduledEnd == attempt.end &&
-                a.workplaceLocation == attempt.location,
-          )
-          .toList();
+      if (attempt.requestId == null) return uncertain;
+      final result = await source.lookupAssignmentRequest(attempt.requestId!);
+      if (result == null) return uncertain;
+      final assignmentId = workUuid(result);
       final finalAccess = await source.loadAccess();
       if (!current() ||
           _company(finalAccess) != candidate.companyId ||
-          matches.length != 1) {
+          assignmentId.isEmpty) {
         return uncertain;
       }
       attempt.status = WorkAssignmentCreateStatus.success;
-      attempt.assignmentId = matches.single.assignmentId;
+      attempt.assignmentId = assignmentId;
+      (ledger._completed[(
+                actor,
+                candidate.companyId,
+                candidate.applicationId,
+              )] ??=
+              {})
+          .add((attempt.start, attempt.end));
       return WorkAssignmentCreateResult(
         WorkAssignmentCreateStatus.success,
-        'A matching assignment was found in fresh company reads.',
+        'The server confirmed this creation request.',
         assignmentId: attempt.assignmentId,
       );
     } catch (_) {
@@ -438,6 +484,7 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
     }
   }
 
+  List<CompanyWorkAssignment> _knownAssignments = [];
   late final StreamSubscription<String?> _subscription;
   String? _actor;
   int _request = 0;
@@ -527,11 +574,10 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
           }
         }
       }
-      // Re-read assignments after discovery to exclude applications assigned
-      // while applicant reads were pending. Every assignment status counts.
+      // Validate both complete reads; old shifts do not disqualify hired workers.
       final assigned = _assigned(
         _complete(await source.listAssignments(company)),
-      )..addAll(initiallyAssigned);
+      );
       if (!current()) return;
       final finalAccess = await source.loadAccess();
       if (!current()) return;
@@ -541,11 +587,10 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
         );
       }
       _text(finalAccess.company!, 'company_name');
+      _knownAssignments = [...initiallyAssigned, ...assigned];
       _state = WorkAssignmentCandidateState._(
         companyId: company,
-        candidates: candidates
-            .where((row) => !assigned.contains(row.applicationId))
-            .toList(),
+        candidates: candidates,
       );
     } catch (error) {
       if (!current()) return;
@@ -596,17 +641,28 @@ List<Map<String, dynamic>> _complete(WorkAssignmentCandidateRead read) {
   return read.rows;
 }
 
-Set<String> _assigned(List<Map<String, dynamic>> rows) {
+List<CompanyWorkAssignment> _assigned(List<Map<String, dynamic>> rows) {
   final ids = <String>{};
-  final applications = <String>{};
+  final applications = <String, (String, String)>{};
+  final assignments = <CompanyWorkAssignment>[];
   for (final row in rows) {
     final assignment = CompanyWorkAssignment.fromJson(row);
     if (!ids.add(assignment.assignmentId)) {
       throw const FormatException('Duplicate assignment');
     }
-    applications.add(assignment.applicationId);
+    if (!assignment.scheduledEnd.isAfter(assignment.scheduledStart) ||
+        assignment.workplaceLocation.trim().isEmpty) {
+      throw const FormatException('Invalid existing shift');
+    }
+    final identity = (assignment.workerId, assignment.jobId);
+    final previous = applications[assignment.applicationId];
+    if (previous != null && previous != identity) {
+      throw const FormatException('Contradictory application assignments');
+    }
+    applications[assignment.applicationId] = identity;
+    assignments.add(assignment);
   }
-  return applications;
+  return assignments;
 }
 
 class _CandidateFailure implements Exception {

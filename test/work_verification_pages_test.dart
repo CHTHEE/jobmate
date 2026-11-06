@@ -87,8 +87,8 @@ void main() {
         'Scheduled start: 06/11/2026 04:30 MYT',
         'Scheduled end: 06/11/2026 13:00 MYT',
         'Workplace: Server location',
-        'Assignment status: Awaiting verification',
-        'Verification status: Pending review',
+        'Pending Review',
+        'Action needed: review evidence',
       ]) {
         expect(find.text(text), findsOneWidget);
       }
@@ -297,10 +297,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(
-        find.text('Verification status: More evidence required'),
-        findsOneWidget,
-      );
+      expect(find.text('More Evidence Required'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.drag(
         find.byType(SingleChildScrollView).first,

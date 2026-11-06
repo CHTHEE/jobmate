@@ -16,6 +16,9 @@ import 'work_evidence_qa_review.dart';
 import 'work_evidence_preview.dart';
 import 'work_assignment_people.dart';
 import 'work_assignment_creation_repository.dart';
+import 'work_evidence_workflow.dart';
+import 'work_evidence_workflow_panel.dart';
+import 'work_evidence_upload_repository.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -32,6 +35,8 @@ class WorkEvidencePage extends StatefulWidget {
     this.qaReviewSession,
     this.createPreviewRepository,
     this.loadWorkerName,
+    this.workflowSource,
+    this.createWorkflowUploads,
   });
   final WorkEvidenceRepository repository;
   final Future<List<XFile>> Function()? pickDraftFiles;
@@ -42,6 +47,9 @@ class WorkEvidencePage extends StatefulWidget {
   final WorkEvidenceQaReviewSession? qaReviewSession;
   final WorkEvidencePreviewRepository Function()? createPreviewRepository;
   final WorkAssignmentNameLoader? loadWorkerName;
+  final WorkEvidenceWorkflowSource? workflowSource;
+  final WorkEvidenceUploadRepository Function(WorkEvidenceDraftController)?
+  createWorkflowUploads;
 
   @override
   State<WorkEvidencePage> createState() => _WorkEvidencePageState();
@@ -250,6 +258,17 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
     listenable: widget.repository,
     builder: (context, _) {
       final repo = widget.repository;
+      final workflow =
+          widget.workflowSource ??
+          (repo.attendance.source is SupabaseWorkAttendanceSource
+              ? SupabaseWorkEvidenceWorkflowSource(
+                  (repo.attendance.source as SupabaseWorkAttendanceSource)
+                      .client,
+                )
+              : null);
+      final rounds =
+          repo.evidence.map((file) => file.submissionRound).toSet().toList()
+            ..sort((a, b) => b.compareTo(a));
       if (repo.assignment case final CompanyWorkAssignment row) {
         _resolveName(row);
       }
@@ -291,7 +310,7 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Evidence metadata only. Private files are not opened or downloaded here.',
+                'Open submitted PDFs and images through authorized private previews.',
               ),
               const Text('All times are Malaysia time (MYT, UTC+08:00).'),
               const SizedBox(height: 24),
@@ -327,20 +346,32 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                     ),
                   ),
                 const SizedBox(height: 16),
+                if (workflow != null &&
+                    repo.assignment != null &&
+                    repo.assignmentId != supervisedWorkEvidenceQaAssignment)
+                  WorkEvidenceWorkflowPanel(
+                    key: ValueKey((repo, repo.attendance.source.userId)),
+                    viewer: repo,
+                    source: workflow,
+                    pickFiles: widget.pickDraftFiles,
+                    createUploads: widget.createWorkflowUploads,
+                  ),
                 if (repo.employer && widget.mockReviewOperations != null)
                   MockWorkEvidenceReviewPanel(
                     key: ObjectKey(repo),
                     repository: repo,
                     operations: widget.mockReviewOperations!,
                   ),
-                if (canReviewWorkEvidenceQa(repo)) ...[
+                if (workflow == null && canReviewWorkEvidenceQa(repo)) ...[
                   OutlinedButton(
                     onPressed: _reviewOpen ? null : _openQaReview,
                     child: const Text('Review work (QA only)'),
                   ),
                   const SizedBox(height: 16),
                 ],
-                if (!repo.employer && repo.assignment != null) ...[
+                if (workflow == null &&
+                    !repo.employer &&
+                    repo.assignment != null) ...[
                   Align(
                     alignment: Alignment.centerLeft,
                     child: OutlinedButton(
@@ -369,16 +400,36 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                     title: 'No work evidence',
                     message: 'No submitted evidence was returned for this assignment.',
                   )
-                else
-                  for (final file in repo.evidence)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: _EvidenceCard(
-                        file,
-                        workerName: repo.employer ? _workerName : null,
-                        onPreview: _previewOpen ? null : () => _preview(file),
+                else ...[
+                  _EvidenceRound(
+                    round: rounds.first,
+                    files: repo.evidence
+                        .where((f) => f.submissionRound == rounds.first)
+                        .toList(),
+                    latest: true,
+                    workerName: repo.employer ? _workerName : null,
+                    onPreview: _previewOpen ? null : _preview,
+                  ),
+                  if (rounds.length > 1)
+                    ExpansionTile(
+                      title: Text('Earlier submissions (${rounds.length - 1})'),
+                      subtitle: const Text(
+                        'Previous files remain available for reference',
                       ),
+                      children: [
+                        for (final round in rounds.skip(1))
+                          _EvidenceRound(
+                            round: round,
+                            files: repo.evidence
+                                .where((f) => f.submissionRound == round)
+                                .toList(),
+                            latest: false,
+                            workerName: repo.employer ? _workerName : null,
+                            onPreview: _previewOpen ? null : _preview,
+                          ),
+                      ],
                     ),
+                ],
               ],
             ],
           ),
@@ -398,9 +449,9 @@ class _WorkerDraftSession implements EvidenceDraftSession {
 }
 
 class _EvidenceCard extends StatelessWidget {
-  const _EvidenceCard(this.file, {this.workerName, this.onPreview});
+  const _EvidenceCard(this.file, {required this.label, this.onPreview});
   final WorkEvidence file;
-  final String? workerName;
+  final String label;
   final VoidCallback? onPreview;
 
   @override
@@ -411,23 +462,23 @@ class _EvidenceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Submission round ${file.submissionRound}',
-            style: Theme.of(context).textTheme.titleMedium,
+          Row(
+            children: [
+              Icon(
+                file.mimeType == 'application/pdf'
+                    ? Icons.picture_as_pdf_outlined
+                    : Icons.image_outlined,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
-          Text(file.fileName, style: Theme.of(context).textTheme.titleLarge),
-          Text('File type: ${file.mimeType}'),
-          const SizedBox(height: 12),
-          Text(file.description),
-          const SizedBox(height: 12),
-          Text(
-            workerName == null
-                ? 'Submitted by the assigned worker'
-                : 'Submitted by: $workerName',
-          ),
-          Text('Submitted at: ${_malaysiaTime(file.submittedAt)}'),
-          const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: onPreview,
             icon: const Icon(Icons.visibility_outlined),
@@ -445,4 +496,58 @@ String _malaysiaTime(DateTime timestamp) {
   final time = timestamp.toUtc().add(const Duration(hours: 8));
   String two(int value) => value.toString().padLeft(2, '0');
   return '${two(time.day)}/${two(time.month)}/${time.year} ${two(time.hour)}:${two(time.minute)} MYT';
+}
+
+class _EvidenceRound extends StatelessWidget {
+  const _EvidenceRound({
+    required this.round,
+    required this.files,
+    required this.latest,
+    this.workerName,
+    this.onPreview,
+  });
+  final int round;
+  final List<WorkEvidence> files;
+  final bool latest;
+  final String? workerName;
+  final ValueChanged<WorkEvidence>? onPreview;
+  @override
+  Widget build(BuildContext context) {
+    var pdf = 0, image = 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            latest
+                ? 'Latest submission - Round $round'
+                : 'Submission round $round',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          if (files.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(files.first.description),
+            const SizedBox(height: 8),
+            Text(
+              '${workerName == null ? 'Submitted by the assigned worker' : 'Submitted by: $workerName'} - ${_malaysiaTime(files.first.submittedAt)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+          const SizedBox(height: 12),
+          for (final file in files)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _EvidenceCard(
+                file,
+                label: file.mimeType == 'application/pdf'
+                    ? 'Evidence PDF ${++pdf}'
+                    : 'Evidence image ${++image}',
+                onPreview: onPreview == null ? null : () => onPreview!(file),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

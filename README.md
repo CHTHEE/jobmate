@@ -51,9 +51,29 @@ manual walkthrough. The normal lib/main.dart does not import preview fixtures.
 
 ### Planned features
 
+Module 4 deployment status (2026-11-06, confirmed by the project owner): the four
+follow-up migrations below are deployed and catalog-verified in the shared
+Supabase database, over the existing `20261105000100` base:
+
+- `20261105000300_work_evidence_attempt_reservations.sql`
+- `20261106000100_work_assignment_creation_idempotency.sql`
+- `20261106000200_employer_attendance_gps.sql`
+- `20261106000300_work_evidence_workflow.sql`
+
+Deployment is complete; do not reapply these migrations. Catalog verification
+does not establish runtime authorization, Storage access, concurrency or client
+release readiness. Remaining security/device QA and coordinated client cutover
+are separate release gates. Keep Module 4 writes paused outside separately
+approved synthetic-fixture QA until cutover is complete. The alternative
+`20261105000200` prototype is excluded and must not be deployed.
+
 Module 4 production worker attendance at `/work-attendance` now supports
-confirmed check-in/check-out through the deployed attendance RPCs. Device location
-is not collected: both requests send `unavailable` with null coordinates.
+confirmed check-in/check-out through the existing attendance RPCs. The worker
+confirms fresh GPS coordinates when available, or retries/continues with denied
+or unavailable status and null coordinates. Employers can open a read-only GPS
+view with Google Maps links through a separately authorized RPC. Migration
+`20261106000200_employer_attendance_gps.sql` is deployed and catalog-verified. See
+[GPS behavior and deployment review](docs/work_attendance_gps.md).
 The server controls timestamps and eligibility, including the check-in window
 from 60 minutes before scheduled start through scheduled end. Actions lock
 duplicate submissions and reload authoritative assignments without optimistic
@@ -61,6 +81,18 @@ timestamps. Failed responses also refresh before retry; a lost response may have
 committed. Existing attendance demos remain separate. This describes the client
 implementation; live attendance actions and device acceptance require explicit
 testing approval.
+
+Module 4 cards use server-derived status banners and contextual evidence actions.
+The normal Job Seeker menu shows My Work Shifts; attendance demo routes remain
+available directly but are hidden from the menu. Shift cards group workplace and
+recorded check-in/out times. Saved GPS status is not returned by the worker
+shift-list RPC and is labelled as unavailable in this summary; none is inferred.
+Checkout has a separate irreversible-shift confirmation before the GPS prompt.
+Confirmed attendance uses snackbars; confirmed evidence submissions and reviews
+close their dialogs and refresh server state. Unsaved drafts retain exit guards,
+and uncertain outcomes stay locked for reconciliation. Evidence groups show the
+latest submission first, with earlier rounds and history collapsed. Private file
+previews and backend eligibility checks remain authoritative.
 
 Production assignment cards now open read-only evidence metadata at
 `/work-attendance/:assignmentId/evidence` for active Job Seekers and
@@ -71,42 +103,28 @@ be previewed and PDFs opened in the browser/PDF app using private, 90-second
 signed links after fresh assignment and per-file authorization. No public links
 are created. The separate `/attendance/evidence` demo remains unchanged.
 
-Employers can create assignments from Work Verification after selecting an
-eligible hired application and explicitly confirming worker, job, company,
-MYT schedule and workplace. Fresh complete reads exclude already assigned
-applications. Creation uses the existing RPC with transport retries disabled;
-uncertain outcomes require fresh assignment reads and remain blocked when
-inconclusive. Attempt protection survives dialog/route reopening within the app,
-but is not durable across browser refresh/app restart; never restart to retry a
-lost response. Concurrent clients still depend on the deployed server constraints.
-No migration or live assignment creation was performed during implementation.
+Employers can create additional non-overlapping shifts for the same hired
+application from Work Verification, with explicit worker/job/company/MYT schedule
+and workplace confirmation. Creation requires the new server-issued request-ID
+contract; there is no legacy fallback. Uncertain responses block further writes
+for that application's running session; reconciliation uses the request ID only.
+Migration `20261106000100_work_assignment_creation_idempotency.sql`
+is deployed and catalog-verified. Environments without that contract fail closed. Server
+request identity and duplicate protection survive client restart; local unresolved
+locks do not. Never refresh/restart to retry an uncertain action.
+No live assignments or evidence/verification records were changed.
 
-Workers can prepare a local evidence draft in a responsive dialog/sheet from
-their authorized production evidence viewer. Description and selected files use
-the shared draft controller's validation. Submit Evidence remains disabled;
-nothing is uploaded or submitted. Closing the form discards its local contents
-after confirmation when needed. Account/assignment changes clear the draft.
-Employer evidence viewing remains read-only; no new route is introduced.
-
-The approved QA assignment `49f417e6-9645-4433-a1fd-76a99d6c0815` additionally
-offers an explicitly armed, supervised real evidence flow from its worker
-evidence viewer. Upload and submission require separate confirmations and fresh
-eligibility checks. A failed or uncertain action blocks further writes for that
-worker's running QA session; read-only reconciliation may establish commitment.
-Use only one browser tab/device. Browser refresh or app restart loses this local
-gate: stop and investigate manually after any uncertain outcome, never reopen to
-retry. Normal production submission stays disabled; no idempotency migration is
-required or deployed by this integration.
-
-Authorized employers can open a separate supervised real QA review dialog from
-that assignment's evidence viewer while it is pending review. Verify and Request
-More Evidence require confirmation and fresh company/evidence checks. One review
-dispatch closes further actions for that employer/company's running QA session;
-uncertain results require manual investigation, with no automatic retry. Status
-and evidence refresh through existing RPCs. Verification history is unavailable
-through the deployed API. Ordinary review and demo workflows remain unchanged.
-See [pre-commit UI cleanup and release blockers](docs/module4_precommit_ui_review.md)
-for completed polish, private-preview behavior and the safety plan for general use.
+The local evidence workflow now supports checked-out worker PDF/image submission,
+authorized private PDF opening, employer verification or requests with a reason,
+worker resubmission and shared verification history. It requires the reviewed
+server-reservation and workflow/cutover migrations; both are deployed and
+catalog-verified in the shared database.
+The client fails closed without the new contract. GPS and repeat-shift work remain
+unchanged. Existing local-only draft and supervised QA code remain separate;
+general workflow controls exclude the protected QA assignment. Legacy QA write
+calls are intentionally restricted by the deployed cutover grants. No protected records
+were accessed or changed. See [evidence workflow and migration order](docs/work_evidence_workflow.md)
+for overlapping drafts, recovery rules and isolated/live QA prerequisites.
 
 Modules 2–10 now have explicitly labeled demo UI environments for the screens
 described below; these are not completed backend integrations. Phase 4 adds

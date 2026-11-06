@@ -95,6 +95,10 @@ class WorkEvidenceDraftPage extends StatefulWidget {
     this.supervisedQaControls,
     this.supervisedQaLocked = false,
     this.supervisedQaBusy = false,
+    this.workflowControls,
+    this.workflowLocked = false,
+    this.workflowBusy = false,
+    this.workflowCompleted = false,
   });
   final WorkEvidenceDraftController controller;
   final VoidCallback? onClose;
@@ -105,6 +109,11 @@ class WorkEvidenceDraftPage extends StatefulWidget {
   /// Optional isolated QA host. Normal production and mock callers omit these.
   final Widget? supervisedQaControls;
   final bool supervisedQaLocked, supervisedQaBusy;
+  final Widget? workflowControls;
+  final bool workflowLocked, workflowBusy;
+
+  /// Set only after a validated committed server response.
+  final bool workflowCompleted;
 
   @override
   State<WorkEvidenceDraftPage> createState() => _WorkEvidenceDraftPageState();
@@ -163,7 +172,12 @@ class _WorkEvidenceDraftPageState extends State<WorkEvidenceDraftPage> {
       widget.controller.busy;
 
   Future<void> _close() async {
-    if (_confirming || _leaving || widget.supervisedQaBusy) return;
+    if (_confirming ||
+        _leaving ||
+        widget.supervisedQaBusy ||
+        widget.workflowBusy) {
+      return;
+    }
     setState(() => _confirming = true);
     final discard = await confirmDiscardChanges(context, _dirty);
     if (!mounted) return;
@@ -184,6 +198,15 @@ class _WorkEvidenceDraftPageState extends State<WorkEvidenceDraftPage> {
   @override
   void didUpdateWidget(covariant WorkEvidenceDraftPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.workflowCompleted && !oldWidget.workflowCompleted) {
+      _leaving = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && Navigator.of(context).canPop()) {
+          widget.controller.clear();
+          Navigator.of(context).pop();
+        }
+      });
+    }
     final changedDraft = !identical(oldWidget.controller, widget.controller);
     final changedMock = !identical(
       oldWidget.mockUploadSource,
@@ -217,6 +240,7 @@ class _WorkEvidenceDraftPageState extends State<WorkEvidenceDraftPage> {
       final active = draft.assignmentId != null && draft.session.userId != null;
       final upload = _mockCoordinator?.state;
       final batchLocked =
+          widget.workflowLocked ||
           widget.supervisedQaLocked ||
           (upload != null &&
               upload.phase != WorkEvidenceDraftUploadPhase.idle &&
@@ -238,28 +262,41 @@ class _WorkEvidenceDraftPageState extends State<WorkEvidenceDraftPage> {
           if (!didPop) _close();
         },
         child: ModalBody(
-          title: 'Local work evidence draft',
+          title: widget.workflowControls == null
+              ? 'Local work evidence draft'
+              : 'Submit work evidence',
           actions: [
             OutlinedButton(
-              onPressed: _confirming || widget.supervisedQaBusy ? null : _close,
+              onPressed:
+                  _confirming || widget.supervisedQaBusy || widget.workflowBusy
+                  ? null
+                  : _close,
               child: const Text('Close draft'),
             ),
-            const FilledButton(onPressed: null, child: Text('Submit Evidence')),
+            if (widget.workflowControls == null)
+              const FilledButton(
+                onPressed: null,
+                child: Text('Submit Evidence'),
+              ),
           ],
           children: [
             Text(
-              widget.supervisedQaControls == null
+              widget.workflowControls != null
+                  ? 'Confirming submission uploads selected files privately and submits them for employer review. An uncertain response must be reconciled before any further action.'
+                  : widget.supervisedQaControls == null
                   ? 'Nothing has been uploaded or submitted. This draft is kept only while this form is open.'
                   : 'Supervised QA only. Confirmed actions below write to real private Storage and the deployed evidence RPC. Normal production submission remains disabled.',
             ),
             const SizedBox(height: 12),
-            Text(
-              widget.supervisedQaControls == null
-                  ? 'Submission is not enabled yet.'
-                  : 'Normal submission is disabled. Only the explicit supervised QA controls below can submit.',
-            ),
+            if (widget.workflowControls == null)
+              Text(
+                widget.supervisedQaControls == null
+                    ? 'Submission is not enabled yet.'
+                    : 'Normal submission is disabled. Only the explicit supervised QA controls below can submit.',
+              ),
             if (widget.supervisedQaControls != null)
               widget.supervisedQaControls!,
+            if (widget.workflowControls != null) widget.workflowControls!,
             const SizedBox(height: 20),
             if (!active) ...[
               const Text(
@@ -403,7 +440,9 @@ class _WorkEvidenceDraftPageState extends State<WorkEvidenceDraftPage> {
               liveRegion: true,
               child: Text(
                 draft.ready
-                    ? 'Draft ready for future submission'
+                    ? widget.workflowControls == null
+                          ? 'Draft ready for future submission'
+                          : 'Evidence ready for confirmation'
                     : 'Draft not ready',
                 style: Theme.of(context).textTheme.titleMedium,
               ),

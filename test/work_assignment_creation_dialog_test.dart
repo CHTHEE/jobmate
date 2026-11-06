@@ -277,6 +277,22 @@ void main() {
     expect(source.creates, 0);
   });
 
+  testWidgets(
+    'previous assignment keeps worker selectable for an additional shift',
+    (tester) async {
+      source.assignments = (_) async =>
+          complete([assignment(company: true)..['application_id'] = uid(4)]);
+      await show(tester);
+      await fill(tester);
+      expect(find.text('Review assignment'), findsOneWidget);
+      expect(
+        find.textContaining('Applications with any existing assignment'),
+        findsNothing,
+      );
+      expect(source.creates, 0);
+    },
+  );
+
   testWidgets('duplicate taps disabled while confirmation is in flight', (
     tester,
   ) async {

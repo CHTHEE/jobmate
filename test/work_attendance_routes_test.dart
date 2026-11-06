@@ -23,10 +23,7 @@ void main() {
         seeker.where((v) => v.$1 == AppRoutes.workAttendance).single.$2,
         'My Work Shifts',
       );
-      expect(
-        seeker.where((v) => v.$1 == AppRoutes.attendance).single.$2,
-        'Attendance (demo)',
-      );
+      expect(seeker.where((v) => v.$1 == AppRoutes.attendance), isEmpty);
       for (final role in ['employer', 'administrator', 'guest']) {
         expect(
           workspaceDestinations(role).values
@@ -36,6 +33,7 @@ void main() {
         );
       }
       expect(AppRoutes.workAttendance, '/work-attendance');
+      expect(AppRoutes.attendance, '/attendance');
       expect(AppRoutes.attendanceHistory, '/attendance/history');
       expect(AppRoutes.workEvidence, '/attendance/evidence');
       expect(AppRoutes.attendanceReview, '/attendance-review');
@@ -82,7 +80,8 @@ void main() {
         );
         expect(workspace.path, AppRoutes.workAttendance);
         expect(workspace.focused, isFalse);
-                if (find.byKey(const ValueKey('workspace-bottom-navigation'))
+        if (find
+            .byKey(const ValueKey('workspace-bottom-navigation'))
             .evaluate()
             .isNotEmpty) {
           // Native layout: Home is a primary bottom-navigation destination.
@@ -99,18 +98,18 @@ void main() {
           expect(dashboard, findsOneWidget);
           await tester.tap(dashboard);
         }
-        } else {
-          expect(find.text('Page unavailable'), findsOneWidget);
-          final dashboardAction = find.byTooltip('Go to dashboard');
-          final backAction = find.byTooltip('Back');
+      } else {
+        expect(find.text('Page unavailable'), findsOneWidget);
+        final dashboardAction = find.byTooltip('Go to dashboard');
+        final backAction = find.byTooltip('Back');
 
-          if (dashboardAction.evaluate().isNotEmpty) {
-            await tester.tap(dashboardAction);
-          } else {
-            expect(backAction, findsOneWidget);
-            await tester.tap(backAction);
-          }
+        if (dashboardAction.evaluate().isNotEmpty) {
+          await tester.tap(dashboardAction);
+        } else {
+          expect(backAction, findsOneWidget);
+          await tester.tap(backAction);
         }
+      }
       await tester.pumpAndSettle();
       expect(router.routeInformationProvider.value.uri.path, '/');
       expect(find.text('Dashboard destination'), findsOneWidget);

@@ -15,6 +15,22 @@ WorkAssignmentCandidateRead complete(List<Map<String, dynamic>> rows) =>
 
 class CandidateSource implements WorkAssignmentCreationSource {
   int creates = 0;
+  int reservations = 0;
+  String? lookedUpRequest;
+  Future<Object?> Function(Map<String, dynamic>) reserve = (_) async => uid(80);
+  Future<Object?> Function(String) lookup = (_) async => null;
+  @override
+  Future<Object?> reserveAssignment(Map<String, dynamic> parameters) {
+    reservations++;
+    return reserve(parameters);
+  }
+
+  @override
+  Future<Object?> lookupAssignmentRequest(String requestId) {
+    lookedUpRequest = requestId;
+    return lookup(requestId);
+  }
+
   Map<String, dynamic>? parameters;
   Future<Object?> Function(Map<String, dynamic>) create = (_) async => uid(90);
   @override
@@ -147,7 +163,7 @@ void main() {
     'cancelled',
     'disputed',
   ]) {
-    test('hired filtering excludes existing $status assignments', () async {
+    test('hired filtering retains existing $status assignments', () async {
       source.applicants = (_) async => complete([
         applicant(4),
         applicant(6),
@@ -155,16 +171,19 @@ void main() {
       ]);
       source.assignments = (_) async => complete([existing(4, status: status)]);
       await repo.load();
-      expect(repo.state.candidates.map((row) => row.applicationId), [uid(6)]);
+      expect(repo.state.candidates.map((row) => row.applicationId), [
+        uid(4),
+        uid(6),
+      ]);
     });
   }
 
-  test('multiple legitimate shifts for one application are excluded without ambiguity', () async {
+  test('multiple legitimate shifts for one application remain eligible without ambiguity', () async {
     source.assignments = (_) async =>
         complete([existing(4), existing(4, assignmentId: 91)]);
     await repo.load();
     expect(repo.state.error, isNull);
-    expect(repo.state.candidates, isEmpty);
+    expect(repo.state.candidates.single.applicationId, uid(4));
   });
 
   test(
@@ -322,6 +341,19 @@ void main() {
     expectBlocked(WorkAssignmentCreationError.incompleteData);
   });
 
+  test('invalid existing schedule or contradictory application identity fails closed', () async {
+    source.assignments = (_) async =>
+        complete([existing(4)..['scheduled_end'] = '2020-01-01T00:00:00Z']);
+    await repo.load();
+    expectBlocked(WorkAssignmentCreationError.incompleteData);
+    source.assignments = (_) async => complete([
+      existing(4),
+      existing(4, assignmentId: 91)..['worker_id'] = uid(77),
+    ]);
+    await repo.load();
+    expectBlocked(WorkAssignmentCreationError.incompleteData);
+  });
+
   test('incomplete assignment fields and failed assignment reads never expose candidates', () async {
     source.assignments = (_) async =>
         complete([existing(4)..remove('application_id')]);
@@ -332,17 +364,14 @@ void main() {
     expectBlocked(WorkAssignmentCreationError.connection);
   });
 
-  test(
-    'final assignment recheck excludes newly assigned application',
-    () async {
-      var count = 0;
-      source.assignments = (_) async =>
-          complete(++count == 1 ? [] : [existing(4)]);
-      await repo.load();
-      expect(repo.state.error, isNull);
-      expect(repo.state.candidates, isEmpty);
-    },
-  );
+  test('final assignment recheck retains newly assigned application', () async {
+    var count = 0;
+    source.assignments = (_) async =>
+        complete(++count == 1 ? [] : [existing(4)]);
+    await repo.load();
+    expect(repo.state.error, isNull);
+    expect(repo.state.candidates.single.applicationId, uid(4));
+  });
 
   test('failed final assignment read and revoked final access discard all provisional results', () async {
     var reads = 0;
@@ -417,14 +446,14 @@ void main() {
   );
 
   test(
-    'an assignment seen in either complete read is conservatively excluded',
+    'an assignment seen in either complete read permits another shift',
     () async {
       var reads = 0;
       source.assignments = (_) async =>
           complete(++reads == 1 ? [existing(4)] : []);
       await repo.load();
       expect(repo.state.error, isNull);
-      expect(repo.state.candidates, isEmpty);
+      expect(repo.state.candidates.single.applicationId, uid(4));
     },
   );
 
@@ -553,6 +582,7 @@ void main() {
         expect(result.status, WorkAssignmentCreateStatus.success);
         expect(result.assignmentId, uid(90));
         expect(source.parameters, {
+          'p_request_id': uid(80),
           'p_application_id': uid(4),
           'p_scheduled_start': start.toIso8601String(),
           'p_scheduled_end': end.toIso8601String(),
@@ -562,6 +592,126 @@ void main() {
         expect(source.creates, 1);
       },
     );
+    test(
+      'successful shift permits another date but blocks identical interval',
+      () async {
+        final row = await candidate();
+        source.reserve = (_) async => uid(80 + source.reservations);
+        source.create = (_) async => uid(90 + source.creates);
+        expect((await create(row)).status, WorkAssignmentCreateStatus.success);
+        expect(
+          (await create(row)).status,
+          WorkAssignmentCreateStatus.uncertain,
+        );
+        final next = await repo.create(
+          candidate: row,
+          start: start.add(const Duration(days: 1)),
+          end: end.add(const Duration(days: 1)),
+          location: 'QA workplace',
+        );
+        expect(next.status, WorkAssignmentCreateStatus.success);
+        expect(next.assignmentId, uid(92));
+        await create(
+          row,
+        ); // First interval remains protected after a later shift.
+        expect(source.creates, 2);
+      },
+    );
+    test('unresolved attempt blocks changed schedule and location', () async {
+      final row = await candidate();
+      source.create = (_) async => throw TimeoutException('lost');
+      await create(row);
+      await repo.create(
+        candidate: row,
+        start: start.add(const Duration(days: 1)),
+        end: end.add(const Duration(days: 1)),
+        location: 'Changed',
+      );
+      expect(source.creates, 1);
+    });
+    test(
+      'identical existing assignment never proves request commitment',
+      () async {
+        final row = await candidate();
+        source.create = (_) async {
+          source.assignments = (_) async => complete([matchingAssignment()]);
+          throw TimeoutException('lost');
+        };
+        expect(
+          (await create(row)).status,
+          WorkAssignmentCreateStatus.uncertain,
+        );
+        expect(source.lookedUpRequest, uid(80));
+        expect(
+          (await repo.reconcile(row)).status,
+          WorkAssignmentCreateStatus.uncertain,
+        );
+      },
+    );
+    test('overlap across applications blocks but adjacent interval permits creation', () async {
+      final row = await candidate();
+      source.assignments = (_) async =>
+          complete([matchingAssignment()..['application_id'] = uid(44)]);
+      expect((await create(row)).status, WorkAssignmentCreateStatus.rejected);
+      expect(source.creates, 0);
+      expect(
+        (await repo.create(
+          candidate: row,
+          start: end,
+          end: end.add(const Duration(hours: 1)),
+          location: 'QA',
+        )).status,
+        WorkAssignmentCreateStatus.success,
+      );
+    });
+    test(
+      'missing reservation contract never falls back to legacy creation',
+      () async {
+        final row = await candidate();
+        source.reserve = (_) async => throw const PostgrestException(
+          message: 'missing',
+          code: 'PGRST202',
+        );
+        expect(
+          (await create(row)).status,
+          WorkAssignmentCreateStatus.uncertain,
+        );
+        expect(source.creates, 0);
+        await create(row);
+        expect(source.reservations, 1);
+      },
+    );
+    test('uncertain reservation blocks without creation', () async {
+      final row = await candidate();
+      source.reserve = (_) async => throw TimeoutException('lost reservation');
+      expect((await create(row)).status, WorkAssignmentCreateStatus.uncertain);
+      expect(source.creates, 0);
+      expect(source.lookedUpRequest, isNull);
+    });
+    test('account switch during reservation prevents creation and retains old lock', () async {
+      final row = await candidate();
+      final pending = Completer<Object?>();
+      source.reserve = (_) => pending.future;
+      final action = create(row);
+      await Future<void>.delayed(Duration.zero);
+      expect(source.reservations, 1);
+      source.account(uid(10));
+      pending.complete(uid(80));
+      await action;
+      expect(source.creates, 0);
+      source.account(uid(1));
+      expect(repo.statusFor(row), WorkAssignmentCreateStatus.uncertain);
+      await create(row);
+      expect(source.reservations, 1);
+    });
+    test('changed payload SQL rejection never reports success', () async {
+      final row = await candidate();
+      source.create = (_) async => throw const PostgrestException(
+        message: 'changed payload',
+        code: '22023',
+      );
+      expect((await create(row)).status, WorkAssignmentCreateStatus.rejected);
+    });
     test(
       'blank/oversized location and invalid/nonUTC schedules never dispatch',
       () async {
@@ -738,21 +888,20 @@ void main() {
         },
       );
     }
-    test(
-      'lost response positively reconciles exact assignment from fresh reads',
-      () async {
-        final row = await candidate();
-        source.create = (_) async {
-          source.assignments = (_) async => complete([matchingAssignment()]);
-          throw TimeoutException('lost');
-        };
-        final result = await create(row);
-        expect(result.status, WorkAssignmentCreateStatus.success);
-        expect(result.assignmentId, uid(90));
-        expect(result.message, contains('found'));
-        expect(source.creates, 1);
-      },
-    );
+    test('lost response reconciles only the server request ID', () async {
+      final row = await candidate();
+      source.create = (_) async {
+        source.assignments = (_) async => complete([matchingAssignment()]);
+        source.lookup = (_) async => uid(90);
+        throw TimeoutException('lost');
+      };
+      final result = await create(row);
+      expect(result.status, WorkAssignmentCreateStatus.success);
+      expect(result.assignmentId, uid(90));
+      expect(result.message, contains('server'));
+      expect(source.lookedUpRequest, uid(80));
+      expect(source.creates, 1);
+    });
     test('mismatched, duplicate, incomplete and unauthorized reconciliation remains blocked', () async {
       final row = await candidate();
       source.create = (_) async => throw TimeoutException('lost');
@@ -784,11 +933,68 @@ void main() {
     });
   });
 
+  test(
+    'reservation and lookup use new RPC contracts without write retries',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final paths = <String>[];
+      var fail = false;
+      server.listen((request) async {
+        paths.add(request.uri.path);
+        final body = jsonDecode(await utf8.decoder.bind(request).join());
+        if (request.uri.path.endsWith('lookup_work_assignment_request')) {
+          expect(body, {'p_request_id': uid(80)});
+        }
+        request.response.headers.contentType = ContentType.json;
+        request.response.statusCode = fail ? 503 : 200;
+        request.response.write(
+          jsonEncode(
+            fail ? {'message': 'unavailable', 'code': '503'} : uid(80),
+          ),
+        );
+        await request.response.close();
+      });
+      final client = SupabaseClient(
+        'http://127.0.0.1:${server.port}',
+        'fake-key',
+        authOptions: const AuthClientOptions(autoRefreshToken: false),
+      );
+      addTearDown(() async {
+        await client.dispose();
+        await server.close(force: true);
+      });
+      await client.auth.setInitialSession(
+        jsonEncode({
+          'access_token': 'fake-token',
+          'token_type': 'bearer',
+          'user': {'id': uid(1)},
+        }),
+      );
+      final adapter = SupabaseWorkAssignmentCreationSource(client);
+      expect(
+        await adapter.reserveAssignment({'p_application_id': uid(4)}),
+        uid(80),
+      );
+      expect(await adapter.lookupAssignmentRequest(uid(80)), uid(80));
+      fail = true;
+      await expectLater(
+        adapter.reserveAssignment({'p_application_id': uid(4)}),
+        throwsA(isA<PostgrestException>()),
+      );
+      expect(paths, [
+        '/rest/v1/rpc/reserve_work_assignment_request',
+        '/rest/v1/rpc/lookup_work_assignment_request',
+        '/rest/v1/rpc/reserve_work_assignment_request',
+      ]);
+    },
+  );
+
   test('Supabase creation adapter sends exact POST once, including gateway failure (loopback fake)', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     var requests = 0;
     var fail = false;
     final parameters = <String, dynamic>{
+      'p_request_id': uid(80),
       'p_application_id': uid(4),
       'p_scheduled_start': '2026-11-07T01:00:00.000Z',
       'p_scheduled_end': '2026-11-07T09:00:00.000Z',
@@ -797,7 +1003,7 @@ void main() {
     server.listen((request) async {
       requests++;
       expect(request.method, 'POST');
-      expect(request.uri.path, '/rest/v1/rpc/create_work_assignment');
+      expect(request.uri.path, '/rest/v1/rpc/create_work_assignment_request');
       expect(jsonDecode(await utf8.decoder.bind(request).join()), parameters);
       request.response.headers.contentType = ContentType.json;
       request.response.statusCode = fail ? 503 : 200;

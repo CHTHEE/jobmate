@@ -47,18 +47,19 @@ void main() {
           ..['mime_type'] = 'image/png',
       ]);
       await tester.pumpAndSettle();
+      expect(find.text('Latest submission - Round 2'), findsOneWidget);
+      expect(find.text('Earlier description'), findsNothing);
+      await tester.ensureVisible(find.text('Earlier submissions (1)'));
+      await tester.tap(find.text('Earlier submissions (1)'));
+      await tester.pumpAndSettle();
       for (final text in [
         'Server job',
-        'Submission round 2',
+        'Latest submission - Round 2',
         'Submission round 1',
         'Server evidence',
         'Earlier description',
-        'file.pdf',
-        'photo.png',
-        'File type: application/pdf',
-        'File type: image/png',
-        'Submitted by the assigned worker',
-        'Submitted at: 05/11/2026 10:00 MYT',
+        'Evidence PDF 1',
+        'Evidence image 1',
       ]) {
         expect(find.text(text), findsWidgets);
       }
@@ -95,7 +96,7 @@ void main() {
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
       expect(find.text('Sign in required'), findsOneWidget);
-      expect(find.text('file.pdf'), findsNothing);
+      expect(find.text('Evidence PDF 1'), findsNothing);
     },
   );
 
@@ -104,7 +105,7 @@ void main() {
     (tester) async {
       await show(tester);
       await tester.pumpAndSettle();
-      expect(find.text('file.pdf'), findsOneWidget);
+      expect(find.text('Evidence PDF 1'), findsOneWidget);
       final pending = Completer<List<Map<String, dynamic>>>();
       source.evidenceRead = (_) => pending.future;
       await tester.tap(find.byTooltip('Refresh evidence'));
@@ -113,12 +114,12 @@ void main() {
       source.switchAccount(other);
       await tester.pumpAndSettle();
       expect(find.textContaining('Your account changed'), findsOneWidget);
-      expect(find.text('file.pdf'), findsNothing);
+      expect(find.text('Evidence PDF 1'), findsNothing);
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
       pending.complete([evidenceRow()]);
       await tester.pumpAndSettle();
-      expect(find.text('file.pdf'), findsNothing);
+      expect(find.text('Evidence PDF 1'), findsNothing);
       expect(find.text('Evidence access denied'), findsOneWidget);
       source.switchAccount(null);
       await tester.pumpAndSettle();
@@ -158,7 +159,7 @@ void main() {
       await tester.tap(find.byTooltip('Refresh evidence'));
       await tester.pumpAndSettle();
       expect(reads, 1);
-      expect(find.text('file.pdf'), findsOneWidget);
+      expect(find.text('Evidence PDF 1'), findsOneWidget);
       expect(find.text('No evidence submitted yet'), findsNothing);
     },
   );
@@ -198,7 +199,7 @@ void main() {
       };
       await show(tester);
       await tester.pumpAndSettle();
-      expect(find.text('file.pdf'), findsOneWidget);
+      expect(find.text('Evidence PDF 1'), findsOneWidget);
       expect(find.text('No evidence submitted yet'), findsNothing);
     },
   );
@@ -256,7 +257,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Submission round 2'), findsOneWidget);
+      expect(find.text('Latest submission - Round 2'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.drag(
         find.byType(SingleChildScrollView).first,

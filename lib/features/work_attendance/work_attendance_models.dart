@@ -146,3 +146,45 @@ final class WorkEvidence {
     return value;
   }
 }
+
+/// Location captured for one attendance check-in or check-out action.
+///
+/// Attendance is still allowed when location permission is denied or
+/// the device cannot provide coordinates.
+class WorkAttendanceLocation {
+  const WorkAttendanceLocation._({
+    required this.status,
+    this.latitude,
+    this.longitude,
+  });
+
+  final String status;
+  final double? latitude;
+  final double? longitude;
+
+  factory WorkAttendanceLocation.granted({
+    required double latitude,
+    required double longitude,
+  }) {
+    if (!latitude.isFinite ||
+        !longitude.isFinite ||
+        latitude < -90 ||
+        latitude > 90 ||
+        longitude < -180 ||
+        longitude > 180) {
+      throw ArgumentError('Invalid attendance coordinates.');
+    }
+
+    return WorkAttendanceLocation._(
+      status: 'granted',
+      latitude: latitude,
+      longitude: longitude,
+    );
+  }
+
+  const WorkAttendanceLocation.denied()
+      : this._(status: 'denied');
+
+  const WorkAttendanceLocation.unavailable()
+      : this._(status: 'unavailable');
+}

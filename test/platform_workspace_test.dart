@@ -12,6 +12,25 @@ import 'package:jobmate/shared/widgets/responsive_layout.dart';
 import 'support/workspace_navigation_test_helper.dart';
 
 void main() {
+  test(
+    'job seeker menu keeps real shifts and hides the preserved demo route',
+    () {
+      final items = workspaceDestinations('job_seeker').values
+          .expand((items) => items);
+      expect(
+        items.any(
+          (item) =>
+              item.$1 == AppRoutes.workAttendance &&
+              item.$2 == 'My Work Shifts',
+        ),
+        isTrue,
+      );
+      expect(items.any((item) => item.$1 == AppRoutes.attendance), isFalse);
+      expect(items.any((item) => item.$2 == 'Attendance (demo)'), isFalse);
+      expect(AppRoutes.attendance, '/attendance');
+    },
+  );
+
   const widths = [
     320.0,
     360.0,

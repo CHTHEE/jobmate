@@ -44,13 +44,21 @@ class FakeSource implements WorkAttendanceSource {
   Future<DateTime> Function(String) onCheckOut = (_) async =>
       DateTime.utc(2026, 11, 5, 9);
   @override
-  Future<DateTime> checkIn(String assignmentId) {
+  Future<DateTime> checkIn(
+    String assignmentId, {
+    WorkAttendanceLocation location =
+        const WorkAttendanceLocation.unavailable(),
+  }) {
     checkIns++;
     return onCheckIn(assignmentId);
   }
 
   @override
-  Future<DateTime> checkOut(String assignmentId) {
+  Future<DateTime> checkOut(
+    String assignmentId, {
+    WorkAttendanceLocation location =
+        const WorkAttendanceLocation.unavailable(),
+  }) {
     checkOuts++;
     return onCheckOut(assignmentId);
   }

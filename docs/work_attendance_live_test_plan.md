@@ -3,16 +3,24 @@
 **Documentation only. Nothing in this plan has been executed by the agent.**
 Approval to write this document is not approval to create fixtures or perform
 attendance actions. Obtain separate approval for the fixture manifest and each
-phase below. Use the existing main development project; coordinate with the
-other developer. Do not deploy either Module 4 migration or enable evidence
-submission. This plan tests the existing attendance RPCs only.
+phase below. Coordinate with the other developer. The project owner confirms
+that all four Module 4 follow-up migrations (20261105000300, 20261106000100,
+20261106000200, 20261106000300) are deployed and catalog-verified in the shared
+Supabase database as of 2026-11-06, over the existing base. Do not reapply them
+or deploy the excluded 20261105000200 prototype. Catalog verification is complete;
+runtime/security QA and coordinated client release remain separate gates.
+Keep writes paused except for separately approved synthetic-fixture QA.
+This plan covers attendance only; it does not enable evidence QA by itself.
+The supabase/tests SQL scripts must NEVER target the shared database; use a
+disposable isolated database for them.
 
 ## Protected real records
 
 Never modify, check in/out, cancel, delete or repurpose:
 
-- Existing real assignment `5e103e8a-e51b-41e9-ba8d-6789cb09eea0`.
-- Its existing Hired application and the published Part-Time Cafe Crew job.
+- Every assignment listed in the required private protection manifest, including
+  the original real assignment and the previously verified QA assignment.
+- The original real assignment's Hired application and published job.
 - Their real worker, employer, company, memberships and related records.
 - Any other existing real jobs, applications, assignments or attendance.
 
@@ -20,6 +28,15 @@ Do not change real schedules to open a test window. Record the protected job,
 application and company UUIDs through authorized read-only inspection if they
 are not already known; do not guess them from names. Use dedicated synthetic
 accounts so the real assignment does not appear in the test worker's list.
+
+Before testing, require a separately reviewed local configuration value
+`protected_assignment_ids`: a non-empty JSON array of all protected assignment
+UUID strings. Keep actual IDs in the private local manifest, not this repository.
+If it is missing, empty, malformed, incomplete or cannot be independently
+confirmed, STOP; do not create fixtures or dispatch any attendance/evidence RPC.
+Reject any candidate assignment in this list before every action. The evidence
+SQL test validates this input before any RPC, but cannot establish completeness
+or detect a shared/production connection. Never substitute dummy protection IDs.
 
 ## 1. Approve fixtures and record identities
 
@@ -44,7 +61,8 @@ access to clients.
 Maintain a local test manifest (no passwords, tokens or Supabase keys):
 
 ```text
-Confirmed development project: __________________
+Confirmed target project and approved QA scope: __________________
+Required protected_assignment_ids (private non-empty JSON UUID array): __________________
 Worker auth/public user UUID: __________________
 Employer auth/public user UUID: __________________
 Company UUID: __________________
@@ -59,7 +77,8 @@ Approved operator, test scope and date: __________________
 Verify UUIDs from actual workflow responses/authorized records, not display
 names. Confirm the application joins the intended worker, job and company and
 is `hired`. Compare every action's assignment UUID with the manifest and the
-protected UUID. Prefer separate browser profiles for employer and worker sessions.
+protected UUID list. Prefer separate browser profiles for employer and worker
+sessions.
 Never paste access tokens into SQL, screenshots or this document.
 
 ## 2. Read-only deployed-contract preflight
@@ -111,8 +130,8 @@ backup is not routine test cleanup and could erase the other developer's work.
 This is a FUTURE WRITE requiring separate approval. Call through an authenticated
 test-employer client, not the SQL Editor's administrative identity and not a
 service-role client. The RPC checks the application is hired and the caller can
-manage its company. There is no production assignment-creation UI assumed here;
-use a separately approved authenticated test client if needed.
+manage its company. Prefer the current Work Verification creation UI and its server-issued request
+identity. Any separate authenticated test client requires explicit approval.
 
 Prepare a start near current server time (for example, approximately five minutes
 ahead) and an end comfortably later (for example, thirty minutes after start).
@@ -138,9 +157,9 @@ final assignmentId = await authenticatedTestEmployerClient.rpc(
 Record the returned UUID immediately. Through authorized company/worker reads,
 confirm its application, worker, company and schedule match the manifest and its
 state is `scheduled` with null attendance timestamps. Stop if any identity differs.
-If assignment creation times out, inspect authorized company assignments for the
-specific synthetic application/schedule before another creation attempt. This
-RPC has no client request key; do not assume a lost response means no assignment.
+If legacy assignment creation times out, stop and investigate; do not retry.
+Matching schedule/location cannot prove that request succeeded. The new client
+uses request-ID reconciliation only (see the migration review below).
 
 ## 4. Execute the worker attendance journey
 
@@ -225,5 +244,30 @@ project backup as casual cleanup. Any cleanup/archive procedure requires a
 separate dependency review and explicit approval; preserve all real records.
 
 Record each case as PASS / FAIL / NOT RUN with its synthetic UUID, observed
-timestamps and sanitized error text. Keep evidence submission disabled. This
-plan is not evidence of successful live testing or deployment approval.
+timestamps and sanitized error text. Evidence submission requires separate QA
+approval. This plan does not establish runtime/security QA completion or client
+release readiness; deployment/catalog verification is already complete.
+
+### Repeat-shift creation: deployed contract and remaining QA
+
+The client now requires reserve_work_assignment_request,
+create_work_assignment_request and lookup_work_assignment_request. Review the new
+20261106000100 contract against the recorded catalog verification when assessing
+runtime behavior; it is already deployed and must not be reapplied. Keep the
+worker-overlap exclusion constraint. The new guard
+rejects identical application/start/end inserts, including cancelled shifts and
+legacy RPC calls, without backfilling or rewriting historical assignments.
+
+Schedule/location matching does not prove a request committed. Use authorized
+request-ID lookup only; null never authorizes an uncertain retry. Do not restart
+to bypass the local lock. Server reservation identity is stable per actor/application/interval;
+changed location is rejected. Failed reservation responses may leave an unused
+reservation, but cannot create an assignment by themselves.
+
+Run supabase/tests/work_assignment_creation_idempotency.sql only in an isolated
+database with disposable synthetic fixtures. Also test concurrent same-ID replay,
+different actors and legacy duplicate/overlap races, cancellation then duplicate,
+revoked membership, anonymous calls, transaction rollback and unchanged historical
+record counts. No isolated PostgreSQL fixture environment was available locally;
+these SQL/device checks remain runtime QA and client release gates. Do not use
+the original cafe assignment or previously verified QA assignment.

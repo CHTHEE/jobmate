@@ -181,7 +181,6 @@ class _WorkAssignmentCreationDialogState
         [
           WorkAssignmentCreateStatus.uncertain,
           WorkAssignmentCreateStatus.submitting,
-          WorkAssignmentCreateStatus.success,
         ].contains(repository.statusFor(_candidate!));
     final jobs = {for (final c in state.candidates) c.jobId: c.jobTitle};
     Widget input(
@@ -282,7 +281,7 @@ class _WorkAssignmentCreationDialogState
                           ),
                         ] else if (state.candidates.isEmpty)
                           const Text(
-                            'No eligible hired applications. Applications with any existing assignment are excluded.',
+                            'No eligible hired applications. Hired workers can receive additional non-overlapping shifts.',
                           )
                         else
                           Form(

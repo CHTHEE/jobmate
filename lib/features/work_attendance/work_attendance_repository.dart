@@ -11,8 +11,17 @@ abstract class WorkAttendanceSource {
   Future<List<Map<String, dynamic>>> listMyAssignments();
   Future<List<Map<String, dynamic>>> listCompanyAssignments(String companyId);
   Future<List<Map<String, dynamic>>> listEvidence(String assignmentId);
-  Future<DateTime> checkIn(String assignmentId);
-  Future<DateTime> checkOut(String assignmentId);
+  Future<DateTime> checkIn(
+    String assignmentId, {
+    WorkAttendanceLocation location =
+        const WorkAttendanceLocation.unavailable(),
+  });
+
+  Future<DateTime> checkOut(
+    String assignmentId, {
+    WorkAttendanceLocation location =
+        const WorkAttendanceLocation.unavailable(),
+  });
 }
 
 /// Authorization and attendance timestamps remain enforced by deployed RPCs.
@@ -56,16 +65,21 @@ class SupabaseWorkAttendanceSource implements WorkAttendanceSource {
     params: {'p_assignment_id': workUuid(assignmentId)},
   );
 
-  Future<DateTime> _clock(String rpc, String assignmentId) async {
+  Future<DateTime> _clock(
+    String rpc,
+    String assignmentId, {
+    WorkAttendanceLocation location =
+        const WorkAttendanceLocation.unavailable(),
+  }) async {
     final actor = userId;
     if (actor == null) throw const AuthException('Authentication required');
     final result = await client.rpc(
       rpc,
       params: {
         'p_assignment_id': workUuid(assignmentId),
-        'p_location_status': 'unavailable',
-        'p_latitude': null,
-        'p_longitude': null,
+        'p_location_status': location.status,
+        'p_latitude': location.latitude,
+        'p_longitude': location.longitude,
       },
     );
     if (userId != actor) throw const AuthException('Account changed');
@@ -84,11 +98,26 @@ class SupabaseWorkAttendanceSource implements WorkAttendanceSource {
   }
 
   @override
-  Future<DateTime> checkIn(String assignmentId) =>
-      _clock('check_in_work_assignment', assignmentId);
+  Future<DateTime> checkIn(
+    String assignmentId, {
+    WorkAttendanceLocation location =
+        const WorkAttendanceLocation.unavailable(),
+  }) => _clock(
+    'check_in_work_assignment',
+    assignmentId,
+    location: location,
+  );
+
   @override
-  Future<DateTime> checkOut(String assignmentId) =>
-      _clock('check_out_work_assignment', assignmentId);
+  Future<DateTime> checkOut(
+    String assignmentId, {
+    WorkAttendanceLocation location =
+        const WorkAttendanceLocation.unavailable(),
+  }) => _clock(
+    'check_out_work_assignment',
+    assignmentId,
+    location: location,
+  );
 }
 
 enum WorkAttendanceError { authentication, permission, connection, invalidData }
@@ -191,10 +220,24 @@ class WorkAttendanceRepository extends ChangeNotifier {
     (state) => _evidence = state,
   );
 
-  Future<void> checkIn(String assignmentId) => _clock(assignmentId, true);
-  Future<void> checkOut(String assignmentId) => _clock(assignmentId, false);
+  Future<void> checkIn(
+    String assignmentId, {
+    WorkAttendanceLocation location =
+        const WorkAttendanceLocation.unavailable(),
+  }) => _clock(assignmentId, true, location: location);
 
-  Future<void> _clock(String assignmentId, bool checkingIn) async {
+  Future<void> checkOut(
+    String assignmentId, {
+    WorkAttendanceLocation location =
+        const WorkAttendanceLocation.unavailable(),
+  }) => _clock(assignmentId, false, location: location);
+
+  Future<void> _clock(
+    String assignmentId,
+    bool checkingIn, {
+    WorkAttendanceLocation location =
+        const WorkAttendanceLocation.unavailable(),
+  }) async {
     if (_disposed || acting) return;
     if (source.userId != _actor) _reset();
     if (_actor == null) return;
@@ -206,9 +249,9 @@ class WorkAttendanceRepository extends ChangeNotifier {
     try {
       final id = workUuid(assignmentId);
       if (checkingIn) {
-        await source.checkIn(id);
+        await source.checkIn(id, location: location);
       } else {
-        await source.checkOut(id);
+        await source.checkOut(id, location: location);
       }
       if (!currentSession(generation)) return;
       // Never project the RPC timestamp into rows; reload server state.

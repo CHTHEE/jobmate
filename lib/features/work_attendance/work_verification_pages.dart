@@ -7,7 +7,9 @@ import '../../shared/widgets/app_workspace.dart';
 import '../applications/module2_widgets.dart';
 import '../jobs/job_postings_repository.dart';
 import 'work_attendance_models.dart';
+import 'work_status_presentation.dart';
 import 'work_attendance_repository.dart';
+import 'work_attendance_gps.dart';
 import 'work_assignment_creation_dialog.dart';
 import 'work_assignment_creation_repository.dart';
 import 'work_assignment_people.dart';
@@ -23,6 +25,7 @@ class WorkVerificationPage extends StatefulWidget {
     this.loadAccess,
     this.createAssignmentRepository,
     this.loadWorkerName,
+    this.gpsSource,
   });
   final WorkAttendanceRepository repository;
   final String companyId;
@@ -31,6 +34,7 @@ class WorkVerificationPage extends StatefulWidget {
   /// Optional fake/alternate factory; this page owns and disposes its result.
   final WorkAssignmentCreationRepository Function()? createAssignmentRepository;
   final WorkAssignmentNameLoader? loadWorkerName;
+  final WorkAttendanceGpsSource? gpsSource;
 
   @override
   State<WorkVerificationPage> createState() => _WorkVerificationPageState();
@@ -44,6 +48,39 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
   WorkAttendanceError? _errorKind;
   WorkAssignmentCreationRepository? _creation;
   bool _dialogOpen = false;
+
+  Future<void> _viewGps(CompanyWorkAssignment assignment) async {
+    if (_dialogOpen ||
+        _authorizedActor == null ||
+        _authorizedActor != widget.repository.source.userId ||
+        _company != widget.companyId) {
+      return;
+    }
+    final source =
+        widget.gpsSource ??
+        (widget.repository.source is SupabaseWorkAttendanceSource
+            ? SupabaseWorkAttendanceGpsSource(
+                (widget.repository.source as SupabaseWorkAttendanceSource)
+                    .client,
+              )
+            : null);
+    if (source == null || source.userId != _authorizedActor) return;
+    final repository = WorkAttendanceGpsRepository(
+      source,
+      widget.companyId,
+      assignment.assignmentId,
+    );
+    setState(() => _dialogOpen = true);
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => WorkAttendanceGpsDialog(repository: repository),
+      );
+    } finally {
+      repository.dispose();
+      if (mounted) setState(() => _dialogOpen = false);
+    }
+  }
 
   Future<void> _createAssignment() async {
     if (_dialogOpen ||
@@ -265,6 +302,13 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                     child: _CompanyAssignmentCard(
                       row,
                       companyId: widget.companyId,
+                      viewGps:
+                          _dialogOpen ||
+                              (widget.gpsSource == null &&
+                                  widget.repository.source
+                                      is! SupabaseWorkAttendanceSource)
+                          ? null
+                          : () => _viewGps(row),
                       nameLoader:
                           widget.loadWorkerName ??
                           (widget.repository.source
@@ -290,10 +334,12 @@ class _CompanyAssignmentCard extends StatelessWidget {
     this.row, {
     required this.companyId,
     this.nameLoader,
+    this.viewGps,
   });
   final CompanyWorkAssignment row;
   final String companyId;
   final WorkAssignmentNameLoader? nameLoader;
+  final VoidCallback? viewGps;
 
   @override
   Widget build(BuildContext context) => Card.outlined(
@@ -304,7 +350,12 @@ class _CompanyAssignmentCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(row.jobTitle, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
+          WorkStatusBanner(
+            stage: WorkStage.fromAssignment(row),
+            employer: true,
+          ),
+          const SizedBox(height: 12),
           WorkAssignmentWorkerName(
             key: ValueKey((row.assignmentId, companyId)),
             assignment: row,
@@ -316,10 +367,6 @@ class _CompanyAssignmentCard extends StatelessWidget {
           Text('Scheduled end: ${_malaysiaTime(row.scheduledEnd)}'),
           Text('Workplace: ${row.workplaceLocation}'),
           const SizedBox(height: 12),
-          Text('Assignment status: ${_assignmentLabel(row.assignmentStatus)}'),
-          Text(
-            'Verification status: ${_verificationLabel(row.verificationStatus)}',
-          ),
           if (row.checkInAt != null)
             Text('Checked in: ${_malaysiaTime(row.checkInAt!)}'),
           if (row.checkOutAt != null)
@@ -327,11 +374,17 @@ class _CompanyAssignmentCard extends StatelessWidget {
           if (row.verifiedAt != null)
             Text('Verified at: ${_malaysiaTime(row.verifiedAt!)}'),
           const SizedBox(height: 12),
-          OutlinedButton(
+          OutlinedButton.icon(
+            onPressed: viewGps,
+            icon: const Icon(Icons.location_on_outlined),
+            label: const Text('View attendance GPS'),
+          ),
+          const SizedBox(height: 8),
+          FilledButton(
             onPressed: () => context.push(
               '${AppRoutes.workVerification}/${row.assignmentId}/evidence',
             ),
-            child: const Text('View Evidence'),
+            child: Text(WorkStage.fromAssignment(row).evidenceAction(true)),
           ),
         ],
       ),
@@ -344,20 +397,3 @@ String _malaysiaTime(DateTime timestamp) {
   String two(int value) => value.toString().padLeft(2, '0');
   return '${two(time.day)}/${two(time.month)}/${time.year} ${two(time.hour)}:${two(time.minute)} MYT';
 }
-
-String _assignmentLabel(WorkAssignmentStatus status) => switch (status) {
-  WorkAssignmentStatus.scheduled => 'Scheduled',
-  WorkAssignmentStatus.active => 'Active',
-  WorkAssignmentStatus.awaitingVerification => 'Awaiting verification',
-  WorkAssignmentStatus.completed => 'Completed',
-  WorkAssignmentStatus.cancelled => 'Cancelled',
-  WorkAssignmentStatus.disputed => 'Disputed',
-};
-
-String _verificationLabel(WorkVerificationStatus status) => switch (status) {
-  WorkVerificationStatus.notSubmitted => 'Not submitted',
-  WorkVerificationStatus.pendingReview => 'Pending review',
-  WorkVerificationStatus.moreEvidenceRequired => 'More evidence required',
-  WorkVerificationStatus.verified => 'Verified',
-  WorkVerificationStatus.disputed => 'Disputed',
-};

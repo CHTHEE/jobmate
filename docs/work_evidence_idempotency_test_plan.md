@@ -1,5 +1,14 @@
 # Work evidence idempotency: draft review and isolated manual tests
 
+> Historical review/test plan: deployment statements below describe an earlier
+> implementation, not current release instructions. As confirmed by the project
+> owner on 2026-11-06, follow-ups 20261105000300, 20261106000100, 20261106000200 and
+> 20261106000300 are deployed and catalog-verified in the shared Supabase database.
+> Runtime/security QA and coordinated client release remain separate gates.
+> Do not reapply them or deploy the excluded 20261105000200 prototype. See
+> [current deployment status and QA gates](work_evidence_workflow.md).
+
+
 **Step 101G draft only. This plan has NOT been executed.**
 
 Migration: `supabase/migrations/20261105000200_work_evidence_submission_idempotency.sql`.

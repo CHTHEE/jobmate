@@ -27,6 +27,25 @@ void main() {
     MaterialApp(home: WorkAttendancePage(repository: repository)),
   );
 
+  testWidgets(
+    'attendance details show missing server times without inventing GPS results',
+    (tester) async {
+      await showPage(tester);
+      await tester.pumpAndSettle();
+      expect(find.text('Attendance details'), findsOneWidget);
+      expect(find.text('Workplace: Server location'), findsOneWidget);
+      expect(find.text('Check-in not recorded'), findsOneWidget);
+      expect(find.text('Check-out not recorded'), findsOneWidget);
+      expect(
+        find.text('GPS status: Not included in shift summary'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Simulated'), findsNothing);
+      expect(source.checkIns, 0);
+      expect(source.checkOuts, 0);
+    },
+  );
+
   testWidgets('loading, error, retry and empty state', (tester) async {
     final pending = Completer<List<Map<String, dynamic>>>();
     source.workerRead = () => pending.future;
@@ -65,8 +84,8 @@ void main() {
         'Server company',
         'Scheduled start: 06/11/2026 04:30 MYT',
         'Scheduled end: 06/11/2026 13:00 MYT',
-        'Assignment status: Completed',
-        'Verification status: Verified',
+        'Completed / Verified',
+        'Work verified successfully',
         'Checked in: 06/11/2026 04:31 MYT',
         'Checked out: 06/11/2026 13:01 MYT',
         'Verified at: 06/11/2026 14:00 MYT',
@@ -76,7 +95,7 @@ void main() {
       expect(find.text('View details'), findsNothing);
       expect(find.text('Check In'), findsNothing);
       expect(
-        find.widgetWithText(OutlinedButton, 'View Evidence'),
+        find.widgetWithText(OutlinedButton, 'View Verification Details'),
         findsOneWidget,
       );
       source.workerRead = () async => [assignment()];
@@ -172,6 +191,10 @@ void main() {
         assignment()
           ..['job_title'] = List.filled(12, 'Long job title').join(' ')
           ..['company_name'] = List.filled(12, 'Long company name').join(' ')
+          ..['workplace_location'] = List.filled(
+            12,
+            'Long workplace location',
+          ).join(' ')
           ..['verification_status'] = 'more_evidence_required',
       ];
       await tester.pumpWidget(
@@ -185,10 +208,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(
-        find.text('Verification status: More evidence required'),
-        findsOneWidget,
-      );
+      expect(find.text('More Evidence Required'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.drag(
         find.byType(SingleChildScrollView).first,

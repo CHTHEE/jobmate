@@ -348,7 +348,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.text('file.pdf'), findsOneWidget);
+        expect(find.text('Evidence PDF 1'), findsOneWidget);
         final reads = source.calls;
         await tester.ensureVisible(find.text('Prepare local evidence draft'));
         await tester.tap(find.text('Prepare local evidence draft'));
@@ -367,7 +367,7 @@ void main() {
         await tester.tap(find.text('Leave page'));
         await tester.pumpAndSettle();
         expect(find.byType(WorkEvidenceDraftPage), findsNothing);
-        expect(find.text('file.pdf'), findsOneWidget);
+        expect(find.text('Evidence PDF 1'), findsOneWidget);
         await tester.pumpWidget(const SizedBox());
       },
     );
