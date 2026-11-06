@@ -27,6 +27,7 @@ class AppWorkspace extends StatelessWidget {
     this.onNavigate,
     this.navigationLocked = false,
     this.focused = false,
+    this.backFallback = AppRoutes.home,
     this.navigationGroups,
     this.accountName,
     this.accountAvatarUrl,
@@ -42,8 +43,10 @@ class AppWorkspace extends StatelessWidget {
   final ValueChanged<String>? onNavigate;
   final bool navigationLocked;
 
-  /// Details and focused forms retain native Back instead of primary tabs.
+  /// Marks focused/detail routes. Admin routes keep primary tabs visible; other
+  /// roles retain native Back behavior instead of primary tabs.
   final bool focused;
+  final String backFallback;
   final Map<String, List<WorkspaceDestination>>? navigationGroups;
   final String? accountName;
   final String? accountAvatarUrl;
@@ -51,14 +54,28 @@ class AppWorkspace extends StatelessWidget {
   final bool showAccountMenu;
 
   @override
-  Widget build(BuildContext context) => Theme(
+  Widget build(BuildContext context) {
+    if (role == 'administrator' || role == 'admin') {
+      return _AdminNavigationPermissions(
+        builder: (permissions) => _buildWorkspace(
+          context,
+          adminWorkspaceDestinations(permissions),
+        ),
+      );
+    }
+    return _buildWorkspace(context, navigationGroups ?? workspaceDestinations(role));
+  }
+
+  Widget _buildWorkspace(
+    BuildContext context,
+    Map<String, List<WorkspaceDestination>> groups,
+  ) => Theme(
     data: JobMateTheme.apply(Theme.of(context)),
     child: LayoutBuilder(
       builder: (context, constraints) {
         // Platform chooses the navigation family; constraints choose its size.
         final sidebar =
             kIsWeb && ResponsiveLayout.usesSidebar(constraints.maxWidth);
-        final groups = navigationGroups ?? workspaceDestinations(role);
         final all = groups.values.expand((items) => items).toList();
         final moreGroups = <String, List<WorkspaceDestination>>{};
         for (final group in groups.entries) {
@@ -79,8 +96,12 @@ class AppWorkspace extends StatelessWidget {
         final detail = focused || leading != null;
         final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
         // Keep short landscape forms usable while the software keyboard is up.
-        final showBottomBar =
-            !kIsWeb && !detail && !keyboardOpen && primary.isNotEmpty;
+        final keepAdminTabsOnDetails =
+            role == 'administrator' || role == 'admin';
+        final showBottomBar = !kIsWeb &&
+            !keyboardOpen &&
+            (!detail || keepAdminTabsOnDetails) &&
+            primary.isNotEmpty;
 
         void navigate(String destination) {
           if (navigationLocked || destination == path) return;
@@ -330,7 +351,7 @@ class AppWorkspace extends StatelessWidget {
                               tooltip: 'Back',
                               onPressed: navigationLocked
                                   ? null
-                                  : () => returnToPage(context, AppRoutes.home),
+                                  : () => returnToPage(context, backFallback),
                               icon: const Icon(Icons.arrow_back),
                             )
                           : null)),
@@ -380,6 +401,64 @@ class AppWorkspace extends StatelessWidget {
           ),
         );
       },
+    ),
+  );
+}
+
+/// Loads only the signed-in Admin's own permission row. This is presentation
+/// filtering; every protected route/RPC remains authorized by the backend.
+class _AdminNavigationPermissions extends StatefulWidget {
+  const _AdminNavigationPermissions({required this.builder});
+
+  final Widget Function(Map<String, dynamic>?) builder;
+
+  @override
+  State<_AdminNavigationPermissions> createState() =>
+      _AdminNavigationPermissionsState();
+}
+
+class _AdminNavigationPermissionsState
+    extends State<_AdminNavigationPermissions> {
+  late final String? _userId;
+  late final Future<Map<String, dynamic>?> _permissions;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      final client = Supabase.instance.client;
+      _userId = client.auth.currentUser?.id;
+      _permissions = _load(client);
+    } catch (_) {
+      _userId = null;
+      _permissions = Future.value(null);
+    }
+  }
+
+  Future<Map<String, dynamic>?> _load(SupabaseClient client) async {
+    final userId = _userId;
+    if (userId == null) return null;
+    try {
+      final row = await client
+          .from('administrator_profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+      if (client.auth.currentUser?.id != userId || row == null) return null;
+      return Map<String, dynamic>.from(row);
+    } catch (error) {
+      debugPrint('Admin navigation permission lookup failed: $error');
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>?>(
+    future: _permissions,
+    builder: (context, snapshot) => widget.builder(
+      snapshot.connectionState == ConnectionState.done && !snapshot.hasError
+          ? snapshot.data
+          : null,
     ),
   );
 }

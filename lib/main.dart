@@ -8,7 +8,11 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'features/admin/admin_permissions_page.dart';
 import 'features/admin/admin_users_page.dart';
 import 'features/admin/company_review_page.dart';
+import 'features/admin/company_management_page.dart';
+import 'features/admin/user_reports_page.dart';
+import 'features/admin/job_moderation_page.dart';
 import 'features/admin/invite_admin_page.dart';
+import 'features/disputes/dispute_page.dart';
 import 'features/auth/auth_gate.dart';
 import 'features/auth/sign_up_page.dart';
 import 'features/auth/terms_privacy_page.dart';
@@ -222,11 +226,9 @@ GoRouter _createRouter() {
         AppRoutes.adminPreview,
         (_, _) => const AdminPreviewGate(child: AdminPreviewPage()),
       ),
-      _appRoute(
-        AppRoutes.adminDemoAccounts,
-        (_, _) => const AdminPreviewGate(
-          child: AdminPreviewPage(section: 'Accounts'),
-        ),
+      GoRoute(
+        path: AppRoutes.adminDemoAccounts,
+        redirect: (_, _) => AppRoutes.adminUsers,
       ),
       _appRoute(
         AppRoutes.adminDemoJobs,
@@ -239,6 +241,19 @@ GoRouter _createRouter() {
           child: AdminPreviewPage(section: 'Disputes'),
         ),
       ),
+      for (final route in [
+        (AppRoutes.disputes, false),
+        (AppRoutes.adminDisputes, true),
+      ]) ...[
+        _appRoute(route.$1, (_, _) => DisputePage(admin: route.$2)),
+        _appRoute(
+          '${route.$1}/:disputeId',
+          (_, state) => DisputePage(
+            admin: route.$2,
+            disputeId: state.pathParameters['disputeId'],
+          ),
+        ),
+      ],
       _appRoute(
         '${AppRoutes.adminDemoDisputes}/:disputeId',
         (_, state) => AdminPreviewGate(
@@ -251,6 +266,23 @@ GoRouter _createRouter() {
         AppRoutes.adminDemoReports,
         (_, _) =>
             const AdminPreviewGate(child: AdminPreviewPage(section: 'Reports')),
+      ),
+      _appRoute(
+        AppRoutes.adminReports,
+        (_, _) => const UserReportsPage(admin: true),
+      ),
+      _appRoute(
+        '${AppRoutes.adminReports}/:reportId',
+        (_, state) => UserReportsPage(
+          admin: true,
+          reportId: state.pathParameters['reportId'],
+        ),
+      ),
+      _appRoute(AppRoutes.userReports, (_, _) => const UserReportsPage()),
+      _appRoute(
+        '${AppRoutes.userReports}/:reportId',
+        (_, state) =>
+            UserReportsPage(reportId: state.pathParameters['reportId']),
       ),
       _appRoute(
         AppRoutes.recommendations,
@@ -492,6 +524,25 @@ GoRouter _createRouter() {
       _appRoute(
         AppRoutes.companyReviews,
         (context, state) => const CompanyReviewPage(),
+      ),
+      _appRoute(
+        AppRoutes.adminCompanies,
+        (context, state) => const CompanyManagementPage(),
+      ),
+      _appRoute(
+        AppRoutes.adminCompanyDetails,
+        (context, state) =>
+            CompanyManagementPage(companyId: state.pathParameters['companyId']),
+      ),
+      _appRoute(
+        AppRoutes.adminJobModeration,
+        (_, _) => const JobModerationPage(),
+      ),
+      _appRoute(
+        AppRoutes.adminJobModerationDetails,
+        (_, state) => JobModerationPage(
+          jobId: state.pathParameters['jobId'],
+        ),
       ),
       _appRoute(
         AppRoutes.notifications,

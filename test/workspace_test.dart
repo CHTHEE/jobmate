@@ -4,11 +4,104 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jobmate/features/home/dashboard_content.dart';
 import 'package:jobmate/shared/navigation/app_routes.dart';
+import 'package:jobmate/shared/navigation/workspace_destinations.dart';
 import 'package:jobmate/shared/widgets/app_workspace.dart';
 
 import 'support/workspace_navigation_test_helper.dart';
 
 void main() {
+  test(
+    'Admin destinations follow assigned permissions and hide unavailable modules',
+    () {
+      final groups = adminWorkspaceDestinations({
+        'can_manage_user_accounts': true,
+        'can_manage_company_restrictions': false,
+        'can_manage_user_reports': true,
+        'can_manage_job_moderation': false,
+        'can_manage_disputes': false,
+        'can_review_companies': false,
+        'can_invite_admins': true,
+        'can_manage_admin_permissions': false,
+      });
+      final paths = groups.values
+          .expand((items) => items)
+          .map((item) => item.$1);
+
+      expect(paths, contains(AppRoutes.adminUsers));
+      expect(paths, contains(AppRoutes.adminReports));
+      expect(paths, contains(AppRoutes.inviteAdmin));
+      expect(paths, contains(AppRoutes.adminCompanies));
+      expect(paths, isNot(contains(AppRoutes.adminJobModeration)));
+      expect(paths, isNot(contains(AppRoutes.adminDisputes)));
+      expect(paths, isNot(contains(AppRoutes.companyReviews)));
+      expect(paths, isNot(contains(AppRoutes.adminPermissions)));
+    },
+  );
+
+  test('Superadmin gets the User Management destination by role', () {
+    final groups = adminWorkspaceDestinations({
+      'can_manage_admin_permissions': true,
+      'can_manage_user_accounts': false,
+    });
+    final paths = groups.values.expand((items) => items).map((item) => item.$1);
+
+    expect(paths, contains(AppRoutes.adminUsers));
+  });
+
+  test('Administrator primary tabs are stable and nested company routes match', () {
+    expect(
+      workspacePrimaryDestinations('administrator').map((item) => item.$1),
+      [AppRoutes.home, AppRoutes.adminUsers, AppRoutes.adminPayments],
+    );
+    final destinations = adminWorkspaceDestinations({})
+        .values
+        .expand((items) => items);
+    expect(
+      selectedWorkspacePath(
+        '${AppRoutes.adminCompanies}/synthetic-company',
+        destinations,
+      ),
+      AppRoutes.adminCompanies,
+    );
+  });
+
+  testWidgets('Admin detail routes retain the same bottom navigation', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppWorkspace(
+          title: 'Example company',
+          path: '${AppRoutes.adminCompanies}/synthetic-company',
+          role: 'administrator',
+          focused: true,
+          backFallback: AppRoutes.adminCompanies,
+          child: const Text('Company detail'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+    final labels = bar.destinations.map((destination) {
+      if (destination is! NavigationDestination) {
+        fail('Expected NavigationDestination, found ${destination.runtimeType}.');
+      }
+      return destination.label;
+    }).toList();
+    expect(
+      labels,
+      ['Home', 'Users', 'Payments', 'Account', 'More'],
+    );
+    expect(bar.selectedIndex, 4);
+    expect(find.byTooltip('Back'), findsOneWidget);
+    expect(find.text('Company directory'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Short native layout keeps Account separate from More', (
     tester,
   ) async {

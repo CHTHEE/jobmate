@@ -49,12 +49,20 @@ abstract final class AppRoutes {
   static const adminDemoAccounts = '/admin-preview/accounts';
   static const adminDemoJobs = '/admin-preview/jobs';
   static const adminDemoDisputes = '/admin-preview/disputes';
+  static const disputes = '/disputes';
+  static const adminDisputes = '/admin-disputes';
   static const adminDemoReports = '/admin-preview/reports';
+  static const adminReports = '/admin-reports';
+  static const userReports = '/my-reports';
   static const createJob = '/job-postings/create';
   static const documentSubmission = '/document-submission';
   static const inviteAdmin = '/invite-admin';
   static const adminPermissions = '/admin-permissions';
   static const adminUsers = '/admin-users';
+  static const adminCompanies = '/admin-companies';
+  static const adminCompanyDetails = '/admin-companies/:companyId';
+  static const adminJobModeration = '/admin-job-moderation';
+  static const adminJobModerationDetails = '/admin-job-moderation/:jobId';
   static const companyReviews = '/admin-company-reviews';
   static const notifications = '/notifications';
 

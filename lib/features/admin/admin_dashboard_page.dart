@@ -6,12 +6,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import '../../shared/navigation/workspace_destinations.dart';
 import '../phase4/phase4_store.dart';
 import '../notifications/notifications_page.dart';
-import '../../shared/widgets/responsive_layout.dart';
-
-enum _AdminProfileAction { profile, settings, refresh, signOut }
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key, required this.email});
@@ -27,54 +25,26 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   bool _canInviteAdmins = false;
   bool _canManageAdminPermissions = false;
   bool _canReviewCompanies = false;
+  bool _canAccessUserDirectory = false;
+  bool _canAccessCompanyDirectory = false;
+  bool _canManageReports = false;
+  bool _canManageJobs = false;
+  bool _canManageDisputes = false;
   int? _registeredUsers;
   int? _pendingCompanyReviews;
   int? _administratorAccounts;
-  String _adminName = 'Administrator';
-  String? _avatarUrl;
   String? _error;
 
   @override
   void initState() {
     super.initState();
     _loadAccess();
-    _loadAdminProfile();
   }
 
   Future<void> _openCompanyReviews() async {
     if (_loadingAccess || !_canReviewCompanies) return;
     await context.push<void>(AppRoutes.companyReviews);
     if (mounted) await _loadAccess();
-  }
-
-  Future<void> _loadAdminProfile() async {
-    final client = Supabase.instance.client;
-    final actorId = client.auth.currentUser?.id;
-    if (actorId == null) return;
-
-    try {
-      final profile = await client
-          .from('users')
-          .select('name, profile_image_url')
-          .eq('user_id', actorId)
-          .maybeSingle();
-      if (!mounted ||
-          client.auth.currentUser?.id != actorId ||
-          profile == null) {
-        return;
-      }
-
-      final name = profile['name'] as String?;
-      setState(() {
-        if (name != null && name.trim().isNotEmpty) {
-          _adminName = name.trim();
-        }
-        _avatarUrl = profile['profile_image_url'] as String?;
-      });
-    } catch (error) {
-      debugPrint('Admin profile header load failed: $error');
-      // Keep the fallback name and initials if profile data cannot be loaded.
-    }
   }
 
   Future<void> _loadAccess() async {
@@ -85,6 +55,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         _canInviteAdmins = false;
         _canManageAdminPermissions = false;
         _canReviewCompanies = false;
+        _canAccessUserDirectory = false;
+        _canAccessCompanyDirectory = false;
+        _canManageReports = false;
+        _canManageJobs = false;
+        _canManageDisputes = false;
         _error = 'Sign in again to view administrator tools.';
       });
       return;
@@ -96,6 +71,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       _canInviteAdmins = false;
       _canManageAdminPermissions = false;
       _canReviewCompanies = false;
+      _canAccessUserDirectory = false;
+      _canAccessCompanyDirectory = false;
+      _canManageReports = false;
+      _canManageJobs = false;
+      _canManageDisputes = false;
       _error = null;
     });
 
@@ -121,7 +101,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       final client = Supabase.instance.client;
       final ownPermissions = await client
           .from('administrator_profiles')
-          .select('can_review_companies')
+          .select('*')
           .eq('user_id', actorId)
           .single();
       final summaryData = await client.rpc('get_admin_dashboard_summary');
@@ -138,6 +118,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         _canInviteAdmins = data['canInviteAdmins'] == true;
         _canManageAdminPermissions = data['canManageAdminPermissions'] == true;
         _canReviewCompanies = ownPermissions['can_review_companies'] == true;
+        _canAccessUserDirectory = true;
+        _canAccessCompanyDirectory = true;
+        _canManageReports = ownPermissions['can_manage_user_reports'] == true;
+        _canManageJobs = ownPermissions['can_manage_job_moderation'] == true;
+        _canManageDisputes = ownPermissions['can_manage_disputes'] == true;
         _registeredUsers = _intValue(summary['registered_users']);
         _pendingCompanyReviews = _intValue(summary['pending_company_reviews']);
         _administratorAccounts = _intValue(summary['administrator_accounts']);
@@ -147,9 +132,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       if (!mounted) return;
       setState(() {
         _error = checkingDatabase
-            ? 'Platform information is temporarily unavailable. Retry, or '
-                  'contact the system owner if the problem continues.'
-            : 'Unable to verify administrator access. Retry, or sign in again.';
+            ? 'We could not load the administrator workspace. Please try again.'
+            : 'We could not verify administrator access. Please try again.';
       });
     } finally {
       if (mounted) {
@@ -164,54 +148,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '');
-  }
-
-  Widget _buildAdminAvatar() {
-    final url = _avatarUrl;
-    if (url != null && url.isNotEmpty) {
-      return ClipOval(
-        child: Image.network(
-          url,
-          width: 40,
-          height: 40,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => Text(_initials),
-        ),
-      );
-    }
-    return Text(
-      _initials,
-      style: const TextStyle(
-        color: Color(0xFF0F766E),
-        fontWeight: FontWeight.bold,
-      ),
-    );
-  }
-
-  String get _initials {
-    final parts = _adminName
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .toList();
-    if (parts.isEmpty) return 'A';
-    if (parts.length == 1) {
-      final name = parts.first;
-      return name.substring(0, name.length >= 2 ? 2 : 1).toUpperCase();
-    }
-    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-  }
-
-  Future<void> _signOut() async {
-    try {
-      await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
-    } catch (error) {
-      debugPrint('Admin sign out failed: $error');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to sign out. Please retry.')),
-      );
-    }
   }
 
   @override
@@ -244,7 +180,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       title: narrowPhone ? 'Admin' : 'JobMate Admin',
       path: AppRoutes.home,
       role: 'administrator',
-      showAccountMenu: false,
+      showAccountMenu: true,
       navigationGroups: groups,
       actions: [
         IconButton(
@@ -254,107 +190,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               : context.push<void>(AppRoutes.notifications),
           icon: const Icon(Icons.notifications_none_outlined),
         ),
-        PopupMenuButton<_AdminProfileAction>(
-          tooltip: 'Admin profile and account actions',
-          onSelected: (action) {
-            if (action == _AdminProfileAction.profile) {
-              context.push<void>(AppRoutes.profile);
-            } else if (action == _AdminProfileAction.settings) {
-              context.push<void>(AppRoutes.adminSettings);
-            } else if (action == _AdminProfileAction.refresh) {
-              _loadAccess();
-            } else {
-              _signOut();
-            }
-          },
-          itemBuilder: (context) => const [
-            PopupMenuItem(
-              value: _AdminProfileAction.profile,
-              child: Row(
-                children: [
-                  Icon(Icons.person_outline),
-                  SizedBox(width: 12),
-                  Text('My profile'),
-                ],
-              ),
-            ),
-            PopupMenuItem(
-              value: _AdminProfileAction.settings,
-              child: Row(
-                children: [
-                  Icon(Icons.settings_outlined),
-                  SizedBox(width: 12),
-                  Text('Account settings'),
-                ],
-              ),
-            ),
-            PopupMenuItem(
-              value: _AdminProfileAction.refresh,
-              child: Text('Refresh dashboard'),
-            ),
-            PopupMenuItem(
-              value: _AdminProfileAction.signOut,
-              child: Row(
-                children: [
-                  Icon(Icons.logout),
-                  SizedBox(width: 12),
-                  Text('Sign out'),
-                ],
-              ),
-            ),
-          ],
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: const Color(0xFFCCFBF1),
-                  child: _buildAdminAvatar(),
-                ),
-                if (ResponsiveLayout.usesSidebar(
-                      MediaQuery.sizeOf(context).width,
-                    ) &&
-                    MediaQuery.textScalerOf(context).scale(14) <= 18) ...[
-                  const SizedBox(width: 10),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 240),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Admin - $_adminName',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            height: 1.2,
-                          ),
-                        ),
-                        const Text(
-                          'System Administrator',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF64748B),
-                            height: 1.2,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                const SizedBox(width: 4),
-                const Icon(Icons.expand_more, size: 20),
-              ],
-            ),
-          ),
+        IconButton(
+          tooltip: 'Refresh dashboard',
+          onPressed: _loadingAccess ? null : _loadAccess,
+          icon: const Icon(Icons.refresh_outlined),
         ),
-        const SizedBox(width: 8),
       ],
       child: WorkspaceContent(
         maxWidth: 1280,
@@ -372,7 +212,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             if (!_loadingAccess && _error == null)
               BrandPanel(
                 title: 'A clear view of your platform',
-                description: 'Real user and company metrics appear above. Job moderation, disputes and reports below remain a separate demo workspace.',
+                description: 'User and company metrics are shown above. Use the Admin workspaces to review reports and job postings.',
                 icon: Icons.admin_panel_settings_outlined,
               ),
             const SizedBox(height: 20),
@@ -481,14 +321,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
       );
     }
-    actions.add(
-      _ToolCard(
-        icon: Icons.people_outline,
-        title: 'View users',
-        description: 'Browse and filter Job Seeker and Employer accounts.',
-        onTap: () => context.push<void>(AppRoutes.adminUsers),
-      ),
-    );
+    if (_canAccessUserDirectory) {
+      actions.add(
+        _ToolCard(
+          icon: Icons.people_outline,
+          title: 'User directory',
+          description: 'Search Job Seeker and Employer accounts.',
+          onTap: () => context.push<void>(AppRoutes.adminUsers),
+        ),
+      );
+    }
     if (_canReviewCompanies) {
       actions.add(
         _ToolCard(
@@ -496,6 +338,47 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           title: 'Company Verification',
           description: 'Review Company documents and proposed logo changes.',
           onTap: _openCompanyReviews,
+        ),
+      );
+    }
+    if (_canManageJobs) {
+      actions.add(
+        _ToolCard(
+          icon: Icons.work_outline,
+          title: 'Job Moderation',
+          description: 'Review Job Postings and record moderation decisions.',
+          onTap: () => context.push<void>(AppRoutes.adminJobModeration),
+        ),
+      );
+    }
+    if (_canAccessCompanyDirectory) {
+      actions.add(
+        _ToolCard(
+          icon: Icons.business_outlined,
+          title: 'Company directory',
+          description:
+              'Browse company profiles, membership and current status.',
+          onTap: () => context.push<void>(AppRoutes.adminCompanies),
+        ),
+      );
+    }
+    if (_canManageReports) {
+      actions.add(
+        _ToolCard(
+          icon: Icons.flag_outlined,
+          title: 'User Reports',
+          description: 'Review and respond to user-submitted reports.',
+          onTap: () => context.push<void>(AppRoutes.adminReports),
+        ),
+      );
+    }
+    if (_canManageDisputes) {
+      actions.add(
+        _ToolCard(
+          icon: Icons.gavel_outlined,
+          title: 'Disputes',
+          description: 'Investigate eligible dispute cases.',
+          onTap: () => context.push<void>(AppRoutes.adminDisputes),
         ),
       );
     }

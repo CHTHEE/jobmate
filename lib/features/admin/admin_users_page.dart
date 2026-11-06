@@ -5,6 +5,8 @@ import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/responsive_layout.dart';
+import 'user_account_details_dialog.dart';
+import 'user_management_gateway.dart';
 
 class AdminUsersPage extends StatefulWidget {
   const AdminUsersPage({super.key});
@@ -23,13 +25,45 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
   String _status = 'all';
   int _offset = 0;
   bool _loading = false;
+  bool _permissionLoaded = false;
+  bool _canManageAccounts = false;
   bool _hasMore = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    _loadAccountManagementPermission();
     _loadUsers();
+  }
+
+  Future<void> _loadAccountManagementPermission() async {
+    final actorId = _actorId;
+    if (actorId == null || _supabase.auth.currentUser?.id != actorId) {
+      if (mounted) setState(() => _permissionLoaded = true);
+      return;
+    }
+    try {
+      final profile = await _supabase
+          .from('administrator_profiles')
+          .select('*')
+          .eq('user_id', actorId)
+          .maybeSingle();
+      if (!mounted || _supabase.auth.currentUser?.id != actorId) return;
+      setState(() {
+        _canManageAccounts = profile?['can_manage_user_accounts'] == true;
+        _permissionLoaded = true;
+      });
+    } catch (error) {
+      debugPrint('User Management permission lookup failed: $error');
+      if (mounted) {
+        // Permission lookup failures must never expose account controls.
+        setState(() {
+          _canManageAccounts = false;
+          _permissionLoaded = true;
+        });
+      }
+    }
   }
 
   Future<void> _loadUsers() async {
@@ -67,7 +101,11 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       });
     } on PostgrestException catch (error) {
       if (!mounted) return;
-      setState(() => _error = error.message);
+      setState(() {
+        _error = error.code == 'PGRST202'
+            ? 'The user directory is temporarily unavailable. Please try again later.'
+            : 'We could not load user accounts. Please try again.';
+      });
     } catch (error) {
       debugPrint('Admin users load failed: $error');
       if (!mounted) return;
@@ -122,6 +160,23 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
           child: Text(name.isEmpty ? '?' : name[0].toUpperCase()),
         ),
         title: Text(name),
+        trailing: OutlinedButton(
+          onPressed: _loading || user['user_id'] is! String
+              ? null
+              : () async {
+                  await showDialog<void>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (_) => UserAccountDetailsDialog(
+                      userId: user['user_id'] as String,
+                      gateway: SupabaseUserManagementGateway(_supabase),
+                      canManage: _permissionLoaded && _canManageAccounts,
+                    ),
+                  );
+                  if (mounted) await _loadUsers();
+                },
+          child: const Text('View details'),
+        ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Wrap(
@@ -196,14 +251,14 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
             children: [
               const PageHeading(
                 title: 'User management',
-                description: 'Review real account records using the existing administrator permissions.',
+                description: 'Browse Job Seeker and Employer accounts.',
               ),
               _buildFilters(context),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: _loading ? null : _loadUsers,
-                  child: const Text('Check for updates'),
+                  child: const Text('Refresh'),
                 ),
               ),
               const SizedBox(height: 20),

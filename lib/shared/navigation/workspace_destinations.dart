@@ -38,6 +38,8 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
       ),
     ],
     'Communication': [
+      (AppRoutes.disputes, 'My disputes', Icons.gavel_outlined),
+      (AppRoutes.userReports, 'My reports', Icons.flag_outlined),
       (
         AppRoutes.employerMessages,
         'Messages (demo)',
@@ -57,9 +59,16 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
     'ADMINISTRATION': [
       (AppRoutes.home, 'Dashboard', Icons.grid_view_rounded),
       (AppRoutes.adminUsers, 'Users', Icons.people_outline),
-      (AppRoutes.adminDemoJobs, 'Job Moderation (demo)', Icons.work_outline),
+      (AppRoutes.adminCompanies, 'Companies', Icons.business_outlined),
+      (AppRoutes.adminReports, 'User Reports', Icons.flag_outlined),
+      (AppRoutes.adminJobModeration, 'Job Moderation', Icons.work_outline),
       (AppRoutes.adminDemoDisputes, 'Disputes (demo)', Icons.gavel_outlined),
-      (AppRoutes.adminDemoReports, 'Reports (demo)', Icons.analytics_outlined),
+      (AppRoutes.adminDisputes, 'Disputes', Icons.gavel_outlined),
+      (
+        AppRoutes.adminDemoReports,
+        'Reports Analytics (demo)',
+        Icons.analytics_outlined,
+      ),
       (
         AppRoutes.adminPayments,
         'Payments (sandbox)',
@@ -71,11 +80,6 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
         AppRoutes.adminPreview,
         'UI Sandbox (demo)',
         Icons.dashboard_customize_outlined,
-      ),
-      (
-        AppRoutes.adminDemoAccounts,
-        'Account Actions (demo)',
-        Icons.manage_accounts_outlined,
       ),
     ],
   },
@@ -108,6 +112,8 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
         ),
       ],
       'Communication': [
+        (AppRoutes.disputes, 'My disputes', Icons.gavel_outlined),
+        (AppRoutes.userReports, 'My reports', Icons.flag_outlined),
         (AppRoutes.messages, 'Messages (demo)', Icons.chat_bubble_outline),
       ],
     },
@@ -117,6 +123,66 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
       ],
   },
 };
+
+/// The Admin sidebar is derived from the signed-in Admin's own permission
+/// row, so every Admin page shows the same destinations and fails closed while
+/// a permission is unavailable or has not been deployed.
+Map<String, List<WorkspaceDestination>> adminWorkspaceDestinations(
+  Map<String, dynamic>? permissions,
+) {
+  bool has(String column) => permissions?[column] == true;
+
+  return {
+    'ADMINISTRATION': [
+      (AppRoutes.home, 'Dashboard', Icons.grid_view_rounded),
+      // Directory and safe detail reads are available to every active Admin.
+      (AppRoutes.adminUsers, 'Users', Icons.people_outline),
+      (AppRoutes.adminCompanies, 'Companies', Icons.business_outlined),
+      if (has('can_manage_user_reports'))
+        (AppRoutes.adminReports, 'User Reports', Icons.flag_outlined),
+      if (has('can_manage_job_moderation'))
+        (
+          AppRoutes.adminJobModeration,
+          'Job Moderation',
+          Icons.work_outline,
+        ),
+      if (has('can_manage_disputes'))
+        (AppRoutes.adminDisputes, 'Disputes', Icons.gavel_outlined),
+      (
+        AppRoutes.adminPayments,
+        'Payments (sandbox)',
+        Icons.receipt_long_outlined,
+      ),
+    ],
+    'ADMIN TOOLS': [
+      if (has('can_review_companies'))
+        (
+          AppRoutes.companyReviews,
+          'Company Verification',
+          Icons.business_outlined,
+        ),
+      if (has('can_invite_admins'))
+        (
+          AppRoutes.inviteAdmin,
+          'Invite administrator',
+          Icons.person_add_alt_1_outlined,
+        ),
+      if (has('can_manage_admin_permissions'))
+        (
+          AppRoutes.adminPermissions,
+          'Admin permissions',
+          Icons.admin_panel_settings_outlined,
+        ),
+    ],
+    'PREVIEW': [
+      (
+        AppRoutes.adminPreview,
+        'UI Sandbox (demo)',
+        Icons.dashboard_customize_outlined,
+      ),
+    ],
+  };
+}
 
 /// Native primary tabs are drawn from the same role configuration as Web.
 /// Less frequent destinations remain available through the grouped More menu.
