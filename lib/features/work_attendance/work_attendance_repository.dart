@@ -102,22 +102,14 @@ class SupabaseWorkAttendanceSource implements WorkAttendanceSource {
     String assignmentId, {
     WorkAttendanceLocation location =
         const WorkAttendanceLocation.unavailable(),
-  }) => _clock(
-    'check_in_work_assignment',
-    assignmentId,
-    location: location,
-  );
+  }) => _clock('check_in_work_assignment', assignmentId, location: location);
 
   @override
   Future<DateTime> checkOut(
     String assignmentId, {
     WorkAttendanceLocation location =
         const WorkAttendanceLocation.unavailable(),
-  }) => _clock(
-    'check_out_work_assignment',
-    assignmentId,
-    location: location,
-  );
+  }) => _clock('check_out_work_assignment', assignmentId, location: location);
 }
 
 enum WorkAttendanceError { authentication, permission, connection, invalidData }
@@ -153,6 +145,7 @@ class WorkAttendanceRepository extends ChangeNotifier {
   bool _disposed = false;
   int _generation = 0;
   String? _actingId, _actionMessage;
+  Object? _actionFailure;
   bool _actionFailed = false;
   int get sessionGeneration => _generation;
   bool currentSession(int generation) =>
@@ -164,6 +157,10 @@ class WorkAttendanceRepository extends ChangeNotifier {
   String? get actionMessage =>
       currentSession(_generation) ? _actionMessage : null;
   bool get actionFailed => currentSession(_generation) && _actionFailed;
+
+  /// In-memory diagnostics only; never log or render raw backend exceptions.
+  Object? get actionFailure =>
+      currentSession(_generation) ? _actionFailure : null;
   final _requests = <String, int>{};
   WorkAttendanceReadState<WorkerWorkAssignment> _worker =
       const WorkAttendanceReadState();
@@ -188,6 +185,7 @@ class WorkAttendanceRepository extends ChangeNotifier {
     _actor = source.userId;
     _actingId = null;
     _actionMessage = null;
+    _actionFailure = null;
     _actionFailed = false;
     _worker = const WorkAttendanceReadState();
     _company = const WorkAttendanceReadState();
@@ -244,6 +242,7 @@ class WorkAttendanceRepository extends ChangeNotifier {
     final generation = _generation;
     _actingId = assignmentId;
     _actionMessage = null;
+    _actionFailure = null;
     _actionFailed = false;
     notifyListeners();
     try {
@@ -269,6 +268,7 @@ class WorkAttendanceRepository extends ChangeNotifier {
       await loadWorkerAssignments();
       if (!currentSession(generation)) return;
       _actionFailed = true;
+      _actionFailure = failure;
       _actionMessage = attendanceActionError(failure);
     } finally {
       if (currentSession(generation)) {

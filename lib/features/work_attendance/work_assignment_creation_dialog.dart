@@ -63,7 +63,11 @@ class _WorkAssignmentCreationDialogState
         _job = _candidate?.jobId;
       } else {
         if (!rows.any((c) => c.jobId == _job)) _job = null;
-        if (!rows.any((c) => identical(c, _candidate))) _candidate = null;
+        final selection = rows.where(
+          (c) =>
+              c.applicationId == _candidate?.applicationId && c.jobId == _job,
+        );
+        _candidate = selection.length == 1 ? selection.single : null;
       }
     }
     setState(() {});
@@ -104,44 +108,25 @@ class _WorkAssignmentCreationDialogState
       workAssignmentMalaysiaUtc(_startDate.text, _startTime.text);
   DateTime? get _end => workAssignmentMalaysiaUtc(_endDate.text, _endTime.text);
 
-  Future<void> _pick(TextEditingController controller, bool date) async {
+  Future<void> _pickDate(TextEditingController controller) async {
     if (_busy) return;
     final malaysia = DateTime.now().toUtc().add(const Duration(hours: 8));
     String two(int n) => n.toString().padLeft(2, '0');
     String? value;
-    if (date) {
-      final existing = workAssignmentMalaysiaUtc(
-        controller.text,
-        '00:00',
-      )?.add(const Duration(hours: 8));
-      final chosen = await showDatePicker(
-        context: context,
-        initialDate:
-            existing ?? DateTime(malaysia.year, malaysia.month, malaysia.day),
-        firstDate: DateTime(1),
-        lastDate: DateTime(9999, 12, 31),
-      );
-      if (chosen != null) {
-        value =
-            '${chosen.year.toString().padLeft(4, '0')}-${two(chosen.month)}-${two(chosen.day)}';
-      }
-    } else {
-      final existing = workAssignmentMalaysiaUtc(
-        '2026-01-01',
-        controller.text,
-      )?.add(const Duration(hours: 8));
-      final chosen = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay(
-          hour: existing?.hour ?? malaysia.hour,
-          minute: existing?.minute ?? malaysia.minute,
-        ),
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-          child: child!,
-        ),
-      );
-      if (chosen != null) value = '${two(chosen.hour)}:${two(chosen.minute)}';
+    final existing = workAssignmentMalaysiaUtc(
+      controller.text,
+      '00:00',
+    )?.add(const Duration(hours: 8));
+    final chosen = await showDatePicker(
+      context: context,
+      initialDate:
+          existing ?? DateTime(malaysia.year, malaysia.month, malaysia.day),
+      firstDate: DateTime(1),
+      lastDate: DateTime(9999, 12, 31),
+    );
+    if (chosen != null) {
+      value =
+          '${chosen.year.toString().padLeft(4, '0')}-${two(chosen.month)}-${two(chosen.day)}';
     }
     if (mounted &&
         !_busy &&
@@ -156,6 +141,7 @@ class _WorkAssignmentCreationDialogState
 
   Future<void> _submit({bool reconcile = false}) async {
     if (_busy ||
+        (!reconcile && _result?.scheduleConflict == true) ||
         _candidate == null ||
         widget.repository.source.userId != _actor) {
       return;
@@ -209,24 +195,22 @@ class _WorkAssignmentCreationDialogState
         keyboardType: controller == _location
             ? TextInputType.streetAddress
             : TextInputType.datetime,
+        textInputAction: TextInputAction.next,
         decoration: InputDecoration(
           labelText: label,
+          hintText: controller == _startTime || controller == _endTime
+              ? 'HH:mm'
+              : null,
+          helperText: controller == _startTime || controller == _endTime
+              ? '24-hour time, for example 09:05 or 22:50.'
+              : null,
           border: const OutlineInputBorder(),
-          suffixIcon: controller == _location
+          suffixIcon: controller != _startDate && controller != _endDate
               ? null
               : IconButton(
                   tooltip: 'Choose $label',
-                  onPressed: _busy
-                      ? null
-                      : () => _pick(
-                          controller,
-                          controller == _startDate || controller == _endDate,
-                        ),
-                  icon: Icon(
-                    controller == _startDate || controller == _endDate
-                        ? Icons.calendar_today
-                        : Icons.schedule,
-                  ),
+                  onPressed: _busy ? null : () => _pickDate(controller),
+                  icon: const Icon(Icons.calendar_today),
                 ),
         ),
         validator: validate,
@@ -276,6 +260,10 @@ class _WorkAssignmentCreationDialogState
                           Semantics(
                             liveRegion: true,
                             child: Text(_result!.message),
+                          ),
+                        if (_result?.scheduleConflict == true)
+                          const Text(
+                            'Creation is blocked for this schedule. Choose Edit to change the dates or times, then review again, or Close.',
                           ),
                         if (locked && !_confirm)
                           const Text(
@@ -429,6 +417,7 @@ class _WorkAssignmentCreationDialogState
                   ? null
                   : () {
                       _confirm = false;
+                      _result = null;
                       _changed();
                     },
               child: const Text('Edit'),
@@ -443,6 +432,7 @@ class _WorkAssignmentCreationDialogState
               state.error == null &&
               !state.loading &&
               !unavailable &&
+              !(_confirm && _result?.scheduleConflict == true) &&
               (_confirm || state.candidates.isNotEmpty))
             FilledButton(
               onPressed: _busy

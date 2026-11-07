@@ -216,13 +216,16 @@ void main() {
       repo.dispose();
       await source.changes.close();
     });
-    Future<void> show(WidgetTester tester) async {
+    Future<void> show(
+      WidgetTester tester, {
+      WorkAttendanceLocation? location,
+    }) async {
       await tester.pumpWidget(
         MaterialApp(
           home: WorkAttendancePage(
             repository: repo,
             captureLocation: () async =>
-                const WorkAttendanceLocation.unavailable(),
+                location ?? const WorkAttendanceLocation.unavailable(),
           ),
         ),
       );
@@ -351,6 +354,100 @@ void main() {
           findsOneWidget,
         );
         expect(find.textContaining('Checked in:'), findsNothing);
+        expect(find.text('Check-in unavailable'), findsOneWidget);
+        expect(find.textContaining('01/01/2099 08:00 MYT'), findsWidgets);
+        expect(find.textContaining('not available yet'), findsNothing);
+        expect(find.byType(AlertDialog), findsOneWidget);
+        await tapAction(tester, 'Close');
+        expect(find.byType(AlertDialog), findsNothing);
+      },
+    );
+
+    for (final (failure, title) in <(Object, String)>[
+      (const AuthException('expired'), 'Sign in required'),
+      (
+        const PostgrestException(message: 'Denied', code: '42501'),
+        'Attendance access denied',
+      ),
+      (
+        const PostgrestException(message: 'private SQL details', code: 'P0001'),
+        'Check-in not available',
+      ),
+      (const SocketException('offline'), 'Unable to confirm check-in'),
+    ]) {
+      testWidgets(
+        'attendance failure $failure has one accessible dialog and no automatic retry',
+        (tester) async {
+          source.onCheckIn = (_) async => throw failure;
+          await show(tester);
+          await tapAction(tester, 'Check in');
+          await tester.tap(
+            find.widgetWithText(FilledButton, 'Continue without GPS'),
+          );
+          await tester.pumpAndSettle();
+          expect(find.byType(AlertDialog), findsOneWidget);
+          expect(find.text(title), findsOneWidget);
+          expect(find.textContaining('private SQL details'), findsNothing);
+          expect(repo.actionFailure, same(failure));
+          expect(source.checkIns, 1);
+          await tapAction(tester, 'Close');
+          await tester.pumpAndSettle();
+          expect(find.byType(AlertDialog), findsNothing);
+          expect(source.checkIns, 1);
+          source.switchAccount(other);
+          expect(repo.actionFailure, isNull);
+        },
+      );
+    }
+
+    testWidgets(
+      'GPS captured before outside-window rejection still shows actual schedule without a success',
+      (tester) async {
+        source.onCheckIn = (_) async => throw const PostgrestException(
+          message: 'Check-in is outside the allowed shift window.',
+          code: 'P0001',
+        );
+        await show(
+          tester,
+          location: WorkAttendanceLocation.granted(
+            latitude: 3.139,
+            longitude: 101.687,
+          ),
+        );
+        await tapAction(tester, 'Check in');
+        // The location confirmation remains the only point that dispatches.
+        final confirm = find.widgetWithText(FilledButton, 'Confirm check-in');
+        await tester.tap(confirm);
+        await tester.pumpAndSettle();
+        expect(find.text('Check-in unavailable'), findsOneWidget);
+        expect(find.textContaining('05/11/2026 09:00 MYT'), findsWidgets);
+        expect(find.text('Checked in successfully!'), findsNothing);
+        expect(source.checkIns, 1);
+      },
+    );
+
+    testWidgets(
+      'accepted attendance with failed refresh requests review rather than another submission',
+      (tester) async {
+        source.onCheckIn = (_) async {
+          source.workerRead = () async =>
+              throw const SocketException('offline');
+          return DateTime.utc(2026, 11, 5, 1);
+        };
+        await show(tester);
+        await tapAction(tester, 'Check in');
+        await tester.tap(
+          find.widgetWithText(FilledButton, 'Continue without GPS'),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining(
+            'request was accepted, but the list could not refresh',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Checked in successfully!'), findsNothing);
+        expect(source.checkIns, 1);
       },
     );
 

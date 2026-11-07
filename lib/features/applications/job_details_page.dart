@@ -10,6 +10,7 @@ import 'module2_repository.dart';
 import 'module2_widgets.dart';
 import 'published_company_logo.dart';
 import 'job_application_form.dart';
+import 'my_applications_repository.dart';
 
 class JobFacts extends StatelessWidget {
   const JobFacts(this.job, {super.key});
@@ -41,9 +42,57 @@ class JobDetailsPage extends StatefulWidget {
   State<JobDetailsPage> createState() => _JobDetailsPageState();
 }
 
-class _JobDetailsPageState extends State<JobDetailsPage> {
+class _JobDetailsPageState extends State<JobDetailsPage>
+    with WidgetsBindingObserver {
   late final repo = (widget.repository ?? Module2Repository.session).browse;
+  late final applications = MyApplicationsRepository(
+    (widget.repository ?? Module2Repository.session).myApplications.source,
+  );
+  Listenable? _routerChanges;
+  bool _wasCurrent = true, _applying = false;
+  String? _submittedId, _submittedActor;
+
+  Future<void> _reload() async {
+    await Future.wait([repo.load(), applications.load()]);
+  }
+
+  void _routeChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final current = ModalRoute.of(context)?.isCurrent ?? true;
+      if (current && !_wasCurrent) applications.load();
+      _wasCurrent = current;
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final changes = GoRouter.maybeOf(context)?.routerDelegate;
+    if (!identical(changes, _routerChanges)) {
+      _routerChanges?.removeListener(_routeChanged);
+      _routerChanges = changes;
+      _routerChanges?.addListener(_routeChanged);
+      _wasCurrent = ModalRoute.of(context)?.isCurrent ?? true;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) applications.load();
+  }
+
   Future<void> apply(BrowseJob job) async {
+    if (_applying ||
+        applications.loading ||
+        !applications.loaded ||
+        applications.error != null ||
+        applications.search().any((a) => a.jobId == job.id) ||
+        (_submittedId != null &&
+            _submittedActor == applications.source.userId)) {
+      return;
+    }
+    setState(() => _applying = true);
     final module = widget.repository ?? Module2Repository.session;
     final actor = repo.source.userId;
     final route = await moduleModal<String>(
@@ -52,10 +101,27 @@ class _JobDetailsPageState extends State<JobDetailsPage> {
         job: job,
         repository: module,
         gateway: module.createApplicationGateway(),
+        onSubmitted: (id) {
+          if (!mounted ||
+              widget.jobId != job.id ||
+              actor != applications.source.userId) {
+            return;
+          }
+          setState(() {
+            _submittedId = id;
+            _submittedActor = actor;
+          });
+          applications.load();
+        },
       ),
     );
+    if (!mounted) return;
+    setState(() => _applying = false);
+    await applications.load();
     if (!mounted || route == null || repo.source.userId != actor) return;
     await context.push<void>(route);
+    if (!mounted) return;
+    await applications.load();
     if (mounted &&
         route == AppRoutes.documentSubmission &&
         repo.source.userId == actor) {
@@ -66,28 +132,51 @@ class _JobDetailsPageState extends State<JobDetailsPage> {
 
   void refresh() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) repo.load();
+      if (mounted) _reload();
     });
   }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     refresh();
   }
 
   @override
   void didUpdateWidget(covariant JobDetailsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.jobId != widget.jobId) refresh();
+    if (oldWidget.jobId != widget.jobId) {
+      _submittedId = null;
+      refresh();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _routerChanges?.removeListener(_routeChanged);
+    applications.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: repo,
+      listenable: Listenable.merge([repo, applications]),
       builder: (context, _) {
         final job = repo.job(widget.jobId);
+        final existing = applications
+            .search()
+            .where((a) => a.jobId == widget.jobId)
+            .firstOrNull;
+        final submittedId = _submittedActor == applications.source.userId
+            ? _submittedId
+            : null;
+        final applicationId = existing?.id ?? submittedId;
+        final checking =
+            applications.loading ||
+            (!applications.loaded && applications.error == null);
         return AppWorkspace(
           title: 'Job Details',
           leading: kIsWeb
@@ -100,7 +189,9 @@ class _JobDetailsPageState extends State<JobDetailsPage> {
           actions: [
             IconButton(
               tooltip: 'Refresh job',
-              onPressed: repo.loading ? null : repo.load,
+              onPressed: repo.loading || applications.loading || _applying
+                  ? null
+                  : _reload,
               icon: const Icon(Icons.refresh),
             ),
           ],
@@ -149,15 +240,54 @@ class _JobDetailsPageState extends State<JobDetailsPage> {
                         if (job.unavailable() case final String reason)
                           Text(reason),
                         const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: FilledButton(
-                            onPressed: job.unavailable() != null
-                                ? null
-                                : () => apply(job),
-                            child: const Text('Apply Now'),
+                        if (applicationId != null) ...[
+                          Text(
+                            existing == null
+                                ? 'Application submitted'
+                                : 'Application status: ${existing.status.label}',
                           ),
-                        ),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: FilledButton(
+                              onPressed: _applying
+                                  ? null
+                                  : () async {
+                                      await context.push<void>(
+                                        '${AppRoutes.applications}/$applicationId',
+                                      );
+                                      if (mounted) await applications.load();
+                                    },
+                              child: const Text('View Application'),
+                            ),
+                          ),
+                        ] else if (applications.error != null) ...[
+                          const Text(
+                            'Unable to check your application status. Refresh before applying.',
+                          ),
+                          TextButton(
+                            onPressed: applications.loading
+                                ? null
+                                : applications.load,
+                            child: const Text('Retry application status'),
+                          ),
+                        ] else
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: FilledButton(
+                              onPressed:
+                                  checking ||
+                                      _applying ||
+                                      applications.source.userId == null ||
+                                      job.unavailable() != null
+                                  ? null
+                                  : () => apply(job),
+                              child: Text(
+                                checking
+                                    ? 'Checking application status…'
+                                    : 'Apply Now',
+                              ),
+                            ),
+                          ),
                         const SizedBox(height: 12),
                         Align(
                           alignment: Alignment.centerLeft,

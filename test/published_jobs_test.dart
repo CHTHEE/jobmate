@@ -8,6 +8,7 @@ import 'package:jobmate/features/applications/module2_repository.dart';
 
 import 'fixtures/published_jobs_source.dart';
 import 'fixtures/job_application_gateway.dart';
+import 'fixtures/my_applications_source.dart';
 
 import 'package:jobmate/features/applications/job_application_form.dart';
 
@@ -174,6 +175,7 @@ void main() {
       final repo = Module2Repository(
         publishedSource: source,
         applicationGatewayFactory: () => gateway,
+        myApplicationsSource: TestMyApplicationsSource(),
       );
       addTearDown(repo.dispose);
       addTearDown(source.changes.close);

@@ -324,6 +324,11 @@ deadline, automatic failure or extension request is introduced. See
 [deadline behavior, source audit and reminder design](docs/evidence_deadlines.md).
 Reminders require separately reviewed backend support and are not implemented.
 
+Final Module 2/4 polish checks the worker's owned applications before enabling
+Apply, uses direct 24-hour MYT shift-time input, blocks confirmation of known
+schedule conflicts, and shows prominent attendance-failure dialogs. See
+[root causes, behavior and acceptance limits](docs/module2_module4_ui_polish.md).
+
 Modules 2–10 now have explicitly labeled demo UI environments for the screens
 described below; these are not completed backend integrations. Phase 4 adds
 evaluations, reputation fixtures, external-payment records and an admin UI

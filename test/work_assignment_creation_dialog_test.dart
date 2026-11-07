@@ -118,7 +118,7 @@ void main() {
   }
 
   testWidgets(
-    'Malaysia date and 24-hour time pickers preserve editable validated fields',
+    'Malaysia date picker and direct 24-hour input preserve validated fields',
     (tester) async {
       await show(tester);
       await fill(tester);
@@ -128,15 +128,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
-      final time = find.byTooltip('Choose Start time (MYT)');
-      await tester.ensureVisible(time);
-      await tester.tap(time);
-      await tester.pumpAndSettle();
-      expect(find.byType(TimePickerDialog), findsOneWidget);
-      await tester.tap(find.text('OK'));
-      await tester.pumpAndSettle();
+      expect(find.byTooltip('Choose Start time (MYT)'), findsNothing);
+      expect(find.byType(TimePickerDialog), findsNothing);
+      await field(tester, 'Start time (MYT)', '09:05');
       await review(tester);
-      expect(find.text('Start (MYT): 2026-11-07 09:00'), findsOneWidget);
+      expect(find.text('Start (MYT): 2026-11-07 09:05'), findsOneWidget);
       expect(find.textContaining(uid(4)), findsNothing);
       expect(source.creates, 0);
     },
@@ -196,6 +192,83 @@ void main() {
       expect(source.creates, 0);
     }
   });
+
+  testWidgets(
+    'precise keyboard time rejects invalid or incomplete hours/minutes and permits overnight',
+    (tester) async {
+      await show(tester);
+      await fill(tester);
+      for (final invalid in ['24:00', '12:60', '09:', '9:05', 'xx:yy']) {
+        await field(tester, 'Start time (MYT)', invalid);
+        await review(tester);
+        expect(find.text('Use 24-hour time: HH:mm.'), findsOneWidget);
+        expect(source.creates, 0);
+      }
+      await field(tester, 'Start time (MYT)', '22:53');
+      await field(tester, 'End date (MYT)', '2026-11-08');
+      await field(tester, 'End time (MYT)', '02:07');
+      await review(tester);
+      expect(find.text('Start (MYT): 2026-11-07 22:53'), findsOneWidget);
+      expect(find.text('End (MYT): 2026-11-08 02:07'), findsOneWidget);
+      await tester.tap(find.text('Confirm creation'));
+      await tester.pumpAndSettle();
+      expect(
+        source.parameters!['p_scheduled_start'],
+        '2026-11-07T14:53:00.000Z',
+      );
+      expect(source.parameters!['p_scheduled_end'], '2026-11-07T18:07:00.000Z');
+    },
+  );
+
+  for (final conflictCode in <String?>[null, '23P01', '23505']) {
+    final backendConflict = conflictCode != null;
+    testWidgets(
+      'confirmed ${backendConflict ? 'backend $conflictCode' : 'preflight'} overlap blocks confirmation until editing',
+      (tester) async {
+        if (backendConflict) {
+          source.create = (_) async => throw PostgrestException(
+            message: 'private overlap detail',
+            code: conflictCode,
+          );
+        } else {
+          source.assignments = (_) async => complete([
+            assignment(company: true)
+              ..['application_id'] = uid(4)
+              ..['job_id'] = uid(3)
+              ..['worker_id'] = uid(5)
+              ..['scheduled_start'] = '2026-11-07T01:00:00Z'
+              ..['scheduled_end'] = '2026-11-07T09:00:00Z',
+          ]);
+        }
+        await show(tester);
+        await fill(tester);
+        await review(tester);
+        await tester.tap(find.text('Confirm creation'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text(
+            'This shift already exists or overlaps another worker shift.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Confirm creation'), findsNothing);
+        expect(find.text('Edit'), findsOneWidget);
+        expect(find.text('Close'), findsOneWidget);
+        expect(find.textContaining('private overlap detail'), findsNothing);
+        expect(source.creates, backendConflict ? 1 : 0);
+        await tester.tap(find.text('Edit'));
+        await tester.pumpAndSettle();
+        await field(tester, 'Start date (MYT)', '2026-11-09');
+        await field(tester, 'End date (MYT)', '2026-11-09');
+        source.create = (_) async => uid(90);
+        await review(tester);
+        await tester.tap(find.text('Confirm creation'));
+        await tester.pumpAndSettle();
+        expect(source.creates, backendConflict ? 2 : 1);
+        expect(find.text('Confirmed ${uid(90)}'), findsOneWidget);
+      },
+    );
+  }
 
   testWidgets(
     'candidate selection, confirmation, explicit dispatch and UTC mapping',

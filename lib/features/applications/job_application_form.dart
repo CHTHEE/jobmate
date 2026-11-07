@@ -14,10 +14,12 @@ class JobApplicationForm extends StatefulWidget {
     required this.job,
     required this.repository,
     required this.gateway,
+    this.onSubmitted,
   });
   final BrowseJob job;
   final Module2Repository repository;
   final JobApplicationGateway gateway;
+  final ValueChanged<String>? onSubmitted;
   @override
   State<JobApplicationForm> createState() => _JobApplicationFormState();
 }
@@ -115,6 +117,7 @@ class _JobApplicationFormState extends State<JobApplicationForm> {
       if (!checkSession()) return;
       widget.repository.clearNoteDraft(draftKey);
       setState(() => applicationId = id);
+      widget.onSubmitted?.call(id);
     } catch (failure) {
       if (checkSession()) setState(() => error = jobApplicationError(failure));
     } finally {

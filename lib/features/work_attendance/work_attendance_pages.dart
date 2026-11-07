@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
@@ -105,6 +106,74 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
         await repository.checkOut(row.assignmentId, location: location);
       }
       if (mounted &&
+          identical(repository, widget.repository) &&
+          repository.currentSession(generation) &&
+          repository.actionFailed) {
+        final failure = repository.actionFailure;
+        final outsideWindow =
+            failure is PostgrestException &&
+            failure.message == 'Check-in is outside the allowed shift window.';
+        final denied =
+            failure != null &&
+            workAttendanceErrorKind(failure) == WorkAttendanceError.permission;
+        final authentication =
+            failure != null &&
+            workAttendanceErrorKind(failure) ==
+                WorkAttendanceError.authentication;
+        final rejected =
+            failure is PostgrestException &&
+            ['P0001', '23514', '22023', '23505'].contains(failure.code);
+        final title = outsideWindow
+            ? 'Check-in unavailable'
+            : authentication
+            ? 'Sign in required'
+            : denied
+            ? 'Attendance access denied'
+            : rejected
+            ? checkingIn
+                  ? 'Check-in not available'
+                  : 'Check-out not available'
+            : checkingIn
+            ? 'Unable to confirm check-in'
+            : 'Unable to confirm check-out';
+        final message = outsideWindow
+            ? 'Your shift is scheduled to start at ${_malaysiaTime(row.scheduledStart)}. '
+                  'Check-in is only available during the permitted attendance window. '
+                  'Check the schedule and try again when your shift becomes eligible.'
+            : failure == null
+            ? 'The attendance request was accepted, but the list could not refresh. Refresh and review the recorded state before taking another action.'
+            : authentication || denied
+            ? repository.actionMessage!
+            : rejected
+            ? 'The server did not accept this attendance action. Refresh and review the shift status and recorded attendance before trying again.'
+            : 'The attendance action could not be confirmed. Review the recorded attendance and refresh before retrying. A lost response may still have recorded your attendance.';
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => ListenableBuilder(
+            listenable: repository,
+            builder: (_, _) {
+              final current =
+                  identical(repository, widget.repository) &&
+                  repository.currentSession(generation);
+              return AlertDialog(
+                title: Text(current ? title : 'Account changed'),
+                content: SingleChildScrollView(
+                  child: Text(
+                    current ? message : 'Close this dialog and refresh attendance for your current account.',
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Close'),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      } else if (mounted &&
+          identical(repository, widget.repository) &&
           repository.currentSession(generation) &&
           !repository.actionFailed &&
           repository.actionMessage != null) {

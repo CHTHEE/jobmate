@@ -142,10 +142,12 @@ class WorkAssignmentCreateResult {
     this.status,
     this.message, {
     this.assignmentId,
+    this.scheduleConflict = false,
   });
   final WorkAssignmentCreateStatus status;
   final String message;
   final String? assignmentId;
+  final bool scheduleConflict;
 }
 
 /// Parse wall-clock Malaysia input independently of the device timezone.
@@ -345,8 +347,10 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
                 end.isAfter(a.scheduledStart)),
       )) {
         ledger._attempts.remove(key);
-        return rejected(
+        return const WorkAssignmentCreateResult(
+          WorkAssignmentCreateStatus.rejected,
           'This shift already exists or overlaps another worker shift.',
+          scheduleConflict: true,
         );
       }
       final parameters = <String, dynamic>{
@@ -392,6 +396,7 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
             '28000',
             '23P01',
             '23503',
+            '23505',
             '23514',
             '22023',
             'PGRST301',
@@ -400,6 +405,14 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
           ].contains(error.code));
       if (!dispatched || definite) {
         ledger._attempts.remove(key);
+        if (error is PostgrestException &&
+            ['23P01', '23505'].contains(error.code)) {
+          return const WorkAssignmentCreateResult(
+            WorkAssignmentCreateStatus.rejected,
+            'This shift already exists or overlaps another worker shift.',
+            scheduleConflict: true,
+          );
+        }
         if (error is PostgrestException &&
             [
               '28000',
