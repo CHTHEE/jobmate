@@ -1528,6 +1528,14 @@ The 50-record list is not a complete unread count. Deep links, dashboard counts
 and email delivery are intentionally absent pending their backend contracts.
 Focused checks: `flutter test test/notifications_repository_test.dart test/notifications_page_test.dart`.
 
+Phase 5 scheduling notifications are audit-only. No verified atomic shift emitter
+or notification-to-assignment target is present in the checked-in contracts.
+The current Flutter boolean mark-read RPC also differs from the older checked-in
+SQL function. See the [notification audit and proposed atomic event design](docs/shift_scheduling_notifications_audit.md)
+for recipient identity, per-assignment uniqueness, MYT content, existing route
+integration and required backend/notification-owner review. No notification UI,
+RPC, trigger, RLS or migration was changed; no SQL was executed.
+
 ### Real Job Seeker application actions (Module 2 Step 27A)
 
 Phase 3 clarifies the existing application/offer lifecycle for both roles, with
