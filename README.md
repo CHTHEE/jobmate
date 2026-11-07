@@ -290,6 +290,10 @@ Migration `20261106000100_work_assignment_creation_idempotency.sql`
 is deployed and catalog-verified. Environments without that contract fail closed. Server
 request identity and duplicate protection survive client restart; local unresolved
 locks do not. Never refresh/restart to retry an uncertain action.
+Reopening a dialog for an unresolved application retains the read-only Check
+current assignment action; it reconciles the original request without another
+creation attempt. See the [Module 2/4 integration review](docs/module2_module4_integration_review.md)
+for regression coverage and remaining backend/device acceptance gates.
 No live assignments or evidence/verification records were changed.
 
 Phase 4 future-shift editing/cancellation is audit-only: no verified edit/cancel

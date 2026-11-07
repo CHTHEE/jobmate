@@ -31,6 +31,7 @@ void main() {
     WidgetTester tester, {
     double? width,
     double scale = 1,
+    String? applicationId,
   }) async {
     if (width != null) {
       tester.view.physicalSize = Size(width, 850);
@@ -55,6 +56,7 @@ void main() {
                   builder: (_) => WorkAssignmentCreationDialog(
                     repository: repository,
                     companyId: source.company,
+                    applicationId: applicationId,
                   ),
                 );
                 if (context.mounted && result != null) {
@@ -292,6 +294,43 @@ void main() {
       expect(source.creates, 0);
     },
   );
+
+  for (final scoped in [false, true]) {
+    testWidgets(
+      'reopened uncertain creation supports read-only reconciliation (scoped: $scoped)',
+      (tester) async {
+        await repository.load(companyId: source.company);
+        source.create = (_) async => throw TimeoutException('lost response');
+        final result = await repository.create(
+          candidate: repository.state.candidates.single,
+          start: DateTime.utc(2026, 11, 7, 1),
+          end: DateTime.utc(2026, 11, 7, 9),
+          location: 'QA workplace',
+        );
+        expect(result.status, WorkAssignmentCreateStatus.uncertain);
+        expect(source.creates, 1);
+        await show(tester, applicationId: scoped ? uid(4) : null);
+        if (!scoped) await select(tester);
+        expect(find.text('Review assignment'), findsNothing);
+        expect(find.text('Confirm creation'), findsNothing);
+        expect(find.text('Check current assignment'), findsOneWidget);
+        await tester.tap(find.text('Check current assignment'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('Creation outcome is uncertain.'),
+          findsOneWidget,
+        );
+        expect(source.creates, 1);
+        source.lookup = (_) async => uid(90);
+        await tester.tap(find.text('Check current assignment'));
+        await tester.pumpAndSettle();
+        expect(find.text('Confirmed ${uid(90)}'), findsOneWidget);
+        expect(source.lookedUpRequest, uid(80));
+        expect(source.creates, 1);
+        expect(source.reservations, 1);
+      },
+    );
+  }
 
   testWidgets('duplicate taps disabled while confirmation is in flight', (
     tester,

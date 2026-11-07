@@ -277,6 +277,10 @@ class _WorkAssignmentCreationDialogState
                             liveRegion: true,
                             child: Text(_result!.message),
                           ),
+                        if (locked && !_confirm)
+                          const Text(
+                            'An earlier creation is unresolved. Check its existing request before scheduling another shift for this application. This check does not create a shift.',
+                          ),
                         if (_confirm && _candidate != null) ...[
                           Text('Company: ${_candidate!.companyName}'),
                           Text('Job: ${_candidate!.jobTitle}'),
@@ -429,7 +433,7 @@ class _WorkAssignmentCreationDialogState
                     },
               child: const Text('Edit'),
             ),
-          if (!accountChanged && _confirm && locked)
+          if (!accountChanged && locked)
             OutlinedButton(
               onPressed: _busy ? null : () => _submit(reconcile: true),
               child: const Text('Check current assignment'),
