@@ -10,9 +10,13 @@ class WorkAssignmentCreationDialog extends StatefulWidget {
     super.key,
     required this.repository,
     required this.companyId,
+    this.applicationId,
   });
   final WorkAssignmentCreationRepository repository;
   final String companyId;
+
+  /// Optional group context. Resolve only against freshly authorized candidates.
+  final String? applicationId;
 
   @override
   State<WorkAssignmentCreationDialog> createState() =>
@@ -51,8 +55,16 @@ class _WorkAssignmentCreationDialogState
       }
     } else if (!_confirm && !widget.repository.state.loading) {
       final rows = widget.repository.state.candidates;
-      if (!rows.any((c) => c.jobId == _job)) _job = null;
-      if (!rows.any((c) => identical(c, _candidate))) _candidate = null;
+      if (widget.applicationId != null) {
+        final matches = rows.where(
+          (c) => c.applicationId == widget.applicationId,
+        );
+        _candidate = matches.length == 1 ? matches.single : null;
+        _job = _candidate?.jobId;
+      } else {
+        if (!rows.any((c) => c.jobId == _job)) _job = null;
+        if (!rows.any((c) => identical(c, _candidate))) _candidate = null;
+      }
     }
     setState(() {});
   }
@@ -70,7 +82,7 @@ class _WorkAssignmentCreationDialogState
     if (_closing || _busy) return;
     _closing = true;
     final dirty =
-        _candidate != null ||
+        (_candidate != null && widget.applicationId == null) ||
         [
           _startDate,
           _startTime,
@@ -176,6 +188,8 @@ class _WorkAssignmentCreationDialogState
     final repository = widget.repository;
     final state = repository.state;
     final accountChanged = repository.source.userId != _actor;
+    final scoped = widget.applicationId != null;
+    final unavailable = scoped && _candidate == null;
     final locked =
         _candidate != null &&
         [
@@ -233,7 +247,13 @@ class _WorkAssignmentCreationDialogState
         if (!didPop) _close();
       },
       child: AlertDialog(
-        title: Text(_confirm ? 'Confirm new assignment' : 'Create Assignment'),
+        title: Text(
+          _confirm
+              ? 'Confirm new assignment'
+              : scoped
+              ? 'Add shift'
+              : 'Create Assignment',
+        ),
         content: SizedBox(
           width: 520,
           child: ConstrainedBox(
@@ -279,7 +299,11 @@ class _WorkAssignmentCreationDialogState
                                 repository.load(companyId: widget.companyId),
                             child: const Text('Retry loading applications'),
                           ),
-                        ] else if (state.candidates.isEmpty)
+                        ] else if (unavailable)
+                          const Text(
+                            'This hired application is no longer available for scheduling. Close and refresh the assignments.',
+                          )
+                        else if (state.candidates.isEmpty)
                           const Text(
                             'No eligible hired applications. Hired workers can receive additional non-overlapping shifts.',
                           )
@@ -292,67 +316,76 @@ class _WorkAssignmentCreationDialogState
                                 const Text(
                                   'Malaysia time (MYT, UTC+08:00). Dates use YYYY-MM-DD and times use 24-hour HH:mm; the device timezone is ignored.',
                                 ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Schedule each shift as agreed with the worker beforehand. Each shift can have different dates and times.',
+                                ),
                                 const SizedBox(height: 16),
-                                DropdownButtonFormField<String>(
-                                  initialValue: _job,
-                                  isExpanded: true,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Company job',
-                                  ),
-                                  items: jobs.entries
-                                      .map(
-                                        (j) => DropdownMenuItem(
-                                          value: j.key,
-                                          child: Text(
-                                            j.value,
-                                            overflow: TextOverflow.ellipsis,
+                                if (scoped)
+                                  Text('Job: ${_candidate!.jobTitle}')
+                                else ...[
+                                  DropdownButtonFormField<String>(
+                                    initialValue: _job,
+                                    isExpanded: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Company job',
+                                    ),
+                                    items: jobs.entries
+                                        .map(
+                                          (j) => DropdownMenuItem(
+                                            value: j.key,
+                                            child: Text(
+                                              j.value,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
                                           ),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: _busy
-                                      ? null
-                                      : (value) => setState(() {
-                                          _job = value;
-                                          _candidate = null;
-                                          _result = null;
-                                        }),
-                                  validator: (v) =>
-                                      v == null ? 'Select a job.' : null,
-                                ),
-                                const SizedBox(height: 12),
-                                DropdownButtonFormField<String>(
-                                  key: ValueKey(_job),
-                                  initialValue: _candidate?.applicationId,
-                                  isExpanded: true,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Hired application',
+                                        )
+                                        .toList(),
+                                    onChanged: _busy
+                                        ? null
+                                        : (value) => setState(() {
+                                            _job = value;
+                                            _candidate = null;
+                                            _result = null;
+                                          }),
+                                    validator: (v) =>
+                                        v == null ? 'Select a job.' : null,
                                   ),
-                                  items: state.candidates
-                                      .where((c) => c.jobId == _job)
-                                      .map(
-                                        (c) => DropdownMenuItem(
-                                          value: c.applicationId,
-                                          child: Text(
-                                            c.applicantName,
-                                            overflow: TextOverflow.ellipsis,
+                                  const SizedBox(height: 12),
+                                  DropdownButtonFormField<String>(
+                                    key: ValueKey(_job),
+                                    initialValue: _candidate?.applicationId,
+                                    isExpanded: true,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Hired application',
+                                    ),
+                                    items: state.candidates
+                                        .where((c) => c.jobId == _job)
+                                        .map(
+                                          (c) => DropdownMenuItem(
+                                            value: c.applicationId,
+                                            child: Text(
+                                              c.applicantName,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
                                           ),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: _busy
-                                      ? null
-                                      : (value) => setState(() {
-                                          _candidate = state.candidates
-                                              .singleWhere(
-                                                (c) => c.applicationId == value,
-                                              );
-                                          _result = null;
-                                        }),
-                                  validator: (v) => _candidate == null
-                                      ? 'Select a hired application.'
-                                      : null,
-                                ),
+                                        )
+                                        .toList(),
+                                    onChanged: _busy
+                                        ? null
+                                        : (value) => setState(() {
+                                            _candidate = state.candidates
+                                                .singleWhere(
+                                                  (c) =>
+                                                      c.applicationId == value,
+                                                );
+                                            _result = null;
+                                          }),
+                                    validator: (v) => _candidate == null
+                                        ? 'Select a hired application.'
+                                        : null,
+                                  ),
+                                ],
                                 const SizedBox(height: 16),
                                 if (_candidate != null)
                                   Text(
@@ -405,6 +438,7 @@ class _WorkAssignmentCreationDialogState
               !locked &&
               state.error == null &&
               !state.loading &&
+              !unavailable &&
               (_confirm || state.candidates.isNotEmpty))
             FilledButton(
               onPressed: _busy

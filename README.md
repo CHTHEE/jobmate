@@ -274,6 +274,14 @@ signed links after fresh assignment and per-file authorization. No public links
 are created. The separate `/attendance/evidence` demo remains unchanged.
 
 Employers can create additional non-overlapping shifts for the same hired
+application using Add shift on each expanded employer assignment group. Groups
+use application ID, show the hired worker, job title and shift count, and list
+shifts chronologically. Add shift resolves that application against fresh
+authorized eligibility data; unavailable applications cannot be substituted.
+Each shift has its own agreed MYT start/end dates, times and workplace, including
+overnight schedules. No worker availability form or per-shift acceptance is added.
+Attendance, GPS, evidence and verification remain independent per shift.
+Employers can also use the existing Create Assignment selector for a hired
 application from Work Verification, with explicit worker/job/company/MYT schedule
 and workplace confirmation. Creation requires the new server-issued request-ID
 contract; there is no legacy fallback. Uncertain responses block further writes

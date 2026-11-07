@@ -82,7 +82,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
     }
   }
 
-  Future<void> _createAssignment() async {
+  Future<void> _createAssignment({String? applicationId}) async {
     if (_dialogOpen ||
         _authorizedActor == null ||
         _authorizedActor != widget.repository.source.userId ||
@@ -103,6 +103,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
       builder: (_) => WorkAssignmentCreationDialog(
         repository: _creation!,
         companyId: company,
+        applicationId: applicationId,
       ),
     );
     if (!mounted) return;
@@ -263,7 +264,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: FilledButton.icon(
-                    onPressed: _dialogOpen ? null : _createAssignment,
+                    onPressed: _dialogOpen ? null : () => _createAssignment(),
                     icon: const Icon(Icons.add),
                     label: const Text('Create Assignment'),
                   ),
@@ -296,29 +297,69 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                   message: 'There are no work assignments to display for this company.',
                 )
               else
-                for (final row in state.rows)
+                for (final shifts in _applicationGroups(state.rows))
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
-                    child: _CompanyAssignmentCard(
-                      row,
-                      companyId: widget.companyId,
-                      viewGps:
-                          _dialogOpen ||
-                              (widget.gpsSource == null &&
-                                  widget.repository.source
-                                      is! SupabaseWorkAttendanceSource)
-                          ? null
-                          : () => _viewGps(row),
-                      nameLoader:
-                          widget.loadWorkerName ??
-                          (widget.repository.source
-                                  is SupabaseWorkAttendanceSource
-                              ? WorkAssignmentPeopleRepository(
-                                  SupabaseWorkAssignmentCreationSource(
-                                    Supabase.instance.client,
+                    child: Column(
+                      key: ValueKey(
+                        'application-${shifts.first.applicationId}',
+                      ),
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            shifts.first.jobTitle,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        WorkAssignmentWorkerName(
+                          key: ValueKey((
+                            shifts.first.applicationId,
+                            widget.companyId,
+                          )),
+                          assignment: shifts.first,
+                          companyId: widget.companyId,
+                          loader:
+                              widget.loadWorkerName ??
+                              (widget.repository.source
+                                      is SupabaseWorkAttendanceSource
+                                  ? WorkAssignmentPeopleRepository(
+                                      SupabaseWorkAssignmentCreationSource(
+                                        Supabase.instance.client,
+                                      ),
+                                    ).workerName
+                                  : null),
+                        ),
+                        Text(
+                          '${shifts.length} ${shifts.length == 1 ? 'shift' : 'shifts'}',
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            onPressed: _dialogOpen
+                                ? null
+                                : () => _createAssignment(
+                                    applicationId: shifts.first.applicationId,
                                   ),
-                                ).workerName
-                              : null),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Add shift'),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        for (final row in shifts)
+                          _CompanyAssignmentCard(
+                            row,
+                            viewGps:
+                                _dialogOpen ||
+                                    (widget.gpsSource == null &&
+                                        widget.repository.source
+                                            is! SupabaseWorkAttendanceSource)
+                                ? null
+                                : () => _viewGps(row),
+                          ),
+                      ],
                     ),
                   ),
             ],
@@ -329,16 +370,28 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
   );
 }
 
+// Preserve first-seen group order without mutating the repository's projection.
+List<List<CompanyWorkAssignment>> _applicationGroups(
+  List<CompanyWorkAssignment> rows,
+) {
+  final groups = <String, List<CompanyWorkAssignment>>{};
+  for (final row in rows) {
+    (groups[row.applicationId] ??= []).add(row);
+  }
+  for (final shifts in groups.values) {
+    shifts.sort((a, b) {
+      final start = a.scheduledStart.compareTo(b.scheduledStart);
+      if (start != 0) return start;
+      final end = a.scheduledEnd.compareTo(b.scheduledEnd);
+      return end != 0 ? end : a.assignmentId.compareTo(b.assignmentId);
+    });
+  }
+  return groups.values.toList();
+}
+
 class _CompanyAssignmentCard extends StatelessWidget {
-  const _CompanyAssignmentCard(
-    this.row, {
-    required this.companyId,
-    this.nameLoader,
-    this.viewGps,
-  });
+  const _CompanyAssignmentCard(this.row, {this.viewGps});
   final CompanyWorkAssignment row;
-  final String companyId;
-  final WorkAssignmentNameLoader? nameLoader;
   final VoidCallback? viewGps;
 
   @override
@@ -349,20 +402,11 @@ class _CompanyAssignmentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(row.jobTitle, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
           WorkStatusBanner(
             stage: WorkStage.fromAssignment(row),
             employer: true,
           ),
           const SizedBox(height: 12),
-          WorkAssignmentWorkerName(
-            key: ValueKey((row.assignmentId, companyId)),
-            assignment: row,
-            companyId: companyId,
-            loader: nameLoader,
-          ),
-          const SizedBox(height: 16),
           Text('Scheduled start: ${_malaysiaTime(row.scheduledStart)}'),
           Text('Scheduled end: ${_malaysiaTime(row.scheduledEnd)}'),
           Text('Workplace: ${row.workplaceLocation}'),
