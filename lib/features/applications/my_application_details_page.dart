@@ -29,7 +29,12 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
     MyJobApplication application,
     ApplicationResponseAction action,
   ) async {
-    if (confirming || repo.responding) return;
+    if (confirming ||
+        repo.responding ||
+        repo.loading ||
+        !action.allowed(application.status)) {
+      return;
+    }
     final current = repo;
     final version = current.sessionVersion;
     setState(() => confirming = true);
@@ -42,17 +47,27 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
               current.currentSession(version) &&
               current.application?.id == application.id &&
               current.application?.status == application.status &&
+              action.allowed(application.status) &&
+              !current.responding &&
               !current.loading;
           return AlertDialog(
             title: Text(available ? '${action.label}?' : 'Application changed'),
-            content: Text(
-              !available
-                  ? 'Close this dialog and refresh your application.'
-                  : switch (action) {
-                      ApplicationResponseAction.acceptOffer => 'Accepting this offer changes your application status to Hired.',
-                      ApplicationResponseAction.declineOffer => 'Declining this offer changes your application status to Declined.',
-                      ApplicationResponseAction.withdraw => 'Withdrawal is final and cannot be undone through the current workflow.',
-                    },
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: !available
+                    ? [
+                        const Text(
+                          'Close this dialog and refresh your application.',
+                        ),
+                      ]
+                    : [
+                        Text(application.jobTitle),
+                        Text(application.companyName),
+                        const SizedBox(height: 12),
+                        Text(action.confirmationMessage),
+                      ],
+              ),
             ),
             actions: [
               TextButton(
@@ -220,6 +235,11 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
                           label: statusLabel(application.status),
                         ),
                       ),
+                      if (application.status.lifecycleExplanation
+                          case final explanation?) ...[
+                        Text(explanation),
+                        const SizedBox(height: 12),
+                      ],
                       Text(
                         'Applied: ${dateTime(context, application.appliedAt)}',
                       ),

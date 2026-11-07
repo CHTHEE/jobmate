@@ -185,6 +185,12 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
             Text(
               'Change ${widget.applicant.status.label} to ${widget.next.label}?',
             ),
+            if (widget.next == MyApplicationStatus.offered) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'The worker must accept the offer before this application becomes Hired.',
+              ),
+            ],
             const SizedBox(height: 16),
             TextField(
               controller: note,

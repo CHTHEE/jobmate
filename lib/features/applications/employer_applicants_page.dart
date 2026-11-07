@@ -299,6 +299,11 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
                                 label: statusLabel(applicant.status),
                               ),
                             ),
+                            if (applicant.status.lifecycleExplanation
+                                case final explanation?) ...[
+                              Text(explanation),
+                              const SizedBox(height: 12),
+                            ],
                             Text(
                               'Applied: ${jobDate(applicant.appliedAt.toLocal())} • ${TimeOfDay.fromDateTime(applicant.appliedAt.toLocal()).format(context)}',
                             ),

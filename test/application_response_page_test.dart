@@ -61,14 +61,19 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.byType(AlertDialog), findsOneWidget);
           expect(source.responses, isEmpty);
-          if (action == ApplicationResponseAction.withdraw) {
-            expect(
-              find.text(
-                'Withdrawal is final and cannot be undone through the current workflow.',
-              ),
-              findsOneWidget,
-            );
-          }
+          expect(find.text(action.confirmationMessage), findsOneWidget);
+          final dialog = find.byType(AlertDialog);
+          expect(
+            find.descendant(
+              of: dialog,
+              matching: find.text('Part-Time Cafe Crew'),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(of: dialog, matching: find.text('ABC Company')),
+            findsOneWidget,
+          );
           await tester.tap(find.text('Cancel'));
           await tester.pumpAndSettle();
           expect(source.responses, isEmpty);

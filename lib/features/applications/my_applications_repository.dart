@@ -17,6 +17,15 @@ enum MyApplicationStatus {
   final String label;
   bool get completed =>
       const [hired, rejected, declined, withdrawn].contains(this);
+
+  /// Recruitment state only: Hired does not mean the worker's shifts are done.
+  String? get lifecycleExplanation => switch (this) {
+    offered => 'The worker can accept or decline this offer before hiring. Withdrawal remains a separate pre-hire action.',
+    hired => 'This application is Hired. Withdrawal and offer decline are unavailable after hiring. Work shifts and their records are managed separately. Ending a hired arrangement is not supported by the current workflow.',
+    declined => 'The worker declined the offer before hiring. This is separate from withdrawing an application.',
+    withdrawn => 'The worker withdrew the application before hiring. This is separate from declining an offer.',
+    _ => null,
+  };
 }
 
 enum ApplicationResponseAction {
@@ -28,6 +37,11 @@ enum ApplicationResponseAction {
   final String wireName;
   final String label;
   final MyApplicationStatus result;
+  String get confirmationMessage => switch (this) {
+    acceptOffer => 'Accept this offer and change the application status to Hired? After hiring, you cannot withdraw the application or decline this offer. Work shifts are managed separately.',
+    declineOffer => 'Decline this offer before hiring and change the application status to Declined? This does not withdraw the application or cancel a hired arrangement. The current workflow cannot undo this decision.',
+    withdraw => 'Withdraw this application before hiring and change its status to Withdrawn? This is separate from declining an offer or ending a hired arrangement. Withdrawal is final and cannot be undone through the current workflow.',
+  };
   bool allowed(MyApplicationStatus status) => this == withdraw
       ? const [
           MyApplicationStatus.submitted,

@@ -1522,6 +1522,13 @@ Focused checks: `flutter test test/notifications_repository_test.dart test/notif
 
 ### Real Job Seeker application actions (Module 2 Step 27A)
 
+Phase 3 clarifies the existing application/offer lifecycle for both roles, with
+job/company-specific confirmation and an explicit post-hire boundary. Hired is a
+recruitment outcome, not completed work. Post-hire arrangement cancellation is
+not implemented: its required backend contract and the missing Module 2 SQL
+sources are documented in [the lifecycle audit and review design](docs/application_arrangement_lifecycle.md).
+No new status, RPC, policy, migration or notification behavior is introduced.
+
 Application Details uses the authenticated `respond_to_job_application`
 RPC with `p_application_id` and `p_action`. Accept/decline are available only
 for Offered applications; withdrawal is available for Applied, Shortlisted,
