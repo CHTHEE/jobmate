@@ -292,6 +292,14 @@ request identity and duplicate protection survive client restart; local unresolv
 locks do not. Never refresh/restart to retry an uncertain action.
 No live assignments or evidence/verification records were changed.
 
+Phase 4 future-shift editing/cancellation is audit-only: no verified edit/cancel
+RPC exists in the checked-in contracts, so no UI actions were added. The existing
+`cancelled` shift status does not establish mutation safety. See the
+[backend capability audit and proposed contracts](docs/future_shift_management_audit.md)
+for authorization, future/unstarted guards, cross-company overlap, concurrency,
+creation-request compatibility and required migration/tests. No SQL was executed
+and no migrations, policies or RPCs were changed.
+
 The local evidence workflow now supports checked-out worker PDF/image submission,
 authorized private PDF opening, employer verification or requests with a reason,
 worker resubmission and shared verification history. It requires the reviewed
