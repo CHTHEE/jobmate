@@ -13,6 +13,7 @@ import 'work_attendance_gps.dart';
 import 'work_assignment_creation_dialog.dart';
 import 'work_assignment_creation_repository.dart';
 import 'work_assignment_people.dart';
+import 'work_evidence_deadline.dart';
 
 /// The caller supplies the selected company and owns the repository.
 /// Access is checked against existing employer membership/verification rules;
@@ -406,6 +407,7 @@ class _CompanyAssignmentCard extends StatelessWidget {
             stage: WorkStage.fromAssignment(row),
             employer: true,
           ),
+          EvidenceDeadlineSummary(assignment: row),
           const SizedBox(height: 12),
           Text('Scheduled start: ${_malaysiaTime(row.scheduledStart)}'),
           Text('Scheduled end: ${_malaysiaTime(row.scheduledEnd)}'),

@@ -8,6 +8,7 @@ import 'work_attendance_models.dart';
 import 'work_attendance_repository.dart';
 import 'work_attendance_location_dialog.dart';
 import 'work_status_presentation.dart';
+import 'work_evidence_deadline.dart';
 
 /// Worker attendance. The caller owns the repository and route access gate.
 class WorkAttendancePage extends StatefulWidget {
@@ -340,6 +341,7 @@ class _AssignmentCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             WorkStatusBanner(stage: stage, employer: false),
+            EvidenceDeadlineSummary(assignment: row),
             const SizedBox(height: 16),
             Text('Scheduled start: ${_malaysiaTime(row.scheduledStart)}'),
             Text('Scheduled end: ${_malaysiaTime(row.scheduledEnd)}'),

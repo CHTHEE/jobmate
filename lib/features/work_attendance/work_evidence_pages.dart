@@ -18,6 +18,7 @@ import 'work_assignment_people.dart';
 import 'work_assignment_creation_repository.dart';
 import 'work_evidence_workflow.dart';
 import 'work_evidence_workflow_panel.dart';
+import 'work_evidence_deadline.dart';
 import 'work_evidence_upload_repository.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -339,10 +340,19 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                 if (repo.assignment != null)
                   WorkspaceCard(
                     title: repo.assignment!.jobTitle,
-                    child: Text(
-                      '${repo.employer ? (_workerName == null ? 'Assigned worker' : 'Worker: $_workerName') : 'Your work assignment'}'
-                      '${repo.assignment!.checkInAt == null ? '' : '\nChecked in: ${_malaysiaTime(repo.assignment!.checkInAt!)}'}'
-                      '${repo.assignment!.checkOutAt == null ? '' : '\nChecked out: ${_malaysiaTime(repo.assignment!.checkOutAt!)}'}',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          '${repo.employer ? (_workerName == null ? 'Assigned worker' : 'Worker: $_workerName') : 'Your work assignment'}'
+                          '${repo.assignment!.checkInAt == null ? '' : '\nChecked in: ${_malaysiaTime(repo.assignment!.checkInAt!)}'}'
+                          '${repo.assignment!.checkOutAt == null ? '' : '\nChecked out: ${_malaysiaTime(repo.assignment!.checkOutAt!)}'}',
+                        ),
+                        if (workflow == null ||
+                            repo.assignmentId ==
+                                supervisedWorkEvidenceQaAssignment)
+                          EvidenceDeadlineSummary(assignment: repo.assignment!),
+                      ],
                     ),
                   ),
                 const SizedBox(height: 16),

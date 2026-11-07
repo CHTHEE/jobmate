@@ -312,6 +312,14 @@ calls are intentionally restricted by the deployed cutover grants. No protected 
 were accessed or changed. See [evidence workflow and migration order](docs/work_evidence_workflow.md)
 for overlapping drafts, recovery rules and isolated/live QA prerequisites.
 
+Phase 6 adds a suggested initial evidence target of recorded checkout plus 24
+hours, displayed per shift in MYT. Due soon means the final four hours; Overdue
+is advisory, uses the device clock and never blocks eligible late submissions.
+Submitted/Verified and More Evidence Required take precedence; no new resubmission
+deadline, automatic failure or extension request is introduced. See
+[deadline behavior, source audit and reminder design](docs/evidence_deadlines.md).
+Reminders require separately reviewed backend support and are not implemented.
+
 Modules 2–10 now have explicitly labeled demo UI environments for the screens
 described below; these are not completed backend integrations. Phase 4 adds
 evaluations, reputation fixtures, external-payment records and an admin UI

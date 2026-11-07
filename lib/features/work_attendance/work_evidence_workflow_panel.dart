@@ -10,6 +10,7 @@ import 'work_evidence_draft_page.dart';
 import 'work_evidence_repository.dart';
 import 'work_evidence_upload_repository.dart';
 import 'work_evidence_workflow.dart';
+import 'work_evidence_deadline.dart';
 import 'work_status_presentation.dart';
 
 class WorkEvidenceWorkflowPanel extends StatefulWidget {
@@ -255,6 +256,12 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                 Text(
                   'Evidence and verification',
                   style: Theme.of(context).textTheme.titleLarge,
+                ),
+              if (state != null && widget.viewer.assignment != null)
+                EvidenceDeadlineSummary(
+                  assignment: widget.viewer.assignment!,
+                  assignmentStatus: state.assignmentStatus,
+                  verificationStatus: state.verificationStatus,
                 ),
               if (controller.loading) const LinearProgressIndicator(),
               if (controller.message != null &&
