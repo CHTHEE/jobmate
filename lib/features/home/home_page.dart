@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -7,8 +6,6 @@ import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/app_workspace.dart';
 import 'dashboard_content.dart';
 import '../jobs/job_postings_repository.dart';
-import '../search/universal_search_page.dart';
-import '../notifications/notifications_page.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/navigation/workspace_destinations.dart';
 
@@ -68,25 +65,6 @@ class _HomePageState extends State<HomePage> {
         onSignOut: _handleLogout,
         onNavigate: _openSection,
         navigationLocked: _isLoadingOut,
-        actions: [
-          if (_accountRole == 'job_seeker')
-            IconButton(
-              tooltip: 'Search',
-              onPressed: _isLoadingOut
-                  ? null
-                  : () => showJobMateSearchPanel(context),
-              icon: const Icon(Icons.search),
-            ),
-          IconButton(
-            tooltip: 'Notifications',
-            onPressed: _isLoadingOut
-                ? null
-                : () => kIsWeb
-                      ? showNotificationsPanel(context)
-                      : context.push<void>(AppRoutes.notifications),
-            icon: const Icon(Icons.notifications_none_outlined),
-          ),
-        ],
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : WorkspaceContent(

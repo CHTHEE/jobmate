@@ -92,6 +92,7 @@ void main() {
       ),
     );
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('Account access'), findsNothing);
     pending.completeError(StateError('offline'));
     await tester.pumpAndSettle();
     expect(find.text('Unable to check access'), findsOneWidget);

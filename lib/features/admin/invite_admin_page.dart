@@ -252,6 +252,7 @@ class _InviteAdminPageState extends State<InviteAdminPage> {
                   labelText: 'Full name',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.person_outline),
+                  counterText: '',
                 ),
                 validator: (value) {
                   final name = value?.trim() ?? '';
@@ -280,6 +281,7 @@ class _InviteAdminPageState extends State<InviteAdminPage> {
                   labelText: 'Email',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.email_outlined),
+                  counterText: '',
                 ),
                 validator: (value) {
                   final email = value?.trim() ?? '';

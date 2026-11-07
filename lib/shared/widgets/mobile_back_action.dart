@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/notifications/notifications_page.dart';
+import '../../features/search/universal_search_page.dart';
 import '../navigation/app_routes.dart';
 import 'auth_style.dart';
 
@@ -105,18 +108,21 @@ class ResponsivePageAppBar extends StatelessWidget
   Widget build(BuildContext context) {
     final dashboardLogo =
         kIsWeb && showReturnAction && returnLabel == 'Dashboard';
+    final hasSession = _hasAuthenticatedSession();
     return AppBar(
       automaticallyImplyLeading: false,
-      leadingWidth: dashboardLogo
+      leadingWidth: kIsWeb
           ? MediaQuery.sizeOf(context).width >= 600
                 ? 146
                 : 56
           : null,
-      leading: dashboardLogo
+      leading: kIsWeb
           ? Tooltip(
-              message: 'Go to dashboard',
+              message: showReturnAction ? 'Go to dashboard' : 'JobMate',
               child: InkWell(
-                onTap: enabled ? () => _goDashboard(context) : null,
+                onTap: enabled && showReturnAction
+                    ? () => _goDashboard(context)
+                    : null,
                 child: Center(
                   child: MediaQuery.sizeOf(context).width >= 600
                       ? const AuthWordmark(compact: true)
@@ -137,6 +143,22 @@ class ResponsivePageAppBar extends StatelessWidget
       title: title,
       actions: [
         ...actions,
+        if (hasSession) ...[
+          IconButton(
+            tooltip: 'Search jobs and companies',
+            onPressed: enabled ? () => showJobMateSearchPanel(context) : null,
+            icon: const Icon(Icons.search),
+          ),
+          IconButton(
+            tooltip: 'Notifications',
+            onPressed: !enabled
+                ? null
+                : () => kIsWeb
+                    ? showNotificationsPanel(context)
+                    : context.push<void>(AppRoutes.notifications),
+            icon: const Icon(Icons.notifications_none_outlined),
+          ),
+        ],
         if (kIsWeb && showReturnAction && !dashboardLogo)
           TextButton(
             onPressed: enabled ? () => _return(context) : null,
@@ -148,6 +170,14 @@ class ResponsivePageAppBar extends StatelessWidget
           ),
       ],
     );
+  }
+}
+
+bool _hasAuthenticatedSession() {
+  try {
+    return Supabase.instance.client.auth.currentUser != null;
+  } catch (_) {
+    return false;
   }
 }
 

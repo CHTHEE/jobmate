@@ -45,7 +45,7 @@ class _CompanyRejectionDialogState extends State<CompanyRejectionDialog> {
           Text(
             widget.approve
                 ? (widget.logo
-                      ? 'The proposed image will replace the current company photo. Company verification and job permissions stay unchanged. A review comment is optional.'
+                      ? 'The approved image will replace the current company photo. You may add a review comment.'
                       : 'Confirm that the submitted company details and supporting document are acceptable. A review comment is optional.')
                 : 'Explain what needs to be corrected. The company owner will see this reason in their company profile and notification.',
           ),

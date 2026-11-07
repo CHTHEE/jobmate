@@ -41,7 +41,7 @@ class _LoginPageState extends State<LoginPage> {
               const Text('Welcome back', style: AuthStyle.title),
               const SizedBox(height: 8),
               const Text('Sign in to your JobMate account.'),
-              const SizedBox(height: 32),
+              const SizedBox(height: 18),
               AuthField(
                 label: 'Email',
                 controller: _emailController,
@@ -53,21 +53,29 @@ class _LoginPageState extends State<LoginPage> {
                 controller: _passwordController,
                 password: true,
                 autofillHints: const [AutofillHints.password],
+                bottomSpacing: 4,
               ),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 0,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
                   onPressed: _isLoading
                       ? null
                       : () {
-                          AppRoutes.pendingAuthEmail =
-                              _emailController.text.trim();
+                          AppRoutes.pendingAuthEmail = _emailController.text
+                              .trim();
                           context.push<void>(AppRoutes.forgotPassword);
                         },
                   child: const Text('Forgot Password?'),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 4),
               FilledButton(
                 onPressed: _isLoading ? null : _handleLogin,
                 child: Text(_isLoading ? 'Signing in...' : 'Sign In'),

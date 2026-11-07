@@ -56,7 +56,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
     ],
   },
   'administrator' || 'admin' => {
-    'ADMINISTRATION': [
+    'Administration': [
       (AppRoutes.home, 'Dashboard', Icons.grid_view_rounded),
       (AppRoutes.adminUsers, 'Users', Icons.people_outline),
       (AppRoutes.adminCompanies, 'Companies', Icons.business_outlined),
@@ -75,7 +75,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
         Icons.receipt_long_outlined,
       ),
     ],
-    'PREVIEW': [
+    'Preview': [
       (
         AppRoutes.adminPreview,
         'UI Sandbox (demo)',
@@ -133,7 +133,7 @@ Map<String, List<WorkspaceDestination>> adminWorkspaceDestinations(
   bool has(String column) => permissions?[column] == true;
 
   return {
-    'ADMINISTRATION': [
+    'Administration': [
       (AppRoutes.home, 'Dashboard', Icons.grid_view_rounded),
       // Directory and safe detail reads are available to every active Admin.
       (AppRoutes.adminUsers, 'Users', Icons.people_outline),
@@ -154,7 +154,7 @@ Map<String, List<WorkspaceDestination>> adminWorkspaceDestinations(
         Icons.receipt_long_outlined,
       ),
     ],
-    'ADMIN TOOLS': [
+    'Admin tools': [
       if (has('can_review_companies'))
         (
           AppRoutes.companyReviews,
@@ -174,7 +174,7 @@ Map<String, List<WorkspaceDestination>> adminWorkspaceDestinations(
           Icons.admin_panel_settings_outlined,
         ),
     ],
-    'PREVIEW': [
+    'Preview': [
       (
         AppRoutes.adminPreview,
         'UI Sandbox (demo)',

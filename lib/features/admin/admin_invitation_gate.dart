@@ -6,6 +6,7 @@ import '../../shared/widgets/auth_layout.dart';
 import 'admin_dashboard_page.dart';
 import '../home/home_page.dart';
 import 'accept_admin_invitation_page.dart';
+import 'suspended_account_page.dart';
 
 class AdminInvitationGate extends StatefulWidget {
   final String userId;
@@ -103,13 +104,21 @@ class _AdminInvitationGateState extends State<AdminInvitationGate> {
         }
 
         final account = snapshot.data!;
+        if (account['status'] == 'suspended') {
+          return SuspendedAccountPage(
+            key: ValueKey(widget.userId),
+            role: account['role'] as String? ?? '',
+            gateway: SupabaseSuspendedAccountGateway(_supabase, widget.userId),
+            onRetry: _reload,
+            onSignOut: _signOut,
+          );
+        }
+        if (account['status'] != 'active') {
+          return _statusPage(
+            'This account is not active. Contact JobMate support.',
+          );
+        }
         if (account['role'] == 'administrator') {
-          if (account['status'] != 'active') {
-            return _statusPage(
-              'This administrator account is not active. Contact the '
-              'Superadmin for help.',
-            );
-          }
           return AdminDashboardPage(email: widget.email);
         }
 

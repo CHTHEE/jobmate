@@ -25,6 +25,11 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
   bool _isLoading = false;
   bool _isUpdating = false;
   bool _hasMore = false;
+  bool _userManagementAvailable = false;
+  bool _disputeManagementAvailable = false;
+  bool _companyRestrictionAvailable = false;
+  bool _userReportsAvailable = false;
+  bool _jobModerationAvailable = false;
 
   int _offset = 0;
   String? _errorMessage;
@@ -56,10 +61,36 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
     try {
       _checkSession();
 
-      final data = await _supabase.rpc(
+      dynamic data;
+      var schemaVersion = 0;
+      const versions = [
+        'list_admin_accounts_v8',
+        'list_admin_accounts_v7',
+        'list_admin_accounts_v6',
+        'list_admin_accounts_v5',
+        'list_admin_accounts_v4',
+        'list_admin_accounts_v3',
         'list_admin_accounts_v2',
-        params: {'p_limit': _pageSize + 1, 'p_offset': _offset},
-      );
+      ];
+      for (var index = 0; index < versions.length; index++) {
+        try {
+          data = await _supabase.rpc(
+            versions[index],
+            params: {'p_limit': _pageSize + 1, 'p_offset': _offset},
+          );
+          schemaVersion = 8 - index;
+          break;
+        } on PostgrestException catch (error) {
+          if (error.code != 'PGRST202' || index == versions.length - 1) {
+            rethrow;
+          }
+        }
+      }
+      final userManagementAvailable = schemaVersion >= 3;
+      var disputeManagementAvailable = false;
+      var companyRestrictionAvailable = schemaVersion >= 5;
+      var userReportsAvailable = schemaVersion == 6;
+      var jobModerationAvailable = schemaVersion >= 7;
 
       if (!mounted) return;
 
@@ -72,10 +103,40 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
       final rows = data
           .map((item) => Map<String, dynamic>.from(item as Map))
           .toList();
+      if (rows.any((row) => row.containsKey('dispute_management_available'))) {
+        disputeManagementAvailable = rows.any(
+          (row) => row['dispute_management_available'] == true,
+        );
+      } else if (rows.any((row) => row.containsKey('can_manage_disputes'))) {
+        disputeManagementAvailable = rows.any(
+          (row) => row['can_manage_disputes'] is bool,
+        );
+      }
+      if (rows.any((row) => row.containsKey('user_reports_available'))) {
+        userReportsAvailable = rows.any(
+          (row) => row['user_reports_available'] == true,
+        );
+      } else if (schemaVersion >= 7) {
+        userReportsAvailable = rows.any(
+          (row) => row['can_manage_user_reports'] is bool,
+        );
+      }
 
       setState(() {
         _hasMore = rows.length > _pageSize;
-        _admins = rows.take(_pageSize).toList();
+        // Older deployed projections may still return Superadmins. Hide them
+        // locally during rollout; v8 also filters before pagination.
+        _admins = rows
+            .where((row) => row['can_manage_admin_permissions'] != true)
+            .take(_pageSize)
+            .toList();
+        _userManagementAvailable = userManagementAvailable;
+        _disputeManagementAvailable = disputeManagementAvailable;
+        _companyRestrictionAvailable = companyRestrictionAvailable;
+        _userReportsAvailable = userReportsAvailable;
+        _jobModerationAvailable =
+            jobModerationAvailable &&
+            rows.any((row) => row['can_manage_job_moderation'] is bool);
       });
     } on PostgrestException catch (error) {
       if (!mounted) return;
@@ -112,7 +173,23 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
     final name = admin['name'] as String? ?? 'this administrator';
 
     final isReviewPermission = permission == 'can_review_companies';
-    final permissionName = isReviewPermission
+    final isUserManagement = permission == 'can_manage_user_accounts';
+    final isDisputeManagement = permission == 'can_manage_disputes';
+    final isCompanyRestriction =
+        permission == 'can_manage_company_restrictions';
+    final isUserReports = permission == 'can_manage_user_reports';
+    final isJobModeration = permission == 'can_manage_job_moderation';
+    final permissionName = isDisputeManagement
+        ? 'Dispute Management permission'
+        : isCompanyRestriction
+        ? 'Company Management permission'
+        : isUserReports
+        ? 'User Reports Management permission'
+        : isJobModeration
+        ? 'Job Moderation permission'
+        : isUserManagement
+        ? 'User Management permission'
+        : isReviewPermission
         ? 'Company review permission'
         : 'Invitation permission';
 
@@ -121,7 +198,17 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
       builder: (dialogContext) => AlertDialog(
         title: Text('${enabled ? 'Grant' : 'Revoke'} $permissionName?'),
         content: Text(
-          enabled
+          isDisputeManagement
+              ? '${enabled ? 'Allow' : 'Remove permission for'} $name to investigate and resolve eligible disputes?'
+              : isCompanyRestriction
+              ? '${enabled ? 'Allow' : 'Remove permission for'} $name to restrict or restore companies?'
+              : isUserReports
+              ? '${enabled ? 'Allow' : 'Remove permission for'} $name to review user-submitted reports?'
+              : isJobModeration
+              ? '${enabled ? 'Allow' : 'Remove permission for'} $name to investigate and restrict eligible Job Postings?'
+              : isUserManagement
+              ? '${enabled ? 'Allow' : 'Remove permission for'} $name ${enabled ? 'to manage Job Seeker and Employer account restrictions?' : 'to manage account restrictions?'}'
+              : enabled
               ? isReviewPermission
                     ? 'Allow $name to review Company documents?'
                     : 'Allow $name to send administrator invitations?'
@@ -158,24 +245,73 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
     try {
       _checkSession();
 
-      await _supabase.rpc(
-        'set_admin_permissions',
-        params: {
-          'p_target_user_id': admin['user_id'],
-          'p_can_invite_admins': permission == 'can_invite_admins'
-              ? enabled
-              : admin['can_invite_admins'] == true,
-          'p_can_review_companies': permission == 'can_review_companies'
-              ? enabled
-              : admin['can_review_companies'] == true,
-        },
-      );
+      if (isDisputeManagement) {
+        await _supabase.rpc(
+          'set_dispute_admin_permission',
+          params: {'p_target': admin['user_id'], 'p_granted': enabled},
+        );
+      } else if (isJobModeration) {
+        await _supabase.rpc(
+          'set_job_moderation_admin_permission',
+          params: {
+            'p_target_user_id': admin['user_id'],
+            'p_can_manage': enabled,
+          },
+        );
+      } else if (isCompanyRestriction) {
+        await _supabase.rpc(
+          'set_company_restriction_admin_permission',
+          params: {
+            'p_target_user_id': admin['user_id'],
+            'p_can_manage': enabled,
+          },
+        );
+      } else if (isUserReports) {
+        await _supabase.rpc(
+          'set_user_report_admin_permission',
+          params: {
+            'p_target_user_id': admin['user_id'],
+            'p_can_manage': enabled,
+          },
+        );
+      } else if (isUserManagement) {
+        await _supabase.rpc(
+          'set_admin_user_management_permission',
+          params: {
+            'p_target_user_id': admin['user_id'],
+            'p_can_manage': enabled,
+          },
+        );
+      } else {
+        await _supabase.rpc(
+          'set_admin_permissions',
+          params: {
+            'p_target_user_id': admin['user_id'],
+            'p_can_invite_admins': permission == 'can_invite_admins'
+                ? enabled
+                : admin['can_invite_admins'] == true,
+            'p_can_review_companies': permission == 'can_review_companies'
+                ? enabled
+                : admin['can_review_companies'] == true,
+          },
+        );
+      }
 
       if (!mounted) return;
 
       _checkSession();
 
-      message = isReviewPermission
+      message = isDisputeManagement
+          ? 'Dispute Management permission ${enabled ? 'granted' : 'revoked'}.'
+          : isCompanyRestriction
+          ? 'Company Management permission ${enabled ? 'granted' : 'revoked'}.'
+          : isUserReports
+          ? 'User Reports Management permission ${enabled ? 'granted' : 'revoked'}.'
+          : isJobModeration
+          ? 'Job Moderation permission ${enabled ? 'granted' : 'revoked'}.'
+          : isUserManagement
+          ? 'User Management permission ${enabled ? 'granted' : 'revoked'}.'
+          : isReviewPermission
           ? enabled
                 ? 'Company review permission granted.'
                 : 'Company review permission revoked.'
@@ -267,6 +403,73 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
+              title: const Text('Dispute Management permission'),
+              subtitle: Text(
+                _disputeManagementAvailable
+                    ? 'Allows investigating eligible disputes. Conflict checks still apply.'
+                    : 'This access is not available yet.',
+              ),
+              value: admin['can_manage_disputes'] == true,
+              onChanged:
+                  _isBusy || isCurrentAdmin || !_disputeManagementAvailable
+                  ? null
+                  : (value) =>
+                        _changePermission(admin, 'can_manage_disputes', value),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Job Moderation permission'),
+              subtitle: Text(
+                _jobModerationAvailable
+                    ? 'Allows reviewing and restricting Job Postings. The Admin cannot review their own jobs or Companies they belong to.'
+                    : 'This access is not available yet.',
+              ),
+              value: admin['can_manage_job_moderation'] == true,
+              onChanged: _isBusy || isCurrentAdmin || !_jobModerationAvailable
+                  ? null
+                  : (value) => _changePermission(
+                      admin,
+                      'can_manage_job_moderation',
+                      value,
+                    ),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Company Management permission'),
+              subtitle: Text(
+                _companyRestrictionAvailable
+                    ? 'Allows restricting and restoring companies. Company verification remains separate.'
+                    : 'This access is not available yet.',
+              ),
+              value: admin['can_manage_company_restrictions'] == true,
+              onChanged:
+                  _isBusy || isCurrentAdmin || !_companyRestrictionAvailable
+                  ? null
+                  : (value) => _changePermission(
+                      admin,
+                      'can_manage_company_restrictions',
+                      value,
+                    ),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('User Reports Management permission'),
+              subtitle: Text(
+                _userReportsAvailable
+                    ? 'Allows reviewing and responding to user reports. It does not change accounts, companies, jobs or payments.'
+                    : 'This access is not available yet.',
+              ),
+              value: admin['can_manage_user_reports'] == true,
+              onChanged: _isBusy || isCurrentAdmin || !_userReportsAvailable
+                  ? null
+                  : (value) => _changePermission(
+                      admin,
+                      'can_manage_user_reports',
+                      value,
+                    ),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
               title: const Text('Company review permission'),
               subtitle: const Text(
                 'Allows reviewing submitted Company documents.',
@@ -276,6 +479,23 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
                   ? null
                   : (value) =>
                         _changePermission(admin, 'can_review_companies', value),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('User Management permission'),
+              subtitle: Text(
+                _userManagementAvailable
+                    ? 'Allows reviewing and restricting Job Seeker and Employer accounts.'
+                    : 'This access is not available yet.',
+              ),
+              value: admin['can_manage_user_accounts'] == true,
+              onChanged: _isBusy || isCurrentAdmin || !_userManagementAvailable
+                  ? null
+                  : (value) => _changePermission(
+                      admin,
+                      'can_manage_user_accounts',
+                      value,
+                    ),
             ),
           ],
         ),
@@ -313,19 +533,19 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
         padding: ResponsiveLayout.pagePadding(context),
         children: [
           const Text(
-            'Administrator permissions',
+            'Administrator access',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           const Text(
-            'The Superadmin assigns invitation and Company review access. '
-            'Administrators cannot change their own permissions.',
+            'Superadmins have access to Admin tools and are not listed here. '
+            'Other Administrators can only receive access from a Superadmin and cannot change their own permissions.',
           ),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: _isBusy ? null : _loadAdmins,
-              child: const Text('Check for updates'),
+              child: const Text('Refresh'),
             ),
           ),
           const SizedBox(height: 24),
@@ -348,7 +568,7 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
   Widget build(BuildContext context) {
     return LoadingOverlay(
       isLoading: _isUpdating,
-      message: 'Updating invitation permission...',
+      message: 'Updating administrator permission...',
       child: AppWorkspace(
         title: 'Admin permissions',
         path: AppRoutes.adminPermissions,
@@ -356,7 +576,7 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
         navigationLocked: _isBusy,
         navigationGroups: {
           ...workspaceDestinations('administrator'),
-          'ADMIN TOOLS': [
+          'Admin tools': [
             (
               AppRoutes.adminPermissions,
               'Admin permissions',

@@ -20,7 +20,7 @@ abstract final class AuthStyle {
     fontSize: 32,
     color: heading,
   );
-
+  
   static ThemeData theme(BuildContext context) {
     final base = JobMateTheme.apply(Theme.of(context));
     OutlineInputBorder outline(Color color, [double width = 1]) =>
@@ -121,7 +121,9 @@ class AuthField extends StatefulWidget {
     this.onChanged,
     this.maxLength,
     this.autofillHints,
+    this.bottomSpacing = 16,
   });
+  final double bottomSpacing;
   final String label;
   final TextEditingController controller;
   final bool password;
@@ -139,7 +141,7 @@ class _AuthFieldState extends State<AuthField> {
   bool _hidden = true;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 16),
+   padding: EdgeInsets.only(bottom: widget.bottomSpacing),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

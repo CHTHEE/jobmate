@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -9,7 +8,6 @@ import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../../shared/navigation/workspace_destinations.dart';
 import '../phase4/phase4_store.dart';
-import '../notifications/notifications_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key, required this.email});
@@ -152,10 +150,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final narrowPhone = MediaQuery.sizeOf(context).width < 420;
     final groups = workspaceDestinations('administrator');
     if (!_loadingAccess && _error == null) {
-      groups['ADMIN TOOLS'] = [
+      groups['Admin tools'] = [
         if (_canReviewCompanies)
           (
             AppRoutes.companyReviews,
@@ -177,19 +174,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       ];
     }
     return AppWorkspace(
-      title: narrowPhone ? 'Admin' : 'JobMate Admin',
+      title: 'Admin',
       path: AppRoutes.home,
       role: 'administrator',
       showAccountMenu: true,
       navigationGroups: groups,
       actions: [
-        IconButton(
-          tooltip: 'Notifications',
-          onPressed: () => kIsWeb
-              ? showNotificationsPanel(context)
-              : context.push<void>(AppRoutes.notifications),
-          icon: const Icon(Icons.notifications_none_outlined),
-        ),
         IconButton(
           tooltip: 'Refresh dashboard',
           onPressed: _loadingAccess ? null : _loadAccess,

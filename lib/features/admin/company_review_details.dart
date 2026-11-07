@@ -71,7 +71,8 @@ class _CompanyReviewDetailsState extends State<CompanyReviewDetails> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'Unable to access the private PDF. Check your session, company-review permission and document access, then retry.',
+          () => _error =
+              'We could not open the verification document. Please try again.',
         );
       }
     } finally {
@@ -86,7 +87,7 @@ class _CompanyReviewDetailsState extends State<CompanyReviewDetails> {
       if (_expires == null || !DateTime.now().isBefore(_expires!)) {
         setState(() {
           _links = null;
-          _error = 'Document access expired. Prepare a new secure link.';
+          _error = 'Document access expired. Please prepare a new link.';
         });
         return;
       }

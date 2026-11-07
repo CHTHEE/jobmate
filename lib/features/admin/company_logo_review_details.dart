@@ -53,7 +53,8 @@ class _CompanyLogoReviewDetailsState extends State<CompanyLogoReviewDetails> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'Unable to load private images. Check Company Review permission and retry.',
+          () => _error =
+              'We could not load the company photos. Please try again.',
         );
       }
     } finally {

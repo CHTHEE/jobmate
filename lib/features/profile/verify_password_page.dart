@@ -25,7 +25,6 @@ class VerifyPasswordPage extends StatefulWidget {
 
 class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
   final _auth = Supabase.instance.client.auth;
-  final _user = Supabase.instance.client.auth.currentUser;
 
   final _initialUser = Supabase.instance.client.auth.currentUser;
 

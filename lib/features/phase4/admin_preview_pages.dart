@@ -207,7 +207,7 @@ class _AdminPreviewPageState extends State<AdminPreviewPage> {
             ),
             const SizedBox(height: 20),
             for (final item in <(String, String)>[
-              ('Demo Account Actions', AppRoutes.adminDemoAccounts),
+              ('User management', AppRoutes.adminUsers),
               ('Demo Job Moderation', AppRoutes.adminDemoJobs),
               ('Demo Disputes', AppRoutes.adminDemoDisputes),
               ('Demo Reports', AppRoutes.adminDemoReports),

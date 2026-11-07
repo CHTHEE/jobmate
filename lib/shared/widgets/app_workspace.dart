@@ -4,6 +4,8 @@ import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/notifications/notifications_page.dart';
+import '../../features/search/universal_search_page.dart';
 import '../navigation/app_routes.dart';
 import 'auth_style.dart';
 import '../theme/jobmate_theme.dart';
@@ -22,6 +24,7 @@ class AppWorkspace extends StatelessWidget {
     required this.path,
     required this.role,
     required this.child,
+    this.titleWidget,
     this.actions = const [],
     this.leading,
     this.onNavigate,
@@ -35,6 +38,7 @@ class AppWorkspace extends StatelessWidget {
     this.showAccountMenu = true,
   });
   final String title;
+  final Widget? titleWidget;
   final String path;
   final String role;
   final Widget child;
@@ -102,6 +106,25 @@ class AppWorkspace extends StatelessWidget {
             !keyboardOpen &&
             (!detail || keepAdminTabsOnDetails) &&
             primary.isNotEmpty;
+        final headerActions = <Widget>[
+          IconButton(
+            tooltip: 'Search jobs and companies',
+            onPressed: navigationLocked
+                ? null
+                : () => showJobMateSearchPanel(context),
+            icon: const Icon(Icons.search),
+          ),
+          IconButton(
+            tooltip: 'Notifications',
+            onPressed: navigationLocked
+                ? null
+                : () => kIsWeb
+                    ? showNotificationsPanel(context)
+                    : context.push<void>(AppRoutes.notifications),
+            icon: const Icon(Icons.notifications_none_outlined),
+          ),
+          ...actions,
+        ];
 
         void navigate(String destination) {
           if (navigationLocked || destination == path) return;
@@ -122,8 +145,11 @@ class AppWorkspace extends StatelessWidget {
           selected: selected,
           locked: navigationLocked,
           accountActions: accountActions,
-          showBrand: !moreSheet,
-          collapsible: role == 'employer' || role == 'job_seeker',
+          showMoreHeading: moreSheet,
+          collapsible: role == 'employer' ||
+              role == 'job_seeker' ||
+              role == 'administrator' ||
+              role == 'admin',
           onSelected: (destination) {
             if (navigationLocked) return;
             if (overlay) {
@@ -355,14 +381,52 @@ class AppWorkspace extends StatelessWidget {
                               icon: const Icon(Icons.arrow_back),
                             )
                           : null)),
-            title: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            title: kIsWeb
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Tooltip(
+                        message: 'Go to dashboard',
+                        child: InkWell(
+                          onTap: navigationLocked
+                              ? null
+                              : () => navigate(AppRoutes.home),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: MediaQuery.sizeOf(context).width >= 600
+                                ? const SizedBox(
+                                    width: 146,
+                                    child: AuthWordmark(compact: true),
+                                  )
+                                : const Icon(
+                                    Icons.work_outline_rounded,
+                                    color: AuthStyle.teal,
+                                  ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: titleWidget ??
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                      ),
+                    ],
+                  )
+                : titleWidget ??
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
             actions: [
-              ...actions,
+              ...headerActions,
               if (!showBottomBar &&
                   showAccountMenu &&
                   (role == 'job_seeker' ||
@@ -482,7 +546,7 @@ class _WorkspaceMenu extends StatefulWidget {
     required this.locked,
     required this.onSelected,
     this.accountActions,
-    this.showBrand = true,
+    this.showMoreHeading = false,
     this.collapsible = true,
   });
   final Map<String, List<WorkspaceDestination>> groups;
@@ -490,7 +554,7 @@ class _WorkspaceMenu extends StatefulWidget {
   final bool locked;
   final ValueChanged<String> onSelected;
   final Widget? accountActions;
-  final bool showBrand;
+  final bool showMoreHeading;
   final bool collapsible;
 
   @override
@@ -532,21 +596,7 @@ class _WorkspaceMenuState extends State<_WorkspaceMenu> {
         scrollCacheExtent: const ScrollCacheExtent.pixels(2000),
         padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
         children: [
-          if (widget.showBrand)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: InkWell(
-                onTap: widget.locked
-                    ? null
-                    : () => widget.onSelected(AppRoutes.home),
-                borderRadius: BorderRadius.circular(8),
-                child: const Tooltip(
-                  message: 'Go to dashboard',
-                  child: AuthWordmark(compact: true),
-                ),
-              ),
-            )
-          else
+          if (widget.showMoreHeading)
             const Padding(
               padding: EdgeInsets.fromLTRB(12, 8, 12, 20),
               child: Text(

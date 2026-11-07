@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -46,6 +47,21 @@ class _Module2GateState extends State<Module2Gate> {
     future: access,
     builder: (context, snapshot) {
       if (snapshot.data == true) return widget.child;
+      if (snapshot.connectionState != ConnectionState.done) {
+        return Scaffold(
+          backgroundColor: JobMateTheme.background,
+          appBar: kIsWeb
+              ? const ResponsivePageAppBar(title: SizedBox.shrink())
+              : null,
+          body: SafeArea(
+            child: Center(
+              child: CircularProgressIndicator(
+                semanticsLabel: 'Checking account access',
+              ),
+            ),
+          ),
+        );
+      }
       return Scaffold(
         appBar: const ResponsivePageAppBar(title: Text('Account access')),
         body: Center(
@@ -55,21 +71,19 @@ class _Module2GateState extends State<Module2Gate> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  snapshot.connectionState != ConnectionState.done
-                      ? const CircularProgressIndicator()
-                      : ModuleState(
-                          title: snapshot.hasError
-                              ? 'Unable to check access'
-                              : 'Page unavailable',
-                          message: snapshot.hasError
-                              ? 'Check your connection and retry.'
-                              : 'An active ${widget.role.replaceAll('_', ' ')} account is required.',
-                          action: snapshot.hasError
-                              ? () => setState(() {
-                                  access = load();
-                                })
-                              : null,
-                        ),
+                  ModuleState(
+                    title: snapshot.hasError
+                        ? 'Unable to check access'
+                        : 'Page unavailable',
+                    message: snapshot.hasError
+                        ? 'Check your connection and retry.'
+                        : 'An active ${widget.role.replaceAll('_', ' ')} account is required.',
+                    action: snapshot.hasError
+                        ? () => setState(() {
+                            access = load();
+                          })
+                        : null,
+                  ),
                 ],
               ),
             ),

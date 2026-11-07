@@ -14,6 +14,172 @@ JobMate is a Final Year Project (FYP): an AI-assisted recruitment and workforce 
 
 These are codebase capabilities, not confirmation that every workflow works against the deployed backend. The formatting Edge Function source is **absent from this checkout**; its deployment and Gemini configuration require team confirmation.
 
+### User Management Phase 2B (prepared, not deployed)
+
+The `/admin-users` directory is available to every active Admin as a limited,
+read-only directory. Its safe detail view uses the separately prepared
+`20261106000500_admin_read_only_directory_details.sql` projection and omits
+email, phone, restriction history and account actions. Admins assigned
+`can_manage_user_accounts` receive full account details, restriction history,
+and suspension/reactivation actions through the protected Phase 2B RPCs. The
+old
+`/admin-preview/accounts` URL redirects to this directory. The migration adds
+the separately assigned `can_manage_user_accounts` permission and a
+server-written audit table; it reuses `users.status`. Until the migration is
+reviewed, tested and deployed, manager-only details and actions are
+unavailable. The read-only details migration requires the existing JobMate
+baseline followed by Phase 2B and Phase 2D; it adds no management authority.
+Neither migration has been deployed or database-tested here.
+Existing administrator permission controls fall back to their previous RPC.
+See [Phase 2B tests and integration dependencies](supabase/diagnostics/phase2b_user_management_test_plan.md).
+Suspension and reactivation both require a reason. A separate prepared Phase
+2B.1 migration adds a read-only, caller-scoped assignment summary for suspended
+Job Seekers; the suspended account page can display it after that migration is
+reviewed with the assignment owner, tested and applied. See the
+[suspension enforcement matrix](supabase/diagnostics/phase2b1_suspension_enforcement_matrix.md).
+The [Phase 2B.1 release review](supabase/diagnostics/phase2b1_release_review.md)
+records the live Phase 2A fingerprint result, teammate decisions and disposable
+database, real-JWT and Storage test setup. None of those database/API tests has
+been executed by the coding agent.
+
+The migration does not revoke Supabase Auth sessions or enforce status across
+every existing RPC or module. Existing account gates and active-status checks
+cover only their respective paths. Suspended users see their reason at the home
+account gate. The inspected live posting and application RPCs check current
+account status, but existing deep links, already-open sessions, concurrent
+mutations and uninspected Edge Functions still require integration review.
+Payment, appeal and dispute access for unresolved
+obligations is not yet implemented. Do not treat the prepared feature as a
+complete platform-wide suspension control.
+
+### Dispute Resolution Phase 2C (prepared, not deployed)
+
+Separate real-data dispute pages use the RPCs in the prepared
+`20261105000500_dispute_resolution.sql` and
+`20261105000600_dispute_integration.sql` migrations. They show an unavailable
+state until the migration is reviewed and applied in an isolated test project.
+The existing preview dispute pages remain explicitly labelled demos. The new
+module selects authorized applications/assignments, supports private case-scoped
+PDF/image evidence and does not change work, application or payment state.
+See [the dispute design and integration dependencies](supabase/diagnostics/phase2c_dispute_design.md).
+Phase 2C.2 end-to-end integration testing is paused while Job Posting/Application,
+Recommendation, and Attendance/Work Verification modules are still in development.
+The Dispute module is not considered complete or production-ready.
+
+### Company Management Phase 2D (prepared, not deployed)
+
+The Admin Company Management workspace uses the existing Companies and
+membership records. Every active Admin receives a limited directory and
+company detail view from `20261106000500_admin_read_only_directory_details.sql`;
+the view excludes internal restriction reasons and audit history. Restriction
+actions and their history still require `can_manage_company_restrictions` and
+the protected Phase 2D RPCs. A separate company-keyed operational restriction state is
+kept apart from `companies.verification_status`; restriction actions require the
+new `can_manage_company_restrictions` permission and a reason, write append-only
+history, and notify Company members. Permission grants are restricted to an
+active Superadmin and cannot target themselves. Apply
+`20261106000100_admin_company_restrictions.sql` only after the Phase 2B Admin
+Management migration in an isolated test database. Restriction enforcement in
+Job Posting/Application, Recommendations, Attendance/Work Verification,
+Company profile/logo, and payment paths remains pending agreement and integration
+with those module owners. Existing jobs, applications, assignments, evidence,
+and payment history are not changed by this migration or UI.
+`supabase/diagnostics/phase2d_company_restriction_test.sql` is a rollback-only
+SQL test for a disposable project. It expects synthetic users at
+`phase2d-manager@example.invalid`, `phase2d-unpermitted@example.invalid`,
+`phase2d-superadmin@example.invalid`, and
+`phase2d-target-admin@example.invalid`, plus an owner membership in the uniquely
+named `PHASE2D SYNTHETIC TEST COMPANY`. Assign the manager permission only in the
+isolated fixture setup and run the test as a project database administrator; it
+rolls back restriction actions, audit rows, and notifications.
+
+### User Reports Management Phase 2E (prepared, not deployed)
+
+The real User Reports workspace is separate from the fictional Reports Analytics
+demo. Job Seekers and Employers can submit categorized reports against a selected
+JobMate User or verified Company using name search; email, phone and other private user
+fields are not returned. The server validates targets again and stores a foreign
+key to `users.user_id` or `companies.company_id`. Admins with the separately
+assigned `can_manage_user_reports` permission can investigate, request information,
+resolve or dismiss. Admins cannot inspect or act on reports about themselves, a
+Company they created, or a Company they belong to. Report targets are not notified
+and cannot read the report, which protects the reporter's identity. Admin actions
+require reasons, transitions are recorded in append-only history, and generic
+notifications go to authorized reviewers or the reporter. Report resolution does
+not suspend accounts, restrict Companies, moderate jobs or change payment state.
+The `20261106000200_user_reports.sql` migration depends on Phase 2B followed by
+Phase 2D; Phase 2C is optional. Its Admin permissions projection preserves
+`can_manage_disputes` when that column exists and reports that Dispute permission
+as unavailable when it does not. Prepare an isolated baseline with the existing
+Phase 2B and Phase 2D migrations, then run the Phase 2E migration; no live project
+was changed. Specific Job Posting target links remain pending the Job Posting
+module contract, so reports currently identify only a User or Company. UI tests
+use a fake gateway and do not verify deployed RPC authorization, notifications or
+navigation.
+
+### Job Moderation Phase 2F (prepared, not deployed)
+
+The real Admin Job Moderation workspace uses existing `job_postings` and
+`companies` records. `/admin-job-moderation` is separate from the Phase 4 UI
+Sandbox demo. Admins with the default-false `can_manage_job_moderation`
+permission can flag a posting, start an investigation, record notes, clear or
+restrict it, and restore a restriction. Every action requires a reason and is
+recorded in append-only history. Conflict checks exclude jobs created by the
+Admin and Companies the Admin created or belongs to. Employer notifications are
+generic; internal investigation reasons are not disclosed. Existing posting
+statuses, Applications, Assignments, Attendance, Payment, and Trust data are
+not changed.
+
+Prepare the database in this order: Phase 2B Admin Management, Phase 2D Company
+Restrictions, then `20261106000300_admin_job_moderation.sql`. Phase 2C Disputes
+and Phase 2E User Reports are optional; the migration uses a JSON projection
+for their optional Admin permission columns and does not require either module.
+It also installs a restrictive RLS policy for direct authenticated reads of
+restricted postings. The existing published-job SECURITY DEFINER RPC and
+future Recommendation queries still require Job Posting/Application owner
+integration, so platform-wide visibility enforcement is not complete. The
+existing raw `job_postings` access also requires review for salary-field
+exposure; this migration's Admin detail RPC deliberately omits salary fields
+but does not change teammate-owned job queries.
+
+Phase 3C.5 now has a prepared standalone grant patch at
+`supabase/patches/hidden_salary_column_privileges.sql`. It removes direct
+authenticated SELECT from the three salary columns while preserving direct
+SELECT on the other columns; it does not replace application or employer RPCs.
+The patch is guarded by the inspected relation/RPC contract and has a limited
+matching recovery script. Its preflight and catalog assertions are in
+`supabase/diagnostics/hidden_salary_security_preflight.sql` and
+`hidden_salary_security_catalog_test.sql`; the real-client test is
+`hidden_salary_security_real_client_test.mjs`. These files are prepared only:
+no database ACL has been changed and no authenticated-client test has run.
+
+`supabase/diagnostics/phase2f_job_moderation_test.sql` is a rollback-only test
+for a disposable database with synthetic Auth users and fixture jobs. The test
+has not been executed against Supabase. The real Flutter pages use the
+Supabase RPC gateway; widget tests use a fake gateway and verify presentation,
+reason entry, and empty/error states only. A User Report target for a specific
+Job Posting remains an integration dependency; see
+[`phase2f_user_reports_job_target_contract.md`](supabase/diagnostics/phase2f_user_reports_job_target_contract.md).
+
+### Admin access consolidation (prepared, not deployed)
+
+The Admin shell builds one consistent sidebar from the signed-in
+administrator's own permission profile. Protected module entries are omitted
+when their permission is false or unavailable; backend RPC authorization
+remains authoritative. The Admin Permissions page uses its existing
+Superadmin-only RPC and does not list Superadmin accounts as grant targets.
+The prepared `20261106000400_superadmin_effective_permissions.sql` migration
+sets the installed non-account-management Admin permissions for accounts
+marked with `can_manage_admin_permissions` and adds `list_admin_accounts_v8`,
+which filters those accounts before pagination. `can_manage_user_accounts`
+remains a separately assigned privilege; Superadmin status alone does not
+grant authority to view account details/history or suspend/reactivate users.
+Phase 2C Disputes and Phase 2E Reports remain optional; the versioned
+projection treats both permissions as optional. Apply this migration only in
+an isolated test project after Phase 2B, 2D and 2F; it has not been applied or
+database-tested. Removing Superadmin status clears only the automatic module
+grants. Module-specific conflict-of-interest checks remain in force.
+
 ### Payment Handling update — November 4, 2026
 
 The main Payments routes now use `lib/features/payments/` for the Billplz Sandbox
@@ -667,8 +833,8 @@ changes elsewhere in that file. No real admin metrics were replaced by samples.
 | 6 / JS-16–21 | `/evaluations`, `/evaluations/:assignmentId/rate`, `/evaluations/:assignmentId` | Pending/history, rating form, success, given/received details and report modal; all demo |
 | 6 / EMP-21 | `/employer-evaluations` and corresponding detail/rate routes | Same local workflow with worker-specific criteria |
 | 7 / JS-25, EMP-22 | `/reputation`, `/employer-reputation` | Illustrative 0–100 score/factor/trend fixtures, visible demo evaluation average and insufficient-data view |
-| 8 / existing ADM-01–02 | Existing Dashboard and `/admin-users` | Existing real statistics and read-only account directory remain authoritative |
-| 8 / missing ADM-03–04 | `/admin-preview/accounts` | Separate fictional search/filter/detail and restrict/suspend/reactivate confirmation UI |
+| 8 / ADM-01–04 | Existing Dashboard and `/admin-users` | Real directory; details and suspend/reactivate require the prepared Phase 2B migration and dedicated permission |
+| 8 / old account preview | `/admin-preview/accounts` | Redirects to the real user directory |
 | 8 / ADM-05–06 | `/admin-preview/jobs` | Fictional job search/filter/detail/removal; no actual publication/moderation |
 | 8 / ADM-07–11 | `/admin-preview/disputes`, `/admin-preview/disputes/:disputeId` | Linked demo cases, timeline, information request, resolution/rejection, evidence and internal remarks |
 | 8 / ADM-12 | `/admin-preview/reports` | Filtered session analytics and Web printable report; no live analytics/CSV service |
@@ -741,9 +907,8 @@ Nonterminal cases may be investigated, receive a required information request,
 or be resolved/rejected with a selected outcome/reason and explanation. Terminal
 cases cannot change again in the preview. Requests now actually change local
 status and append timeline entries, correcting the prototype no-op. Remarks are
-admin-view-only local data, not proof of secure storage. Account action states
-Active/Restricted/Suspended and job Removed are **sample-only**; the actual backend
-account-status contract is untouched. All demo mutation confirmations identify
+admin-view-only local data, not proof of secure storage. The old sample account
+actions are superseded by Phase 2B; job Removed remains **sample-only**. Demo mutation confirmations identify
 the operation as local; nothing invokes real moderation RPCs.
 
 New Job Seeker/Employer routes reuse the existing signed-in active-role gate.
@@ -796,6 +961,9 @@ appeal/correction policy. Removed/unrevealed evaluations and overturned disputes
 need defined treatment. No production trust algorithm or score table is created.
 
 #### FUTURE BACKEND INTEGRATION — Module 8
+
+The account restriction portion below is superseded by the prepared Phase 2B
+migration; the deployment and cross-module dependencies described above remain.
 
 Needs separately authorized account/job moderation capabilities, case/party/
 evidence/request/resolution/remark entities and immutable action/access logs.

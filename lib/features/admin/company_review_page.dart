@@ -244,7 +244,7 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
       navigationLocked: _busy,
       navigationGroups: {
         ...workspaceDestinations('administrator'),
-        'ADMIN TOOLS': [
+        'Admin tools': [
           (
             AppRoutes.companyReviews,
             'Company Verification',
@@ -290,7 +290,7 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
                             alignment: Alignment.centerRight,
                             child: TextButton(
                               onPressed: _busy ? null : _loadRequests,
-                              child: const Text('Check for updates'),
+                              child: const Text('Refresh'),
                             ),
                           ),
                           Text(

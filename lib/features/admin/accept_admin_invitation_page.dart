@@ -220,6 +220,7 @@ class _AcceptAdminInvitationPageState extends State<AcceptAdminInvitationPage> {
                         decoration: const InputDecoration(
                           labelText: 'Full name',
                           border: OutlineInputBorder(),
+                          counterText: '',
                         ),
                         validator: (value) {
                           final name = value?.trim() ?? '';
