@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:jobmate/features/work_attendance/work_attendance_models.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_pages.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'work_attendance_repository_test.dart'
-    show FakeSource, assignment, other;
+    show FakeSource, assignment, id, other;
 
 void main() {
   late FakeSource source;
@@ -25,6 +27,114 @@ void main() {
 
   Future<void> showPage(WidgetTester tester) => tester.pumpWidget(
     MaterialApp(home: WorkAttendancePage(repository: repository)),
+  );
+
+  testWidgets(
+    'groups by application ID with all shifts expanded and chronological',
+    (tester) async {
+      const third = '33333333-3333-4333-8333-333333333333';
+      final rows = [
+        assignment()..['scheduled_start'] = '2026-11-07T01:00:00Z',
+        assignment()
+          ..['assignment_id'] = third
+          ..['application_id'] = id,
+        assignment()..['assignment_id'] = other,
+      ];
+      source.workerRead = () async => rows;
+      await showPage(tester);
+      await tester.pumpAndSettle();
+      final group = find.byKey(const ValueKey('application-$other'));
+      final separate = find.byKey(const ValueKey('application-$id'));
+      expect(group, findsOneWidget);
+      expect(separate, findsOneWidget);
+      expect(find.text('Server job'), findsNWidgets(2));
+      expect(find.text('Server company'), findsNWidgets(2));
+      expect(find.text('2 shifts'), findsOneWidget);
+      expect(find.text('1 shift'), findsOneWidget);
+      final cards = find.descendant(of: group, matching: find.byType(Card));
+      expect(tester.widgetList<Card>(cards).map((card) => card.key), [
+        const ValueKey(other),
+        const ValueKey(id),
+      ]);
+      expect(
+        find.descendant(of: separate, matching: find.byType(Card)),
+        findsOneWidget,
+      );
+      expect(find.text('Attendance details'), findsNWidgets(3));
+      // Presentation sorting must not mutate repository/server order.
+      expect(repository.worker.rows.map((row) => row.assignmentId), [
+        id,
+        third,
+        other,
+      ]);
+    },
+  );
+
+  testWidgets(
+    'grouped shifts retain their own clock actions and evidence route',
+    (tester) async {
+      source.workerRead = () async => [
+        assignment(),
+        assignment()
+          ..['assignment_id'] = other
+          ..['assignment_status'] = 'active'
+          ..['check_in_at'] = '2026-11-05T02:00:00Z',
+      ];
+      final clocked = <String>[];
+      source.onCheckIn = (value) async {
+        clocked.add('in:$value');
+        return DateTime.utc(2026, 11, 5);
+      };
+      source.onCheckOut = (value) async {
+        clocked.add('out:$value');
+        return DateTime.utc(2026, 11, 5);
+      };
+      final router = GoRouter(
+        initialLocation: '/work-attendance',
+        routes: [
+          GoRoute(
+            path: '/work-attendance',
+            builder: (_, _) => WorkAttendancePage(
+              repository: repository,
+              captureLocation: () async =>
+                  const WorkAttendanceLocation.unavailable(),
+            ),
+          ),
+          GoRoute(
+            path: '/work-attendance/:assignmentId/evidence',
+            builder: (_, state) => Scaffold(
+              body: Text(
+                'Evidence for ${state.pathParameters['assignmentId']}',
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      Future<void> tap(Finder finder) async {
+        await tester.ensureVisible(finder);
+        await tester.tap(finder);
+        await tester.pumpAndSettle();
+      }
+
+      await tap(find.text('Check in'));
+      await tap(find.text('Continue without GPS'));
+      await tap(find.text('Check out'));
+      await tap(find.text('Confirm Check-Out'));
+      await tap(find.text('Continue without GPS'));
+      expect(clocked, ['in:$id', 'out:$other']);
+      for (final shiftId in [id, other]) {
+        final card = find.byKey(ValueKey(shiftId));
+        await tap(
+          find.descendant(of: card, matching: find.byType(OutlinedButton)),
+        );
+        expect(find.text('Evidence for $shiftId'), findsOneWidget);
+        router.pop();
+        await tester.pumpAndSettle();
+      }
+    },
   );
 
   testWidgets(

@@ -255,13 +255,40 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
                       'There are no scheduled work assignments to display.',
                 )
               else
-                for (final assignment in state.rows)
+                for (final shifts in _applicationGroups(state.rows))
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
-                    child: _AssignmentCard(
-                      assignment,
-                      enabled: !_confirming && !widget.repository.acting,
-                      onClock: (checkingIn) => _clock(assignment, checkingIn),
+                    child: Column(
+                      key: ValueKey(
+                        'application-${shifts.first.applicationId}',
+                      ),
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Semantics(
+                          header: true,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                shifts.first.jobTitle,
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                              Text(shifts.first.companyName),
+                              Text(
+                                '${shifts.length} ${shifts.length == 1 ? 'shift' : 'shifts'}',
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        for (final assignment in shifts)
+                          _AssignmentCard(
+                            assignment,
+                            enabled: !_confirming && !widget.repository.acting,
+                            onClock: (checkingIn) =>
+                                _clock(assignment, checkingIn),
+                          ),
+                      ],
                     ),
                   ),
             ],
@@ -270,6 +297,25 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
       );
     },
   );
+}
+
+// Keep groups in first-seen server order; sort copies, never repository rows.
+List<List<WorkerWorkAssignment>> _applicationGroups(
+  List<WorkerWorkAssignment> rows,
+) {
+  final groups = <String, List<WorkerWorkAssignment>>{};
+  for (final row in rows) {
+    (groups[row.applicationId] ??= []).add(row);
+  }
+  for (final shifts in groups.values) {
+    shifts.sort((a, b) {
+      final start = a.scheduledStart.compareTo(b.scheduledStart);
+      if (start != 0) return start;
+      final end = a.scheduledEnd.compareTo(b.scheduledEnd);
+      return end != 0 ? end : a.assignmentId.compareTo(b.assignmentId);
+    });
+  }
+  return groups.values.toList();
 }
 
 class _AssignmentCard extends StatelessWidget {
@@ -293,10 +339,6 @@ class _AssignmentCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(row.jobTitle, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text(row.companyName),
-            const SizedBox(height: 12),
             WorkStatusBanner(stage: stage, employer: false),
             const SizedBox(height: 16),
             Text('Scheduled start: ${_malaysiaTime(row.scheduledStart)}'),

@@ -249,6 +249,10 @@ implementation; live attendance actions and device acceptance require explicit
 testing approval.
 
 Module 4 cards use server-derived status banners and contextual evidence actions.
+Worker attendance groups shifts by hired application ID, with the job title,
+company name and shift count shown once per group. Groups remain expanded and
+shifts appear in scheduled-start order; attendance and evidence actions still
+belong to each individual shift.
 The normal Job Seeker menu shows My Work Shifts; attendance demo routes remain
 available directly but are hidden from the menu. Shift cards group workplace and
 recorded check-in/out times. Saved GPS status is not returned by the worker
