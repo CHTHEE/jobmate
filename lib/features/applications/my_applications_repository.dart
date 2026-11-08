@@ -188,6 +188,9 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
   String? responseError;
   int _sessionVersion = 0;
   int get sessionVersion => _sessionVersion;
+
+  /// Identifies each authoritative application read, including fast refreshes.
+  int get applicationReadVersion => _generation;
   bool currentSession(int version) =>
       !_disposed &&
       version == _sessionVersion &&

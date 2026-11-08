@@ -6,6 +6,7 @@ import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/app_workspace.dart';
 import 'dashboard_content.dart';
 import '../jobs/job_postings_repository.dart';
+import '../company/company_membership_selection.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/navigation/workspace_destinations.dart';
 
@@ -266,11 +267,11 @@ class _HomePageState extends State<HomePage> {
       String? companyError;
       if (role == 'employer') {
         try {
-          final membership = await client
+          final memberships = await client
               .from('company_memberships')
-              .select('company_id, member_role')
-              .eq('user_id', userId)
-              .maybeSingle();
+              .select()
+              .eq('user_id', userId);
+          final membership = selectCompanyProfileMembership(memberships);
           if (membership != null) {
             memberRole = membership['member_role'] as String? ?? '';
             company = await client
@@ -289,7 +290,10 @@ class _HomePageState extends State<HomePage> {
       String? postingError;
       if (role == 'employer') {
         try {
-          final repository = JobPostingsRepository(client);
+          final repository = JobPostingsRepository(
+            client,
+            companyContext: company?['company_id'] as String?,
+          );
           final access = await repository.loadAccess();
           if (access.allowed) {
             postingRecords = await repository.list(

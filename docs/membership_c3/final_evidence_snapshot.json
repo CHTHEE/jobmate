@@ -1,0 +1,354 @@
+{
+    "status":  "DRAFT / NOT APPROVED FOR DEPLOYMENT",
+    "source_file":  "jobmate_final_evidence.txt.txt",
+    "source_sha256":  "10624F1FDFC52689160C19706329310A169482E8E4CBC28004E4316B8BF5C087",
+    "evidence":  {
+                     "items":  [
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK ((new_status = ANY (ARRAY[\u0027submitted\u0027::text, \u0027shortlisted\u0027::text, \u0027interview\u0027::text, \u0027offered\u0027::text, \u0027hired\u0027::text, \u0027rejected\u0027::text, \u0027declined\u0027::text, \u0027withdrawn\u0027::text])))"
+                                                   },
+                                       "identity":  "application_status_history.application_history_new_status_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK (((note IS NULL) OR (length(note) \u003c= 2000)))"
+                                                   },
+                                       "identity":  "application_status_history.application_history_note_length_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK (((previous_status IS NULL) OR (previous_status = ANY (ARRAY[\u0027submitted\u0027::text, \u0027shortlisted\u0027::text, \u0027interview\u0027::text, \u0027offered\u0027::text, \u0027hired\u0027::text, \u0027rejected\u0027::text, \u0027declined\u0027::text, \u0027withdrawn\u0027::text]))))"
+                                                   },
+                                       "identity":  "application_status_history.application_history_previous_status_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "FOREIGN KEY (application_id) REFERENCES job_applications(application_id) ON DELETE CASCADE"
+                                                   },
+                                       "identity":  "application_status_history.application_status_history_application_id_fkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "FOREIGN KEY (changed_by) REFERENCES users(user_id)"
+                                                   },
+                                       "identity":  "application_status_history.application_status_history_changed_by_fkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "PRIMARY KEY (history_id)"
+                                                   },
+                                       "identity":  "application_status_history.application_status_history_pkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "PRIMARY KEY (notification_id)"
+                                                   },
+                                       "identity":  "notifications.notifications_pkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE"
+                                                   },
+                                       "identity":  "notifications.notifications_user_id_fkey"
+                                   },
+                                   {
+                                       "kind":  "index",
+                                       "details":  {
+                                                       "ready":  true,
+                                                       "valid":  true,
+                                                       "definition":  "CREATE INDEX application_status_history_application_idx ON public.application_status_history USING btree (application_id, changed_at DESC)"
+                                                   },
+                                       "identity":  "application_status_history_application_idx"
+                                   },
+                                   {
+                                       "kind":  "index",
+                                       "details":  {
+                                                       "ready":  true,
+                                                       "valid":  true,
+                                                       "definition":  "CREATE UNIQUE INDEX application_status_history_pkey ON public.application_status_history USING btree (history_id)"
+                                                   },
+                                       "identity":  "application_status_history_pkey"
+                                   },
+                                   {
+                                       "kind":  "index",
+                                       "details":  {
+                                                       "ready":  true,
+                                                       "valid":  true,
+                                                       "definition":  "CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (notification_id)"
+                                                   },
+                                       "identity":  "notifications_pkey"
+                                   },
+                                   {
+                                       "kind":  "relation",
+                                       "details":  {
+                                                       "acl":  "{postgres=arwdDxtm/postgres,anon=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+                                                       "rls":  true,
+                                                       "owner":  "postgres",
+                                                       "columns":  [
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "history_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  "gen_random_uuid()",
+                                                                           "identity":  "",
+                                                                           "not_null":  true,
+                                                                           "generated":  ""
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "application_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  null,
+                                                                           "identity":  "",
+                                                                           "not_null":  true,
+                                                                           "generated":  ""
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "previous_status",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "identity":  "",
+                                                                           "not_null":  false,
+                                                                           "generated":  ""
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "new_status",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "identity":  "",
+                                                                           "not_null":  true,
+                                                                           "generated":  ""
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "changed_by",
+                                                                           "type":  "uuid",
+                                                                           "default":  null,
+                                                                           "identity":  "",
+                                                                           "not_null":  true,
+                                                                           "generated":  ""
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "note",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "identity":  "",
+                                                                           "not_null":  false,
+                                                                           "generated":  ""
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "changed_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  "now()",
+                                                                           "identity":  "",
+                                                                           "not_null":  true,
+                                                                           "generated":  ""
+                                                                       }
+                                                                   ],
+                                                       "force_rls":  false
+                                                   },
+                                       "identity":  "application_status_history"
+                                   },
+                                   {
+                                       "kind":  "relation",
+                                       "details":  {
+                                                       "acl":  "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+                                                       "rls":  true,
+                                                       "owner":  "postgres",
+                                                       "columns":  [
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "notification_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  "gen_random_uuid()",
+                                                                           "identity":  "",
+                                                                           "not_null":  true,
+                                                                           "generated":  ""
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "user_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  null,
+                                                                           "identity":  "",
+                                                                           "not_null":  true,
+                                                                           "generated":  ""
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "notification_type",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "identity":  "",
+                                                                           "not_null":  true,
+                                                                           "generated":  ""
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "title",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "identity":  "",
+                                                                           "not_null":  true,
+                                                                           "generated":  ""
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "message",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "identity":  "",
+                                                                           "not_null":  true,
+                                                                           "generated":  ""
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "created_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  "now()",
+                                                                           "identity":  "",
+                                                                           "not_null":  true,
+                                                                           "generated":  ""
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "read_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  null,
+                                                                           "identity":  "",
+                                                                           "not_null":  false,
+                                                                           "generated":  ""
+                                                                       }
+                                                                   ],
+                                                       "force_rls":  false
+                                                   },
+                                       "identity":  "notifications"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "acl":  "{=X/supabase_admin,supabase_admin=X/supabase_admin}",
+                                                       "owner":  "supabase_admin",
+                                                       "enabled":  "O",
+                                                       "internal":  true,
+                                                       "settings":  null,
+                                                       "signature":  "",
+                                                       "definition":  "CREATE CONSTRAINT TRIGGER \"RI_ConstraintTrigger_c_19277\" AFTER INSERT ON public.application_status_history FROM job_applications NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION \"RI_FKey_check_ins\"()",
+                                                       "function_name":  "RI_FKey_check_ins",
+                                                       "function_schema":  "pg_catalog",
+                                                       "security_definer":  false,
+                                                       "function_definition":  "CREATE OR REPLACE FUNCTION pg_catalog.\"RI_FKey_check_ins\"()\n RETURNS trigger\n LANGUAGE internal\n PARALLEL SAFE STRICT\nAS $function$RI_FKey_check_ins$function$\n"
+                                                   },
+                                       "identity":  "application_status_history.RI_ConstraintTrigger_c_19277"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "acl":  "{=X/supabase_admin,supabase_admin=X/supabase_admin}",
+                                                       "owner":  "supabase_admin",
+                                                       "enabled":  "O",
+                                                       "internal":  true,
+                                                       "settings":  null,
+                                                       "signature":  "",
+                                                       "definition":  "CREATE CONSTRAINT TRIGGER \"RI_ConstraintTrigger_c_19278\" AFTER UPDATE ON public.application_status_history FROM job_applications NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION \"RI_FKey_check_upd\"()",
+                                                       "function_name":  "RI_FKey_check_upd",
+                                                       "function_schema":  "pg_catalog",
+                                                       "security_definer":  false,
+                                                       "function_definition":  "CREATE OR REPLACE FUNCTION pg_catalog.\"RI_FKey_check_upd\"()\n RETURNS trigger\n LANGUAGE internal\n PARALLEL SAFE STRICT\nAS $function$RI_FKey_check_upd$function$\n"
+                                                   },
+                                       "identity":  "application_status_history.RI_ConstraintTrigger_c_19278"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "acl":  "{=X/supabase_admin,supabase_admin=X/supabase_admin}",
+                                                       "owner":  "supabase_admin",
+                                                       "enabled":  "O",
+                                                       "internal":  true,
+                                                       "settings":  null,
+                                                       "signature":  "",
+                                                       "definition":  "CREATE CONSTRAINT TRIGGER \"RI_ConstraintTrigger_c_19282\" AFTER INSERT ON public.application_status_history FROM users NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION \"RI_FKey_check_ins\"()",
+                                                       "function_name":  "RI_FKey_check_ins",
+                                                       "function_schema":  "pg_catalog",
+                                                       "security_definer":  false,
+                                                       "function_definition":  "CREATE OR REPLACE FUNCTION pg_catalog.\"RI_FKey_check_ins\"()\n RETURNS trigger\n LANGUAGE internal\n PARALLEL SAFE STRICT\nAS $function$RI_FKey_check_ins$function$\n"
+                                                   },
+                                       "identity":  "application_status_history.RI_ConstraintTrigger_c_19282"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "acl":  "{=X/supabase_admin,supabase_admin=X/supabase_admin}",
+                                                       "owner":  "supabase_admin",
+                                                       "enabled":  "O",
+                                                       "internal":  true,
+                                                       "settings":  null,
+                                                       "signature":  "",
+                                                       "definition":  "CREATE CONSTRAINT TRIGGER \"RI_ConstraintTrigger_c_19283\" AFTER UPDATE ON public.application_status_history FROM users NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION \"RI_FKey_check_upd\"()",
+                                                       "function_name":  "RI_FKey_check_upd",
+                                                       "function_schema":  "pg_catalog",
+                                                       "security_definer":  false,
+                                                       "function_definition":  "CREATE OR REPLACE FUNCTION pg_catalog.\"RI_FKey_check_upd\"()\n RETURNS trigger\n LANGUAGE internal\n PARALLEL SAFE STRICT\nAS $function$RI_FKey_check_upd$function$\n"
+                                                   },
+                                       "identity":  "application_status_history.RI_ConstraintTrigger_c_19283"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "acl":  "{=X/supabase_admin,supabase_admin=X/supabase_admin}",
+                                                       "owner":  "supabase_admin",
+                                                       "enabled":  "O",
+                                                       "internal":  true,
+                                                       "settings":  null,
+                                                       "signature":  "",
+                                                       "definition":  "CREATE CONSTRAINT TRIGGER \"RI_ConstraintTrigger_c_18334\" AFTER INSERT ON public.notifications FROM users NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION \"RI_FKey_check_ins\"()",
+                                                       "function_name":  "RI_FKey_check_ins",
+                                                       "function_schema":  "pg_catalog",
+                                                       "security_definer":  false,
+                                                       "function_definition":  "CREATE OR REPLACE FUNCTION pg_catalog.\"RI_FKey_check_ins\"()\n RETURNS trigger\n LANGUAGE internal\n PARALLEL SAFE STRICT\nAS $function$RI_FKey_check_ins$function$\n"
+                                                   },
+                                       "identity":  "notifications.RI_ConstraintTrigger_c_18334"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "acl":  "{=X/supabase_admin,supabase_admin=X/supabase_admin}",
+                                                       "owner":  "supabase_admin",
+                                                       "enabled":  "O",
+                                                       "internal":  true,
+                                                       "settings":  null,
+                                                       "signature":  "",
+                                                       "definition":  "CREATE CONSTRAINT TRIGGER \"RI_ConstraintTrigger_c_18335\" AFTER UPDATE ON public.notifications FROM users NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION \"RI_FKey_check_upd\"()",
+                                                       "function_name":  "RI_FKey_check_upd",
+                                                       "function_schema":  "pg_catalog",
+                                                       "security_definer":  false,
+                                                       "function_definition":  "CREATE OR REPLACE FUNCTION pg_catalog.\"RI_FKey_check_upd\"()\n RETURNS trigger\n LANGUAGE internal\n PARALLEL SAFE STRICT\nAS $function$RI_FKey_check_upd$function$\n"
+                                                   },
+                                       "identity":  "notifications.RI_ConstraintTrigger_c_18335"
+                                   }
+                               ],
+                     "history_found":  true,
+                     "notifications_found":  true
+                 }
+}

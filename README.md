@@ -6,6 +6,27 @@ JobMate is a Final Year Project (FYP): an AI-assisted recruitment and workforce 
 
 ### Implemented in this checkout
 
+The worker hiring-membership UI and transport are implemented behind the new
+compile-time `JOBMATE_HIRING_MEMBERSHIP` flag, which defaults to **false**. Existing
+production builds retain their current application source. Enabling the flag
+requires an approved, deployed and verified atomic backend transaction plus the
+new applicant-scoped membership read RPC; this flag does not establish backend
+readiness. The unexecuted [supported SQL candidate](docs/membership_c3/candidate/001_hiring_membership_supported_candidate.sql)
+is outside deployment migrations and is not a complete production release: KZ
+onboarding/Admin and remaining authorization compatibility are release gates.
+The read-only worker panel supports authoritative active/inactive/revoked/missing
+state, loading, failure and refresh without reaccepting or reactivating membership.
+No database migration, production activation or real PostgreSQL test is implied.
+
+Multi-company compatibility changes for company onboarding/Home and authorized
+Admin account details are prepared for KZ review. Profile context prefers the owned
+company and otherwise requires a unique legacy Employer affiliation; ordinary
+memberships do not select a management context. Admin details retain all
+authorized affiliation rows and reject inconsistent account data. The guarded
+coordinated candidate additionally uses historical schema source with mandatory
+body/security matching; it remains blocked pending evaluation source, complete
+database tests and joint release approval.
+
 - Authentication flows for sign-in, registration, email verification and password recovery/change.
 - Role-aware dashboards, personal profiles, document submission, company onboarding and company verification submission/history.
 - Administrator invitation/access, permissions, user management and company review screens; notifications with read tracking.

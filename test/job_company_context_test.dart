@@ -114,6 +114,44 @@ void main() {
   });
 
   test(
+    'duplicate memberships in an explicit company fail before mutations',
+    () async {
+      memberships.add({'company_id': 'company-a', 'member_role': 'employer'});
+      final repo = JobPostingsRepository(client, companyContext: 'company-a');
+      await expectLater(repo.save({}), throwsA(isA<PostgrestException>()));
+      await expectLater(repo.close('job'), throwsA(isA<PostgrestException>()));
+      expect(mutations, isEmpty);
+      expect(reads.any((uri) => uri.path == '/rest/v1/companies'), isFalse);
+      expect(
+        reads
+            .where((uri) => uri.path == '/rest/v1/company_memberships')
+            .every(
+              (uri) =>
+                  uri.queryParameters['user_id'] == 'eq.employer-a' &&
+                  uri.queryParameters['company_id'] == 'eq.company-a',
+            ),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'Owner in A cannot manage ordinary membership in B or fall back to A',
+    () async {
+      memberships.add({'company_id': 'company-b', 'member_role': 'member'});
+      final a = JobPostingsRepository(client, companyContext: 'company-a');
+      final b = JobPostingsRepository(client, companyContext: 'company-b');
+      expect((await a.loadAccess()).allowed, isTrue);
+      expect((await b.loadAccess()).allowed, isFalse);
+      await expectLater(b.save({}), throwsStateError);
+      await expectLater(b.close('job-b'), throwsStateError);
+      expect(mutations, isEmpty);
+      expect((await a.loadAccess()).allowed, isTrue);
+      expect((await b.loadAccess()).company!['company_id'], 'company-b');
+    },
+  );
+
+  test(
     'Job Seeker ordinary membership cannot manage even with context',
     () async {
       profile['role'] = 'job_seeker';
