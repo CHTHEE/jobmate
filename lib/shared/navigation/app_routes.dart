@@ -38,6 +38,8 @@ abstract final class AppRoutes {
   static const companyPreview = '/company-preview';
   static const evaluations = '/evaluations';
   static const employerEvaluations = '/employer-evaluations';
+  static const softSkillEvaluations = '/soft-skill-evaluations';
+  static const employerSoftSkillEvaluations = '/employer-soft-skill-evaluations';
   static const reputation = '/reputation';
   static const employerReputation = '/employer-reputation';
   static const payments = '/payments';

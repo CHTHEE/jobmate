@@ -285,6 +285,21 @@ class WorkEvidenceWorkflowController extends ChangeNotifier {
           message = employer ? 'Review recorded.' : 'Evidence submitted.';
         }
       }
+      // Storage can accept an upload before the durable prepare RPC creates a
+      // reservation. Keep the local gate until a fresh server snapshot confirms
+      // the round remains eligible and has no reservation. The prepare RPC
+      // serializes on the assignment row and has a unique (assignment, round)
+      // constraint, so a late prepare cannot create a second submission.
+      // Any orphaned Storage objects are deliberately left untouched.
+      if (!employer && value.canSubmit && value.pendingAttempt == null) {
+        final key = _key(value.round + 1);
+        final gate = ledger._gates[key];
+        if (gate != null && !gate.running && gate.requestId == null) {
+          ledger._gates.remove(key);
+          message =
+              'Refresh found no reserved evidence action. You can submit again; any unreferenced uploaded files were left untouched.';
+        }
+      }
     } catch (_) {
       if (current && request == _read) message = 'Secure evidence workflow could not be loaded. Check access and server setup, then refresh.';
     } finally {

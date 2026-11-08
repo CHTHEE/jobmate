@@ -174,6 +174,9 @@ abstract final class JobMateTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
+        // Keep maxLength enforcement while removing Flutter's default
+        // trailing character counter from inputs throughout the app.
+        counterStyle: const TextStyle(fontSize: 0, height: 0),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 12,

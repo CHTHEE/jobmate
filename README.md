@@ -867,8 +867,9 @@ changes elsewhere in that file. No real admin metrics were replaced by samples.
 | 1 / ACC-05–06 | Account actions within Settings | Real sign-out confirmation; deletion information/disabled Delete action, no deletion endpoint |
 | 1 / JS-24 | `/profile-preview` | Fictional extended profile: display name, bio (250), location, availability, up to ten skills/five categories, optional local PDF resume |
 | 1 / EMP-20 | `/company-preview` | Fictional company presentation editor; no real company update or verification badge |
-| 6 / JS-16–21 | `/evaluations`, `/evaluations/:assignmentId/rate`, `/evaluations/:assignmentId` | Pending/history, rating form, success, given/received details and report modal; all demo |
-| 6 / EMP-21 | `/employer-evaluations` and corresponding detail/rate routes | Same local workflow with worker-specific criteria |
+| 6 / JS-16–21 | `/evaluations`, `/evaluations/:assignmentId/rate`, `/evaluations/:assignmentId` | Legacy local demo; retained for compatibility |
+| 6 / EMP-21 | `/employer-evaluations` and corresponding detail/rate routes | Legacy local demo; retained for compatibility |
+| Phase 1 bidirectional evaluations | `/soft-skill-evaluations`, `/employer-soft-skill-evaluations` | Supabase RPC-backed eligibility, submission, history, core summaries, controlled additional criteria and blind release after both parties submit; requires the standalone local SQL patch below |
 | 7 / JS-25, EMP-22 | `/reputation`, `/employer-reputation` | Illustrative 0–100 score/factor/trend fixtures, visible demo evaluation average and insufficient-data view |
 | 8 / ADM-01–04 | Existing Dashboard and `/admin-users` | Real directory; details and suspend/reactivate require the prepared Phase 2B migration and dedicated permission |
 | 8 / old account preview | `/admin-preview/accounts` | Redirects to the real user directory |
@@ -878,6 +879,29 @@ changes elsewhere in that file. No real admin metrics were replaced by samples.
 | 8 / additive entry | `/admin-preview` | Demo sandbox overview with explicit links back to real administration |
 | 9 / EMP-15–17 | `/employer-payments/record`, `/employer-payments`, `/employer-payments/:paymentId` | External-payment form, local proof, confirmation/success, history and details; all demo |
 | 9 / JS-26 | `/payments`, `/payments/:paymentId` | Demo history/pending views, receipt confirmation and payment-issue case linkage |
+
+#### Bidirectional Soft Skill Evaluations — Phase 1 prepared
+
+The new Job Seeker and Employer Evaluations destinations use verified
+Work Assignments and server-checked RPCs. Each side submits three fixed Core
+Skills and two controlled additional criteria, can mark a criterion Not
+Observed, and may add a bounded comment. Evaluations are unique per assignment
+and direction; received feedback is returned only after both parties submit.
+The Core average excludes Not Observed responses and includes its valid-rating
+count. Existing `/evaluations` and `/employer-evaluations` routes remain the
+earlier demo workflows.
+
+The actual Job Posting schema has no controlled Job Category field. Phase 1
+therefore uses documented generic recommendations and does not mislabel the
+free-text `department` as a category. Category-specific mapping requires a
+later agreed schema contract. The standalone candidate SQL is
+`supabase/patches/soft_skill_evaluations_phase1.sql`; it remains outside the
+active migration chain pending migration-history reconciliation and has not
+been deployed to Shared Supabase. See
+`supabase/diagnostics/soft_skill_evaluation_phase1_smoke_checklist.md` for
+Local/isolated validation prerequisites. Evaluation reporting through Dispute
+Resolution and reputation-wide summaries remain follow-up work; the current
+dispute contract has no evaluation target.
 
 Sidebar/drawer destinations are role-specific; existing compact bottom navigation
 and Profile/Company access remain. Main Web destinations have no inferred back

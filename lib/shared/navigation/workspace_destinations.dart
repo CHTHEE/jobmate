@@ -49,8 +49,8 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
     'Company': [
       (AppRoutes.company, 'Company profile', Icons.business_outlined),
       (
-        AppRoutes.employerEvaluations,
-        'Evaluations (demo)',
+        AppRoutes.employerSoftSkillEvaluations,
+        'Evaluations',
         Icons.rate_review_outlined,
       ),
     ],
@@ -106,8 +106,8 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
           Icons.calendar_month_outlined,
         ),
         (
-          AppRoutes.evaluations,
-          'Evaluations (demo)',
+          AppRoutes.softSkillEvaluations,
+          'Evaluations',
           Icons.rate_review_outlined,
         ),
       ],

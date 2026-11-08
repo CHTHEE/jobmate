@@ -43,6 +43,7 @@ abstract final class AuthStyle {
         filled: true,
         fillColor: Colors.white,
         isDense: true,
+        counterStyle: const TextStyle(fontSize: 0, height: 0),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 14,

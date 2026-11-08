@@ -13,6 +13,7 @@ import 'features/admin/user_reports_page.dart';
 import 'features/admin/job_moderation_page.dart';
 import 'features/admin/invite_admin_page.dart';
 import 'features/disputes/dispute_page.dart';
+import 'features/evaluations/soft_skill_evaluation_page.dart';
 import 'features/auth/auth_gate.dart';
 import 'features/auth/sign_up_page.dart';
 import 'features/auth/terms_privacy_page.dart';
@@ -187,6 +188,40 @@ GoRouter _createRouter() {
         (_, state) => Module2Gate(
           role: 'employer',
           child: EvaluationDetailPage(
+            employer: true,
+            assignmentId: state.pathParameters['assignmentId']!,
+          ),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.softSkillEvaluations,
+        (_, _) => const Module2Gate(
+          role: 'job_seeker',
+          child: SoftSkillEvaluationsPage(employer: false),
+        ),
+      ),
+      _appRoute(
+        '${AppRoutes.softSkillEvaluations}/:assignmentId/rate',
+        (_, state) => Module2Gate(
+          role: 'job_seeker',
+          child: SoftSkillEvaluationsPage(
+            employer: false,
+            assignmentId: state.pathParameters['assignmentId']!,
+          ),
+        ),
+      ),
+      _appRoute(
+        AppRoutes.employerSoftSkillEvaluations,
+        (_, _) => const Module2Gate(
+          role: 'employer',
+          child: SoftSkillEvaluationsPage(employer: true),
+        ),
+      ),
+      _appRoute(
+        '${AppRoutes.employerSoftSkillEvaluations}/:assignmentId/rate',
+        (_, state) => Module2Gate(
+          role: 'employer',
+          child: SoftSkillEvaluationsPage(
             employer: true,
             assignmentId: state.pathParameters['assignmentId']!,
           ),
