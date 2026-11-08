@@ -202,6 +202,7 @@ void _validateRequest(
 
 class _WriteGate {
   bool running = false;
+  bool uploadMayHaveDispatched = false;
   String? requestId;
 }
 
@@ -285,21 +286,9 @@ class WorkEvidenceWorkflowController extends ChangeNotifier {
           message = employer ? 'Review recorded.' : 'Evidence submitted.';
         }
       }
-      // Storage can accept an upload before the durable prepare RPC creates a
-      // reservation. Keep the local gate until a fresh server snapshot confirms
-      // the round remains eligible and has no reservation. The prepare RPC
-      // serializes on the assignment row and has a unique (assignment, round)
-      // constraint, so a late prepare cannot create a second submission.
-      // Any orphaned Storage objects are deliberately left untouched.
-      if (!employer && value.canSubmit && value.pendingAttempt == null) {
-        final key = _key(value.round + 1);
-        final gate = ledger._gates[key];
-        if (gate != null && !gate.running && gate.requestId == null) {
-          ledger._gates.remove(key);
-          message =
-              'Refresh found no reserved evidence action. You can submit again; any unreferenced uploaded files were left untouched.';
-        }
-      }
+      // An empty reservation read cannot disprove a Storage upload. Retain
+      // uncertainty gates across refresh/controller recreation; only submit's
+      // confirmed pre-upload failures release them. This ledger is process-local.
     } catch (_) {
       if (current && request == _read) message = 'Secure evidence workflow could not be loaded. Check access and server setup, then refresh.';
     } finally {
@@ -334,7 +323,6 @@ class WorkEvidenceWorkflowController extends ChangeNotifier {
     notifyListeners();
     final description = draft.description;
     final files = List.of(draft.files);
-    var uploadDispatched = false;
     bool draftCurrent() =>
         current &&
         draft.assignmentId == assignmentId &&
@@ -349,12 +337,20 @@ class WorkEvidenceWorkflowController extends ChangeNotifier {
           snapshot?.pendingAttempt != null) {
         return false;
       }
-      uploadDispatched = true;
+      // Assume dispatch until the current upload result proves no objects could
+      // have been stored. Exceptions/invalidated results retain the gate.
+      gate.uploadMayHaveDispatched = true;
       final uploaded = await uploads.upload(files);
+      if (uploads.isCurrent(uploaded) && !uploaded.objectsMayExist) {
+        gate.uploadMayHaveDispatched = false;
+      }
       if (!draftCurrent() ||
           !uploaded.complete ||
           !uploads.isCurrent(uploaded)) {
-        message = 'Upload could not be confirmed. Files may exist. Do not upload again; refresh to recover any reserved submission.';
+        message = gate.uploadMayHaveDispatched
+            ? 'Upload could not be confirmed. Files may exist. Do not upload again; refresh to recover any reserved submission.'
+            : uploaded.message ??
+                  'Upload did not start. Check eligibility and retry.';
         return false;
       }
       final receipt = uploads.validateConfirmedBatch(
@@ -390,7 +386,7 @@ class WorkEvidenceWorkflowController extends ChangeNotifier {
       if (current) message = 'Submission outcome is uncertain. Refresh for request-based recovery. Do not upload or submit a new batch.';
     } finally {
       gate.running = false;
-      if (!uploadDispatched) ledger._gates.remove(key);
+      if (!gate.uploadMayHaveDispatched) ledger._gates.remove(key);
       busy = false;
       if (current) {
         await load();

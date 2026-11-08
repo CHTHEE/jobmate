@@ -194,13 +194,14 @@ class UploadSource implements WorkEvidenceUploadSource {
   final WorkflowSource source;
   Future<void> Function()? intercept;
   int uploads = 0;
+  bool eligible = true;
   @override
   String? get userId => source.userId;
   @override
   Stream<String?> get accountChanges => source.accountChanges;
   @override
   Future<bool> canUpload(String assignmentId) async =>
-      source.userId == id && source.server.attendanceComplete;
+      eligible && source.userId == id && source.server.attendanceComplete;
   @override
   Future<void> upload(String path, Uint8List bytes, String type) async {
     uploads++;
@@ -334,6 +335,13 @@ void main() {
       d.$3.intercept = () async => throw TimeoutException('lost upload');
       await wc.submit(d.$1, d.$2);
       expect(server.attempts, isEmpty);
+      expect(wc.newWriteBlocked, isTrue);
+      expect(d.$3.uploads, 1);
+      for (var i = 0; i < 3; i++) {
+        await wc.load();
+        expect(wc.newWriteBlocked, isTrue);
+        expect(await wc.submit(d.$1, d.$2), isFalse);
+      }
       final reopened = WorkEvidenceWorkflowController(
         worker,
         assignmentId: id,
@@ -345,8 +353,55 @@ void main() {
       expect(reopened.newWriteBlocked, isTrue);
       await reopened.submit(d.$1, d.$2);
       expect(d.$3.uploads, 1);
+      expect(
+        worker.calls,
+        isNot(contains('prepare_my_work_evidence_submission')),
+      );
+      // A replacement upload repository/draft cannot bypass the shared gate.
+      final replacement = await draft(2);
+      expect(await reopened.submit(replacement.$1, replacement.$2), isFalse);
+      expect(replacement.$3.uploads, 0);
+      expect(
+        worker.calls,
+        isNot(contains('prepare_my_work_evidence_submission')),
+      );
     },
   );
+  test(
+    'failed workflow preflight releases gate and allows a safe retry',
+    () async {
+      await wc.load();
+      final d = await draft();
+      var reads = 0;
+      worker.intercept = (rpc, p) async {
+        if (rpc == 'work_evidence_workflow_context' && ++reads == 1) {
+          throw StateError('preflight unavailable');
+        }
+        return server.call(id, rpc, p);
+      };
+      expect(await wc.submit(d.$1, d.$2), isFalse);
+      expect(wc.newWriteBlocked, isFalse);
+      expect(d.$3.uploads, 0);
+      expect(server.attempts, isEmpty);
+      worker.intercept = null;
+      expect(await wc.submit(d.$1, d.$2), isTrue);
+      expect(d.$3.uploads, 1);
+      expect(server.round, 1);
+    },
+  );
+  test('confirmed upload eligibility rejection permits retry without stored objects', () async {
+    await wc.load();
+    final d = await draft();
+    d.$3.eligible = false;
+    expect(await wc.submit(d.$1, d.$2), isFalse);
+    expect(wc.newWriteBlocked, isFalse);
+    expect(d.$3.uploads, 0);
+    expect(server.attempts, isEmpty);
+    d.$3.eligible = true;
+    expect(await wc.submit(d.$1, d.$2), isTrue);
+    expect(d.$3.uploads, 1);
+    expect(server.round, 1);
+  });
   test('lost preparation response recovers and explicitly commits same server request after restart', () async {
     worker.intercept = (rpc, p) async {
       final value = server.call(id, rpc, p);

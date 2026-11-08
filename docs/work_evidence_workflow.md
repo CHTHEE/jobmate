@@ -90,6 +90,10 @@ No new credentials, environment variables, dependencies or Dashboard secrets.
   bytes/history/links. Server reservations survive restart; local upload-only
   locks do not. Do not restart to bypass an uncertain action.
 - An uncertain upload before preparation can leave orphaned private objects.
+  The shared process-local gate retains upload uncertainty even when repeated
+  reads find no reservation. Confirmed failures before upload dispatch remain
+  retryable. This protection does not survive process restart and provides no
+  client reset/bypass for an unresolved upload.
   Reopening must reconcile; do not overwrite/delete/reupload to “fix” it. Server
   round uniqueness still prevents duplicate formal submissions across devices.
   Orphan cleanup and terminal blocked-attempt recovery require separate review.
