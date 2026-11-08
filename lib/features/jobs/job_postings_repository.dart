@@ -15,8 +15,19 @@ class JobAccess {
 }
 
 class JobPostingsRepository {
-  JobPostingsRepository(this.client);
+  JobPostingsRepository(this.client, {this.companyContext}) {
+    if (companyContext != null && companyContext!.trim().isEmpty) {
+      throw ArgumentError.value(companyContext, 'companyContext');
+    }
+  }
   final SupabaseClient client;
+
+  /// Optional company identity for this repository's entire lifetime. This is
+  /// selection, never authorization: existing account/membership checks and RPC
+  /// authorization still apply. Omitted context retains the legacy unique-
+  /// membership lookup, which fails closed on multiple rows. No selection is
+  /// cached globally or inferred from an ordinary membership.
+  final String? companyContext;
 
   bool get signedIn =>
       client.auth.currentSession != null && client.auth.currentUser != null;
@@ -55,11 +66,14 @@ class JobPostingsRepository {
         'An active employer account is required to manage jobs.',
       );
     }
-    final membership = await client
+    var membershipQuery = client
         .from('company_memberships')
         .select('company_id, member_role')
-        .eq('user_id', user.id)
-        .maybeSingle();
+        .eq('user_id', user.id);
+    if (companyContext != null) {
+      membershipQuery = membershipQuery.eq('company_id', companyContext!);
+    }
+    final membership = await membershipQuery.maybeSingle();
     if (membership == null) {
       return const JobAccess(
         null,
@@ -98,6 +112,9 @@ class JobPostingsRepository {
   }
 
   Future<List<Map<String, dynamic>>> list(String companyId) async {
+    if (companyContext != null && companyId != companyContext) {
+      throw StateError('Company context changed. Reopen job postings.');
+    }
     final rows = await client.rpc(
       'list_employer_job_postings',
       params: {'p_company_id': companyId},
