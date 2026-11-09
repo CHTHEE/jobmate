@@ -201,12 +201,12 @@ GoRouter _createRouter() {
         ),
       ),
       _appRoute(
-        '${AppRoutes.softSkillEvaluations}/:assignmentId/rate',
+        '${AppRoutes.softSkillEvaluations}/:applicationId/rate',
         (_, state) => Module2Gate(
           role: 'job_seeker',
           child: SoftSkillEvaluationsPage(
             employer: false,
-            assignmentId: state.pathParameters['assignmentId']!,
+            applicationId: state.pathParameters['applicationId']!,
           ),
         ),
       ),
@@ -218,12 +218,12 @@ GoRouter _createRouter() {
         ),
       ),
       _appRoute(
-        '${AppRoutes.employerSoftSkillEvaluations}/:assignmentId/rate',
+        '${AppRoutes.employerSoftSkillEvaluations}/:applicationId/rate',
         (_, state) => Module2Gate(
           role: 'employer',
           child: SoftSkillEvaluationsPage(
             employer: true,
-            assignmentId: state.pathParameters['assignmentId']!,
+            applicationId: state.pathParameters['applicationId']!,
           ),
         ),
       ),

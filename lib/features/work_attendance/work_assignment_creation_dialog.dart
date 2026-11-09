@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../shared/widgets/mobile_back_action.dart';
+import 'engagement_closure_controls.dart';
 import 'work_assignment_creation_repository.dart';
 
 /// Caller owns the repository. This dialog never creates on opening or retrying
@@ -10,10 +11,12 @@ class WorkAssignmentCreationDialog extends StatefulWidget {
     super.key,
     required this.repository,
     required this.companyId,
+    required this.closureGateway,
     this.applicationId,
   });
   final WorkAssignmentCreationRepository repository;
   final String companyId;
+  final EngagementClosureGateway closureGateway;
 
   /// Optional group context. Resolve only against freshly authorized candidates.
   final String? applicationId;
@@ -35,12 +38,20 @@ class _WorkAssignmentCreationDialogState
   String? _job;
   bool _confirm = false, _busy = false, _leaving = false, _closing = false;
   WorkAssignmentCreateResult? _result;
+  Map<String, dynamic>? _engagementStatus;
+  String? _engagementError;
+  String? _engagementApplicationId;
+  bool _engagementLoading = false;
+  int _engagementRequest = 0;
 
   @override
   void initState() {
     super.initState();
     widget.repository.addListener(_changed);
     widget.repository.load(companyId: widget.companyId);
+    if (widget.applicationId != null) {
+      _loadEngagementStatus(widget.applicationId!);
+    }
   }
 
   void _changed() {
@@ -70,8 +81,63 @@ class _WorkAssignmentCreationDialogState
         _candidate = selection.length == 1 ? selection.single : null;
       }
     }
+    _ensureEngagementStatus(_candidate?.applicationId);
     setState(() {});
   }
+
+  void _ensureEngagementStatus(String? applicationId) {
+    if (_engagementApplicationId == applicationId) return;
+    _engagementApplicationId = applicationId;
+    if (applicationId == null) {
+      _engagementStatus = null;
+      _engagementError = null;
+      _engagementLoading = false;
+      ++_engagementRequest;
+      return;
+    }
+    _loadEngagementStatus(applicationId);
+  }
+
+  Future<void> _loadEngagementStatus(String applicationId) async {
+    final request = ++_engagementRequest;
+    _engagementApplicationId = applicationId;
+    if (mounted) {
+      setState(() {
+        _engagementStatus = null;
+        _engagementError = null;
+        _engagementLoading = true;
+      });
+    } else {
+      _engagementStatus = null;
+      _engagementError = null;
+      _engagementLoading = true;
+    }
+    try {
+      final status = await widget.closureGateway.status(applicationId);
+      if (!mounted || request != _engagementRequest) return;
+      setState(() {
+        _engagementStatus = status;
+        _engagementLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || request != _engagementRequest) return;
+      setState(() {
+        _engagementError =
+            'Unable to check engagement status. Retry before scheduling a shift.';
+        _engagementLoading = false;
+      });
+    }
+  }
+
+  bool get _engagementClosed =>
+      _engagementStatus?['closure_status'] == 'closed';
+
+  bool get _engagementReady =>
+      _candidate != null &&
+      !_engagementLoading &&
+      _engagementError == null &&
+      _engagementStatus != null &&
+      !_engagementClosed;
 
   @override
   void dispose() {
@@ -147,6 +213,41 @@ class _WorkAssignmentCreationDialogState
       return;
     }
     setState(() => _busy = true);
+    if (!reconcile) {
+      try {
+        final latest = await widget.closureGateway.status(
+          _candidate!.applicationId,
+        );
+        if (!mounted) return;
+        setState(() {
+          _engagementStatus = latest;
+          _engagementApplicationId = _candidate!.applicationId;
+          _engagementLoading = false;
+          _engagementError = null;
+        });
+        if (_engagementClosed) {
+          setState(() {
+            _confirm = false;
+            _busy = false;
+            _result = const WorkAssignmentCreateResult(
+              WorkAssignmentCreateStatus.rejected,
+              'This job engagement has been closed. New shifts cannot be scheduled.',
+              engagementClosed: true,
+            );
+          });
+          return;
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _busy = false;
+          _engagementLoading = false;
+          _engagementError =
+              'Unable to check engagement status. Retry before scheduling a shift.';
+        });
+        return;
+      }
+    }
     final result = reconcile
         ? await widget.repository.reconcile(_candidate!)
         : await widget.repository.create(
@@ -160,6 +261,10 @@ class _WorkAssignmentCreationDialogState
       _busy = false;
       _result = result;
     });
+    if (result.engagementClosed && _candidate != null) {
+      await _loadEngagementStatus(_candidate!.applicationId);
+      if (!mounted) return;
+    }
     if (widget.repository.source.userId != _actor) {
       _changed();
       return;
@@ -255,6 +360,25 @@ class _WorkAssignmentCreationDialogState
                         if (_busy)
                           const LinearProgressIndicator(
                             semanticsLabel: 'Creating or checking assignment',
+                          ),
+                        if (_candidate != null && _engagementLoading)
+                          const LinearProgressIndicator(
+                            semanticsLabel: 'Checking engagement status',
+                          ),
+                        if (_candidate != null && _engagementError != null) ...[
+                          Text(_engagementError!),
+                          TextButton(
+                            onPressed: _busy
+                                ? null
+                                : () => _loadEngagementStatus(
+                                    _candidate!.applicationId,
+                                  ),
+                            child: const Text('Retry engagement status'),
+                          ),
+                        ],
+                        if (_candidate != null && _engagementClosed)
+                          const Text(
+                            'This job engagement has been closed. New shifts cannot be scheduled.',
                           ),
                         if (_result != null)
                           Semantics(
@@ -365,14 +489,20 @@ class _WorkAssignmentCreationDialogState
                                         .toList(),
                                     onChanged: _busy
                                         ? null
-                                        : (value) => setState(() {
-                                            _candidate = state.candidates
-                                                .singleWhere(
-                                                  (c) =>
-                                                      c.applicationId == value,
-                                                );
-                                            _result = null;
-                                          }),
+                                        : (value) {
+                                            setState(() {
+                                              _candidate = state.candidates
+                                                  .singleWhere(
+                                                    (c) =>
+                                                        c.applicationId ==
+                                                        value,
+                                                  );
+                                              _result = null;
+                                            });
+                                            _ensureEngagementStatus(
+                                              _candidate?.applicationId,
+                                            );
+                                          },
                                     validator: (v) => _candidate == null
                                         ? 'Select a hired application.'
                                         : null,
@@ -429,6 +559,9 @@ class _WorkAssignmentCreationDialogState
             ),
           if (!accountChanged &&
               !locked &&
+              !_engagementClosed &&
+              _engagementError == null &&
+              !_engagementLoading &&
               state.error == null &&
               !state.loading &&
               !unavailable &&
@@ -443,6 +576,7 @@ class _WorkAssignmentCreationDialogState
                         return;
                       }
                       if (!_form.currentState!.validate()) return;
+                      if (!_engagementReady) return;
                       if (_start == null ||
                           _end == null ||
                           !_end!.isAfter(_start!)) {

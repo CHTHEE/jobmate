@@ -156,7 +156,7 @@ class _WorkspaceAccountMenuState extends State<WorkspaceAccountMenu> {
               children: [
                 Icon(Icons.stars_outlined),
                 SizedBox(width: 12),
-                Flexible(child: Text('Reputation (demo)')),
+                Flexible(child: Text('Company Reputation')),
               ],
             ),
           ),

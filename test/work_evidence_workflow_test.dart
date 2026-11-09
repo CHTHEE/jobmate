@@ -328,7 +328,7 @@ void main() {
     },
   );
   test(
-    'uncertain upload with no server reservation stays locked across reopen',
+    'fresh empty server state does not release an uncertain upload gate',
     () async {
       await wc.load();
       final d = await draft();
@@ -413,6 +413,7 @@ void main() {
     await submit();
     expect(server.round, 0);
     expect(wc.snapshot!.pendingAttempt!['state'], 'prepared');
+    expect(wc.newWriteBlocked, isTrue);
     worker.intercept = null;
     final restarted = WorkEvidenceWorkflowController(
       worker,

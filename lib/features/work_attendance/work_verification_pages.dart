@@ -14,6 +14,7 @@ import 'work_assignment_creation_dialog.dart';
 import 'work_assignment_creation_repository.dart';
 import 'work_assignment_people.dart';
 import 'work_evidence_deadline.dart';
+import 'engagement_closure_controls.dart';
 
 /// The caller supplies the selected company and owns the repository.
 /// Access is checked against existing employer membership/verification rules;
@@ -27,6 +28,7 @@ class WorkVerificationPage extends StatefulWidget {
     this.createAssignmentRepository,
     this.loadWorkerName,
     this.gpsSource,
+    this.closureGateway,
   });
   final WorkAttendanceRepository repository;
   final String companyId;
@@ -36,6 +38,7 @@ class WorkVerificationPage extends StatefulWidget {
   final WorkAssignmentCreationRepository Function()? createAssignmentRepository;
   final WorkAssignmentNameLoader? loadWorkerName;
   final WorkAttendanceGpsSource? gpsSource;
+  final EngagementClosureGateway? closureGateway;
 
   @override
   State<WorkVerificationPage> createState() => _WorkVerificationPageState();
@@ -49,6 +52,18 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
   WorkAttendanceError? _errorKind;
   WorkAssignmentCreationRepository? _creation;
   bool _dialogOpen = false;
+  int _closureRefreshToken = 0;
+  final Map<String, EngagementClosureStatusSnapshot> _closureStates = {};
+  EngagementClosureGateway? _defaultClosureGateway;
+
+  EngagementClosureGateway? get _closureGateway {
+    if (widget.closureGateway != null) return widget.closureGateway;
+    if (widget.repository.source is SupabaseWorkAttendanceSource) {
+      return _defaultClosureGateway ??=
+          SupabaseEngagementClosureGateway(Supabase.instance.client);
+    }
+    return null;
+  }
 
   Future<void> _viewGps(CompanyWorkAssignment assignment) async {
     if (_dialogOpen ||
@@ -84,10 +99,17 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
   }
 
   Future<void> _createAssignment({String? applicationId}) async {
+    final status = applicationId == null ? null : _closureStates[applicationId];
     if (_dialogOpen ||
         _authorizedActor == null ||
         _authorizedActor != widget.repository.source.userId ||
-        _company != widget.companyId) {
+        _company != widget.companyId ||
+        (applicationId != null &&
+            (status == null ||
+                status.loading ||
+                status.error != null ||
+                status.isClosed)) ||
+        _closureGateway == null) {
       return;
     }
     final actor = widget.repository.source.userId;
@@ -104,11 +126,15 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
       builder: (_) => WorkAssignmentCreationDialog(
         repository: _creation!,
         companyId: company,
+        closureGateway: _closureGateway!,
         applicationId: applicationId,
       ),
     );
     if (!mounted) return;
-    setState(() => _dialogOpen = false);
+    setState(() {
+      _dialogOpen = false;
+      ++_closureRefreshToken;
+    });
     if (assignmentId != null &&
         actor == widget.repository.source.userId &&
         company == widget.companyId) {
@@ -159,6 +185,8 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
       _company = null;
       _error = null;
       _errorKind = null;
+      _closureStates.clear();
+      ++_closureRefreshToken;
     });
     try {
       final company = workUuid(widget.companyId);
@@ -260,6 +288,15 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
               ),
               const SizedBox(height: 8),
               const Text('All times are Malaysia time (MYT, UTC+08:00).'),
+              const SizedBox(height: 12),
+              if (_closureGateway != null)
+                CompanyEngagementClosureRequests(
+                  key: ValueKey(widget.repository.source.userId),
+                  gateway: _closureGateway,
+                  onClosed: (applicationId) => context.go(
+                    '${AppRoutes.employerSoftSkillEvaluations}/$applicationId/rate',
+                  ),
+                ),
               if (authorized && !loading && error == null) ...[
                 const SizedBox(height: 16),
                 Align(
@@ -299,11 +336,19 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                 )
               else
                 for (final shifts in _applicationGroups(state.rows))
-                  Padding(
+                  Builder(builder: (context) {
+                    final applicationId = shifts.first.applicationId;
+                    final closureState = _closureStates[applicationId];
+                    final closed = closureState?.isClosed == true;
+                    final statusUnavailable =
+                        closureState == null ||
+                        closureState.loading ||
+                        closureState.error != null;
+                    return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: Column(
                       key: ValueKey(
-                        'application-${shifts.first.applicationId}',
+                        'application-$applicationId',
                       ),
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -336,18 +381,57 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                           '${shifts.length} ${shifts.length == 1 ? 'shift' : 'shifts'}',
                         ),
                         const SizedBox(height: 8),
+                        if (_closureGateway != null)
+                          EngagementClosureControls(
+                          key: ValueKey((
+                            'closure-${shifts.first.applicationId}',
+                            widget.repository.source.userId,
+                          )),
+                          applicationId: applicationId,
+                          worker: false,
+                          gateway: _closureGateway,
+                          refreshToken: _closureRefreshToken,
+                          onStatusChanged: (snapshot) {
+                            if (!mounted) return;
+                            setState(() {
+                              _closureStates[applicationId] = snapshot;
+                            });
+                          },
+                          onClosed: () => context.go(
+                            '${AppRoutes.employerSoftSkillEvaluations}/$applicationId/rate',
+                          ),
+                        ),
+                        if (_closureGateway == null)
+                          const Text(
+                            'Unable to check engagement status. Retry before scheduling a shift.',
+                          ),
+                        if (closed)
+                          const Text(
+                            'This job engagement has been closed. New shifts cannot be scheduled.',
+                          ),
+                        const SizedBox(height: 8),
                         Align(
                           alignment: Alignment.centerLeft,
                           child: OutlinedButton.icon(
-                            onPressed: _dialogOpen
+                            onPressed: _dialogOpen ||
+                                    statusUnavailable ||
+                                    closed ||
+                                    _closureGateway == null
                                 ? null
                                 : () => _createAssignment(
-                                    applicationId: shifts.first.applicationId,
+                                    applicationId: applicationId,
                                   ),
                             icon: const Icon(Icons.add),
                             label: const Text('Add shift'),
                           ),
                         ),
+                        if (closureState?.error != null)
+                          Text(
+                            'Unable to check engagement status. Retry before scheduling a shift.',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
                         const SizedBox(height: 8),
                         for (final row in shifts)
                           _CompanyAssignmentCard(
@@ -362,7 +446,8 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                           ),
                       ],
                     ),
-                  ),
+                  );
+                  }),
             ],
           ),
         ),

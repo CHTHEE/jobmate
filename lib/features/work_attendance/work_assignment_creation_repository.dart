@@ -143,11 +143,13 @@ class WorkAssignmentCreateResult {
     this.message, {
     this.assignmentId,
     this.scheduleConflict = false,
+    this.engagementClosed = false,
   });
   final WorkAssignmentCreateStatus status;
   final String message;
   final String? assignmentId;
   final bool scheduleConflict;
+  final bool engagementClosed;
 }
 
 /// Parse wall-clock Malaysia input independently of the device timezone.
@@ -387,6 +389,16 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
         assignmentId: attempt.assignmentId,
       );
     } catch (error) {
+      if (error is PostgrestException &&
+          error.message.toLowerCase().contains('engagement') &&
+          error.message.toLowerCase().contains('closed')) {
+        ledger._attempts.remove(key);
+        return WorkAssignmentCreateResult(
+          WorkAssignmentCreateStatus.rejected,
+          error.message,
+          engagementClosed: true,
+        );
+      }
       // A structured SQL rejection proves that this transaction did not commit.
       final definite =
           error is PostgrestException &&

@@ -10,6 +10,7 @@ import 'work_attendance_repository.dart';
 import 'work_attendance_location_dialog.dart';
 import 'work_status_presentation.dart';
 import 'work_evidence_deadline.dart';
+import 'engagement_closure_controls.dart';
 
 /// Worker attendance. The caller owns the repository and route access gate.
 class WorkAttendancePage extends StatefulWidget {
@@ -17,12 +18,14 @@ class WorkAttendancePage extends StatefulWidget {
     super.key,
     required this.repository,
     this.captureLocation,
+    this.closureGateway,
   });
 
   final WorkAttendanceRepository repository;
 
   /// Optional GPS provider for tests. Production uses device GPS.
   final Future<WorkAttendanceLocation> Function()? captureLocation;
+  final EngagementClosureGateway? closureGateway;
 
   @override
   State<WorkAttendancePage> createState() => _WorkAttendancePageState();
@@ -31,6 +34,11 @@ class WorkAttendancePage extends StatefulWidget {
 class _WorkAttendancePageState extends State<WorkAttendancePage> {
   String? _actor;
   bool _confirming = false;
+
+  EngagementClosureGateway? get _closureGateway => widget.closureGateway ??
+      (widget.repository.source is SupabaseWorkAttendanceSource
+          ? SupabaseEngagementClosureGateway(Supabase.instance.client)
+          : null);
 
   Future<void> _clock(WorkerWorkAssignment row, bool checkingIn) async {
     final repository = widget.repository;
@@ -346,6 +354,17 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
                               Text(shifts.first.companyName),
                               Text(
                                 '${shifts.length} ${shifts.length == 1 ? 'shift' : 'shifts'}',
+                              ),
+                              const SizedBox(height: 8),
+                              if (_closureGateway != null)
+                              EngagementClosureControls(
+                                key: ValueKey((
+                                  'closure-request-${shifts.first.applicationId}',
+                                  widget.repository.source.userId,
+                                )),
+                                applicationId: shifts.first.applicationId,
+                                worker: true,
+                                gateway: _closureGateway,
                               ),
                             ],
                           ),

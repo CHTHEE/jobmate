@@ -107,7 +107,7 @@ void main() {
         await tester.tap(find.text('View Details'));
         await tester.pumpAndSettle();
         expect(
-          find.textContaining('Unable to load private images.'),
+          find.textContaining('We could not load the company photos.'),
           findsOneWidget,
         );
         logos.documentDenied = false;
@@ -226,7 +226,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(data.offsets, [0, 20]);
     expect(find.text('Company 20'), findsOneWidget);
-    await tester.tap(find.text('Check for updates'));
+    await tester.tap(find.text('Refresh'));
     await tester.pumpAndSettle();
     expect(data.offsets.last, 20);
     await tester.ensureVisible(find.text('Previous'));
@@ -352,7 +352,7 @@ void main() {
     await tester.tap(find.text('Prepare secure PDF access'));
     await tester.pumpAndSettle();
     expect(
-      find.textContaining('Unable to access the private PDF'),
+      find.textContaining('We could not open the verification document.'),
       findsOneWidget,
     );
     expect(find.text('View PDF'), findsNothing);

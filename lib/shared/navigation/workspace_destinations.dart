@@ -110,6 +110,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
           'Evaluations',
           Icons.rate_review_outlined,
         ),
+        (AppRoutes.reputation, 'My Reputation', Icons.insights_outlined),
       ],
       'Communication': [
         (AppRoutes.disputes, 'My disputes', Icons.gavel_outlined),

@@ -228,7 +228,7 @@ class AppWorkspace extends StatelessWidget {
                     if (role == 'employer')
                       ListTile(
                         leading: const Icon(Icons.stars_outlined),
-                        title: const Text('Reputation (demo)'),
+                        title: const Text('Company Reputation'),
                         onTap: () {
                           Navigator.of(sheetContext).pop();
                           navigate(AppRoutes.employerReputation);

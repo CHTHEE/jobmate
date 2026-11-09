@@ -1,209 +1,229 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
-import '../applications/module2_widgets.dart';
-import '../demo_work/demo_widgets.dart';
 import 'phase4_store.dart';
-import 'evaluation_pages.dart';
+import 'reputation_gateway.dart';
 
 class ReputationPage extends StatelessWidget {
-  const ReputationPage({super.key, this.employer = false, this.store});
+  const ReputationPage({
+    super.key,
+    this.employer = false,
+    this.store,
+    this.gateway,
+  });
+
   final bool employer;
+  // Kept for source compatibility with the old preview route; reputation is
+  // now loaded only from server-verified aggregate RPCs.
   final Phase4Store? store;
+  final ReputationGateway? gateway;
 
   @override
-  Widget build(BuildContext context) => DemoPage(
+  Widget build(BuildContext context) => AppWorkspace(
     title: employer ? 'Company Reputation' : 'My Reputation',
     path: employer ? AppRoutes.employerReputation : AppRoutes.reputation,
     role: employer ? 'employer' : 'job_seeker',
-    children: [ReputationContent(employer: employer, store: store)],
+    child: WorkspaceContent(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PageHeading(
+            title: employer ? 'Company Reputation' : 'My Reputation',
+            description: employer
+                ? 'Published evaluations for Companies you currently manage.'
+                : 'Published evaluations and verified completed work for your account.',
+          ),
+          ReputationContent(employer: employer, store: store, gateway: gateway),
+        ],
+      ),
+    ),
   );
 }
 
-/// Reused inside Personal profile without nesting another workspace scaffold.
+/// Embedded in the real Job Seeker profile and also used on the role pages.
 class ReputationContent extends StatefulWidget {
   const ReputationContent({
     super.key,
     this.employer = false,
     this.store,
     this.interactive = true,
+    this.gateway,
   });
+
   final bool employer;
   final Phase4Store? store;
   final bool interactive;
+  final ReputationGateway? gateway;
 
   @override
   State<ReputationContent> createState() => _ReputationContentState();
 }
 
 class _ReputationContentState extends State<ReputationContent> {
-  late final store = widget.store ?? Phase4Store.session;
-  bool enough = true;
+  late final ReputationGateway _gateway =
+      widget.gateway ?? SupabaseReputationGateway(Supabase.instance.client);
+  late Future<Object> _summary = _load();
+
+  Future<Object> _load() async => widget.employer
+      ? await _gateway.companySummaries()
+      : await _gateway.workerSummary();
+
+  void _retry() => setState(() => _summary = _load());
+
+  int _int(Map<String, dynamic> row, String key) =>
+      (row[key] as num?)?.toInt() ?? 0;
+
+  double? _double(Map<String, dynamic> row, String key) =>
+      (row[key] as num?)?.toDouble();
+
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: store,
-    builder: (context, _) {
-      final other = widget.employer ? 'job_seeker' : 'employer',
-          score = widget.employer ? 90 : 84;
-      final received = store.evaluations
-          .where(
-            (e) =>
-                e.author == other &&
-                store.revealed(e.assignmentId) &&
-                sampleAssignmentVisible(
-                  store.assignment(e.assignmentId)!,
-                  widget.employer,
-                ),
-          )
-          .toList();
-      final average = received.isEmpty
-          ? null
-          : received.map((e) => e.average).reduce((a, b) => a + b) /
-                received.length;
+  Widget build(BuildContext context) => FutureBuilder<Object>(
+    future: _summary,
+    builder: (context, snapshot) {
+      Widget body;
+      if (snapshot.connectionState != ConnectionState.done) {
+        body = const Center(child: CircularProgressIndicator());
+      } else if (snapshot.hasError) {
+        body = WorkspaceCard(
+          title: 'Reputation unavailable',
+          child: const Text('We could not load the verified summary. Try again.'),
+        );
+      } else if (widget.employer) {
+        body = _companyContent(
+          (snapshot.data! as List).cast<Map<String, dynamic>>(),
+        );
+      } else {
+        body = _workerContent(snapshot.data! as Map<String, dynamic>);
+      }
       return Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Phase3Notice(
-            'Every trust score, factor and trend below is an illustrative fixture, not a score for your real account/company. No production scoring algorithm is implemented. Past performance does not guarantee future outcomes.',
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Show illustrative sample data'),
-            subtitle: const Text(
-              'Turn off to preview the not-enough-data state.',
-            ),
-            value: enough,
-            onChanged: widget.interactive
-                ? (v) => setState(() => enough = v)
-                : null,
-          ),
-          if (!enough)
-            const ModuleState(
-              title: 'Not enough verified data',
-              message: 'A reputation score should appear only after sufficient verified assignments, evaluations and reliability data exist. No real score is available in this phase.',
-            )
-          else ...[
-            WorkspaceCard(
-              title: widget.employer ? 'Demo company' : 'Demo candidate',
-              subtitle: 'Illustrative trust score • 0–100',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: ScoreRing(value: score, label: 'DEMO'),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '$score / 100 • DEMO',
-                    style: const TextStyle(fontFamily: 'DM Mono', fontSize: 14),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Fixed preview value. It does not recalculate from your activity or represent a verified assessment.',
-                  ),
-                ],
+          if (widget.interactive)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: snapshot.connectionState == ConnectionState.done
+                    ? _retry
+                    : null,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Refresh reputation'),
               ),
             ),
-            const SizedBox(height: 20),
-            DemoStats({
-              'Visible demo evaluations': received.length,
-              'Completed sample assignments': store.assignments
-                  .where(
-                    (a) =>
-                        a.completed &&
-                        sampleAssignmentVisible(a, widget.employer),
-                  )
-                  .length,
-            }),
-            WorkspaceCard(
-              title: 'Score factors explained',
-              subtitle: 'Explanations only; percentages below are sample indicators, not formula weights.',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final factor
-                      in widget.employer
-                          ? {
-                              'Payment reliability': 96,
-                              'Job description accuracy': 90,
-                              'Worker satisfaction': 88,
-                              'Response consistency': 86,
-                              'Account standing / disputes': 92,
-                            }.entries
-                          : {
-                              'Completion reliability': 92,
-                              'Attendance consistency': 90,
-                              'Soft skills': 84,
-                              'Account standing': 100,
-                              'Dispute history': 88,
-                            }.entries)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text('${factor.key}: ${factor.value}% • fixture'),
-                          const SizedBox(height: 6),
-                          LinearProgressIndicator(value: factor.value / 100),
-                        ],
-                      ),
-                    ),
-                ],
+          if (snapshot.hasError)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: widget.interactive ? _retry : null,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
               ),
             ),
-            const SizedBox(height: 20),
-            WorkspaceCard(
-              title: 'Evaluation summary',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    average == null
-                        ? 'No revealed demo evaluations yet'
-                        : 'Average from revealed demo evaluations: ${average.toStringAsFixed(1)} / 5',
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton(
-                    onPressed: widget.interactive
-                        ? () => context.push(evaluationRoot(widget.employer))
-                        : null,
-                    child: const Text('View Evaluations'),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            WorkspaceCard(
-              title: 'Illustrative trend',
-              subtitle: 'Sample snapshots only; not historical scores for a real identity.',
-              child: Column(
-                children: [
-                  for (final row in <(String, int)>[
-                    ('Three months ago', score - 6),
-                    ('Two months ago', score - 4),
-                    ('Last month', score - 2),
-                    ('Sample current', score),
-                  ])
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text('${row.$1}: ${row.$2}'),
-                          LinearProgressIndicator(value: row.$2 / 100),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
+          body,
         ],
       );
     },
+  );
+
+  Widget _workerContent(Map<String, dynamic> row) {
+    final published = _int(row, 'published_application_count');
+    final rated = _int(row, 'rated_application_count');
+    final average = _double(row, 'core_average');
+    final shifts = _int(row, 'verified_completed_shift_count');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        WorkspaceCard(
+          title: 'Evaluation',
+          subtitle: 'Company evaluations revealed after both sides submit.',
+          leading: const Icon(Icons.rate_review_outlined),
+          child: _metric(
+            average == null ? 'No ratings yet' : '${average.toStringAsFixed(2)} / 5',
+            '$rated Core-rated applications - $published published evaluations',
+          ),
+        ),
+        const SizedBox(height: 12),
+        WorkspaceCard(
+          title: 'Working Performance',
+          subtitle: 'Verified work records only; each row is one scheduled Shift.',
+          leading: const Icon(Icons.verified_outlined),
+          child: _metric(
+            shifts == 0 ? 'No verified completed Shifts yet' : '$shifts',
+            'completed and verified Shifts',
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Applications have equal weight in the evaluation average. Shifts with an unresolved related dispute are excluded. Attendance and punctuality are not scored.',
+        ),
+      ],
+    );
+  }
+
+  Widget _companyContent(List<Map<String, dynamic>> rows) {
+    if (rows.isEmpty) {
+      return const WorkspaceCard(
+        title: 'Company Reputation',
+        child: Text('No Company is currently available to this account.'),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final row in rows) ...[
+          WorkspaceCard(
+            title: row['company_name'] as String? ?? 'Company',
+            subtitle:
+                'Evaluation - Worker feedback revealed after both sides submit',
+            leading: const Icon(Icons.business_outlined),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _metric(
+                  _averageLabel(_double(row, 'core_average')),
+                  '${_int(row, 'rated_application_count')} Core-rated applications - ${_int(row, 'published_application_count')} published evaluations',
+                ),
+                const SizedBox(height: 16),
+                const Text('Criteria breakdown'),
+                const SizedBox(height: 8),
+                ..._criteria(row['criteria_averages']).map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      '${item['label']}: ${item['average'] == null ? 'No ratings' : '${(item['average'] as num).toStringAsFixed(2)} / 5'} (${item['sample_count']} applications)',
+                    ),
+                  ),
+                ),
+                if (_criteria(row['criteria_averages']).isEmpty)
+                  const Text('No published criterion ratings yet.'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        const Text(
+          'Company feedback belongs to the Company; it is not assigned to individual members.',
+        ),
+      ],
+    );
+  }
+
+  List<Map<String, dynamic>> _criteria(Object? value) => value is List
+      ? value.map((item) => Map<String, dynamic>.from(item as Map)).toList()
+      : const [];
+
+  String _averageLabel(double? value) =>
+      value == null ? 'No ratings yet' : '${value.toStringAsFixed(2)} / 5';
+
+  Widget _metric(String value, String detail) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(value, style: Theme.of(context).textTheme.headlineSmall),
+      const SizedBox(height: 4),
+      Text(detail),
+    ],
   );
 }

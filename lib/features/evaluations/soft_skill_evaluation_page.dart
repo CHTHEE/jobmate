@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -24,12 +24,12 @@ class SoftSkillEvaluationsPage extends StatefulWidget {
   const SoftSkillEvaluationsPage({
     super.key,
     required this.employer,
-    this.assignmentId,
+    this.applicationId,
     this.gateway,
   });
 
   final bool employer;
-  final String? assignmentId;
+  final String? applicationId;
   final SoftSkillEvaluationGateway? gateway;
 
   @override
@@ -71,11 +71,11 @@ class _SoftSkillEvaluationsPageState extends State<SoftSkillEvaluationsPage> {
       if (!mounted) return;
       candidates = values[0];
       history = values[1];
-      form = widget.assignmentId == null
+      form = widget.applicationId == null
           ? null
           : candidates.cast<Map<String, dynamic>?>().firstWhere(
               (row) =>
-                  row?['assignment_id'] == widget.assignmentId &&
+                  row?['application_id'] == widget.applicationId &&
                   row?['already_evaluated'] != true,
               orElse: () => null,
             );
@@ -100,10 +100,10 @@ class _SoftSkillEvaluationsPageState extends State<SoftSkillEvaluationsPage> {
               ? const Center(child: CircularProgressIndicator())
               : error != null
               ? _MessageState(message: error!, retry: _load)
-              : widget.assignmentId != null
+              : widget.applicationId != null
               ? _EvaluationForm(
                   employer: widget.employer,
-                  assignmentId: widget.assignmentId!,
+                  applicationId: widget.applicationId!,
                   direction: direction,
                   root: root,
                   row: form,
@@ -124,8 +124,8 @@ class _SoftSkillEvaluationsPageState extends State<SoftSkillEvaluationsPage> {
       children: [
         Text(
           widget.employer
-              ? 'Evaluate a worker after verified work is complete.'
-              : 'Share feedback about a Company after your verified work is complete.',
+              ? 'Evaluate a worker after the Job Engagement is closed.'
+              : 'Share feedback about a Company after your Job Engagement is closed.',
           style: Theme.of(context).textTheme.bodyLarge,
         ),
         const SizedBox(height: 16),
@@ -144,7 +144,7 @@ class _SoftSkillEvaluationsPageState extends State<SoftSkillEvaluationsPage> {
         if (tab == 'Pending') ...[
           if (candidates.isEmpty)
             const _MessageState(
-              message: 'No completed and verified assignments need an evaluation.',
+              message: 'No closed Job Engagements need an evaluation.',
             ),
           for (final row in candidates)
             Card.outlined(
@@ -159,7 +159,7 @@ class _SoftSkillEvaluationsPageState extends State<SoftSkillEvaluationsPage> {
                     : const Icon(Icons.chevron_right),
                 onTap: row['already_evaluated'] == true
                     ? null
-                    : () => context.go('$root/${row['assignment_id']}/rate'),
+                    : () => context.go('$root/${row['application_id']}/rate'),
               ),
             ),
         ] else ...[
@@ -199,12 +199,12 @@ class _SoftSkillEvaluationsPageState extends State<SoftSkillEvaluationsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('${row['job_title'] ?? 'Job'}', style: Theme.of(context).textTheme.titleMedium),
-            Text('${row['target_label'] ?? ''} · ${row['given_by_me'] == true ? 'Given by you' : 'Received'}'),
+            Text('${row['target_label'] ?? ''} Â· ${row['given_by_me'] == true ? 'Given by you' : 'Received'}'),
             if (submitted != null) Text('Submitted ${_date(submitted)}'),
             const SizedBox(height: 8),
             Text(count == 0
                 ? 'Core Skill Average: Not enough numeric ratings (0 valid ratings).'
-                : 'Core Skill Average: ${average ?? '—'} / 5 ($count valid ratings)'),
+                : 'Core Skill Average: ${average ?? 'â€”'} / 5 ($count valid ratings)'),
             if (row['given_by_me'] == true &&
                 row['both_parties_submitted'] != true)
               const Padding(
@@ -227,7 +227,7 @@ class _SoftSkillEvaluationsPageState extends State<SoftSkillEvaluationsPage> {
 }
 
 String _department(dynamic value) =>
-    value is String && value.trim().isNotEmpty ? ' · Department: ${value.trim()}' : '';
+    value is String && value.trim().isNotEmpty ? ' Â· Department: ${value.trim()}' : '';
 
 String _date(DateTime value) =>
     '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
@@ -253,7 +253,7 @@ class _MessageState extends StatelessWidget {
 class _EvaluationForm extends StatefulWidget {
   const _EvaluationForm({
     required this.employer,
-    required this.assignmentId,
+    required this.applicationId,
     required this.direction,
     required this.root,
     required this.row,
@@ -261,7 +261,7 @@ class _EvaluationForm extends StatefulWidget {
   });
 
   final bool employer;
-  final String assignmentId;
+  final String applicationId;
   final String direction;
   final String root;
   final Map<String, dynamic>? row;
@@ -315,7 +315,7 @@ class _EvaluationFormState extends State<_EvaluationForm> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Review evaluation'),
-        content: Text('Submit your evaluation for ${widget.row?['target_label']} on ${widget.row?['job_title']}? You cannot submit another evaluation for this assignment and direction.'),
+        content: Text('Submit your evaluation for ${widget.row?['target_label']} on ${widget.row?['job_title']}? You cannot submit another evaluation for this Job Application and direction.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Continue editing')),
           FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Submit evaluation')),
@@ -326,7 +326,7 @@ class _EvaluationFormState extends State<_EvaluationForm> {
     setState(() { saving = true; error = null; });
     try {
       await widget.gateway.submit(
-        assignmentId: widget.assignmentId,
+        applicationId: widget.applicationId,
         direction: widget.direction,
         selectedAdditionalSkillIds: selectedIds,
         ratings: {for (final id in allIds) id: responses[id]},
@@ -349,7 +349,7 @@ class _EvaluationFormState extends State<_EvaluationForm> {
     if (row == null) {
       return ListView(children: [
         TextButton.icon(onPressed: () => context.go(widget.root), icon: const Icon(Icons.arrow_back), label: const Text('Evaluations')),
-        const _MessageState(message: 'This assignment is not currently eligible, or an evaluation for this direction has already been submitted.'),
+        const _MessageState(message: 'This Job Application is not closed and eligible, or an evaluation for this direction has already been submitted.'),
       ]);
     }
     return ListView(
@@ -430,7 +430,7 @@ class _EvaluationFormState extends State<_EvaluationForm> {
         FilledButton.icon(
           onPressed: saving ? null : _submit,
           icon: saving ? const SizedBox(width: 18,height: 18,child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_outlined),
-          label: Text(saving ? 'Submitting…' : 'Review and submit'),
+          label: Text(saving ? 'Submittingâ€¦' : 'Review and submit'),
         ),
       ],
     );
@@ -474,7 +474,7 @@ class _RatingCard extends StatelessWidget {
           Wrap(spacing: 8, runSpacing: 8, children: [
             for (var score = 1; score <= 5; score++)
               ChoiceChip(
-                label: Text('$score · ${_ratingLabels[score]}'),
+                label: Text('$score Â· ${_ratingLabels[score]}'),
                 selected: value == score,
                 onSelected: enabled ? (_) => onChanged(score) : null,
               ),
