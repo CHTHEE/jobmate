@@ -31,7 +31,9 @@ class _WorkAssignmentCreationDialogState
   final _form = GlobalKey<FormState>();
   final _startDate = TextEditingController(),
       _startTime = TextEditingController();
-  final _endDate = TextEditingController(), _endTime = TextEditingController();
+  final _endTime = TextEditingController();
+  TimeOfDay? _selectedStart, _selectedEnd;
+  bool _validationRequested = false;
   final _location = TextEditingController();
   late final String? _actor = widget.repository.source.userId;
   WorkAssignmentCandidate? _candidate;
@@ -57,11 +59,14 @@ class _WorkAssignmentCreationDialogState
   void _changed() {
     if (!mounted) return;
     if (widget.repository.source.userId != _actor) {
+      _selectedStart = null;
+      _selectedEnd = null;
+      _validationRequested = false;
       _candidate = null;
       _job = null;
       _confirm = false;
       _result = null;
-      for (final c in [_startDate, _startTime, _endDate, _endTime, _location]) {
+      for (final c in [_startDate, _startTime, _endTime, _location]) {
         c.clear();
       }
     } else if (!_confirm && !widget.repository.state.loading) {
@@ -122,8 +127,7 @@ class _WorkAssignmentCreationDialogState
     } catch (_) {
       if (!mounted || request != _engagementRequest) return;
       setState(() {
-        _engagementError =
-            'Unable to check engagement status. Retry before scheduling a shift.';
+        _engagementError = 'Unable to check engagement status. Retry before scheduling a shift.';
         _engagementLoading = false;
       });
     }
@@ -142,7 +146,7 @@ class _WorkAssignmentCreationDialogState
   @override
   void dispose() {
     widget.repository.removeListener(_changed);
-    for (final c in [_startDate, _startTime, _endDate, _endTime, _location]) {
+    for (final c in [_startDate, _startTime, _endTime, _location]) {
       c.dispose();
     }
     super.dispose();
@@ -156,7 +160,6 @@ class _WorkAssignmentCreationDialogState
         [
           _startDate,
           _startTime,
-          _endDate,
           _endTime,
           _location,
         ].any((c) => c.text.isNotEmpty);
@@ -170,9 +173,56 @@ class _WorkAssignmentCreationDialogState
     });
   }
 
+  String _clock(TimeOfDay? time) => time == null
+      ? ''
+      : '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+
+  String _friendly(TimeOfDay time) =>
+      '${time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod}:${time.minute.toString().padLeft(2, '0')} ${time.period == DayPeriod.am ? 'AM' : 'PM'}';
+
   DateTime? get _start =>
-      workAssignmentMalaysiaUtc(_startDate.text, _startTime.text);
-  DateTime? get _end => workAssignmentMalaysiaUtc(_endDate.text, _endTime.text);
+      workAssignmentMalaysiaUtc(_startDate.text, _clock(_selectedStart));
+  DateTime? get _end =>
+      workAssignmentMalaysiaUtc(_startDate.text, _clock(_selectedEnd));
+
+  Future<void> _pickTime(bool start) async {
+    if (_busy) return;
+    final malaysia = DateTime.now().toUtc().add(const Duration(hours: 8));
+    final chosen = await showTimePicker(
+      context: context,
+      initialTime:
+          (start ? _selectedStart : _selectedEnd) ??
+          TimeOfDay(hour: malaysia.hour, minute: malaysia.minute),
+      initialEntryMode: TimePickerEntryMode.dial,
+      builder: (context, child) => MediaQuery(
+        // Material's fixed-size clock/input surfaces otherwise clip their
+        // actions at large text scales on narrow screens. The outer form
+        // retains the user's full text scaling and scrolls independently.
+        data: MediaQuery.of(context).copyWith(
+          alwaysUse24HourFormat: false,
+          textScaler: MediaQuery.textScalerOf(context)
+              .clamp(maxScaleFactor: 1.3),
+        ),
+        child: child!,
+      ),
+    );
+    if (!mounted ||
+        _busy ||
+        widget.repository.source.userId != _actor ||
+        chosen == null) {
+      return;
+    }
+    setState(() {
+      if (start) {
+        _selectedStart = chosen;
+        _startTime.text = _friendly(chosen);
+      } else {
+        _selectedEnd = chosen;
+        _endTime.text = _friendly(chosen);
+      }
+      _result = null;
+    });
+  }
 
   Future<void> _pickDate(TextEditingController controller) async {
     if (_busy) return;
@@ -212,13 +262,19 @@ class _WorkAssignmentCreationDialogState
         widget.repository.source.userId != _actor) {
       return;
     }
+    final candidate = _candidate!;
     setState(() => _busy = true);
     if (!reconcile) {
       try {
         final latest = await widget.closureGateway.status(
-          _candidate!.applicationId,
+          candidate.applicationId,
         );
         if (!mounted) return;
+        if (widget.repository.source.userId != _actor) {
+          setState(() => _busy = false);
+          _changed();
+          return;
+        }
         setState(() {
           _engagementStatus = latest;
           _engagementApplicationId = _candidate!.applicationId;
@@ -242,16 +298,15 @@ class _WorkAssignmentCreationDialogState
         setState(() {
           _busy = false;
           _engagementLoading = false;
-          _engagementError =
-              'Unable to check engagement status. Retry before scheduling a shift.';
+          _engagementError = 'Unable to check engagement status. Retry before scheduling a shift.';
         });
         return;
       }
     }
     final result = reconcile
-        ? await widget.repository.reconcile(_candidate!)
+        ? await widget.repository.reconcile(candidate)
         : await widget.repository.create(
-            candidate: _candidate!,
+            candidate: candidate,
             start: _start!,
             end: _end!,
             location: _location.text,
@@ -260,7 +315,15 @@ class _WorkAssignmentCreationDialogState
     setState(() {
       _busy = false;
       _result = result;
+      if (result.retryableContention) _confirm = false;
     });
+    if (result.retryableContention) {
+      _changed();
+      if (_candidate != null) {
+        await _loadEngagementStatus(_candidate!.applicationId);
+        if (!mounted) return;
+      }
+    }
     if (result.engagementClosed && _candidate != null) {
       await _loadEngagementStatus(_candidate!.applicationId);
       if (!mounted) return;
@@ -297,26 +360,33 @@ class _WorkAssignmentCreationDialogState
       child: TextFormField(
         controller: controller,
         enabled: !_busy,
+        readOnly: controller == _startTime || controller == _endTime,
+        onTap: controller == _startTime || controller == _endTime
+            ? () => _pickTime(controller == _startTime)
+            : null,
         keyboardType: controller == _location
             ? TextInputType.streetAddress
             : TextInputType.datetime,
         textInputAction: TextInputAction.next,
         decoration: InputDecoration(
           labelText: label,
-          hintText: controller == _startTime || controller == _endTime
-              ? 'HH:mm'
-              : null,
-          helperText: controller == _startTime || controller == _endTime
-              ? '24-hour time, for example 09:05 or 22:50.'
-              : null,
           border: const OutlineInputBorder(),
-          suffixIcon: controller != _startDate && controller != _endDate
-              ? null
-              : IconButton(
+          errorMaxLines: 3,
+          suffixIcon: controller == _startDate
+              ? IconButton(
                   tooltip: 'Choose $label',
                   onPressed: _busy ? null : () => _pickDate(controller),
                   icon: const Icon(Icons.calendar_today),
-                ),
+                )
+              : controller == _startTime || controller == _endTime
+              ? IconButton(
+                  tooltip: 'Choose $label',
+                  onPressed: _busy
+                      ? null
+                      : () => _pickTime(controller == _startTime),
+                  icon: const Icon(Icons.access_time),
+                )
+              : null,
         ),
         validator: validate,
         onChanged: (_) => setState(() => _result = null),
@@ -326,10 +396,28 @@ class _WorkAssignmentCreationDialogState
         workAssignmentMalaysiaUtc(value ?? '', '00:00') == null
         ? 'Use a valid date: YYYY-MM-DD.'
         : null;
-    String? time(String? value) =>
-        workAssignmentMalaysiaUtc('2026-01-01', value ?? '') == null
-        ? 'Use 24-hour time: HH:mm.'
-        : null;
+    String? startTime(String? _) {
+      if (_selectedStart == null) return 'Choose a start time.';
+      final start = _start;
+      if (start != null &&
+          repository.validateSchedule(
+                start,
+                start.add(const Duration(seconds: 1)),
+              ) ==
+              'Shift start must be in the future.') {
+        return 'This start time has already passed. Choose a later time or date.';
+      }
+      return null;
+    }
+
+    String? endTime(String? _) {
+      if (_selectedEnd == null) return 'Choose an end time.';
+      if (_start != null && _end != null && !_end!.isAfter(_start!)) {
+        return 'End time must be later than start time.';
+      }
+      return null;
+    }
+
     return PopScope(
       canPop: _leaving,
       onPopInvokedWithResult: (didPop, _) {
@@ -400,7 +488,9 @@ class _WorkAssignmentCreationDialogState
                           Text(
                             'Start (MYT): ${_startDate.text} ${_startTime.text}',
                           ),
-                          Text('End (MYT): ${_endDate.text} ${_endTime.text}'),
+                          Text(
+                            'End (MYT): ${_startDate.text} ${_endTime.text}',
+                          ),
                           Text('Workplace: ${_location.text.trim()}'),
                           const SizedBox(height: 12),
                           const Text(
@@ -426,20 +516,26 @@ class _WorkAssignmentCreationDialogState
                         else
                           Form(
                             key: _form,
+                            autovalidateMode: _validationRequested
+                                ? AutovalidateMode.always
+                                : AutovalidateMode.disabled,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                const Text(
-                                  'Malaysia time (MYT, UTC+08:00). Dates use YYYY-MM-DD and times use 24-hour HH:mm; the device timezone is ignored.',
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'Schedule each shift as agreed with the worker beforehand. Each shift can have different dates and times.',
-                                ),
+                                const _BeforeSchedulingNotice(),
                                 const SizedBox(height: 16),
-                                if (scoped)
-                                  Text('Job: ${_candidate!.jobTitle}')
-                                else ...[
+                                if (_candidate != null) ...[
+                                  Text(
+                                    'Job: ${_candidate!.jobTitle}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall,
+                                  ),
+                                  Text('Company: ${_candidate!.companyName}'),
+                                  Text('Worker: ${_candidate!.applicantName}'),
+                                  const SizedBox(height: 16),
+                                ],
+                                if (!scoped) ...[
                                   DropdownButtonFormField<String>(
                                     initialValue: _job,
                                     isExpanded: true,
@@ -509,23 +605,21 @@ class _WorkAssignmentCreationDialogState
                                   ),
                                 ],
                                 const SizedBox(height: 16),
-                                if (_candidate != null)
-                                  Text(
-                                    'Company: ${_candidate!.companyName}\nWorker: ${_candidate!.applicantName}',
-                                  ),
-                                const SizedBox(height: 12),
-                                input(_startDate, 'Start date (MYT)', date),
-                                input(_startTime, 'Start time (MYT)', time),
-                                input(_endDate, 'End date (MYT)', date),
-                                input(_endTime, 'End time (MYT)', time),
+
+                                input(_startDate, 'Shift date (MYT)', date),
+                                input(
+                                  _startTime,
+                                  'Start time (MYT)',
+                                  startTime,
+                                ),
+                                input(_endTime, 'End time (MYT)', endTime),
                                 input(
                                   _location,
                                   'Workplace location',
-                                  (v) =>
-                                      v == null ||
-                                          v.trim().isEmpty ||
-                                          v.runes.length > 500
-                                      ? 'Enter a workplace location of up to 500 characters.'
+                                  (v) => v == null || v.trim().isEmpty
+                                      ? 'Enter a workplace location.'
+                                      : v.runes.length > 500
+                                      ? 'Use no more than 500 characters.'
                                       : null,
                                 ),
                               ],
@@ -575,15 +669,19 @@ class _WorkAssignmentCreationDialogState
                         _submit();
                         return;
                       }
+                      setState(() => _validationRequested = true);
                       if (!_form.currentState!.validate()) return;
                       if (!_engagementReady) return;
-                      if (_start == null ||
-                          _end == null ||
-                          !_end!.isAfter(_start!)) {
+                      if (_start == null || _end == null) return;
+                      final scheduleError = widget.repository.validateSchedule(
+                        _start!,
+                        _end!,
+                      );
+                      if (scheduleError != null) {
                         setState(
-                          () => _result = const WorkAssignmentCreateResult(
+                          () => _result = WorkAssignmentCreateResult(
                             WorkAssignmentCreateStatus.rejected,
-                            'End must be after start.',
+                            scheduleError,
                           ),
                         );
                         return;
@@ -593,6 +691,67 @@ class _WorkAssignmentCreationDialogState
               child: Text(_confirm ? 'Confirm creation' : 'Review assignment'),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _BeforeSchedulingNotice extends StatelessWidget {
+  const _BeforeSchedulingNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Use Material amber tones matched to theme brightness, not fixed light colors.
+    final amber = ColorScheme.fromSeed(
+      seedColor: Colors.amber,
+      brightness: theme.brightness,
+    );
+    return Semantics(
+      container: true,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: amber.primaryContainer,
+          border: Border.all(color: amber.primary.withValues(alpha: 0.35)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ExcludeSemantics(
+              child: Icon(Icons.info_outline, color: amber.onPrimaryContainer),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: DefaultTextStyle(
+                style: theme.textTheme.bodySmall!.copyWith(
+                  color: amber.onPrimaryContainer,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Before you schedule',
+                      style: theme.textTheme.titleSmall!.copyWith(
+                        color: amber.onPrimaryContainer,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'The shift must start in the future and finish on the same calendar day (Malaysia time).',
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'For overnight work, create a separate shift for the next day.',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

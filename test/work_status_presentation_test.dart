@@ -4,6 +4,25 @@ import 'package:jobmate/features/work_attendance/work_attendance_models.dart';
 import 'package:jobmate/features/work_attendance/work_status_presentation.dart';
 
 void main() {
+  test('saved check-in timing uses the exact inclusive 15-minute boundary', () {
+    final start = DateTime.parse('2026-11-10T09:00:00+08:00');
+    expect(workCheckInTimingLabel(start, null), isNull);
+    expect(
+      workCheckInTimingLabel(
+        start,
+        start.subtract(const Duration(minutes: 30)),
+      ),
+      'On Time',
+    );
+    expect(
+      workCheckInTimingLabel(start, DateTime.parse('2026-11-10T01:15:00Z')),
+      'On Time',
+    );
+    expect(
+      workCheckInTimingLabel(start, DateTime.parse('2026-11-10T01:15:01Z')),
+      'Late',
+    );
+  });
   test('server states determine stage and contextual actions', () {
     WorkStage stage(String assignment, String verification) =>
         WorkStage.fromStatuses(

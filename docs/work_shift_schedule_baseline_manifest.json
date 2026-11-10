@@ -1,0 +1,834 @@
+{
+    "status":  "NOT DEPLOYED / NOT DATABASE-TESTED; EXPECTED POST-SECURITY BASELINE",
+    "csv_sha256":  "9626269A3B46593259DF60F2EAA312C76EF437F5503CC9D1DD45080B2E58150C",
+    "rows":  3392,
+    "expected_security_dependency":  {
+                                         "signature":  "public.respond_job_engagement_closure_request(uuid,text,text)",
+                                         "body_md5_lf":  "8558e154e5eae1e8ea7b09c3fed41103",
+                                         "source":  "Approved local closure authorization patch; NOT independently verified deployed",
+                                         "artifact_sha256":  "1B4A49728412F09EA96649D42EFDCFBA12BB21C03867593E495D887355518A6F"
+                                     },
+    "capture":  {
+                    "limitation":  "Catalog/text discovery is not exhaustive for dynamic SQL; this is not deployment approval.",
+                    "session_role":  "postgres",
+                    "routine_count":  63,
+                    "execution_role":  "postgres",
+                    "relation_count":  12,
+                    "captured_at_utc":  "2026-11-10T02:43:03.451069",
+                    "postgres_version":  "17.11",
+                    "installed_role_count":  31,
+                    "effective_permission_role_count":  24
+                },
+    "pinned_functions":  [
+                             {
+                                 "name":  "private.guard_engagement_cancellation_audit",
+                                 "signature":  "private.guard_engagement_cancellation_audit()",
+                                 "baseline":  {
+                                                  "oid":  "21766",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "trigger",
+                                                  "schema":  "private",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION private.guard_engagement_cancellation_audit()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nbegin\r\n  if old.status=\u0027cancelled\u0027 and new.status is distinct from old.status then\r\n    raise exception \u0027A cancelled Shift cannot be reopened.\u0027;\r\n  end if;\r\n  if new.status=\u0027cancelled\u0027 and old.status is distinct from \u0027cancelled\u0027\r\n     and not exists(select 1 from public.work_assignment_cancellations c\r\n       where c.assignment_id=new.assignment_id) then\r\n    raise exception \u0027A Shift cancellation requires an audit record.\u0027;\r\n  end if;\r\n  return new;\r\nend\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "4527eadc1a71b6dd00ce47ee277675a5",
+                                                  "identity_arguments":  "",
+                                                  "arguments_with_defaults":  ""
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "private.guard_engagement_request_insert",
+                                 "signature":  "private.guard_engagement_request_insert()",
+                                 "baseline":  {
+                                                  "oid":  "21762",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "trigger",
+                                                  "schema":  "private",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION private.guard_engagement_request_insert()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\ndeclare v_status text;\r\nbegin\r\n  select a.status into v_status from public.job_applications a\r\n    where a.application_id=new.application_id for update;\r\n  if not found or v_status is distinct from \u0027hired\u0027 then\r\n    raise exception \u0027Assignment Requests require a hired Application.\u0027;\r\n  end if;\r\n  if exists(select 1 from public.job_engagement_closures c where c.application_id=new.application_id) then\r\n    raise exception \u0027This Job Engagement is closed; no new Shift may be reserved.\u0027;\r\n  end if;\r\n  return new;\r\nend\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "5248a1f3e2be7bb7f8e50cc3e909b611",
+                                                  "identity_arguments":  "",
+                                                  "arguments_with_defaults":  ""
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "private.lock_engagement_dispute_application",
+                                 "signature":  "private.lock_engagement_dispute_application()",
+                                 "baseline":  {
+                                                  "oid":  "21775",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "trigger",
+                                                  "schema":  "private",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION private.lock_engagement_dispute_application()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\ndeclare v_application_id uuid;\r\nbegin\r\n  if new.application_id is not null then\r\n    v_application_id:=new.application_id;\r\n  elsif new.assignment_id is not null then\r\n    select a.application_id into v_application_id from public.work_assignments a where a.assignment_id=new.assignment_id;\r\n  end if;\r\n  if v_application_id is null then raise exception \u0027Related Job Application not found for Dispute.\u0027; end if;\r\n  perform 1 from public.job_applications a where a.application_id=v_application_id for update;\r\n  if not found then raise exception \u0027Related Job Application not found for Dispute.\u0027; end if;\r\n  return new;\r\nend\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "5870e584e0062e137ff60bea113b0601",
+                                                  "identity_arguments":  "",
+                                                  "arguments_with_defaults":  ""
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "private.prevent_assignment_cancellation_mutation",
+                                 "signature":  "private.prevent_assignment_cancellation_mutation()",
+                                 "baseline":  {
+                                                  "oid":  "21781",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "trigger",
+                                                  "schema":  "private",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION private.prevent_assignment_cancellation_mutation()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nbegin raise exception \u0027Shift cancellation audit records are immutable.\u0027; end\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "234763bc15bfc7d41ef11bbc2dbfa9ba",
+                                                  "identity_arguments":  "",
+                                                  "arguments_with_defaults":  ""
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "private.prevent_engagement_closure_mutation",
+                                 "signature":  "private.prevent_engagement_closure_mutation()",
+                                 "baseline":  {
+                                                  "oid":  "21777",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "trigger",
+                                                  "schema":  "private",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION private.prevent_engagement_closure_mutation()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nbegin raise exception \u0027Finalized Job Engagement closures are immutable.\u0027; end\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "5224132e0acb7b68999faa873cc1db9f",
+                                                  "identity_arguments":  "",
+                                                  "arguments_with_defaults":  ""
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "private.protect_assignment_request_terminal_state",
+                                 "signature":  "private.protect_assignment_request_terminal_state()",
+                                 "baseline":  {
+                                                  "oid":  "21764",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "trigger",
+                                                  "schema":  "private",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION private.protect_assignment_request_terminal_state()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nbegin\r\n  if old.cancelled_at is not null and new is distinct from old then\r\n    raise exception \u0027Cancelled Assignment Requests are immutable.\u0027;\r\n  end if;\r\n  if old.assignment_id is not null and new.assignment_id is distinct from old.assignment_id then\r\n    raise exception \u0027A created Assignment Request cannot be relinked.\u0027;\r\n  end if;\r\n  if new.cancelled_at is not null and old.cancelled_at is null and new.assignment_id is not null then\r\n    raise exception \u0027An Assignment Request with a created Shift cannot be cancelled.\u0027;\r\n  end if;\r\n  return new;\r\nend\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "faf9f33e601877278698cd31226034a5",
+                                                  "identity_arguments":  "",
+                                                  "arguments_with_defaults":  ""
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "private.record_job_engagement_closure",
+                                 "signature":  "private.record_job_engagement_closure(uuid,uuid,text)",
+                                 "baseline":  {
+                                                  "oid":  "21768",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "timestamp with time zone",
+                                                  "schema":  "private",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION private.record_job_engagement_closure(p_application_id uuid, p_actor_id uuid, p_reason text)\n RETURNS timestamp with time zone\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\ndeclare v_app public.job_applications%rowtype; v_company_id uuid; v_closed_at timestamptz;\r\nbegin\r\n  select * into v_app from public.job_applications a\r\n    where a.application_id=p_application_id for update;\r\n  if not found then raise exception \u0027Job Application not found.\u0027; end if;\r\n  if v_app.status is distinct from \u0027hired\u0027 then raise exception \u0027Only a hired Job Application can be closed.\u0027; end if;\r\n  select j.company_id into v_company_id from public.job_postings j where j.job_id=v_app.job_id;\r\n  if v_company_id is null or public.can_manage_company_jobs(v_company_id) is not true then\r\n    raise exception \u0027Current Company Representative authorization is required.\u0027 using errcode=\u002742501\u0027;\r\n  end if;\r\n  if exists(select 1 from public.job_engagement_closures c where c.application_id=p_application_id) then\r\n    raise exception \u0027This Job Engagement is already closed.\u0027;\r\n  end if;\r\n  if not exists(select 1 from public.work_assignments a where a.application_id=p_application_id\r\n      and a.status=\u0027completed\u0027 and a.verification_status=\u0027verified\u0027 and a.verified_at is not null) then\r\n    raise exception \u0027At least one completed and verified Shift is required.\u0027;\r\n  end if;\r\n  if exists(select 1 from public.work_assignments a where a.application_id=p_application_id\r\n      and not ((a.status=\u0027completed\u0027 and a.verification_status=\u0027verified\u0027 and a.verified_at is not null)\r\n        or (a.status=\u0027cancelled\u0027 and exists(select 1 from public.work_assignment_cancellations x\r\n             where x.assignment_id=a.assignment_id)))) then\r\n    raise exception \u0027Every Shift must be completed and verified, or have an audited cancellation.\u0027;\r\n  end if;\r\n  if exists(select 1 from public.work_assignment_creation_requests r\r\n      where r.application_id=p_application_id and r.assignment_id is null and r.cancelled_at is null) then\r\n    raise exception \u0027An unresolved Shift reservation must be created or cancelled before closure.\u0027;\r\n  end if;\r\n  if exists(select 1 from public.disputes d where d.status in (\u0027open\u0027,\u0027investigating\u0027,\u0027pending_information\u0027)\r\n      and (d.application_id=p_application_id or d.assignment_id in (\r\n        select a.assignment_id from public.work_assignments a where a.application_id=p_application_id))) then\r\n    raise exception \u0027An unresolved related Dispute blocks Job Engagement closure.\u0027;\r\n  end if;\r\n  if p_reason is null or p_reason !~ \u0027[^[:space:]]\u0027 or char_length(p_reason)\u003e2000 then\r\n    raise exception \u0027A closure reason of 1 to 2000 characters is required.\u0027;\r\n  end if;\r\n  insert into public.job_engagement_closures(application_id,closed_by,closure_reason)\r\n    values(p_application_id,p_actor_id,btrim(p_reason)) returning closed_at into v_closed_at;\r\n  update public.job_engagement_closure_requests r\r\n    set status=\u0027accepted\u0027,processed_by=p_actor_id,processed_at=v_closed_at,\r\n        response_reason=\u0027Engagement closed: \u0027||btrim(p_reason)\r\n    where r.application_id=p_application_id and r.status=\u0027pending\u0027;\r\n  insert into public.job_engagement_closure_request_events(request_id,actor_id,action,reason)\r\n    select r.request_id,p_actor_id,\u0027closed_by_company\u0027,btrim(p_reason)\r\n    from public.job_engagement_closure_requests r\r\n    where r.application_id=p_application_id and r.status=\u0027accepted\u0027 and r.processed_at=v_closed_at;\r\n  return v_closed_at;\r\nend\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "eecdf7e6d167363639b505a7dbc8a6a0",
+                                                  "identity_arguments":  "p_application_id uuid, p_actor_id uuid, p_reason text",
+                                                  "arguments_with_defaults":  "p_application_id uuid, p_actor_id uuid, p_reason text"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.can_manage_company_jobs",
+                                 "signature":  "public.can_manage_company_jobs(uuid)",
+                                 "baseline":  {
+                                                  "oid":  "18774",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "boolean",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                  "language":  "sql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.can_manage_company_jobs(p_company_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\n  select exists (\r\n    select 1\r\n    from public.users u\r\n    join public.company_memberships cm\r\n      on cm.user_id = u.user_id\r\n    join public.companies c\r\n      on c.company_id = cm.company_id\r\n    where u.user_id = auth.uid()\r\n      and u.role = \u0027employer\u0027::public.user_role\r\n      and u.status = \u0027active\u0027::public.account_status\r\n      and cm.company_id = p_company_id\r\n      and cm.member_role in (\u0027owner\u0027, \u0027employer\u0027)\r\n      and c.verification_status = \u0027verified\u0027::public.verification_status\r\n  );\r\n$function$\n",
+                                                  "volatility":  "s",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "7c41597c243580062e49efd25af2f9f0",
+                                                  "identity_arguments":  "p_company_id uuid",
+                                                  "arguments_with_defaults":  "p_company_id uuid"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.cancel_scheduled_work_assignment",
+                                 "signature":  "public.cancel_scheduled_work_assignment(uuid,text)",
+                                 "baseline":  {
+                                                  "oid":  "21774",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "timestamp with time zone",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.cancel_scheduled_work_assignment(p_assignment_id uuid, p_reason text)\n RETURNS timestamp with time zone\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\ndeclare v_app_id uuid; v_company_id uuid; v_status text; v_verified text; v_cancelled_at timestamptz;\r\nbegin\r\n  if auth.uid() is null then raise exception \u0027Authentication required.\u0027 using errcode=\u002728000\u0027; end if;\r\n  if p_reason is null or p_reason !~ \u0027[^[:space:]]\u0027 or char_length(p_reason)\u003e2000 then\r\n    raise exception \u0027A cancellation reason of 1 to 2000 characters is required.\u0027;\r\n  end if;\r\n  select a.application_id into v_app_id from public.work_assignments a where a.assignment_id=p_assignment_id;\r\n  if not found then raise exception \u0027Assignment not found.\u0027; end if;\r\n  perform 1 from public.job_applications a where a.application_id=v_app_id for update;\r\n  select a.company_id,a.status,a.verification_status into v_company_id,v_status,v_verified\r\n    from public.work_assignments a where a.assignment_id=p_assignment_id for update;\r\n  if not found then raise exception \u0027Assignment not found.\u0027; end if;\r\n  if public.can_manage_company_jobs(v_company_id) is not true then\r\n    raise exception \u0027Current Company Representative authorization is required.\u0027 using errcode=\u002742501\u0027;\r\n  end if;\r\n  if v_status is distinct from \u0027scheduled\u0027 or v_verified is distinct from \u0027not_submitted\u0027\r\n     or exists(select 1 from public.work_attendance a where a.assignment_id=p_assignment_id\r\n       and (a.check_in_at is not null or a.check_out_at is not null))\r\n     or exists(select 1 from public.work_evidence e where e.assignment_id=p_assignment_id) then\r\n    raise exception \u0027Only an untouched scheduled Shift can be cancelled.\u0027;\r\n  end if;\r\n  insert into public.work_assignment_cancellations(assignment_id,cancelled_by,cancellation_reason)\r\n    values(p_assignment_id,auth.uid(),btrim(p_reason)) returning cancelled_at into v_cancelled_at;\r\n  update public.work_assignments set status=\u0027cancelled\u0027,updated_at=v_cancelled_at\r\n    where assignment_id=p_assignment_id;\r\n  return v_cancelled_at;\r\nend\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "58b82b0e54db28c63d8c159acf65cfdf",
+                                                  "identity_arguments":  "p_assignment_id uuid, p_reason text",
+                                                  "arguments_with_defaults":  "p_assignment_id uuid, p_reason text"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.cancel_work_assignment_request",
+                                 "signature":  "public.cancel_work_assignment_request(uuid,text)",
+                                 "baseline":  {
+                                                  "oid":  "21773",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "void",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.cancel_work_assignment_request(p_request_id uuid, p_reason text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\ndeclare v_app_id uuid; v_company_id uuid; v_assignment_id uuid; v_cancelled_at timestamptz;\r\nbegin\r\n  if auth.uid() is null then raise exception \u0027Authentication required.\u0027 using errcode=\u002728000\u0027; end if;\r\n  if p_reason is null or p_reason !~ \u0027[^[:space:]]\u0027 or char_length(p_reason)\u003e2000 then\r\n    raise exception \u0027A cancellation reason of 1 to 2000 characters is required.\u0027;\r\n  end if;\r\n  select r.application_id into v_app_id from public.work_assignment_creation_requests r where r.request_id=p_request_id;\r\n  if not found then raise exception \u0027Assignment Request not found.\u0027; end if;\r\n  perform 1 from public.job_applications a where a.application_id=v_app_id for update;\r\n  if not found then raise exception \u0027Job Application not found.\u0027; end if;\r\n  select r.assignment_id,r.cancelled_at,j.company_id into v_assignment_id,v_cancelled_at,v_company_id\r\n  from public.work_assignment_creation_requests r\r\n  join public.job_applications a on a.application_id=r.application_id\r\n  join public.job_postings j on j.job_id=a.job_id\r\n  where r.request_id=p_request_id for update of r;\r\n  if not found then raise exception \u0027Assignment Request not found.\u0027; end if;\r\n  if public.can_manage_company_jobs(v_company_id) is not true then\r\n    raise exception \u0027Current Company Representative authorization is required.\u0027 using errcode=\u002742501\u0027;\r\n  end if;\r\n  if v_assignment_id is not null then raise exception \u0027A request with a created Assignment cannot be cancelled.\u0027; end if;\r\n  if v_cancelled_at is not null then raise exception \u0027Assignment Request is already cancelled.\u0027; end if;\r\n  v_cancelled_at:=pg_catalog.clock_timestamp();\r\n  update public.work_assignment_creation_requests set cancelled_by=auth.uid(),cancelled_at=v_cancelled_at,\r\n    cancellation_reason=btrim(p_reason) where request_id=p_request_id;\r\nend\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "19c4f55ab01b41ece09932c5f09efa6b",
+                                                  "identity_arguments":  "p_request_id uuid, p_reason text",
+                                                  "arguments_with_defaults":  "p_request_id uuid, p_reason text"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.check_in_work_assignment",
+                                 "signature":  "public.check_in_work_assignment(uuid,text,numeric,numeric)",
+                                 "baseline":  {
+                                                  "oid":  "20467",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "timestamp with time zone",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.check_in_work_assignment(p_assignment_id uuid, p_location_status text, p_latitude numeric DEFAULT NULL::numeric, p_longitude numeric DEFAULT NULL::numeric)\n RETURNS timestamp with time zone\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nDECLARE\r\n    v_assignment record;\r\n    v_check_in_at timestamptz;\r\nBEGIN\r\n    IF auth.uid() IS NULL THEN\r\n        RAISE EXCEPTION \u0027You must be signed in.\u0027;\r\n    END IF;\r\n\r\n    SELECT\r\n        a.assignment_id,\r\n        a.worker_id,\r\n        a.status,\r\n        a.scheduled_start,\r\n        a.scheduled_end\r\n    INTO v_assignment\r\n    FROM public.work_assignments a\r\n    WHERE a.assignment_id = p_assignment_id\r\n    FOR UPDATE;\r\n\r\n    IF NOT FOUND THEN\r\n        RAISE EXCEPTION \u0027Work assignment not found.\u0027;\r\n    END IF;\r\n\r\n    IF v_assignment.worker_id \u003c\u003e auth.uid()\r\n       OR NOT EXISTS (\r\n           SELECT 1\r\n           FROM public.users u\r\n           WHERE u.user_id = auth.uid()\r\n             AND u.role = \u0027job_seeker\u0027::public.user_role\r\n             AND u.status = \u0027active\u0027::public.account_status\r\n       ) THEN\r\n        RAISE EXCEPTION \u0027You cannot check in to this assignment.\u0027;\r\n    END IF;\r\n\r\n    IF v_assignment.status \u003c\u003e \u0027scheduled\u0027 THEN\r\n        RAISE EXCEPTION \u0027This assignment is not available for check-in.\u0027;\r\n    END IF;\r\n\r\n    IF p_location_status IS NULL\r\n       OR p_location_status NOT IN (\u0027granted\u0027, \u0027denied\u0027, \u0027unavailable\u0027) THEN\r\n        RAISE EXCEPTION \u0027Invalid location permission status.\u0027;\r\n    END IF;\r\n\r\n    IF p_location_status = \u0027granted\u0027 THEN\r\n        IF p_latitude IS NULL\r\n           OR p_longitude IS NULL\r\n           OR p_latitude NOT BETWEEN -90 AND 90\r\n           OR p_longitude NOT BETWEEN -180 AND 180 THEN\r\n            RAISE EXCEPTION \u0027Valid coordinates are required when GPS is granted.\u0027;\r\n        END IF;\r\n    ELSIF p_latitude IS NOT NULL OR p_longitude IS NOT NULL THEN\r\n        RAISE EXCEPTION \u0027Coordinates must be omitted when GPS is unavailable.\u0027;\r\n    END IF;\r\n\r\n    -- Allow check-in from 60 minutes before scheduled start\r\n    -- until the scheduled shift ends.\r\n    IF clock_timestamp() \u003c v_assignment.scheduled_start - interval \u002760 minutes\u0027\r\n       OR clock_timestamp() \u003e v_assignment.scheduled_end THEN\r\n        RAISE EXCEPTION \u0027Check-in is outside the allowed shift window.\u0027;\r\n    END IF;\r\n\r\n    v_check_in_at := clock_timestamp();\r\n\r\n    INSERT INTO public.work_attendance (\r\n        assignment_id,\r\n        check_in_at,\r\n        check_in_latitude,\r\n        check_in_longitude,\r\n        check_in_location_status\r\n    )\r\n    VALUES (\r\n        p_assignment_id,\r\n        v_check_in_at,\r\n        p_latitude,\r\n        p_longitude,\r\n        p_location_status\r\n    );\r\n\r\n    UPDATE public.work_assignments\r\n    SET status = \u0027active\u0027,\r\n        updated_at = v_check_in_at\r\n    WHERE assignment_id = p_assignment_id;\r\n\r\n    RETURN v_check_in_at;\r\nEND;\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "da608f2b4ef94bbe4954d2f20d28971a",
+                                                  "identity_arguments":  "p_assignment_id uuid, p_location_status text, p_latitude numeric, p_longitude numeric",
+                                                  "arguments_with_defaults":  "p_assignment_id uuid, p_location_status text, p_latitude numeric DEFAULT NULL::numeric, p_longitude numeric DEFAULT NULL::numeric"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.check_out_work_assignment",
+                                 "signature":  "public.check_out_work_assignment(uuid,text,numeric,numeric)",
+                                 "baseline":  {
+                                                  "oid":  "20468",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "timestamp with time zone",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.check_out_work_assignment(p_assignment_id uuid, p_location_status text, p_latitude numeric DEFAULT NULL::numeric, p_longitude numeric DEFAULT NULL::numeric)\n RETURNS timestamp with time zone\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nDECLARE\r\n    v_assignment record;\r\n    v_attendance record;\r\n    v_check_out_at timestamptz;\r\nBEGIN\r\n    IF auth.uid() IS NULL THEN\r\n        RAISE EXCEPTION \u0027You must be signed in.\u0027;\r\n    END IF;\r\n\r\n    SELECT\r\n        a.assignment_id,\r\n        a.worker_id,\r\n        a.status\r\n    INTO v_assignment\r\n    FROM public.work_assignments a\r\n    WHERE a.assignment_id = p_assignment_id\r\n    FOR UPDATE;\r\n\r\n    IF NOT FOUND THEN\r\n        RAISE EXCEPTION \u0027Work assignment not found.\u0027;\r\n    END IF;\r\n\r\n    IF v_assignment.worker_id \u003c\u003e auth.uid()\r\n       OR NOT EXISTS (\r\n           SELECT 1\r\n           FROM public.users u\r\n           WHERE u.user_id = auth.uid()\r\n             AND u.role = \u0027job_seeker\u0027::public.user_role\r\n             AND u.status = \u0027active\u0027::public.account_status\r\n       ) THEN\r\n        RAISE EXCEPTION \u0027You cannot check out of this assignment.\u0027;\r\n    END IF;\r\n\r\n    IF v_assignment.status \u003c\u003e \u0027active\u0027 THEN\r\n        RAISE EXCEPTION \u0027This assignment is not active.\u0027;\r\n    END IF;\r\n\r\n    SELECT check_in_at, check_out_at\r\n    INTO v_attendance\r\n    FROM public.work_attendance\r\n    WHERE assignment_id = p_assignment_id\r\n    FOR UPDATE;\r\n\r\n    IF NOT FOUND OR v_attendance.check_in_at IS NULL THEN\r\n        RAISE EXCEPTION \u0027You must check in before checking out.\u0027;\r\n    END IF;\r\n\r\n    IF v_attendance.check_out_at IS NOT NULL THEN\r\n        RAISE EXCEPTION \u0027You have already checked out.\u0027;\r\n    END IF;\r\n\r\n    IF p_location_status IS NULL\r\n       OR p_location_status NOT IN (\u0027granted\u0027, \u0027denied\u0027, \u0027unavailable\u0027) THEN\r\n        RAISE EXCEPTION \u0027Invalid location permission status.\u0027;\r\n    END IF;\r\n\r\n    IF p_location_status = \u0027granted\u0027 THEN\r\n        IF p_latitude IS NULL\r\n           OR p_longitude IS NULL\r\n           OR p_latitude NOT BETWEEN -90 AND 90\r\n           OR p_longitude NOT BETWEEN -180 AND 180 THEN\r\n            RAISE EXCEPTION \u0027Valid GPS coordinates are required.\u0027;\r\n        END IF;\r\n    ELSIF p_latitude IS NOT NULL OR p_longitude IS NOT NULL THEN\r\n        RAISE EXCEPTION \u0027Coordinates must be omitted when GPS is unavailable.\u0027;\r\n    END IF;\r\n\r\n    v_check_out_at := clock_timestamp();\r\n\r\n    IF v_check_out_at \u003c v_attendance.check_in_at THEN\r\n        RAISE EXCEPTION \u0027Check-out cannot precede check-in.\u0027;\r\n    END IF;\r\n\r\n    UPDATE public.work_attendance\r\n    SET check_out_at = v_check_out_at,\r\n        check_out_latitude = p_latitude,\r\n        check_out_longitude = p_longitude,\r\n        check_out_location_status = p_location_status,\r\n        updated_at = v_check_out_at\r\n    WHERE assignment_id = p_assignment_id;\r\n\r\n    UPDATE public.work_assignments\r\n    SET status = \u0027awaiting_verification\u0027,\r\n        updated_at = v_check_out_at\r\n    WHERE assignment_id = p_assignment_id;\r\n\r\n    RETURN v_check_out_at;\r\nEND;\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "cd78151fc05490eb8f98a428a85c3c70",
+                                                  "identity_arguments":  "p_assignment_id uuid, p_location_status text, p_latitude numeric, p_longitude numeric",
+                                                  "arguments_with_defaults":  "p_assignment_id uuid, p_location_status text, p_latitude numeric DEFAULT NULL::numeric, p_longitude numeric DEFAULT NULL::numeric"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.close_job_engagement",
+                                 "signature":  "public.close_job_engagement(uuid,text)",
+                                 "baseline":  {
+                                                  "oid":  "21769",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "timestamp with time zone",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.close_job_engagement(p_application_id uuid, p_reason text)\n RETURNS timestamp with time zone\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nbegin\r\n  if auth.uid() is null then raise exception \u0027Authentication required.\u0027 using errcode=\u002728000\u0027; end if;\r\n  return private.record_job_engagement_closure(p_application_id,auth.uid(),p_reason);\r\nend\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "c71351b72abfbc7ca0f29fb348238cc0",
+                                                  "identity_arguments":  "p_application_id uuid, p_reason text",
+                                                  "arguments_with_defaults":  "p_application_id uuid, p_reason text"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.create_work_assignment",
+                                 "signature":  "public.create_work_assignment(uuid,timestamp with time zone,timestamp with time zone,text)",
+                                 "baseline":  {
+                                                  "oid":  "20466",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "uuid",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.create_work_assignment(p_application_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_workplace_location text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nDECLARE\r\n    v_application record;\r\n    v_company_id uuid;\r\n    v_assignment_id uuid;\r\nBEGIN\r\n    IF auth.uid() IS NULL THEN\r\n        RAISE EXCEPTION \u0027You must be signed in.\u0027;\r\n    END IF;\r\n\r\n    SELECT\r\n        a.application_id,\r\n        a.job_id,\r\n        a.applicant_id,\r\n        a.status,\r\n        j.company_id\r\n    INTO v_application\r\n    FROM public.job_applications a\r\n    JOIN public.job_postings j\r\n      ON j.job_id = a.job_id\r\n    WHERE a.application_id = p_application_id;\r\n\r\n    IF NOT FOUND THEN\r\n        RAISE EXCEPTION \u0027Job application not found.\u0027;\r\n    END IF;\r\n\r\n    IF v_application.status \u003c\u003e \u0027hired\u0027 THEN\r\n        RAISE EXCEPTION\r\n            \u0027Work assignments can only be created for Hired applications.\u0027;\r\n    END IF;\r\n\r\n    v_company_id := v_application.company_id;\r\n\r\n    IF NOT public.can_manage_company_jobs(v_company_id) THEN\r\n        RAISE EXCEPTION\r\n            \u0027You are not authorized to create assignments for this company.\u0027;\r\n    END IF;\r\n\r\n    IF p_scheduled_start IS NULL\r\n       OR p_scheduled_end IS NULL\r\n       OR p_scheduled_end \u003c= p_scheduled_start THEN\r\n        RAISE EXCEPTION \u0027Invalid shift schedule.\u0027;\r\n    END IF;\r\n\r\n    IF p_workplace_location IS NULL\r\n       OR length(trim(p_workplace_location)) = 0\r\n       OR length(p_workplace_location) \u003e 500 THEN\r\n        RAISE EXCEPTION\r\n            \u0027Enter a workplace location of up to 500 characters.\u0027;\r\n    END IF;\r\n\r\n    INSERT INTO public.work_assignments (\r\n        application_id,\r\n        job_id,\r\n        worker_id,\r\n        company_id,\r\n        scheduled_start,\r\n        scheduled_end,\r\n        workplace_location,\r\n        created_by\r\n    )\r\n    VALUES (\r\n        v_application.application_id,\r\n        v_application.job_id,\r\n        v_application.applicant_id,\r\n        v_company_id,\r\n        p_scheduled_start,\r\n        p_scheduled_end,\r\n        trim(p_workplace_location),\r\n        auth.uid()\r\n    )\r\n    RETURNING assignment_id INTO v_assignment_id;\r\n\r\n    RETURN v_assignment_id;\r\nEND;\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "bb8d8bda205e02207b57541a185ca950",
+                                                  "identity_arguments":  "p_application_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_workplace_location text",
+                                                  "arguments_with_defaults":  "p_application_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_workplace_location text"
+                                              },
+                                 "modified":  true,
+                                 "baseline_body_md5_lf":  "148153be3aa057a658a3074db1700e39",
+                                 "candidate_body_md5_lf":  "d0fb79b54f06fb3f71072a9975661fa6"
+                             },
+                             {
+                                 "name":  "public.create_work_assignment_request",
+                                 "signature":  "public.create_work_assignment_request(uuid,uuid,timestamp with time zone,timestamp with time zone,text)",
+                                 "baseline":  {
+                                                  "oid":  "21196",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "uuid",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.create_work_assignment_request(p_request_id uuid, p_application_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_workplace_location text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nDECLARE v_request public.work_assignment_creation_requests; v_app record; v_assignment uuid;\r\nBEGIN\r\n IF auth.uid() IS NULL THEN RAISE EXCEPTION \u0027Authentication required.\u0027 USING ERRCODE = \u002728000\u0027; END IF;\r\n -- Same lock order as reservation and the legacy insert trigger.\r\n SELECT a.status, j.company_id INTO v_app FROM public.job_applications a\r\n JOIN public.job_postings j ON j.job_id = a.job_id\r\n WHERE a.application_id = p_application_id FOR UPDATE OF a, j;\r\n IF NOT FOUND THEN RAISE EXCEPTION \u0027Application unavailable.\u0027; END IF;\r\n IF public.can_manage_company_jobs(v_app.company_id) IS NOT TRUE THEN\r\n  RAISE EXCEPTION \u0027Employer access denied.\u0027 USING ERRCODE = \u002742501\u0027;\r\n END IF;\r\n SELECT * INTO v_request FROM public.work_assignment_creation_requests WHERE request_id = p_request_id FOR UPDATE;\r\n IF NOT FOUND THEN RAISE EXCEPTION \u0027Request unavailable.\u0027 USING ERRCODE = \u002722023\u0027; END IF;\r\n IF v_request.actor_id \u003c\u003e auth.uid() OR v_request.company_id \u003c\u003e v_app.company_id THEN\r\n  RAISE EXCEPTION \u0027Request access denied.\u0027 USING ERRCODE = \u002742501\u0027;\r\n END IF;\r\n IF v_request.application_id IS DISTINCT FROM p_application_id\r\n OR v_request.scheduled_start IS DISTINCT FROM p_scheduled_start\r\n OR v_request.scheduled_end IS DISTINCT FROM p_scheduled_end\r\n OR v_request.workplace_location IS DISTINCT FROM trim(p_workplace_location) THEN\r\n  RAISE EXCEPTION \u0027Request payload cannot change.\u0027 USING ERRCODE = \u002722023\u0027;\r\n END IF;\r\n IF v_request.assignment_id IS NOT NULL THEN RETURN v_request.assignment_id; END IF;\r\n IF v_app.status \u003c\u003e \u0027hired\u0027 THEN RAISE EXCEPTION \u0027Application no longer hired.\u0027; END IF;\r\n v_assignment := public.create_work_assignment(p_application_id, p_scheduled_start, p_scheduled_end, p_workplace_location);\r\n UPDATE public.work_assignment_creation_requests SET assignment_id = v_assignment WHERE request_id = p_request_id;\r\n RETURN v_assignment;\r\nEND;\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "12255c24979f6e24e79e83b0ecd252af",
+                                                  "identity_arguments":  "p_request_id uuid, p_application_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_workplace_location text",
+                                                  "arguments_with_defaults":  "p_request_id uuid, p_application_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_workplace_location text"
+                                              },
+                                 "modified":  true,
+                                 "baseline_body_md5_lf":  "083bab4da5478d0f00cee719cfc21620",
+                                 "candidate_body_md5_lf":  "1a0aafb16fa9fa92c89ad49ffb1d9b73"
+                             },
+                             {
+                                 "name":  "public.get_my_job_engagement_closure_status",
+                                 "signature":  "public.get_my_job_engagement_closure_status(uuid)",
+                                 "baseline":  {
+                                                  "oid":  "21784",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "TABLE(closure_status text, eligible boolean, eligibility_reason text, request_id uuid, requested_at timestamp with time zone, request_reason text, response_reason text, closed_at timestamp with time zone)",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.get_my_job_engagement_closure_status(p_application_id uuid)\n RETURNS TABLE(closure_status text, eligible boolean, eligibility_reason text, request_id uuid, requested_at timestamp with time zone, request_reason text, response_reason text, closed_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nDECLARE\r\n  v_actor uuid := auth.uid();\r\n  v_application public.job_applications%ROWTYPE;\r\n  v_company_id uuid;\r\n  v_closed_at timestamptz;\r\n  v_request public.job_engagement_closure_requests%ROWTYPE;\r\n  v_reason text;\r\nBEGIN\r\n  IF v_actor IS NULL THEN\r\n    RAISE EXCEPTION \u0027Authentication required.\u0027 USING errcode=\u002728000\u0027;\r\n  END IF;\r\n  SELECT a.* INTO v_application\r\n  FROM public.job_applications a\r\n  WHERE a.application_id=p_application_id;\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION \u0027Job Engagement is unavailable to this account.\u0027 USING errcode=\u002742501\u0027;\r\n  END IF;\r\n  SELECT j.company_id INTO v_company_id\r\n  FROM public.job_postings j WHERE j.job_id=v_application.job_id;\r\n  IF v_application.applicant_id IS DISTINCT FROM v_actor\r\n     AND public.can_manage_company_jobs(v_company_id) IS NOT TRUE THEN\r\n    RAISE EXCEPTION \u0027Job Engagement is unavailable to this account.\u0027 USING errcode=\u002742501\u0027;\r\n  END IF;\r\n  IF v_application.status IS DISTINCT FROM \u0027hired\u0027 THEN\r\n    RAISE EXCEPTION \u0027A hired Job Application is required.\u0027;\r\n  END IF;\r\n\r\n  SELECT c.closed_at INTO v_closed_at\r\n  FROM public.job_engagement_closures c\r\n  WHERE c.application_id=p_application_id;\r\n  SELECT r.* INTO v_request\r\n  FROM public.job_engagement_closure_requests r\r\n  WHERE r.application_id=p_application_id\r\n  ORDER BY r.requested_at DESC,r.request_id DESC LIMIT 1;\r\n\r\n  IF v_closed_at IS NOT NULL THEN\r\n    RETURN QUERY SELECT \u0027closed\u0027::text,true,NULL::text,v_request.request_id,\r\n      v_request.requested_at,v_request.request_reason,v_request.response_reason,v_closed_at;\r\n    RETURN;\r\n  END IF;\r\n  IF v_request.status=\u0027pending\u0027 THEN\r\n    RETURN QUERY SELECT \u0027closure_requested\u0027::text,false,\r\n      \u0027Waiting for the Company to review the Worker request.\u0027::text,\r\n      v_request.request_id,v_request.requested_at,v_request.request_reason,\r\n      v_request.response_reason,NULL::timestamptz;\r\n    RETURN;\r\n  END IF;\r\n\r\n  IF NOT EXISTS (\r\n    SELECT 1 FROM public.work_assignments a\r\n    WHERE a.application_id=p_application_id AND a.status=\u0027completed\u0027\r\n      AND a.verification_status=\u0027verified\u0027 AND a.verified_at IS NOT NULL\r\n  ) THEN\r\n    v_reason:=\u0027At least one completed and verified Shift is required.\u0027;\r\n  ELSIF EXISTS (\r\n    SELECT 1 FROM public.work_assignments a\r\n    WHERE a.application_id=p_application_id\r\n      AND NOT (\r\n        (a.status=\u0027completed\u0027 AND a.verification_status=\u0027verified\u0027 AND a.verified_at IS NOT NULL)\r\n        OR (a.status=\u0027cancelled\u0027 AND EXISTS (\r\n          SELECT 1 FROM public.work_assignment_cancellations x\r\n          WHERE x.assignment_id=a.assignment_id\r\n        ))\r\n      )\r\n  ) THEN\r\n    v_reason:=\u0027Every Shift must be completed and verified, or have an audited cancellation.\u0027;\r\n  ELSIF EXISTS (\r\n    SELECT 1 FROM public.work_assignment_creation_requests r\r\n    WHERE r.application_id=p_application_id AND r.assignment_id IS NULL\r\n      AND r.cancelled_at IS NULL\r\n  ) THEN\r\n    v_reason:=\u0027An unresolved Shift reservation must be created or cancelled before closure.\u0027;\r\n  ELSIF EXISTS (\r\n    SELECT 1 FROM public.disputes d\r\n    WHERE d.status IN (\u0027open\u0027,\u0027investigating\u0027,\u0027pending_information\u0027)\r\n      AND (d.application_id=p_application_id OR d.assignment_id IN (\r\n        SELECT a.assignment_id FROM public.work_assignments a\r\n        WHERE a.application_id=p_application_id\r\n      ))\r\n  ) THEN\r\n    v_reason:=\u0027An unresolved related Dispute blocks Job Engagement closure.\u0027;\r\n  END IF;\r\n\r\n  RETURN QUERY SELECT\r\n    CASE WHEN v_reason IS NULL THEN \u0027open\u0027 ELSE \u0027ineligible\u0027 END::text,\r\n    v_reason IS NULL,v_reason,v_request.request_id,v_request.requested_at,\r\n    v_request.request_reason,v_request.response_reason,NULL::timestamptz;\r\nEND\r\n$function$\n",
+                                                  "volatility":  "s",
+                                                  "returns_set":  true,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "509870d7889729e60d8a02575ff3588e",
+                                                  "identity_arguments":  "p_application_id uuid",
+                                                  "arguments_with_defaults":  "p_application_id uuid"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.guard_work_assignment_duplicate_shift",
+                                 "signature":  "public.guard_work_assignment_duplicate_shift()",
+                                 "baseline":  {
+                                                  "oid":  "21193",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "trigger",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,service_role=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.guard_work_assignment_duplicate_shift()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\ndeclare v_claim uuid; v_app_status text; v_locked_app uuid;\r\nbegin\r\n  -- Existing trigger also fires for schedule/application relinks. Lock both\r\n  -- application rows in UUID order and reject edits involving a finalized\r\n  -- engagement, including attempts to move a shift out of a closed application.\r\n  if tg_op=\u0027UPDATE\u0027 then\r\n    for v_locked_app in\r\n      select a.application_id from public.job_applications a\r\n      where a.application_id in (old.application_id,new.application_id)\r\n      order by a.application_id for update\r\n    loop\r\n      if exists(select 1 from public.job_engagement_closures c where c.application_id=v_locked_app) then\r\n        raise exception \u0027This Job Engagement is closed; its Shifts cannot be changed.\u0027;\r\n      end if;\r\n    end loop;\r\n  end if;\r\n  select a.status into v_app_status from public.job_applications a\r\n    where a.application_id=new.application_id for update;\r\n  if not found then raise exception \u0027Job Application not found.\u0027; end if;\r\n  if v_app_status is distinct from \u0027hired\u0027 then raise exception \u0027Assignments require a hired Application.\u0027; end if;\r\n  if exists(select 1 from public.job_engagement_closures c where c.application_id=new.application_id) then\r\n    raise exception \u0027This Job Engagement is closed; no new Shift may be added.\u0027;\r\n  end if;\r\n  if exists(select 1 from public.work_assignment_creation_requests r\r\n      where r.application_id=new.application_id and r.actor_id=new.created_by\r\n        and r.scheduled_start=new.scheduled_start and r.scheduled_end=new.scheduled_end\r\n        and r.cancelled_at is not null) then\r\n    raise exception \u0027This Assignment Request was cancelled and cannot create a Shift.\u0027;\r\n  end if;\r\n  if exists (select 1 from public.work_assignments a\r\n    where a.application_id=new.application_id and a.scheduled_start=new.scheduled_start\r\n      and a.scheduled_end=new.scheduled_end and a.assignment_id\u003c\u003enew.assignment_id) then\r\n    raise exception \u0027This application shift already exists.\u0027 using errcode=\u002723505\u0027;\r\n  end if;\r\n  insert into public.work_assignment_shift_claims(application_id,scheduled_start,scheduled_end,assignment_id)\r\n    values(new.application_id,new.scheduled_start,new.scheduled_end,new.assignment_id)\r\n    on conflict do nothing;\r\n  select assignment_id into v_claim from public.work_assignment_shift_claims\r\n    where application_id=new.application_id and scheduled_start=new.scheduled_start and scheduled_end=new.scheduled_end;\r\n  if v_claim is distinct from new.assignment_id then\r\n    raise exception \u0027This application shift is already claimed.\u0027 using errcode=\u002723505\u0027;\r\n  end if;\r\n  return new;\r\nend\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "3de11b7ad06274924f25c49651767259",
+                                                  "identity_arguments":  "",
+                                                  "arguments_with_defaults":  ""
+                                              },
+                                 "modified":  true,
+                                 "baseline_body_md5_lf":  "6da1998230baf301986899ba9bcacf53",
+                                 "candidate_body_md5_lf":  "f31c8ce2ade136ac0d0ab016dd450b46"
+                             },
+                             {
+                                 "name":  "public.list_company_engagement_closure_requests",
+                                 "signature":  "public.list_company_engagement_closure_requests()",
+                                 "baseline":  {
+                                                  "oid":  "21771",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "TABLE(request_id uuid, application_id uuid, company_id uuid, job_title text, worker_name text, request_reason text, status text, requested_at timestamp with time zone, processed_by uuid, processed_at timestamp with time zone, response_reason text)",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres}",
+                                                  "language":  "sql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.list_company_engagement_closure_requests()\n RETURNS TABLE(request_id uuid, application_id uuid, company_id uuid, job_title text, worker_name text, request_reason text, status text, requested_at timestamp with time zone, processed_by uuid, processed_at timestamp with time zone, response_reason text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\n  select r.request_id,r.application_id,j.company_id,j.title::text,u.name::text,\r\n    r.request_reason,r.status,r.requested_at,r.processed_by,r.processed_at,r.response_reason\r\n  from public.job_engagement_closure_requests r\r\n  join public.job_applications a on a.application_id=r.application_id\r\n  join public.job_postings j on j.job_id=a.job_id\r\n  join public.users u on u.user_id=r.worker_id\r\n  where public.can_manage_company_jobs(j.company_id) is true\r\n  order by r.requested_at desc,r.request_id\r\n$function$\n",
+                                                  "volatility":  "s",
+                                                  "returns_set":  true,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "5cbd56c7a4e5c98f840ec9cc46eea36b",
+                                                  "identity_arguments":  "",
+                                                  "arguments_with_defaults":  ""
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.list_company_work_assignments",
+                                 "signature":  "public.list_company_work_assignments(uuid)",
+                                 "baseline":  {
+                                                  "oid":  "20507",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "TABLE(assignment_id uuid, application_id uuid, job_id uuid, job_title text, worker_id uuid, scheduled_start timestamp with time zone, scheduled_end timestamp with time zone, workplace_location text, assignment_status text, verification_status text, check_in_at timestamp with time zone, check_out_at timestamp with time zone, verified_at timestamp with time zone)",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.list_company_work_assignments(p_company_id uuid)\n RETURNS TABLE(assignment_id uuid, application_id uuid, job_id uuid, job_title text, worker_id uuid, scheduled_start timestamp with time zone, scheduled_end timestamp with time zone, workplace_location text, assignment_status text, verification_status text, check_in_at timestamp with time zone, check_out_at timestamp with time zone, verified_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nBEGIN\r\n    IF auth.uid() IS NULL THEN\r\n        RAISE EXCEPTION \u0027Authentication required\u0027;\r\n    END IF;\r\n\r\n    IF p_company_id IS NULL\r\n       OR NOT public.can_manage_company_jobs(p_company_id)\r\n    THEN\r\n        RAISE EXCEPTION \u0027Not authorized to view company assignments\u0027;\r\n    END IF;\r\n\r\n    RETURN QUERY\r\n    SELECT\r\n        a.assignment_id,\r\n        a.application_id,\r\n        a.job_id,\r\n        j.title::text,\r\n        a.worker_id,\r\n        a.scheduled_start,\r\n        a.scheduled_end,\r\n        a.workplace_location,\r\n        a.status::text,\r\n        a.verification_status::text,\r\n        att.check_in_at,\r\n        att.check_out_at,\r\n        a.verified_at\r\n    FROM public.work_assignments a\r\n    JOIN public.job_postings j\r\n      ON j.job_id = a.job_id\r\n    LEFT JOIN public.work_attendance att\r\n      ON att.assignment_id = a.assignment_id\r\n    WHERE a.company_id = p_company_id\r\n    ORDER BY a.scheduled_start DESC;\r\nEND;\r\n$function$\n",
+                                                  "volatility":  "s",
+                                                  "returns_set":  true,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "1107b445d7dfdba875b21e551c886ab9",
+                                                  "identity_arguments":  "p_company_id uuid",
+                                                  "arguments_with_defaults":  "p_company_id uuid"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.list_my_work_assignments",
+                                 "signature":  "public.list_my_work_assignments()",
+                                 "baseline":  {
+                                                  "oid":  "20506",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "TABLE(assignment_id uuid, application_id uuid, job_id uuid, job_title text, company_id uuid, company_name text, scheduled_start timestamp with time zone, scheduled_end timestamp with time zone, workplace_location text, assignment_status text, verification_status text, check_in_at timestamp with time zone, check_out_at timestamp with time zone, verified_at timestamp with time zone)",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.list_my_work_assignments()\n RETURNS TABLE(assignment_id uuid, application_id uuid, job_id uuid, job_title text, company_id uuid, company_name text, scheduled_start timestamp with time zone, scheduled_end timestamp with time zone, workplace_location text, assignment_status text, verification_status text, check_in_at timestamp with time zone, check_out_at timestamp with time zone, verified_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nBEGIN\r\n    IF auth.uid() IS NULL THEN\r\n        RAISE EXCEPTION \u0027Authentication required\u0027;\r\n    END IF;\r\n\r\n    RETURN QUERY\r\n    SELECT\r\n        a.assignment_id,\r\n        a.application_id,\r\n        a.job_id,\r\n        j.title::text,\r\n        a.company_id,\r\n        c.company_name::text,\r\n        a.scheduled_start,\r\n        a.scheduled_end,\r\n        a.workplace_location,\r\n        a.status::text,\r\n        a.verification_status::text,\r\n        att.check_in_at,\r\n        att.check_out_at,\r\n        a.verified_at\r\n    FROM public.work_assignments a\r\n    JOIN public.job_postings j\r\n      ON j.job_id = a.job_id\r\n    JOIN public.companies c\r\n      ON c.company_id = a.company_id\r\n    LEFT JOIN public.work_attendance att\r\n      ON att.assignment_id = a.assignment_id\r\n    WHERE a.worker_id = auth.uid()\r\n      AND EXISTS (\r\n          SELECT 1\r\n          FROM public.users u\r\n          WHERE u.user_id = auth.uid()\r\n            AND u.role = \u0027job_seeker\u0027\r\n            AND u.status = \u0027active\u0027\r\n      )\r\n    ORDER BY a.scheduled_start DESC;\r\nEND;\r\n$function$\n",
+                                                  "volatility":  "s",
+                                                  "returns_set":  true,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "f9446e58502bc3f39435048c5ff7ef20",
+                                                  "identity_arguments":  "",
+                                                  "arguments_with_defaults":  ""
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.lookup_work_assignment_request",
+                                 "signature":  "public.lookup_work_assignment_request(uuid)",
+                                 "baseline":  {
+                                                  "oid":  "21197",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "uuid",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.lookup_work_assignment_request(p_request_id uuid)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nDECLARE v_request public.work_assignment_creation_requests;\r\nBEGIN\r\n IF auth.uid() IS NULL THEN RAISE EXCEPTION \u0027Authentication required.\u0027 USING ERRCODE = \u002728000\u0027; END IF;\r\n SELECT * INTO v_request FROM public.work_assignment_creation_requests WHERE request_id = p_request_id;\r\n IF NOT FOUND THEN RETURN NULL; END IF;\r\n IF v_request.actor_id \u003c\u003e auth.uid() OR public.can_manage_company_jobs(v_request.company_id) IS NOT TRUE THEN\r\n  RAISE EXCEPTION \u0027Request access denied.\u0027 USING ERRCODE = \u002742501\u0027;\r\n END IF;\r\n RETURN v_request.assignment_id;\r\nEND;\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "d25d36d41b920c39381d4cb1799a5ef4",
+                                                  "identity_arguments":  "p_request_id uuid",
+                                                  "arguments_with_defaults":  "p_request_id uuid"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.request_job_engagement_closure",
+                                 "signature":  "public.request_job_engagement_closure(uuid,text)",
+                                 "baseline":  {
+                                                  "oid":  "21770",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "uuid",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.request_job_engagement_closure(p_application_id uuid, p_reason text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\ndeclare v_app public.job_applications%rowtype; v_request_id uuid;\r\nbegin\r\n  if auth.uid() is null then raise exception \u0027Authentication required.\u0027 using errcode=\u002728000\u0027; end if;\r\n  if p_reason is null or p_reason !~ \u0027[^[:space:]]\u0027 or char_length(p_reason)\u003e2000 then\r\n    raise exception \u0027A closure request reason of 1 to 2000 characters is required.\u0027;\r\n  end if;\r\n  select * into v_app from public.job_applications a where a.application_id=p_application_id for update;\r\n  if not found or v_app.status is distinct from \u0027hired\u0027 then raise exception \u0027A hired Job Application is required.\u0027; end if;\r\n  if v_app.applicant_id is distinct from auth.uid() then\r\n    raise exception \u0027Only the Job Seeker on this Application may request closure.\u0027 using errcode=\u002742501\u0027;\r\n  end if;\r\n  if exists(select 1 from public.job_engagement_closures c where c.application_id=p_application_id) then\r\n    raise exception \u0027This Job Engagement is already closed.\u0027;\r\n  end if;\r\n  select r.request_id into v_request_id from public.job_engagement_closure_requests r\r\n    where r.application_id=p_application_id and r.status=\u0027pending\u0027;\r\n  if found then return v_request_id; end if;\r\n  insert into public.job_engagement_closure_requests(application_id,worker_id,request_reason)\r\n    values(p_application_id,auth.uid(),btrim(p_reason)) returning request_id into v_request_id;\r\n  insert into public.job_engagement_closure_request_events(request_id,actor_id,action,reason)\r\n    values(v_request_id,auth.uid(),\u0027requested\u0027,btrim(p_reason));\r\n  return v_request_id;\r\nend\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "61fe800ef16730ec6de1f0040cee163d",
+                                                  "identity_arguments":  "p_application_id uuid, p_reason text",
+                                                  "arguments_with_defaults":  "p_application_id uuid, p_reason text"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.request_more_work_evidence",
+                                 "signature":  "public.request_more_work_evidence(uuid,text)",
+                                 "baseline":  {
+                                                  "oid":  "20504",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "void",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,service_role=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.request_more_work_evidence(p_assignment_id uuid, p_reason text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nDECLARE\r\n    v_assignment public.work_assignments%ROWTYPE;\r\nBEGIN\r\n    IF auth.uid() IS NULL THEN\r\n        RAISE EXCEPTION \u0027Authentication required\u0027;\r\n    END IF;\r\n\r\n    IF p_reason IS NULL\r\n       OR char_length(btrim(p_reason)) NOT BETWEEN 1 AND 1000\r\n    THEN\r\n        RAISE EXCEPTION \u0027Reason must contain 1–1000 characters\u0027;\r\n    END IF;\r\n\r\n    SELECT *\r\n    INTO v_assignment\r\n    FROM public.work_assignments\r\n    WHERE assignment_id = p_assignment_id\r\n    FOR UPDATE;\r\n\r\n    IF NOT FOUND THEN\r\n        RAISE EXCEPTION \u0027Assignment not found\u0027;\r\n    END IF;\r\n\r\n    IF NOT public.can_manage_company_jobs(v_assignment.company_id) THEN\r\n        RAISE EXCEPTION \u0027Not authorized to review this assignment\u0027;\r\n    END IF;\r\n\r\n    IF v_assignment.status \u003c\u003e \u0027awaiting_verification\u0027\r\n       OR v_assignment.verification_status \u003c\u003e \u0027pending_review\u0027\r\n    THEN\r\n        RAISE EXCEPTION \u0027Assignment is not pending evidence review\u0027;\r\n    END IF;\r\n\r\n    IF NOT EXISTS (\r\n        SELECT 1\r\n        FROM public.work_evidence_submissions\r\n        WHERE assignment_id = p_assignment_id\r\n    ) THEN\r\n        RAISE EXCEPTION \u0027No evidence submission exists\u0027;\r\n    END IF;\r\n\r\n    UPDATE public.work_assignments\r\n    SET verification_status = \u0027more_evidence_required\u0027,\r\n        updated_at = clock_timestamp()\r\n    WHERE assignment_id = p_assignment_id;\r\n\r\n    INSERT INTO public.work_verification_history (\r\n        assignment_id,\r\n        action,\r\n        previous_status,\r\n        new_status,\r\n        performed_by,\r\n        note\r\n    )\r\n    VALUES (\r\n        p_assignment_id,\r\n        \u0027more_evidence_requested\u0027,\r\n        \u0027pending_review\u0027,\r\n        \u0027more_evidence_required\u0027,\r\n        auth.uid(),\r\n        btrim(p_reason)\r\n    );\r\nEND;\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "61fccb85590fbb4cb0a58d2a95f14320",
+                                                  "identity_arguments":  "p_assignment_id uuid, p_reason text",
+                                                  "arguments_with_defaults":  "p_assignment_id uuid, p_reason text"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.reserve_work_assignment_request",
+                                 "signature":  "public.reserve_work_assignment_request(uuid,timestamp with time zone,timestamp with time zone,text)",
+                                 "baseline":  {
+                                                  "oid":  "21195",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "uuid",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.reserve_work_assignment_request(p_application_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_workplace_location text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nDECLARE v_app record; v_request public.work_assignment_creation_requests;\r\nBEGIN\r\n IF auth.uid() IS NULL THEN RAISE EXCEPTION \u0027Authentication required.\u0027 USING ERRCODE = \u002728000\u0027; END IF;\r\n SELECT a.status, j.company_id INTO v_app FROM public.job_applications a\r\n JOIN public.job_postings j ON j.job_id = a.job_id\r\n WHERE a.application_id = p_application_id FOR UPDATE OF a, j;\r\n IF NOT FOUND THEN RAISE EXCEPTION \u0027Application unavailable.\u0027; END IF;\r\n IF v_app.status \u003c\u003e \u0027hired\u0027 OR public.can_manage_company_jobs(v_app.company_id) IS NOT TRUE THEN\r\n  RAISE EXCEPTION \u0027Employer access or hired eligibility denied.\u0027 USING ERRCODE = \u002742501\u0027;\r\n END IF;\r\n IF p_scheduled_start IS NULL OR p_scheduled_end IS NULL OR p_scheduled_end \u003c= p_scheduled_start\r\n OR NOT isfinite(p_scheduled_start) OR NOT isfinite(p_scheduled_end)\r\n OR p_workplace_location IS NULL OR length(trim(p_workplace_location)) NOT BETWEEN 1 AND 500 THEN\r\n  RAISE EXCEPTION \u0027Invalid shift payload.\u0027 USING ERRCODE = \u002722023\u0027;\r\n END IF;\r\n SELECT * INTO v_request FROM public.work_assignment_creation_requests\r\n WHERE actor_id = auth.uid() AND application_id = p_application_id\r\n AND scheduled_start = p_scheduled_start AND scheduled_end = p_scheduled_end;\r\n IF FOUND THEN\r\n  IF v_request.workplace_location \u003c\u003e trim(p_workplace_location) THEN\r\n   RAISE EXCEPTION \u0027Request payload cannot change.\u0027 USING ERRCODE = \u002722023\u0027;\r\n  END IF;\r\n  RETURN v_request.request_id;\r\n END IF;\r\n INSERT INTO public.work_assignment_creation_requests(actor_id, application_id, company_id,\r\n scheduled_start, scheduled_end, workplace_location)\r\n VALUES(auth.uid(), p_application_id, v_app.company_id, p_scheduled_start, p_scheduled_end, trim(p_workplace_location))\r\n RETURNING * INTO v_request;\r\n RETURN v_request.request_id;\r\nEND;\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "7a5fd48bd7bcd9779f4c9d39f6fd67a2",
+                                                  "identity_arguments":  "p_application_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_workplace_location text",
+                                                  "arguments_with_defaults":  "p_application_id uuid, p_scheduled_start timestamp with time zone, p_scheduled_end timestamp with time zone, p_workplace_location text"
+                                              },
+                                 "modified":  true,
+                                 "baseline_body_md5_lf":  "b62dbee5b1bb14b1c3f11cca7827aba2",
+                                 "candidate_body_md5_lf":  "8c86c365d7adaf558379f5850d78d093"
+                             },
+                             {
+                                 "name":  "public.respond_job_engagement_closure_request",
+                                 "signature":  "public.respond_job_engagement_closure_request(uuid,text,text)",
+                                 "baseline":  {
+                                                  "oid":  "21772",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "timestamp with time zone",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,authenticated=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.respond_job_engagement_closure_request(p_request_id uuid, p_decision text, p_reason text)\n RETURNS timestamp with time zone\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\ndeclare v_app_id uuid; v_status text; v_closed_at timestamptz;\r\nbegin\r\n  if auth.uid() is null then raise exception \u0027Authentication required.\u0027 using errcode=\u002728000\u0027; end if;\r\n  if p_decision is null or p_decision not in (\u0027close\u0027,\u0027decline\u0027) or p_reason is null or p_reason !~ \u0027[^[:space:]]\u0027 or char_length(p_reason)\u003e2000 then\r\n    raise exception \u0027Choose close or decline and provide a reason of 1 to 2000 characters.\u0027;\r\n  end if;\r\n  select r.application_id into v_app_id from public.job_engagement_closure_requests r where r.request_id=p_request_id;\r\n  if not found then raise exception \u0027Closure Request not found.\u0027; end if;\r\n  perform 1 from public.job_applications a where a.application_id=v_app_id for update;\r\n  if not found then raise exception \u0027Job Application not found.\u0027; end if;\r\n  select r.status into v_status from public.job_engagement_closure_requests r\r\n    where r.request_id=p_request_id for update;\r\n  if not found or v_status is distinct from \u0027pending\u0027 then raise exception \u0027Closure Request is no longer pending.\u0027; end if;\r\n  if p_decision=\u0027close\u0027 then\r\n    v_closed_at:=private.record_job_engagement_closure(v_app_id,auth.uid(),p_reason);\r\n    return v_closed_at;\r\n  end if;\r\n  update public.job_engagement_closure_requests set status=\u0027declined\u0027,processed_by=auth.uid(),\r\n    processed_at=pg_catalog.clock_timestamp(),response_reason=btrim(p_reason)\r\n    where request_id=p_request_id;\r\n  insert into public.job_engagement_closure_request_events(request_id,actor_id,action,reason)\r\n    values(p_request_id,auth.uid(),\u0027declined\u0027,btrim(p_reason));\r\n  return null;\r\nend\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "f02b6fef2e4ae491a9ce7e6e046eea6a",
+                                                  "identity_arguments":  "p_request_id uuid, p_decision text, p_reason text",
+                                                  "arguments_with_defaults":  "p_request_id uuid, p_decision text, p_reason text"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.submit_work_evidence",
+                                 "signature":  "public.submit_work_evidence(uuid,text,text[])",
+                                 "baseline":  {
+                                                  "oid":  "20500",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "integer",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,service_role=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.submit_work_evidence(p_assignment_id uuid, p_description text, p_storage_paths text[])\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nDECLARE\r\n    v_assignment public.work_assignments%ROWTYPE;\r\n    v_round integer;\r\n    v_path text;\r\n    v_file_count integer;\r\n    v_existing_count integer;\r\n    v_object_count integer;\r\n    v_mime_type text;\r\n    v_file_name text;\r\nBEGIN\r\n    IF auth.uid() IS NULL THEN\r\n        RAISE EXCEPTION \u0027Authentication required\u0027;\r\n    END IF;\r\n\r\n    IF p_description IS NULL\r\n       OR char_length(btrim(p_description)) NOT BETWEEN 1 AND 2000\r\n    THEN\r\n        RAISE EXCEPTION \u0027Description must contain 1–2000 characters\u0027;\r\n    END IF;\r\n\r\n    v_file_count := coalesce(array_length(p_storage_paths, 1), 0);\r\n\r\n    IF v_file_count NOT BETWEEN 1 AND 5 THEN\r\n        RAISE EXCEPTION \u0027Submit between 1 and 5 evidence files\u0027;\r\n    END IF;\r\n\r\n    SELECT *\r\n    INTO v_assignment\r\n    FROM public.work_assignments\r\n    WHERE assignment_id = p_assignment_id\r\n    FOR UPDATE;\r\n\r\n    IF NOT FOUND THEN\r\n        RAISE EXCEPTION \u0027Assignment not found\u0027;\r\n    END IF;\r\n\r\n    IF v_assignment.worker_id \u003c\u003e auth.uid() THEN\r\n        RAISE EXCEPTION \u0027Not authorized for this assignment\u0027;\r\n    END IF;\r\n    IF NOT EXISTS (\r\n    SELECT 1\r\n    FROM public.users u\r\n    WHERE u.user_id = auth.uid()\r\n      AND u.role = \u0027job_seeker\u0027::public.user_role\r\n      AND u.status = \u0027active\u0027::public.account_status\r\n) THEN\r\n    RAISE EXCEPTION\r\n        \u0027Only active job seekers may submit work evidence\u0027;\r\nEND IF;\r\n\r\n    IF v_assignment.status \u003c\u003e \u0027awaiting_verification\u0027\r\n       OR v_assignment.verification_status NOT IN (\r\n           \u0027not_submitted\u0027,\r\n           \u0027more_evidence_required\u0027\r\n       )\r\n    THEN\r\n        RAISE EXCEPTION \u0027Evidence submission is not currently allowed\u0027;\r\n    END IF;\r\n\r\n    IF NOT EXISTS (\r\n        SELECT 1\r\n        FROM public.work_attendance\r\n        WHERE assignment_id = p_assignment_id\r\n          AND check_in_at IS NOT NULL\r\n          AND check_out_at IS NOT NULL\r\n    ) THEN\r\n        RAISE EXCEPTION \u0027Check-in and check-out are required\u0027;\r\n    END IF;\r\n\r\n    -- Do not allow the same path twice within one submission.\r\n    SELECT count(DISTINCT path)\r\n    INTO v_existing_count\r\n    FROM unnest(p_storage_paths) AS paths(path);\r\n\r\n    IF v_existing_count \u003c\u003e v_file_count THEN\r\n        RAISE EXCEPTION \u0027Duplicate or invalid evidence paths\u0027;\r\n    END IF;\r\n\r\n    SELECT coalesce(max(submission_round), 0) + 1\r\n    INTO v_round\r\n    FROM public.work_evidence_submissions\r\n    WHERE assignment_id = p_assignment_id;\r\n\r\n    IF v_assignment.verification_status = \u0027not_submitted\u0027\r\n       AND v_round \u003c\u003e 1 THEN\r\n        RAISE EXCEPTION \u0027Invalid first submission\u0027;\r\n    END IF;\r\n\r\n    IF v_assignment.verification_status = \u0027more_evidence_required\u0027\r\n       AND v_round = 1 THEN\r\n        RAISE EXCEPTION \u0027No previous submission to supplement\u0027;\r\n    END IF;\r\n\r\n    -- Validate each file against the private Storage bucket.\r\n    FOREACH v_path IN ARRAY p_storage_paths LOOP\r\n\r\n    IF v_path IS NULL\r\n    OR v_path !~ (\r\n        \u0027^\u0027\r\n        || p_assignment_id::text\r\n        || \u0027/[A-Za-z0-9][A-Za-z0-9._-]{0,199}\\.(jpg|jpeg|png|webp|pdf)$\u0027\r\n    )\r\n    THEN\r\n        RAISE EXCEPTION\r\n            \u0027Invalid evidence file path or unsupported filename\u0027;\r\n    END IF;\r\n\r\n        -- Confirm the object exists, belongs to this worker,\r\n        -- and is within the 10 MB file-size limit.\r\n\r\n        SELECT count(*), max(o.metadata -\u003e\u003e \u0027mimetype\u0027)\r\n        INTO v_object_count, v_mime_type\r\n        FROM storage.objects o\r\n        WHERE o.bucket_id = \u0027work-evidence\u0027\r\n            AND o.name = v_path\r\n            AND o.owner_id = auth.uid()::text\r\n            AND (o.metadata -\u003e\u003e \u0027size\u0027) ~ \u0027^[0-9]+$\u0027\r\n            AND (o.metadata -\u003e\u003e \u0027size\u0027)::bigint\r\n                BETWEEN 1 AND 10485760;\r\n\r\n        IF v_object_count \u003c\u003e 1 THEN\r\n            RAISE EXCEPTION \u0027Evidence file not found in private storage\u0027;\r\n        END IF;\r\n\r\n        IF v_mime_type NOT IN (\r\n            \u0027image/jpeg\u0027,\r\n            \u0027image/png\u0027,\r\n            \u0027image/webp\u0027,\r\n            \u0027application/pdf\u0027\r\n        ) THEN\r\n            RAISE EXCEPTION \u0027Unsupported evidence file type\u0027;\r\n        END IF;\r\n\r\n        IF EXISTS (\r\n            SELECT 1\r\n            FROM public.work_evidence e\r\n            WHERE e.storage_path = v_path\r\n        ) THEN\r\n            RAISE EXCEPTION \u0027Evidence file has already been submitted\u0027;\r\n        END IF;\r\n\r\n        v_file_name := split_part(v_path, \u0027/\u0027, 2);\r\n\r\n        INSERT INTO public.work_evidence (\r\n            assignment_id,\r\n            submitted_by,\r\n            submission_round,\r\n            description,\r\n            storage_path,\r\n            file_name,\r\n            mime_type\r\n        )\r\n        VALUES (\r\n            p_assignment_id,\r\n            auth.uid(),\r\n            v_round,\r\n            btrim(p_description),\r\n            v_path,\r\n            v_file_name,\r\n            v_mime_type\r\n        );\r\n    END LOOP;\r\n\r\n    INSERT INTO public.work_evidence_submissions (\r\n        assignment_id,\r\n        submission_round,\r\n        submitted_by,\r\n        description,\r\n        file_count\r\n    )\r\n    VALUES (\r\n        p_assignment_id,\r\n        v_round,\r\n        auth.uid(),\r\n        btrim(p_description),\r\n        v_file_count\r\n    );\r\n\r\n    INSERT INTO public.work_verification_history (\r\n        assignment_id,\r\n        action,\r\n        previous_status,\r\n        new_status,\r\n        performed_by,\r\n        note\r\n    )\r\n    VALUES (\r\n        p_assignment_id,\r\n        CASE\r\n            WHEN v_round = 1 THEN \u0027evidence_submitted\u0027\r\n            ELSE \u0027evidence_resubmitted\u0027\r\n        END,\r\n        v_assignment.verification_status,\r\n        \u0027pending_review\u0027,\r\n        auth.uid(),\r\n        NULL\r\n    );\r\n\r\n    UPDATE public.work_assignments\r\n    SET verification_status = \u0027pending_review\u0027,\r\n        updated_at = clock_timestamp()\r\n    WHERE assignment_id = p_assignment_id;\r\n\r\n    RETURN v_round;\r\nEND;\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "5195aae515ef8e086e7425ec6dda22b2",
+                                                  "identity_arguments":  "p_assignment_id uuid, p_description text, p_storage_paths text[]",
+                                                  "arguments_with_defaults":  "p_assignment_id uuid, p_description text, p_storage_paths text[]"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             },
+                             {
+                                 "name":  "public.verify_work_assignment",
+                                 "signature":  "public.verify_work_assignment(uuid)",
+                                 "baseline":  {
+                                                  "oid":  "20505",
+                                                  "kind":  "f",
+                                                  "owner":  "postgres",
+                                                  "result":  "void",
+                                                  "schema":  "public",
+                                                  "strict":  false,
+                                                  "raw_acl":  "{postgres=X/postgres,service_role=X/postgres}",
+                                                  "language":  "plpgsql",
+                                                  "parallel":  "u",
+                                                  "settings":  [
+                                                                   "search_path=\"\""
+                                                               ],
+                                                  "leakproof":  false,
+                                                  "definition":  "CREATE OR REPLACE FUNCTION public.verify_work_assignment(p_assignment_id uuid)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nDECLARE\r\n    v_assignment public.work_assignments%ROWTYPE;\r\n    v_latest_round integer;\r\n    v_expected_files integer;\r\n    v_recorded_files bigint;\r\nBEGIN\r\n    IF auth.uid() IS NULL THEN\r\n        RAISE EXCEPTION \u0027Authentication required\u0027;\r\n    END IF;\r\n\r\n    SELECT *\r\n    INTO v_assignment\r\n    FROM public.work_assignments\r\n    WHERE assignment_id = p_assignment_id\r\n    FOR UPDATE;\r\n\r\n    IF NOT FOUND THEN\r\n        RAISE EXCEPTION \u0027Assignment not found\u0027;\r\n    END IF;\r\n\r\n    IF NOT public.can_manage_company_jobs(v_assignment.company_id) THEN\r\n        RAISE EXCEPTION \u0027Not authorized to verify this assignment\u0027;\r\n    END IF;\r\n\r\n    IF v_assignment.status \u003c\u003e \u0027awaiting_verification\u0027\r\n       OR v_assignment.verification_status \u003c\u003e \u0027pending_review\u0027\r\n    THEN\r\n        RAISE EXCEPTION \u0027Assignment is not pending verification\u0027;\r\n    END IF;\r\n\r\n    -- Both attendance timestamps must exist.\r\n    IF NOT EXISTS (\r\n        SELECT 1\r\n        FROM public.work_attendance\r\n        WHERE assignment_id = p_assignment_id\r\n          AND check_in_at IS NOT NULL\r\n          AND check_out_at IS NOT NULL\r\n          AND check_out_at \u003e= check_in_at\r\n    ) THEN\r\n        RAISE EXCEPTION \u0027Completed attendance is required\u0027;\r\n    END IF;\r\n\r\n    -- Identify the most recent evidence submission.\r\n    SELECT submission_round, file_count\r\n    INTO v_latest_round, v_expected_files\r\n    FROM public.work_evidence_submissions\r\n    WHERE assignment_id = p_assignment_id\r\n    ORDER BY submission_round DESC\r\n    LIMIT 1;\r\n\r\n    IF NOT FOUND THEN\r\n        RAISE EXCEPTION \u0027Work evidence has not been submitted\u0027;\r\n    END IF;\r\n\r\n    -- Confirm that the latest submission has 1–5 recorded files.\r\n    SELECT count(*)\r\n    INTO v_recorded_files\r\n    FROM public.work_evidence\r\n    WHERE assignment_id = p_assignment_id\r\n      AND submission_round = v_latest_round;\r\n\r\n    IF v_recorded_files \u003c\u003e v_expected_files\r\n       OR v_recorded_files NOT BETWEEN 1 AND 5\r\n    THEN\r\n        RAISE EXCEPTION \u0027Evidence file records are incomplete\u0027;\r\n    END IF;\r\n\r\n    -- Confirm that every recorded file in the latest submission\r\n    -- still exists in the private Storage bucket.\r\n    IF EXISTS (\r\n        SELECT 1\r\n        FROM public.work_evidence e\r\n        WHERE e.assignment_id = p_assignment_id\r\n        AND e.submission_round = v_latest_round\r\n        AND NOT EXISTS (\r\n            SELECT 1\r\n            FROM storage.objects o\r\n            WHERE o.bucket_id = \u0027work-evidence\u0027\r\n                AND o.name = e.storage_path\r\n                AND o.owner_id = e.submitted_by::text\r\n        )\r\n    ) THEN\r\n        RAISE EXCEPTION\r\n            \u0027One or more evidence files are missing from private storage\u0027;\r\n    END IF;\r\n    -- Mark the shift as completed and verified.\r\n    UPDATE public.work_assignments\r\n    SET status = \u0027completed\u0027,\r\n        verification_status = \u0027verified\u0027,\r\n        verified_at = clock_timestamp(),\r\n        updated_at = clock_timestamp()\r\n    WHERE assignment_id = p_assignment_id;\r\n\r\n    -- Preserve the employer\u0027s verification decision.\r\n    INSERT INTO public.work_verification_history (\r\n        assignment_id,\r\n        action,\r\n        previous_status,\r\n        new_status,\r\n        performed_by,\r\n        note\r\n    )\r\n    VALUES (\r\n        p_assignment_id,\r\n        \u0027verified\u0027,\r\n        \u0027pending_review\u0027,\r\n        \u0027verified\u0027,\r\n        auth.uid(),\r\n        \u0027Work verified by employer\u0027\r\n    );\r\nEND;\r\n$function$\n",
+                                                  "volatility":  "v",
+                                                  "returns_set":  false,
+                                                  "security_mode":  "DEFINER",
+                                                  "acl_is_default":  false,
+                                                  "definition_md5":  "ec96a7903fc4862b0f5dd8ad278c41a3",
+                                                  "identity_arguments":  "p_assignment_id uuid",
+                                                  "arguments_with_defaults":  "p_assignment_id uuid"
+                                              },
+                                 "modified":  false,
+                                 "baseline_body_md5_lf":  null,
+                                 "candidate_body_md5_lf":  null
+                             }
+                         ]
+}

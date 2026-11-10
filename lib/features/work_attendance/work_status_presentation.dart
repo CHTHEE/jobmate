@@ -2,6 +2,32 @@ import 'package:flutter/material.dart';
 
 import 'work_attendance_models.dart';
 
+/// Informational only: compare saved server instants, never the device clock.
+/// This does not change assignment status, eligibility, review or payment.
+String? workCheckInTimingLabel(DateTime scheduledStart, DateTime? checkInAt) {
+  if (checkInAt == null) return null;
+  return checkInAt.isAfter(scheduledStart.add(const Duration(minutes: 15)))
+      ? 'Late'
+      : 'On Time';
+}
+
+/// Shared text presentation for worker and authorized employer assignment views.
+class WorkCheckInTiming extends StatelessWidget {
+  const WorkCheckInTiming({super.key, required this.assignment});
+  final WorkAssignment assignment;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = workCheckInTimingLabel(
+      assignment.scheduledStart,
+      assignment.checkInAt,
+    );
+    return label == null
+        ? const SizedBox.shrink()
+        : Text('Check-in timing: $label (15-minute grace period)');
+  }
+}
+
 /// Presentation only. Never grants attendance or verification eligibility.
 enum WorkStage {
   scheduled,

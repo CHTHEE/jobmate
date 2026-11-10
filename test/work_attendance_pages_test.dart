@@ -29,6 +29,36 @@ void main() {
     MaterialApp(home: WorkAttendancePage(repository: repository)),
   );
 
+  for (final (timestamp, expected) in <(String?, String?)>[
+    (null, null),
+    ('2026-11-05T00:30:00Z', 'On Time'),
+    ('2026-11-05T01:15:00Z', 'On Time'),
+    ('2026-11-05T01:15:01Z', 'Late'),
+  ]) {
+    testWidgets('saved check-in timing presentation: $timestamp', (
+      tester,
+    ) async {
+      source.workerRead = () async => [
+        assignment()..['check_in_at'] = timestamp,
+      ];
+      await showPage(tester);
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Check-in timing:'),
+        expected == null ? findsNothing : findsOneWidget,
+      );
+      if (expected != null) {
+        expect(
+          find.text('Check-in timing: $expected (15-minute grace period)'),
+          findsOneWidget,
+        );
+      }
+      expect(source.checkIns, 0);
+      expect(source.checkOuts, 0);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets(
     'groups by application ID with all shifts expanded and chronological',
     (tester) async {

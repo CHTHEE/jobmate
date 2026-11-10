@@ -105,6 +105,7 @@ void main() {
     repo = WorkAssignmentCreationRepository(
       source,
       ledger: WorkAssignmentCreationLedger(),
+      now: () => DateTime.utc(2026, 11, 1),
     );
   });
   tearDown(() async {
@@ -501,6 +502,38 @@ void main() {
   );
 
   group('explicit creation', () {
+    test('creation rejects past, present, reversed and cross-MYT-date shifts before reservation', () async {
+      await repo.load();
+      final row = repo.state.candidates.single;
+      for (final times in [
+        (DateTime.utc(2026, 10, 31, 1), DateTime.utc(2026, 10, 31, 9)),
+        (DateTime.utc(2026, 11, 1), DateTime.utc(2026, 11, 1, 1)),
+        (DateTime.utc(2026, 11, 7, 1), DateTime.utc(2026, 11, 7, 1)),
+        (DateTime.utc(2026, 11, 7, 2), DateTime.utc(2026, 11, 7, 1)),
+        // Same UTC date, different Malaysia dates; midnight belongs to the next day.
+        (DateTime.utc(2026, 11, 7, 15), DateTime.utc(2026, 11, 7, 16)),
+        (DateTime.utc(2026, 11, 7, 1), DateTime.utc(2026, 11, 8, 9)),
+      ]) {
+        final result = await repo.create(
+          candidate: row,
+          start: times.$1,
+          end: times.$2,
+          location: 'QA workplace',
+        );
+        expect(result.status, WorkAssignmentCreateStatus.rejected);
+        expect(source.reservations, 0);
+        expect(source.creates, 0);
+      }
+      // Different UTC dates can still describe a valid single MYT date.
+      expect(
+        repo.validateSchedule(
+          DateTime.utc(2026, 11, 6, 16, 30),
+          DateTime.utc(2026, 11, 7, 15, 59),
+        ),
+        isNull,
+      );
+    });
+
     final start = DateTime.utc(2026, 11, 7, 1),
         end = DateTime.utc(2026, 11, 7, 9);
     Future<WorkAssignmentCandidate> candidate() async {
@@ -786,6 +819,7 @@ void main() {
       final other = WorkAssignmentCreationRepository(
         source,
         ledger: repo.ledger,
+        now: () => DateTime.utc(2026, 11, 1),
       );
       addTearDown(other.dispose);
       final pending = Completer<Object?>();
@@ -876,6 +910,7 @@ void main() {
           final restored = WorkAssignmentCreationRepository(
             source,
             ledger: repo.ledger,
+            now: () => DateTime.utc(2026, 11, 1),
           );
           addTearDown(restored.dispose);
           await restored.create(

@@ -513,6 +513,7 @@ class _AttendanceDetails extends StatelessWidget {
               ? 'Check-out not recorded'
               : 'Checked out: ${_malaysiaTime(row.checkOutAt!)}',
         ),
+        WorkCheckInTiming(assignment: row),
         const Divider(),
         _detail(
           Icons.location_on_outlined,

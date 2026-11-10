@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:jobmate/features/work_attendance/work_assignment_creation_repository.dart';
 import 'package:jobmate/features/work_attendance/work_verification_pages.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_repository.dart';
+import 'package:jobmate/features/work_attendance/engagement_closure_controls.dart';
 
 import 'work_assignment_creation_repository_test.dart'
     show CandidateSource, uid, complete;
@@ -40,6 +41,33 @@ Map<String, dynamic> shift(int number, {int application = 4}) =>
       ..['worker_id'] = uid(5)
       ..['job_title'] = 'QA Assistant';
 
+class FakeEngagementClosureGateway implements EngagementClosureGateway {
+  @override
+  Future<Map<String, dynamic>> status(String applicationId) async => {
+    'closure_status': 'open',
+    'eligible': true,
+  };
+
+  @override
+  Future<DateTime> close(String applicationId, String reason) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<String> request(String applicationId, String reason) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<Map<String, dynamic>>> companyRequests() async =>
+      throw UnimplementedError();
+
+  @override
+  Future<DateTime?> respond(
+    String requestId,
+    String decision,
+    String reason,
+  ) async => throw UnimplementedError();
+}
+
 void main() {
   late CandidateSource candidates;
   late FakeSource source;
@@ -68,9 +96,11 @@ void main() {
     loadAccess: () => candidates.access(),
     loadWorkerName: (_, _) async => 'Synthetic worker',
     gpsSource: gps,
+    closureGateway: FakeEngagementClosureGateway(),
     createAssignmentRepository: () => WorkAssignmentCreationRepository(
       candidates,
       ledger: WorkAssignmentCreationLedger(),
+      now: () => DateTime.utc(2026, 11, 1),
     ),
   );
 
@@ -93,17 +123,56 @@ void main() {
     String endTime = '17:00',
   }) async {
     for (final entry in {
-      'Start date (MYT)': startDate,
+      'Shift date (MYT)': startDate,
       'Start time (MYT)': startTime,
-      'End date (MYT)': endDate,
       'End time (MYT)': endTime,
       'Workplace location': 'Agreed workplace',
     }.entries) {
       final field = find.widgetWithText(TextFormField, entry.key);
       await tester.ensureVisible(field);
-      await tester.enterText(field, entry.value);
+      await tester.pumpAndSettle();
+      if (entry.key.contains('time (MYT)')) {
+        final parts = entry.value.split(':').map(int.parse).toList();
+        await tester.tap(field);
+        await tester.pumpAndSettle();
+        // Grouping tests supply the picker result; dial/input interactions are
+        // covered by work_assignment_creation_dialog_test.dart.
+        Navigator.of(tester.element(find.byType(TimePickerDialog))).pop(
+          TimeOfDay(hour: parts[0], minute: parts[1]),
+        );
+        await tester.pumpAndSettle();
+      } else {
+        await tester.enterText(field, entry.value);
+      }
       await tester.pump();
     }
+  }
+
+  for (final (timestamp, expected) in <(String?, String?)>[
+    (null, null),
+    ('2026-11-05T00:30:00Z', 'On Time'),
+    ('2026-11-05T01:15:00Z', 'On Time'),
+    ('2026-11-05T01:15:01Z', 'Late'),
+  ]) {
+    testWidgets('saved check-in timing presentation: $timestamp', (
+      tester,
+    ) async {
+      rows = [shift(10)..['check_in_at'] = timestamp];
+      await show(tester);
+      expect(
+        find.textContaining('Check-in timing:'),
+        expected == null ? findsNothing : findsOneWidget,
+      );
+      if (expected != null) {
+        expect(
+          find.text('Check-in timing: $expected (15-minute grace period)'),
+          findsOneWidget,
+        );
+      }
+      expect(source.checkIns, 0);
+      expect(source.checkOuts, 0);
+      expect(tester.takeException(), isNull);
+    });
   }
 
   testWidgets(
@@ -146,7 +215,7 @@ void main() {
   );
 
   testWidgets(
-    'group Add shift creates independent variable and overnight schedules after confirmation',
+    'group Add shift creates independent daily schedules after confirmation',
     (tester) async {
       candidates.applicants = (_) async => complete([
         for (final app in [4, 6])
@@ -172,7 +241,7 @@ void main() {
         return uid(number);
       };
       await show(tester);
-      for (final overnight in [false, true]) {
+      for (final lateEvening in [false, true]) {
         final group = find.byKey(ValueKey('application-${uid(4)}'));
         await tap(
           tester,
@@ -180,19 +249,19 @@ void main() {
         );
         expect(find.byType(DropdownButtonFormField<String>), findsNothing);
         expect(find.textContaining('Worker: Synthetic worker'), findsWidgets);
-        if (overnight) {
+        if (lateEvening) {
           await schedule(
             tester,
             startDate: '2026-11-09',
             startTime: '22:30',
-            endDate: '2026-11-10',
-            endTime: '02:15',
+            endDate: '2026-11-09',
+            endTime: '23:15',
           );
         } else {
           await schedule(tester);
         }
         await tap(tester, find.text('Review assignment'));
-        expect(candidates.creates, overnight ? 1 : 0);
+        expect(candidates.creates, lateEvening ? 1 : 0);
         await tap(tester, find.text('Confirm creation'));
         expect(find.byType(AlertDialog), findsNothing);
       }
@@ -203,7 +272,7 @@ void main() {
       ]);
       expect(parameters.map((p) => p['p_scheduled_end']), [
         '2026-11-07T09:00:00.000Z',
-        '2026-11-09T18:15:00.000Z',
+        '2026-11-09T15:15:00.000Z',
       ]);
       expect(rows.take(2), original);
       expect(find.text('3 shifts'), findsOneWidget);

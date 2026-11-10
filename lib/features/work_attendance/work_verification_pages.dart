@@ -500,6 +500,7 @@ class _CompanyAssignmentCard extends StatelessWidget {
           const SizedBox(height: 12),
           if (row.checkInAt != null)
             Text('Checked in: ${_malaysiaTime(row.checkInAt!)}'),
+          WorkCheckInTiming(assignment: row),
           if (row.checkOutAt != null)
             Text('Checked out: ${_malaysiaTime(row.checkOutAt!)}'),
           if (row.verifiedAt != null)

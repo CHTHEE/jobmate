@@ -35,7 +35,9 @@ class SupabaseEngagementClosureGateway implements EngagementClosureGateway {
     if (_actorId == null || client.auth.currentUser?.id != _actorId) {
       throw const AuthException('Authentication required.');
     }
-    final result = await client.rpc(name, params: params);
+    final result = await client
+        .rpc(name, params: params)
+        .retry(enabled: false, requestTimeout: const Duration(seconds: 30));
     if (client.auth.currentUser?.id != _actorId) {
       throw const AuthException('Account changed. Refresh engagement status.');
     }
@@ -143,7 +145,7 @@ class EngagementClosureControls extends StatefulWidget {
 }
 
 class _EngagementClosureControlsState extends State<EngagementClosureControls> {
-  late final EngagementClosureGateway _gateway =
+  late EngagementClosureGateway _gateway =
       widget.gateway ??
       SupabaseEngagementClosureGateway(Supabase.instance.client);
   bool _busy = false;
@@ -151,6 +153,7 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
   Map<String, dynamic>? _status;
   String? _message;
   bool _failed = false;
+  int _statusRequest = 0;
 
   @override
   void initState() {
@@ -161,6 +164,11 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
   @override
   void didUpdateWidget(covariant EngagementClosureControls oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.gateway != widget.gateway) {
+      _gateway =
+          widget.gateway ??
+          SupabaseEngagementClosureGateway(Supabase.instance.client);
+    }
     if (oldWidget.applicationId != widget.applicationId ||
         oldWidget.gateway != widget.gateway ||
         oldWidget.refreshToken != widget.refreshToken) {
@@ -181,8 +189,10 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
   }
 
   Future<void> _loadStatus() async {
+    final request = ++_statusRequest;
     setState(() {
       _statusLoading = true;
+      _status = null;
       _failed = false;
       _message = null;
     });
@@ -192,7 +202,7 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
     });
     try {
       final value = await _gateway.status(widget.applicationId);
-      if (mounted) {
+      if (mounted && request == _statusRequest) {
         setState(() {
           _status = value;
           _statusLoading = false;
@@ -200,7 +210,7 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
         _publishStatus();
       }
     } catch (error) {
-      if (mounted) {
+      if (mounted && request == _statusRequest) {
         setState(() {
           _statusLoading = false;
           _failed = true;
@@ -225,11 +235,17 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
         (!widget.worker && _status?['eligible'] != true)) {
       return;
     }
+    final applicationId = widget.applicationId;
+    final gateway = _gateway;
+    bool current() =>
+        mounted &&
+        widget.applicationId == applicationId &&
+        identical(_gateway, gateway);
     final reason = await _reason(
       widget.worker ? 'Request engagement closure' : 'Close engagement',
       widget.worker ? 'Reason for your request' : 'Closure reason',
     );
-    if (!mounted || reason == null) {
+    if (!current() || reason == null) {
       return;
     }
     setState(() {
@@ -238,22 +254,22 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
     });
     try {
       if (widget.worker) {
-        await _gateway.request(widget.applicationId, reason);
-        if (mounted) {
+        await gateway.request(applicationId, reason);
+        if (current()) {
           setState(() => _message = 'Closure request submitted.');
         }
       } else {
-        await _gateway.close(widget.applicationId, reason);
-        if (mounted) {
+        await gateway.close(applicationId, reason);
+        if (current()) {
           setState(
             () => _message = 'Engagement closed. Evaluation is now available.',
           );
           widget.onClosed?.call();
         }
       }
-      await _loadStatus();
+      if (current()) await _loadStatus();
     } catch (error) {
-      if (mounted) {
+      if (current()) {
         setState(() {
           _failed = true;
           _message = _serverMessage(error);
@@ -261,7 +277,7 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
         // Reconcile after failed or uncertain network responses before
         // allowing another action; the server remains authoritative.
         await _loadStatus();
-        if (mounted && _status?['closure_status'] != 'ineligible') {
+        if (current() && _status?['closure_status'] != 'ineligible') {
           setState(() {
             _failed = true;
             _message ??= _serverMessage(error);
@@ -355,10 +371,24 @@ class CompanyEngagementClosureRequests extends StatefulWidget {
 
 class _CompanyEngagementClosureRequestsState
     extends State<CompanyEngagementClosureRequests> {
-  late final EngagementClosureGateway _gateway =
+  late EngagementClosureGateway _gateway =
       widget.gateway ??
       SupabaseEngagementClosureGateway(Supabase.instance.client);
   late Future<List<Map<String, dynamic>>> _future = _gateway.companyRequests();
+  bool _responding = false;
+  int _generation = 0;
+
+  @override
+  void didUpdateWidget(covariant CompanyEngagementClosureRequests oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.gateway != widget.gateway) {
+      ++_generation;
+      _gateway =
+          widget.gateway ??
+          SupabaseEngagementClosureGateway(Supabase.instance.client);
+      _future = _gateway.companyRequests();
+    }
+  }
 
   Future<String?> _reason(String title) async {
     return showDialog<String>(
@@ -372,27 +402,37 @@ class _CompanyEngagementClosureRequestsState
   }
 
   Future<void> _respond(Map<String, dynamic> row, String decision) async {
-    final reason = await _reason(
-      decision == 'close' ? 'Close Engagement' : 'Decline closure request',
-    );
-    if (!mounted || reason == null) {
-      return;
-    }
+    if (_responding) return;
+    final gateway = _gateway;
+    final generation = _generation;
+    bool current() =>
+        mounted && generation == _generation && identical(gateway, _gateway);
+    setState(() => _responding = true);
+    var dispatched = false;
     try {
-      await _gateway.respond('${row['request_id']}', decision, reason);
-      if (!mounted) {
-        return;
-      }
+      final reason = await _reason(
+        decision == 'close' ? 'Close Engagement' : 'Decline closure request',
+      );
+      if (!current() || reason == null) return;
+      dispatched = true;
+      await gateway.respond('${row['request_id']}', decision, reason);
+      if (!current()) return;
       if (decision == 'close') {
         widget.onClosed?.call('${row['application_id']}');
       }
-      if (mounted) {
-        setState(() => _future = _gateway.companyRequests());
-      }
     } catch (error) {
-      if (mounted) {
+      if (current()) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(_serverMessage(error))));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _responding = false;
+          // A lost response may have committed. Replace stale actions with a
+          // fresh authoritative read before permitting another response.
+          if (current() && dispatched) _future = gateway.companyRequests();
+        });
       }
     }
   }
@@ -451,11 +491,15 @@ class _CompanyEngagementClosureRequestsState
                         spacing: 8,
                         children: [
                           OutlinedButton(
-                            onPressed: () => _respond(row, 'decline'),
+                            onPressed: _responding
+                                ? null
+                                : () => _respond(row, 'decline'),
                             child: const Text('Decline'),
                           ),
                           FilledButton(
-                            onPressed: () => _respond(row, 'close'),
+                            onPressed: _responding
+                                ? null
+                                : () => _respond(row, 'close'),
                             child: const Text('Review and close'),
                           ),
                         ],
@@ -471,6 +515,9 @@ class _CompanyEngagementClosureRequestsState
 }
 
 String _serverMessage(Object error) {
+  if (error is PostgrestException && error.code == '55P03') {
+    return 'Another scheduling or engagement change is in progress. This action was not saved. Review the refreshed server state before trying again.';
+  }
   if (error is PostgrestException && error.message.trim().isNotEmpty) {
     return error.message;
   }

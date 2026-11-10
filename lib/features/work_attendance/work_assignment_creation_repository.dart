@@ -144,12 +144,14 @@ class WorkAssignmentCreateResult {
     this.assignmentId,
     this.scheduleConflict = false,
     this.engagementClosed = false,
+    this.retryableContention = false,
   });
   final WorkAssignmentCreateStatus status;
   final String message;
   final String? assignmentId;
   final bool scheduleConflict;
   final bool engagementClosed;
+  final bool retryableContention;
 }
 
 /// Parse wall-clock Malaysia input independently of the device timezone.
@@ -240,7 +242,9 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
   WorkAssignmentCreationRepository(
     this.source, {
     WorkAssignmentCreationLedger? ledger,
+    DateTime Function()? now,
   }) : ledger = ledger ?? _creationLedger,
+       _now = now ?? DateTime.now,
        _actor = source.userId {
     _subscription = source.accountChanges.listen((id) {
       if (id != _actor || source.userId != _actor) {
@@ -257,6 +261,25 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
   }
   final WorkAssignmentCreationSource source;
   final WorkAssignmentCreationLedger ledger;
+  final DateTime Function() _now;
+
+  /// One assignment is one future shift on a single Malaysia calendar date.
+  String? validateSchedule(DateTime start, DateTime end) {
+    if (!start.isUtc || !end.isUtc) return 'Enter a valid MYT schedule.';
+    if (!end.isAfter(start)) return 'End must be after start.';
+    final localStart = start.add(const Duration(hours: 8));
+    final localEnd = end.add(const Duration(hours: 8));
+    if (localStart.year != localEnd.year ||
+        localStart.month != localEnd.month ||
+        localStart.day != localEnd.day) {
+      return 'A shift must start and end on the same Malaysia date. Use separate daily assignments for multi-day work.';
+    }
+    if (!start.isAfter(_now().toUtc())) {
+      return 'Shift start must be in the future.';
+    }
+    return null;
+  }
+
   bool _creating = false;
   bool get creating => _creating;
 
@@ -300,11 +323,9 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
         'This shift already has a creation attempt, or an earlier outcome is unresolved. Check its request; do not retry.',
       );
     }
-    if (!start.isUtc ||
-        !end.isUtc ||
-        !end.isAfter(start) ||
-        location.trim().isEmpty ||
-        location.runes.length > 500) {
+    final scheduleError = validateSchedule(start, end);
+    if (scheduleError != null) return rejected(scheduleError);
+    if (location.trim().isEmpty || location.runes.length > 500) {
       return rejected(
         'Enter a valid MYT schedule and workplace location of up to 500 characters.',
       );
@@ -355,6 +376,11 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
           scheduleConflict: true,
         );
       }
+      final latestScheduleError = validateSchedule(start, end);
+      if (latestScheduleError != null) {
+        ledger._attempts.remove(key);
+        return rejected(latestScheduleError);
+      }
       final parameters = <String, dynamic>{
         'p_application_id': candidate.applicationId,
         'p_scheduled_start': start.toIso8601String(),
@@ -389,6 +415,20 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
         assignmentId: attempt.assignmentId,
       );
     } catch (error) {
+      if (error is PostgrestException && error.code == '55P03') {
+        // PostgreSQL rejected this transaction; this is not a lost response.
+        // A reservation committed by an earlier RPC can remain and will be
+        // reused by the server after explicit confirmation of the same payload.
+        ledger._attempts.remove(key);
+        if (!_disposed && source.userId == actor && generation == _request) {
+          await load(companyId: candidate.companyId);
+        }
+        return const WorkAssignmentCreateResult(
+          WorkAssignmentCreateStatus.rejected,
+          'Scheduling is busy with another change. This submission did not create a shift. Review the refreshed server state and confirm again when ready. If refresh failed, reload before retrying.',
+          retryableContention: true,
+        );
+      }
       if (error is PostgrestException &&
           error.message.toLowerCase().contains('engagement') &&
           error.message.toLowerCase().contains('closed')) {
