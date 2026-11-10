@@ -1,0 +1,1412 @@
+{
+    "status":  "DRAFT / NOT APPROVED FOR DEPLOYMENT",
+    "source_file":  "jobmate_c2_evidence.txt.txt",
+    "source_sha256":  "C5B44DE17AD37A4ABF2E6F9FFD5344024AB6F980466B415DB13D9C748BF9359C",
+    "evidence":  {
+                     "items":  [
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK ((char_length(btrim((company_name)::text)) \u003e 0))"
+                                                   },
+                                       "identity":  "companies.companies_company_name_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "FOREIGN KEY (created_by) REFERENCES users(user_id)"
+                                                   },
+                                       "identity":  "companies.companies_created_by_fkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK (((established_year \u003e= 1) AND (established_year \u003c= 9999)))"
+                                                   },
+                                       "identity":  "companies.companies_established_year_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK (((latitude \u003e= (\u0027-90\u0027::integer)::numeric) AND (latitude \u003c= (90)::numeric)))"
+                                                   },
+                                       "identity":  "companies.companies_latitude_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK (((longitude \u003e= (\u0027-180\u0027::integer)::numeric) AND (longitude \u003c= (180)::numeric)))"
+                                                   },
+                                       "identity":  "companies.companies_longitude_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "PRIMARY KEY (company_id)"
+                                                   },
+                                       "identity":  "companies.companies_pkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "FOREIGN KEY (company_id) REFERENCES companies(company_id) ON DELETE CASCADE"
+                                                   },
+                                       "identity":  "company_memberships.company_memberships_company_id_fkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK ((member_role = ANY (ARRAY[\u0027owner\u0027::text, \u0027employer\u0027::text])))"
+                                                   },
+                                       "identity":  "company_memberships.company_memberships_member_role_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "PRIMARY KEY (user_id)"
+                                                   },
+                                       "identity":  "company_memberships.company_memberships_pkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE"
+                                                   },
+                                       "identity":  "company_memberships.company_memberships_user_id_fkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "FOREIGN KEY (applicant_id) REFERENCES users(user_id)"
+                                                   },
+                                       "identity":  "job_applications.job_applications_applicant_id_fkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK (((cover_note IS NULL) OR (length(cover_note) \u003c= 3000)))"
+                                                   },
+                                       "identity":  "job_applications.job_applications_cover_note_length_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "FOREIGN KEY (job_id) REFERENCES job_postings(job_id)"
+                                                   },
+                                       "identity":  "job_applications.job_applications_job_id_fkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "PRIMARY KEY (application_id)"
+                                                   },
+                                       "identity":  "job_applications.job_applications_pkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "FOREIGN KEY (resume_id) REFERENCES personal_resumes(resume_id)"
+                                                   },
+                                       "identity":  "job_applications.job_applications_resume_id_fkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK ((status = ANY (ARRAY[\u0027submitted\u0027::text, \u0027shortlisted\u0027::text, \u0027interview\u0027::text, \u0027offered\u0027::text, \u0027hired\u0027::text, \u0027rejected\u0027::text, \u0027declined\u0027::text, \u0027withdrawn\u0027::text])))"
+                                                   },
+                                       "identity":  "job_applications.job_applications_status_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "UNIQUE (job_id, applicant_id)"
+                                                   },
+                                       "identity":  "job_applications.job_applications_unique_job_applicant"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK ((((latitude IS NULL) OR ((latitude \u003e= (\u0027-90\u0027::integer)::numeric) AND (latitude \u003c= (90)::numeric))) AND ((longitude IS NULL) OR ((longitude \u003e= (\u0027-180\u0027::integer)::numeric) AND (longitude \u003c= (180)::numeric))) AND ((latitude IS NULL) = (longitude IS NULL))))"
+                                                   },
+                                       "identity":  "job_postings.job_coordinates_valid"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "FOREIGN KEY (company_id) REFERENCES companies(company_id)"
+                                                   },
+                                       "identity":  "job_postings.job_postings_company_id_fkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "FOREIGN KEY (created_by) REFERENCES users(user_id)"
+                                                   },
+                                       "identity":  "job_postings.job_postings_created_by_fkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK ((employment_type = ANY (ARRAY[\u0027full_time\u0027::text, \u0027part_time\u0027::text, \u0027internship\u0027::text, \u0027contract\u0027::text])))"
+                                                   },
+                                       "identity":  "job_postings.job_postings_employment_type_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "PRIMARY KEY (job_id)"
+                                                   },
+                                       "identity":  "job_postings.job_postings_pkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK ((salary_period = ANY (ARRAY[\u0027hourly\u0027::text, \u0027daily\u0027::text, \u0027monthly\u0027::text])))"
+                                                   },
+                                       "identity":  "job_postings.job_postings_salary_period_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK ((status = ANY (ARRAY[\u0027draft\u0027::text, \u0027published\u0027::text, \u0027closed\u0027::text])))"
+                                                   },
+                                       "identity":  "job_postings.job_postings_status_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK ((work_arrangement = ANY (ARRAY[\u0027on_site\u0027::text, \u0027hybrid\u0027::text, \u0027remote\u0027::text])))"
+                                                   },
+                                       "identity":  "job_postings.job_postings_work_arrangement_check"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK ((((salary_min IS NULL) OR (salary_min \u003e= (0)::numeric)) AND ((salary_max IS NULL) OR (salary_max \u003e= (0)::numeric)) AND ((salary_min IS NULL) OR (salary_max IS NULL) OR (salary_max \u003e= salary_min)) AND (((salary_min IS NULL) AND (salary_max IS NULL)) OR (salary_period IS NOT NULL))))"
+                                                   },
+                                       "identity":  "job_postings.job_salary_valid"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK ((length(btrim((title)::text)) \u003e 0))"
+                                                   },
+                                       "identity":  "job_postings.job_title_not_blank"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK ((vacancies \u003e 0))"
+                                                   },
+                                       "identity":  "job_postings.job_vacancies_positive"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK ((role = ANY (ARRAY[\u0027job_seeker\u0027::user_role, \u0027employer\u0027::user_role, \u0027administrator\u0027::user_role])))"
+                                                   },
+                                       "identity":  "users.jobmate_users_account_role_check_v2"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "CHECK (((name IS NULL) OR (char_length(btrim((name)::text)) \u003e 0)))"
+                                                   },
+                                       "identity":  "users.users_name_not_blank"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "PRIMARY KEY (user_id)"
+                                                   },
+                                       "identity":  "users.users_pkey"
+                                   },
+                                   {
+                                       "kind":  "constraint",
+                                       "details":  {
+                                                       "validated":  true,
+                                                       "definition":  "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+                                                   },
+                                       "identity":  "users.users_user_id_fkey"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{postgres=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION private.create_company_restriction_default()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nbegin\r\n  insert into public.company_restrictions(company_id) values(new.company_id);\r\n  return new;\r\nend;\r\n$function$\n",
+                                                       "security_definer":  true
+                                                   },
+                                       "identity":  "private.create_company_restriction_default()"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{postgres=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION private.enforce_company_restriction_on_job_write()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\ndeclare v_restriction_status text;\r\nbegin\r\n  -- PHASE3D_SIMPLE_COMPANY_RESTRICTION\r\n  if tg_op=\u0027UPDATE\u0027 and (old.status=\u0027published\u0027 or new.status is distinct from \u0027published\u0027) then\r\n    return new;\r\n  end if;\r\n  select r.restriction_status into v_restriction_status\r\n    from public.company_restrictions r where r.company_id=new.company_id for share;\r\n  if not found or v_restriction_status is distinct from \u0027active\u0027 then\r\n    if tg_op=\u0027INSERT\u0027 then\r\n      raise exception \u0027This Company cannot create Job Postings while restricted or without a restriction record.\u0027;\r\n    else\r\n      raise exception \u0027This Company cannot publish Job Postings while restricted or without a restriction record.\u0027;\r\n    end if;\r\n  end if;\r\n  return new;\r\nend\r\n$function$\n",
+                                                       "security_definer":  true
+                                                   },
+                                       "identity":  "private.enforce_company_restriction_on_job_write()"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{postgres=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION private.ensure_jobmate_role_profile()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nbegin\r\n  if new.role = \u0027job_seeker\u0027 then\r\n    insert into public.job_seeker_profiles (user_id)\r\n    values (new.user_id)\r\n    on conflict (user_id) do nothing;\r\n\r\n  elsif new.role = \u0027employer\u0027 then\r\n    insert into public.employer_profiles (user_id)\r\n    values (new.user_id)\r\n    on conflict (user_id) do nothing;\r\n\r\n  elsif new.role = \u0027administrator\u0027 then\r\n    insert into public.administrator_profiles (user_id)\r\n    values (new.user_id)\r\n    on conflict (user_id) do nothing;\r\n  end if;\r\n\r\n  return new;\r\nend;\r\n$function$\n",
+                                                       "security_definer":  true
+                                                   },
+                                       "identity":  "private.ensure_jobmate_role_profile()"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{postgres=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION private.protect_jobmate_company_creator()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nbegin\r\n  if new.created_by is distinct from old.created_by then\r\n    raise exception \u0027Company creator cannot be changed.\u0027\r\n      using errcode = \u0027P0001\u0027;\r\n  end if;\r\n\r\n  return new;\r\nend;\r\n$function$\n",
+                                                       "security_definer":  true
+                                                   },
+                                       "identity":  "private.protect_jobmate_company_creator()"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{postgres=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION private.protect_jobmate_company_owner()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\ndeclare\r\n  v_role text;\r\nbegin\r\n  if tg_op = \u0027delete\u0027 then\r\n    if old.member_role = \u0027owner\u0027 then\r\n      raise exception \u0027A Company Owner cannot be removed.\u0027\r\n        using errcode = \u0027P0001\u0027;\r\n    end if;\r\n\r\n    return old;\r\n  end if;\r\n\r\n  if tg_op = \u0027update\u0027\r\n     and old.member_role = \u0027owner\u0027\r\n     and (\r\n       new.member_role is distinct from old.member_role\r\n       or new.company_id is distinct from old.company_id\r\n       or new.user_id is distinct from old.user_id\r\n     ) then\r\n    raise exception \u0027Company ownership cannot be transferred or changed.\u0027\r\n      using errcode = \u0027P0001\u0027;\r\n  end if;\r\n\r\n  if new.member_role = \u0027owner\u0027 then\r\n    select role::text\r\n    into v_role\r\n    from public.users\r\n    where user_id = new.user_id;\r\n\r\n    if v_role is distinct from \u0027employer\u0027 then\r\n      raise exception \u0027Only an Employer can become a Company Owner.\u0027\r\n        using errcode = \u0027P0001\u0027;\r\n    end if;\r\n  end if;\r\n\r\n  return new;\r\nend;\r\n$function$\n",
+                                                       "security_definer":  true
+                                                   },
+                                       "identity":  "private.protect_jobmate_company_owner()"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{postgres=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION private.record_company_logo_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\ndeclare v_request public.company_logo_change_requests%rowtype;\r\nbegin\r\n  if new.logo_storage_path is not distinct from old.logo_storage_path then return new; end if;\r\n  select * into v_request from public.company_logo_change_requests r\r\n  where r.company_id = new.company_id and r.storage_path = new.logo_storage_path\r\n    and r.status = \u0027verified\u0027\r\n    and r.previous_storage_path is not distinct from old.logo_storage_path\r\n    and not exists (select 1 from public.company_logo_history h where h.change_request_id = r.request_id);\r\n  insert into public.company_logo_history(\r\n    company_id, previous_storage_path, storage_path, source, change_request_id, changed_by, changed_at\r\n  ) values (\r\n    new.company_id, old.logo_storage_path, new.logo_storage_path,\r\n    case when v_request.request_id is not null then \u0027approved_change\u0027 else \u0027other_change\u0027 end,\r\n    v_request.request_id, coalesce(v_request.reviewed_by, auth.uid()), clock_timestamp()\r\n  );\r\n  return new;\r\nend;\r\n$function$\n",
+                                                       "security_definer":  true
+                                                   },
+                                       "identity":  "private.record_company_logo_change()"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{postgres=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION private.set_jobmate_company_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO \u0027\u0027\nAS $function$\r\nbegin\r\n  new.updated_at = now();\r\n  return new;\r\nend;\r\n$function$\n",
+                                                       "security_definer":  false
+                                                   },
+                                       "identity":  "private.set_jobmate_company_updated_at()"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{postgres=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION private.set_jobmate_personal_signup_role()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\ndeclare\r\n  v_requested_role text;\r\nbegin\r\n  select lower(\r\n    coalesce(\r\n      a.raw_user_meta_data -\u003e\u003e \u0027requested_role\u0027,\r\n      \u0027job_seeker\u0027\r\n    )\r\n  )\r\n  into v_requested_role\r\n  from auth.users a\r\n  where a.id = new.user_id;\r\n\r\n  if v_requested_role is null\r\n     or v_requested_role not in (\u0027job_seeker\u0027, \u0027employer\u0027) then\r\n    v_requested_role := \u0027job_seeker\u0027;\r\n  end if;\r\n\r\n  new.role := v_requested_role::public.user_role;\r\n  return new;\r\nend;\r\n$function$\n",
+                                                       "security_definer":  true
+                                                   },
+                                       "identity":  "private.set_jobmate_personal_signup_role()"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{postgres=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION private.set_jobmate_user_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO \u0027\u0027\nAS $function$\r\nbegin\r\n  new.updated_at = now();\r\n  return new;\r\nend;\r\n$function$\n",
+                                                       "security_definer":  false
+                                                   },
+                                       "identity":  "private.set_jobmate_user_updated_at()"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION public.can_manage_company_jobs(p_company_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\n  select exists (\r\n    select 1\r\n    from public.users u\r\n    join public.company_memberships cm\r\n      on cm.user_id = u.user_id\r\n    join public.companies c\r\n      on c.company_id = cm.company_id\r\n    where u.user_id = auth.uid()\r\n      and u.role = \u0027employer\u0027::public.user_role\r\n      and u.status = \u0027active\u0027::public.account_status\r\n      and cm.company_id = p_company_id\r\n      and cm.member_role in (\u0027owner\u0027, \u0027employer\u0027)\r\n      and c.verification_status = \u0027verified\u0027::public.verification_status\r\n  );\r\n$function$\n",
+                                                       "security_definer":  true
+                                                   },
+                                       "identity":  "public.can_manage_company_jobs(p_company_id uuid)"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION public.protect_job_posting_ownership()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO \u0027\u0027\nAS $function$\r\nbegin\r\n  if new.company_id is distinct from old.company_id\r\n     or new.created_by is distinct from old.created_by then\r\n    raise exception \u0027Job posting ownership cannot be changed.\u0027;\r\n  end if;\r\n\r\n  return new;\r\nend;\r\n$function$\n",
+                                                       "security_definer":  false
+                                                   },
+                                       "identity":  "public.protect_job_posting_ownership()"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION public.respond_to_job_application(p_application_id uuid, p_action text)\n RETURNS text\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO \u0027\u0027\nAS $function$\r\nDECLARE\r\n    v_actor_id uuid := auth.uid();\r\n    v_application public.job_applications%ROWTYPE;\r\n    v_job public.job_postings%ROWTYPE;\r\n    v_new_status text;\r\nBEGIN\r\n    -- Lock the application to prevent concurrent changes.\r\n    SELECT *\r\n    INTO v_application\r\n    FROM public.job_applications a\r\n    WHERE a.application_id = p_application_id\r\n    FOR UPDATE;\r\n\r\n    IF NOT FOUND THEN\r\n        RAISE EXCEPTION \u0027Application not found.\u0027;\r\n    END IF;\r\n\r\n    -- Only the applicant may respond.\r\n    IF v_actor_id IS NULL\r\n       OR v_application.applicant_id \u003c\u003e v_actor_id\r\n       OR NOT EXISTS (\r\n           SELECT 1\r\n           FROM public.users u\r\n           WHERE u.user_id = v_actor_id\r\n             AND u.role = \u0027job_seeker\u0027::public.user_role\r\n             AND u.status = \u0027active\u0027::public.account_status\r\n       )\r\n    THEN\r\n        RAISE EXCEPTION\r\n            \u0027You are not authorized to manage this application.\u0027;\r\n    END IF;\r\n\r\n    -- Validate the requested action and current status.\r\n    IF p_action = \u0027accept_offer\u0027\r\n       AND v_application.status = \u0027offered\u0027 THEN\r\n        v_new_status := \u0027hired\u0027;\r\n\r\n    ELSIF p_action = \u0027decline_offer\u0027\r\n       AND v_application.status = \u0027offered\u0027 THEN\r\n        v_new_status := \u0027declined\u0027;\r\n\r\n    ELSIF p_action = \u0027withdraw\u0027\r\n       AND v_application.status IN (\r\n           \u0027submitted\u0027,\r\n           \u0027shortlisted\u0027,\r\n           \u0027interview\u0027,\r\n           \u0027offered\u0027\r\n       ) THEN\r\n        v_new_status := \u0027withdrawn\u0027;\r\n\r\n    ELSE\r\n        RAISE EXCEPTION\r\n            \u0027This action is not allowed for the current application status.\u0027;\r\n    END IF;\r\n\r\n    -- Retrieve job details for the notification.\r\n    SELECT *\r\n    INTO v_job\r\n    FROM public.job_postings j\r\n    WHERE j.job_id = v_application.job_id;\r\n\r\n    IF NOT FOUND THEN\r\n        RAISE EXCEPTION \u0027Job posting not found.\u0027;\r\n    END IF;\r\n\r\n    -- Update application.\r\n    UPDATE public.job_applications\r\n    SET\r\n        status = v_new_status,\r\n        updated_at = now(),\r\n        withdrawn_at = CASE\r\n            WHEN v_new_status = \u0027withdrawn\u0027 THEN now()\r\n            ELSE withdrawn_at\r\n        END\r\n    WHERE application_id = p_application_id;\r\n\r\n    -- Record status history.\r\n    INSERT INTO public.application_status_history (\r\n        application_id,\r\n        previous_status,\r\n        new_status,\r\n        changed_by\r\n    )\r\n    VALUES (\r\n        p_application_id,\r\n        v_application.status,\r\n        v_new_status,\r\n        v_actor_id\r\n    );\r\n\r\n    -- Notify the employer who created the job.\r\n    INSERT INTO public.notifications (\r\n        user_id,\r\n        notification_type,\r\n        title,\r\n        message\r\n    )\r\n    VALUES (\r\n        v_job.created_by,\r\n        \u0027application_\u0027 || v_new_status,\r\n        \u0027Application Response\u0027,\r\n        \u0027An applicant for \u0027\r\n            || v_job.title\r\n            || \u0027 has \u0027\r\n            || CASE v_new_status\r\n                WHEN \u0027hired\u0027 THEN \u0027accepted the job offer\u0027\r\n                WHEN \u0027declined\u0027 THEN \u0027declined the job offer\u0027\r\n                WHEN \u0027withdrawn\u0027 THEN \u0027withdrawn their application\u0027\r\n               END\r\n            || \u0027.\u0027\r\n    );\r\n\r\n    RETURN v_new_status;\r\nEND;\r\n$function$\n",
+                                                       "security_definer":  true
+                                                   },
+                                       "identity":  "public.respond_to_job_application(p_application_id uuid, p_action text)"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION public.set_job_posting_timestamps()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO \u0027\u0027\nAS $function$\r\nbegin\r\n  new.updated_at = now();\r\n\r\n  if tg_op = \u0027INSERT\u0027 then\r\n    if new.status = \u0027published\u0027 then\r\n      new.published_at = now();\r\n    else\r\n      new.published_at = null;\r\n    end if;\r\n\r\n  elsif tg_op = \u0027UPDATE\u0027 then\r\n    if old.status = \u0027draft\u0027\r\n       and new.status = \u0027published\u0027 then\r\n      new.published_at = now();\r\n    else\r\n      new.published_at = old.published_at;\r\n    end if;\r\n  end if;\r\n\r\n  return new;\r\nend;\r\n$function$\n",
+                                                       "security_definer":  false
+                                                   },
+                                       "identity":  "public.set_job_posting_timestamps()"
+                                   },
+                                   {
+                                       "kind":  "function",
+                                       "details":  {
+                                                       "acl":  "{=X/postgres,postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+                                                       "owner":  "postgres",
+                                                       "settings":  [
+                                                                        "search_path=\"\""
+                                                                    ],
+                                                       "definition":  "CREATE OR REPLACE FUNCTION public.validate_job_posting()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO \u0027\u0027\nAS $function$\r\nbegin\r\n  if new.status = \u0027published\u0027 then\r\n    if nullif(btrim(new.role_overview), \u0027\u0027) is null then\r\n      raise exception\r\n        \u0027A role overview is required before publishing.\u0027;\r\n    end if;\r\n\r\n    if new.work_arrangement in (\u0027on_site\u0027, \u0027hybrid\u0027)\r\n       and nullif(btrim(new.location), \u0027\u0027) is null then\r\n      raise exception\r\n        \u0027A location is required for on-site or hybrid jobs.\u0027;\r\n    end if;\r\n  end if;\r\n\r\n  if tg_op = \u0027UPDATE\u0027 then\r\n    if old.status = \u0027closed\u0027\r\n       and new.status \u003c\u003e \u0027closed\u0027 then\r\n      raise exception\r\n        \u0027Closed job postings cannot be reopened.\u0027;\r\n    end if;\r\n  end if;\r\n\r\n  return new;\r\nend;\r\n$function$\n",
+                                                       "security_definer":  false
+                                                   },
+                                       "identity":  "public.validate_job_posting()"
+                                   },
+                                   {
+                                       "kind":  "index",
+                                       "details":  {
+                                                       "ready":  true,
+                                                       "valid":  true,
+                                                       "definition":  "CREATE INDEX company_memberships_company_id_idx ON public.company_memberships USING btree (company_id)"
+                                                   },
+                                       "identity":  "company_memberships_company_id_idx"
+                                   },
+                                   {
+                                       "kind":  "index",
+                                       "details":  {
+                                                       "ready":  true,
+                                                       "valid":  true,
+                                                       "definition":  "CREATE UNIQUE INDEX company_memberships_pkey ON public.company_memberships USING btree (user_id)"
+                                                   },
+                                       "identity":  "company_memberships_pkey"
+                                   },
+                                   {
+                                       "kind":  "index",
+                                       "details":  {
+                                                       "ready":  true,
+                                                       "valid":  true,
+                                                       "definition":  "CREATE UNIQUE INDEX jobmate_one_owner_per_company_idx ON public.company_memberships USING btree (company_id) WHERE (member_role = \u0027owner\u0027::text)"
+                                                   },
+                                       "identity":  "jobmate_one_owner_per_company_idx"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  null,
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND (u.status = \u0027active\u0027::account_status) AND ((EXISTS ( SELECT 1\n           FROM company_memberships m\n          WHERE ((m.company_id = companies.company_id) AND (m.user_id = u.user_id)))) OR ((u.role = \u0027administrator\u0027::user_role) AND (EXISTS ( SELECT 1\n           FROM administrator_profiles ap\n          WHERE ((ap.user_id = u.user_id) AND (ap.can_review_companies = true)))))))))",
+                                                       "command":  "SELECT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "public.companies.companies_select_internal"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  null,
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND ((u.status)::text = \u0027active\u0027::text) AND ((((u.role)::text = \u0027employer\u0027::text) AND (EXISTS ( SELECT 1\n           FROM company_memberships m\n          WHERE ((m.user_id = u.user_id) AND (m.company_id = company_logo_change_requests.company_id) AND (m.member_role = \u0027owner\u0027::text))))) OR (((u.role)::text = \u0027administrator\u0027::text) AND (EXISTS ( SELECT 1\n           FROM administrator_profiles ap\n          WHERE ((ap.user_id = u.user_id) AND (ap.can_review_companies = true)))))))))",
+                                                       "command":  "SELECT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "public.company_logo_change_requests.company_logo_requests_read"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  null,
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND (u.status = \u0027active\u0027::account_status) AND ((company_memberships.user_id = u.user_id) OR (u.role = \u0027administrator\u0027::user_role)))))",
+                                                       "command":  "SELECT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "public.company_memberships.company_memberships_select"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  null,
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "(bucket_id \u003c\u003e \u0027jobmate-company-logos\u0027::text)",
+                                                       "command":  "DELETE",
+                                                       "permissive":  "RESTRICTIVE"
+                                                   },
+                                       "identity":  "storage.objects.company_logo_no_client_delete"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  "(bucket_id \u003c\u003e \u0027jobmate-company-logos\u0027::text)",
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "(bucket_id \u003c\u003e \u0027jobmate-company-logos\u0027::text)",
+                                                       "command":  "UPDATE",
+                                                       "permissive":  "RESTRICTIVE"
+                                                   },
+                                       "identity":  "storage.objects.company_logo_no_client_overwrite"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  "((bucket_id = \u0027jobmate-company-logos\u0027::text) AND ((storage.foldername(name))[1] = (( SELECT auth.uid() AS uid))::text) AND (array_length(storage.foldername(name), 1) = 2) AND (split_part(name, \u0027/\u0027::text, 3) = ANY (ARRAY[\u0027logo.jpg\u0027::text, \u0027logo.png\u0027::text, \u0027logo.webp\u0027::text])) AND (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND (u.status = \u0027active\u0027::account_status) AND ((NOT (EXISTS ( SELECT 1\n           FROM company_memberships m\n          WHERE (m.user_id = u.user_id)))) OR (EXISTS ( SELECT 1\n           FROM (company_memberships m\n             JOIN companies c ON ((c.company_id = m.company_id)))\n          WHERE ((m.user_id = u.user_id) AND (m.member_role = \u0027owner\u0027::text) AND (c.verification_status = \u0027rejected\u0027::verification_status)))))))))",
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  null,
+                                                       "command":  "INSERT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.company_logos_insert"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  null,
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "((bucket_id = \u0027jobmate-company-logos\u0027::text) AND (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND (u.status = \u0027active\u0027::account_status) AND ((u.role = \u0027administrator\u0027::user_role) OR ((storage.foldername(objects.name))[1] = (u.user_id)::text) OR (EXISTS ( SELECT 1\n           FROM (company_memberships m\n             JOIN companies c ON ((c.company_id = m.company_id)))\n          WHERE ((m.user_id = u.user_id) AND (c.logo_storage_path = objects.name)))))))))",
+                                                       "command":  "SELECT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.company_logos_select"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  "((bucket_id = \u0027jobmate-company-logos\u0027::text) AND ((storage.foldername(name))[1] = (( SELECT auth.uid() AS uid))::text) AND (array_length(storage.foldername(name), 1) = 2) AND ((storage.foldername(name))[2] ~ \u0027^profile-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\u0027::text) AND (split_part(name, \u0027/\u0027::text, 3) = ANY (ARRAY[\u0027logo.jpg\u0027::text, \u0027logo.png\u0027::text, \u0027logo.webp\u0027::text])) AND (EXISTS ( SELECT 1\n   FROM (users u\n     JOIN company_memberships m ON ((m.user_id = u.user_id)))\n  WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND ((u.status)::text = \u0027active\u0027::text) AND ((u.role)::text = \u0027employer\u0027::text) AND (m.member_role = \u0027owner\u0027::text)))))",
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  null,
+                                                       "command":  "INSERT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.company_profile_logo_insert"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  null,
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "can_view_published_job_logo(bucket_id, name)",
+                                                       "command":  "SELECT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.company_published_job_logos_select"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  "((bucket_id = \u0027jobmate-company-verification\u0027::text) AND ((storage.foldername(name))[1] = (( SELECT auth.uid() AS uid))::text) AND (array_length(storage.foldername(name), 1) = 2) AND (split_part(name, \u0027/\u0027::text, 3) = \u0027document.pdf\u0027::text) AND (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND (u.status = \u0027active\u0027::account_status) AND ((NOT (EXISTS ( SELECT 1\n           FROM company_memberships m\n          WHERE (m.user_id = u.user_id)))) OR (EXISTS ( SELECT 1\n           FROM (company_memberships m\n             JOIN companies c ON ((c.company_id = m.company_id)))\n          WHERE ((m.user_id = u.user_id) AND (m.member_role = \u0027owner\u0027::text) AND (c.verification_status = \u0027rejected\u0027::verification_status)))))))))",
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  null,
+                                                       "command":  "INSERT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.company_verification_files_insert"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  null,
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "((bucket_id = \u0027jobmate-company-verification\u0027::text) AND (EXISTS ( SELECT 1\n   FROM ((company_verification_requests r\n     JOIN companies c ON ((c.company_id = r.company_id)))\n     JOIN users u ON ((u.user_id = ( SELECT auth.uid() AS uid))))\n  WHERE ((r.storage_path = objects.name) AND (u.status = \u0027active\u0027::account_status) AND ((r.submitted_by = u.user_id) OR ((u.role = \u0027administrator\u0027::user_role) AND (EXISTS ( SELECT 1\n           FROM administrator_profiles ap\n          WHERE ((ap.user_id = u.user_id) AND (ap.can_review_companies = true)))) AND (c.created_by IS DISTINCT FROM u.user_id) AND (NOT (EXISTS ( SELECT 1\n           FROM company_memberships m\n          WHERE ((m.company_id = r.company_id) AND (m.user_id = u.user_id)))))))))))",
+                                                       "command":  "SELECT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.company_verification_files_select"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  "((bucket_id = \u0027jobmate-dispute-evidence\u0027::text) AND can_upload_dispute_evidence(name))",
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  null,
+                                                       "command":  "INSERT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.dispute_evidence_insert"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  null,
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "((bucket_id = \u0027jobmate-dispute-evidence\u0027::text) AND can_read_dispute_evidence(name))",
+                                                       "command":  "SELECT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.dispute_evidence_select"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  "((bucket_id = \u0027jobmate-avatars\u0027::text) AND ((storage.foldername(name))[1] = (( SELECT auth.uid() AS uid))::text) AND (EXISTS ( SELECT 1\n   FROM users\n  WHERE ((users.user_id = ( SELECT auth.uid() AS uid)) AND (users.status = \u0027active\u0027::account_status)))))",
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  null,
+                                                       "command":  "INSERT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.jobmate_avatar_insert_own"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  "((bucket_id \u003c\u003e \u0027jobmate-company-verification\u0027::text) OR (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND ((u.status)::text = \u0027active\u0027::text) AND ((u.role)::text = \u0027employer\u0027::text)))))",
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  null,
+                                                       "command":  "INSERT",
+                                                       "permissive":  "RESTRICTIVE"
+                                                   },
+                                       "identity":  "storage.objects.jobmate_company_document_uploads_require_employer"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  "((bucket_id = \u0027jobmate-resumes\u0027::text) AND ((storage.foldername(name))[1] = (( SELECT auth.uid() AS uid))::text) AND (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND (u.role = \u0027job_seeker\u0027::user_role) AND (u.status = \u0027active\u0027::account_status)))))",
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  null,
+                                                       "command":  "INSERT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.jobmate_resumes_owner_insert"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  null,
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "((bucket_id = \u0027jobmate-resumes\u0027::text) AND ((storage.foldername(name))[1] = (( SELECT auth.uid() AS uid))::text) AND (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND (u.role = \u0027job_seeker\u0027::user_role) AND (u.status = \u0027active\u0027::account_status)))))",
+                                                       "command":  "SELECT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.jobmate_resumes_owner_select"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  "((bucket_id = \u0027jobmate-verification\u0027::text) AND ((storage.foldername(name))[1] = (( SELECT auth.uid() AS uid))::text) AND (array_length(storage.foldername(name), 1) = 2) AND (split_part(name, \u0027/\u0027::text, 3) = \u0027document.pdf\u0027::text) AND (EXISTS ( SELECT 1\n   FROM users me\n  WHERE ((me.user_id = ( SELECT auth.uid() AS uid)) AND (me.status = \u0027active\u0027::account_status) AND (me.role = ANY (ARRAY[\u0027job_seeker\u0027::user_role, \u0027employer\u0027::user_role])) AND (me.verification_status = ANY (ARRAY[\u0027not_submitted\u0027::verification_status, \u0027rejected\u0027::verification_status]))))))",
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  null,
+                                                       "command":  "INSERT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.verification_file_insert"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  null,
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "((bucket_id = \u0027jobmate-verification\u0027::text) AND (EXISTS ( SELECT 1\n   FROM users me\n  WHERE ((me.user_id = ( SELECT auth.uid() AS uid)) AND (me.status = \u0027active\u0027::account_status) AND ((me.role = \u0027administrator\u0027::user_role) OR ((storage.foldername(objects.name))[1] = (me.user_id)::text))))))",
+                                                       "command":  "SELECT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.verification_file_read"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  null,
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "((bucket_id = \u0027work-evidence\u0027::text) AND (array_length(storage.foldername(name), 1) = 1) AND ((storage.foldername(name))[1] ~* \u0027^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\u0027::text) AND can_read_work_evidence_file(name))",
+                                                       "command":  "SELECT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.work_evidence_authorized_read"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  null,
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "(bucket_id \u003c\u003e \u0027work-evidence\u0027::text)",
+                                                       "command":  "DELETE",
+                                                       "permissive":  "RESTRICTIVE"
+                                                   },
+                                       "identity":  "storage.objects.work_evidence_no_authenticated_deletes"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  "(bucket_id \u003c\u003e \u0027work-evidence\u0027::text)",
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "(bucket_id \u003c\u003e \u0027work-evidence\u0027::text)",
+                                                       "command":  "UPDATE",
+                                                       "permissive":  "RESTRICTIVE"
+                                                   },
+                                       "identity":  "storage.objects.work_evidence_no_authenticated_updates"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  "((bucket_id \u003c\u003e \u0027work-evidence\u0027::text) OR ((name ~ \u0027^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[A-Za-z0-9][A-Za-z0-9._-]{0,199}\\.(jpg|jpeg|png|webp|pdf)$\u0027::text) AND\nCASE\n    WHEN (split_part(name, \u0027/\u0027::text, 1) ~ \u0027^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\u0027::text) THEN can_upload_work_evidence((split_part(name, \u0027/\u0027::text, 1))::uuid)\n    ELSE false\nEND))",
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  null,
+                                                       "command":  "INSERT",
+                                                       "permissive":  "RESTRICTIVE"
+                                                   },
+                                       "identity":  "storage.objects.work_evidence_scoped_private_inserts"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  null,
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  "((bucket_id \u003c\u003e \u0027work-evidence\u0027::text) OR can_read_work_evidence_file(name))",
+                                                       "command":  "SELECT",
+                                                       "permissive":  "RESTRICTIVE"
+                                                   },
+                                       "identity":  "storage.objects.work_evidence_scoped_private_reads"
+                                   },
+                                   {
+                                       "kind":  "policy",
+                                       "details":  {
+                                                       "check":  "((bucket_id = \u0027work-evidence\u0027::text) AND (storage.filename(name) ~ \u0027^[A-Za-z0-9][A-Za-z0-9._-]{0,199}\\.(jpg|jpeg|png|webp|pdf)$\u0027::text) AND (array_length(storage.foldername(name), 1) = 1) AND ((storage.foldername(name))[1] ~* \u0027^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\u0027::text) AND can_upload_work_evidence(((storage.foldername(name))[1])::uuid))",
+                                                       "roles":  [
+                                                                     "authenticated"
+                                                                 ],
+                                                       "using":  null,
+                                                       "command":  "INSERT",
+                                                       "permissive":  "PERMISSIVE"
+                                                   },
+                                       "identity":  "storage.objects.work_evidence_worker_upload"
+                                   },
+                                   {
+                                       "kind":  "relation",
+                                       "details":  {
+                                                       "acl":  "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+                                                       "rls":  true,
+                                                       "owner":  "postgres",
+                                                       "columns":  [
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "company_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  "gen_random_uuid()",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "company_name",
+                                                                           "type":  "character varying(255)",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "company_description",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "industry",
+                                                                           "type":  "character varying(100)",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "location",
+                                                                           "type":  "character varying(255)",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "latitude",
+                                                                           "type":  "numeric(9,6)",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "longitude",
+                                                                           "type":  "numeric(9,6)",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "verification_status",
+                                                                           "type":  "verification_status",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "created_by",
+                                                                           "type":  "uuid",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "created_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  "now()",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "updated_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  "now()",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "registration_number",
+                                                                           "type":  "character varying(100)",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "established_year",
+                                                                           "type":  "smallint",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "website_url",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "contact_email",
+                                                                           "type":  "character varying(254)",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "contact_phone",
+                                                                           "type":  "character varying(30)",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "logo_storage_path",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       }
+                                                                   ],
+                                                       "force_rls":  false
+                                                   },
+                                       "identity":  "companies"
+                                   },
+                                   {
+                                       "kind":  "relation",
+                                       "details":  {
+                                                       "acl":  "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+                                                       "rls":  true,
+                                                       "owner":  "postgres",
+                                                       "columns":  [
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "user_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "company_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "member_role",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "created_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  "now()",
+                                                                           "not_null":  true
+                                                                       }
+                                                                   ],
+                                                       "force_rls":  false
+                                                   },
+                                       "identity":  "company_memberships"
+                                   },
+                                   {
+                                       "kind":  "relation",
+                                       "details":  {
+                                                       "acl":  "{postgres=arwdDxtm/postgres,anon=arwdDxtm/postgres,authenticated=arwdDxtm/postgres,service_role=arwdDxtm/postgres}",
+                                                       "rls":  true,
+                                                       "owner":  "postgres",
+                                                       "columns":  [
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "application_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  "gen_random_uuid()",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "job_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "applicant_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "resume_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "cover_note",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "status",
+                                                                           "type":  "text",
+                                                                           "default":  "\u0027submitted\u0027::text",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "applied_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  "now()",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "updated_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  "now()",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "withdrawn_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       }
+                                                                   ],
+                                                       "force_rls":  false
+                                                   },
+                                       "identity":  "job_applications"
+                                   },
+                                   {
+                                       "kind":  "relation",
+                                       "details":  {
+                                                       "acl":  "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=awd/postgres}",
+                                                       "rls":  true,
+                                                       "owner":  "postgres",
+                                                       "columns":  [
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "job_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  "gen_random_uuid()",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "company_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "created_by",
+                                                                           "type":  "uuid",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "title",
+                                                                           "type":  "character varying(200)",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "department",
+                                                                           "type":  "character varying(100)",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "employment_type",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "work_arrangement",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "location",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "latitude",
+                                                                           "type":  "numeric(9,6)",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "longitude",
+                                                                           "type":  "numeric(9,6)",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "salary_min",
+                                                                           "type":  "numeric(12,2)",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "salary_max",
+                                                                           "type":  "numeric(12,2)",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "salary_period",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "salary_visible",
+                                                                           "type":  "boolean",
+                                                                           "default":  "true",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "vacancies",
+                                                                           "type":  "integer",
+                                                                           "default":  "1",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "application_deadline",
+                                                                           "type":  "date",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "original_description",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "role_overview",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "responsibilities",
+                                                                           "type":  "jsonb",
+                                                                           "default":  "\u0027[]\u0027::jsonb",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "requirements",
+                                                                           "type":  "jsonb",
+                                                                           "default":  "\u0027[]\u0027::jsonb",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "benefits",
+                                                                           "type":  "jsonb",
+                                                                           "default":  "\u0027[]\u0027::jsonb",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "ai_assisted",
+                                                                           "type":  "boolean",
+                                                                           "default":  "false",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "status",
+                                                                           "type":  "text",
+                                                                           "default":  "\u0027draft\u0027::text",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "created_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  "now()",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "published_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=r/postgres}",
+                                                                           "name":  "updated_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  "now()",
+                                                                           "not_null":  true
+                                                                       }
+                                                                   ],
+                                                       "force_rls":  false
+                                                   },
+                                       "identity":  "job_postings"
+                                   },
+                                   {
+                                       "kind":  "relation",
+                                       "details":  {
+                                                       "acl":  "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+                                                       "rls":  true,
+                                                       "owner":  "postgres",
+                                                       "columns":  [
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "user_id",
+                                                                           "type":  "uuid",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=w/postgres}",
+                                                                           "name":  "name",
+                                                                           "type":  "character varying(100)",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=w/postgres}",
+                                                                           "name":  "phone_num",
+                                                                           "type":  "character varying(20)",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  "{authenticated=w/postgres}",
+                                                                           "name":  "profile_image_url",
+                                                                           "type":  "text",
+                                                                           "default":  null,
+                                                                           "not_null":  false
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "role",
+                                                                           "type":  "user_role",
+                                                                           "default":  "\u0027job_seeker\u0027::user_role",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "status",
+                                                                           "type":  "account_status",
+                                                                           "default":  "\u0027active\u0027::account_status",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "created_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  null,
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "updated_at",
+                                                                           "type":  "timestamp with time zone",
+                                                                           "default":  "now()",
+                                                                           "not_null":  true
+                                                                       },
+                                                                       {
+                                                                           "acl":  null,
+                                                                           "name":  "verification_status",
+                                                                           "type":  "verification_status",
+                                                                           "default":  "\u0027not_submitted\u0027::verification_status",
+                                                                           "not_null":  true
+                                                                       }
+                                                                   ],
+                                                       "force_rls":  false
+                                                   },
+                                       "identity":  "users"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "enabled":  "O",
+                                                       "definition":  "CREATE TRIGGER company_restriction_default AFTER INSERT ON public.companies FOR EACH ROW EXECUTE FUNCTION private.create_company_restriction_default()"
+                                                   },
+                                       "identity":  "companies.company_restriction_default"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "enabled":  "O",
+                                                       "definition":  "CREATE TRIGGER jobmate_company_updated_at BEFORE UPDATE ON public.companies FOR EACH ROW EXECUTE FUNCTION private.set_jobmate_company_updated_at()"
+                                                   },
+                                       "identity":  "companies.jobmate_company_updated_at"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "enabled":  "O",
+                                                       "definition":  "CREATE TRIGGER jobmate_protect_company_creator BEFORE UPDATE OF created_by ON public.companies FOR EACH ROW EXECUTE FUNCTION private.protect_jobmate_company_creator()"
+                                                   },
+                                       "identity":  "companies.jobmate_protect_company_creator"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "enabled":  "O",
+                                                       "definition":  "CREATE TRIGGER jobmate_record_company_logo AFTER UPDATE OF logo_storage_path ON public.companies FOR EACH ROW EXECUTE FUNCTION private.record_company_logo_change()"
+                                                   },
+                                       "identity":  "companies.jobmate_record_company_logo"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "enabled":  "O",
+                                                       "definition":  "CREATE TRIGGER jobmate_protect_company_owner BEFORE INSERT OR DELETE OR UPDATE ON public.company_memberships FOR EACH ROW EXECUTE FUNCTION private.protect_jobmate_company_owner()"
+                                                   },
+                                       "identity":  "company_memberships.jobmate_protect_company_owner"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "enabled":  "O",
+                                                       "definition":  "CREATE TRIGGER jobmate_company_restriction_job_write BEFORE INSERT OR UPDATE OF status ON public.job_postings FOR EACH ROW EXECUTE FUNCTION private.enforce_company_restriction_on_job_write()"
+                                                   },
+                                       "identity":  "job_postings.jobmate_company_restriction_job_write"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "enabled":  "O",
+                                                       "definition":  "CREATE TRIGGER protect_job_posting_ownership_trigger BEFORE UPDATE ON public.job_postings FOR EACH ROW EXECUTE FUNCTION protect_job_posting_ownership()"
+                                                   },
+                                       "identity":  "job_postings.protect_job_posting_ownership_trigger"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "enabled":  "O",
+                                                       "definition":  "CREATE TRIGGER set_job_posting_timestamps_trigger BEFORE INSERT OR UPDATE ON public.job_postings FOR EACH ROW EXECUTE FUNCTION set_job_posting_timestamps()"
+                                                   },
+                                       "identity":  "job_postings.set_job_posting_timestamps_trigger"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "enabled":  "O",
+                                                       "definition":  "CREATE TRIGGER validate_job_posting_trigger BEFORE INSERT OR UPDATE ON public.job_postings FOR EACH ROW EXECUTE FUNCTION validate_job_posting()"
+                                                   },
+                                       "identity":  "job_postings.validate_job_posting_trigger"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "enabled":  "O",
+                                                       "definition":  "CREATE TRIGGER jobmate_ensure_role_profile AFTER INSERT OR UPDATE OF role ON public.users FOR EACH ROW EXECUTE FUNCTION private.ensure_jobmate_role_profile()"
+                                                   },
+                                       "identity":  "users.jobmate_ensure_role_profile"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "enabled":  "O",
+                                                       "definition":  "CREATE TRIGGER jobmate_set_signup_role BEFORE INSERT ON public.users FOR EACH ROW EXECUTE FUNCTION private.set_jobmate_personal_signup_role()"
+                                                   },
+                                       "identity":  "users.jobmate_set_signup_role"
+                                   },
+                                   {
+                                       "kind":  "trigger",
+                                       "details":  {
+                                                       "enabled":  "O",
+                                                       "definition":  "CREATE TRIGGER set_jobmate_user_updated_at BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION private.set_jobmate_user_updated_at()"
+                                                   },
+                                       "identity":  "users.set_jobmate_user_updated_at"
+                                   }
+                               ],
+                     "acceptance_found":  true,
+                     "membership_found":  true
+                 }
+}

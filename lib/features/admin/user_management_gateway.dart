@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'user_membership_details.dart';
+
 /// The database validates permissions and performs all account mutations.
 abstract class UserManagementGateway {
   Future<Map<String, dynamic>?> directoryDetails(String userId);
@@ -47,12 +49,7 @@ class SupabaseUserManagementGateway implements UserManagementGateway {
       params: {'p_target_user_id': userId},
     );
     _checkSession();
-    if (result is! List || result.length > 1) {
-      throw const FormatException('Unexpected account details.');
-    }
-    return result.isEmpty
-        ? null
-        : Map<String, dynamic>.from(result.first as Map);
+    return normalizeUserMembershipDetails(result, userId);
   }
 
   @override

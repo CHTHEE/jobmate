@@ -16,6 +16,7 @@ import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/mobile_back_action.dart';
 import 'company_logo.dart';
 import 'company_logo_editor.dart';
+import 'company_membership_selection.dart';
 
 class CreateCompanyPage extends StatefulWidget {
   const CreateCompanyPage({super.key});
@@ -173,11 +174,11 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
         );
       }
 
-      final membership = await _supabase
+      final memberships = await _supabase
           .from('company_memberships')
-          .select('company_id, member_role')
-          .eq('user_id', user.id)
-          .maybeSingle();
+          .select()
+          .eq('user_id', user.id);
+      final membership = selectCompanyProfileMembership(memberships);
 
       Map<String, dynamic>? company;
       String? reviewComment;

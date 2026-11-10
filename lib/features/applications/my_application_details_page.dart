@@ -7,6 +7,8 @@ import '../../shared/widgets/app_workspace.dart';
 import '../jobs/job_display.dart';
 import 'module2_widgets.dart';
 import 'my_applications_repository.dart';
+import 'hiring_membership_panel.dart';
+import 'hiring_membership_status.dart';
 
 class MyApplicationDetailsPage extends StatefulWidget {
   const MyApplicationDetailsPage({
@@ -299,6 +301,17 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
+                if (application.status == MyApplicationStatus.hired &&
+                    widget.source is HiringMembershipStatusSource) ...[
+                  HiringMembershipPanel(
+                    key: ValueKey(
+                      '${repo.sessionVersion}:${repo.applicationReadVersion}:${application.id}',
+                    ),
+                    source: widget.source as HiringMembershipStatusSource,
+                    applicationId: application.id,
+                  ),
+                  const SizedBox(height: 20),
+                ],
                 WorkspaceCard(
                   title: 'Application timeline',
                   child: repo.historyLoading

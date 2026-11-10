@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'job_application_repository.dart';
 import 'my_applications_repository.dart';
 import 'employer_applicants_repository.dart';
+import 'hiring_membership_source.dart';
 
 // Temporary diagnostics: never log raw exceptions, object paths or signed URLs.
 void debugPublishedLogo(String message) {
@@ -404,7 +405,7 @@ class Module2Repository extends ChangeNotifier {
   MyApplicationsRepository get myApplications =>
       _myApplications ??= MyApplicationsRepository(
         myApplicationsSource ??
-            SupabaseMyApplicationsSource(Supabase.instance.client),
+            createMyApplicationsSource(Supabase.instance.client),
       );
   final JobApplicationGateway Function()? applicationGatewayFactory;
   JobApplicationGateway createApplicationGateway() =>

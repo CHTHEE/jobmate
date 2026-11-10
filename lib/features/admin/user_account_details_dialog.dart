@@ -187,8 +187,10 @@ class _UserAccountDetailsDialogState extends State<UserAccountDetailsDialog> {
                               for (final field in <(String, Object?)>[
                                 ('Email', account['email']),
                                 ('Phone', account['phone_num']),
-                                ('Company', account['company_name']),
-                                ('Company role', account['member_role']),
+                                if (account['memberships'] is! List) ...[
+                                  ('Company', account['company_name']),
+                                  ('Company role', account['member_role']),
+                                ],
                               ])
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 6),
@@ -197,6 +199,16 @@ class _UserAccountDetailsDialogState extends State<UserAccountDetailsDialog> {
                                   ),
                                 ),
                             ],
+                            if (widget.canManage &&
+                                account['memberships'] is List)
+                              for (final membership
+                                  in account['memberships'] as List)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Text(
+                                    'Company: ${_value(membership['company_name'])} — ${_value(membership['member_role'])}',
+                                  ),
+                                ),
                             if (_message != null) ...[
                               const SizedBox(height: 12),
                               Text(_message!),
