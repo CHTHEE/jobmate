@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jobmate/features/work_attendance/work_assignment_creation_repository.dart';
+import 'package:jobmate/features/work_attendance/work_assignment_creation_dialog.dart';
 import 'package:jobmate/features/work_attendance/work_verification_pages.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_repository.dart';
 import 'package:jobmate/features/work_attendance/engagement_closure_controls.dart';
@@ -137,9 +138,8 @@ void main() {
         await tester.pumpAndSettle();
         // Grouping tests supply the picker result; dial/input interactions are
         // covered by work_assignment_creation_dialog_test.dart.
-        Navigator.of(tester.element(find.byType(TimePickerDialog))).pop(
-          TimeOfDay(hour: parts[0], minute: parts[1]),
-        );
+        Navigator.of(tester.element(find.byType(TimePickerDialog)))
+            .pop(TimeOfDay(hour: parts[0], minute: parts[1]));
         await tester.pumpAndSettle();
       } else {
         await tester.enterText(field, entry.value);
@@ -147,6 +147,118 @@ void main() {
       await tester.pump();
     }
   }
+
+  testWidgets(
+    'overview uses verification state and filters locally without losing actions',
+    (tester) async {
+      rows = [
+        shift(10)..['assignment_status'] = 'awaiting_verification',
+        shift(11)
+          ..['verification_status'] = 'pending_review'
+          ..['assignment_status'] = 'active',
+        shift(12, application: 6)
+          ..['job_id'] = uid(8)
+          ..['job_title'] = 'Second job'
+          ..['verification_status'] = 'verified'
+          ..['assignment_status'] = 'completed',
+      ];
+      await show(tester);
+      for (final (label, count) in [
+        ('Total shifts', '3'),
+        ('Awaiting verification', '1'),
+        ('Verified', '1'),
+      ]) {
+        expect(
+          find.descendant(
+            of: find.byKey(ValueKey('overview-$label')),
+            matching: find.text(count),
+          ),
+          findsOneWidget,
+        );
+      }
+      final reads = source.calls;
+      final search = find.widgetWithText(
+        TextField,
+        'Search job title or worker name',
+      );
+      await tester.ensureVisible(search);
+      await tester.enterText(search, 'Second job');
+      await tester.pumpAndSettle();
+      expect(find.byKey(ValueKey(uid(12))), findsOneWidget);
+      expect(find.byKey(ValueKey(uid(10))), findsNothing);
+      expect(find.text('Showing 1 of 3 loaded shifts'), findsOneWidget);
+      await tester.enterText(search, 'Synthetic worker');
+      await tester.pumpAndSettle();
+      expect(find.text('Showing 3 of 3 loaded shifts'), findsOneWidget);
+      await tester.enterText(search, 'no matching worker');
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('No shifts match your search'),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(find.text('Clear filters'));
+      await tester.tap(find.text('Clear filters'));
+      await tester.pumpAndSettle();
+      final filter = find.widgetWithText(
+        DropdownButtonFormField<String>,
+        'Verification status',
+      );
+      await tester.ensureVisible(filter);
+      await tester.tap(filter);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pending review').last);
+      await tester.pumpAndSettle();
+      expect(find.byKey(ValueKey(uid(11))), findsOneWidget);
+      expect(find.byKey(ValueKey(uid(10))), findsNothing);
+      expect(find.byKey(ValueKey(uid(12))), findsNothing);
+      expect(find.text('Create Assignment'), findsOneWidget);
+      expect(find.text('Add shift'), findsOneWidget);
+      expect(find.text('View attendance GPS'), findsOneWidget);
+      expect(source.calls, reads);
+      expect(source.checkIns, 0);
+      expect(source.checkOuts, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'job and shift filters compose and clear restores the authorized list',
+    (tester) async {
+      rows = [
+        shift(10),
+        shift(12, application: 6)
+          ..['job_id'] = uid(8)
+          ..['job_title'] = 'Second job'
+          ..['assignment_status'] = 'active',
+      ];
+      await show(tester);
+      Future<void> choose(String label, String value) async {
+        final filter = find.widgetWithText(
+          DropdownButtonFormField<String>,
+          label,
+        );
+        await tester.ensureVisible(filter);
+        await tester.tap(filter);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(value).last);
+        await tester.pumpAndSettle();
+      }
+
+      await choose('Job', 'Second job');
+      expect(find.byKey(ValueKey(uid(10))), findsNothing);
+      await choose('Shift status', 'Scheduled');
+      expect(
+        find.textContaining('No shifts match your search'),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(find.text('Clear filters'));
+      await tester.tap(find.text('Clear filters'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(ValueKey(uid(10))), findsOneWidget);
+      expect(find.byKey(ValueKey(uid(12))), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   for (final (timestamp, expected) in <(String?, String?)>[
     (null, null),
@@ -174,6 +286,73 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets(
+    'shift expansion is independent and follows IDs through filters, refresh and reordering',
+    (tester) async {
+      rows = [
+        shift(10),
+        shift(11)
+          ..['scheduled_start'] = '2026-11-06T01:00:00Z'
+          ..['scheduled_end'] = '2026-11-06T09:00:00Z',
+      ];
+      await show(tester);
+      Finder card(int n) => find.byKey(ValueKey(uid(n)));
+      Finder toggle(int n, String label) =>
+          find.descendant(of: card(n), matching: find.text(label));
+      expect(find.text('Show shift details'), findsNWidgets(2));
+      expect(find.textContaining('Scheduled start:'), findsNothing);
+      expect(find.text('View attendance GPS'), findsNWidgets(2));
+      await tap(tester, toggle(10, 'Show shift details'));
+      expect(toggle(10, 'Hide shift details'), findsOneWidget);
+      expect(toggle(11, 'Show shift details'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: card(10),
+          matching: find.textContaining('Scheduled start:'),
+        ),
+        findsOneWidget,
+      );
+      final search = find.widgetWithText(
+        TextField,
+        'Search job title or worker name',
+      );
+      await tester.ensureVisible(search);
+      await tester.enterText(search, 'no matching job');
+      await tester.pumpAndSettle();
+      expect(card(10), findsNothing);
+      await tester.ensureVisible(find.text('Clear filters'));
+      await tester.tap(find.text('Clear filters'));
+      await tester.pumpAndSettle();
+      expect(toggle(10, 'Hide shift details'), findsOneWidget);
+      expect(toggle(11, 'Show shift details'), findsOneWidget);
+      rows = [rows.last, rows.first];
+      rows.last['scheduled_start'] = '2026-11-07T01:00:00Z';
+      rows.last['scheduled_end'] = '2026-11-07T09:00:00Z';
+      await tester.tap(find.byTooltip('Refresh company assignments'));
+      await tester.pumpAndSettle();
+      final group = find.byKey(ValueKey('application-${uid(4)}'));
+      expect(
+        tester
+            .widgetList<Card>(
+              find.descendant(of: group, matching: find.byType(Card)),
+            )
+            .map((c) => c.key),
+        [ValueKey(uid(11)), ValueKey(uid(10))],
+      );
+      expect(toggle(10, 'Hide shift details'), findsOneWidget);
+      expect(toggle(11, 'Show shift details'), findsOneWidget);
+      await tap(tester, toggle(11, 'Show shift details'));
+      expect(find.text('Hide shift details'), findsNWidgets(2));
+      await tap(tester, toggle(10, 'Hide shift details'));
+      expect(toggle(10, 'Show shift details'), findsOneWidget);
+      expect(toggle(11, 'Hide shift details'), findsOneWidget);
+      expect(find.text('Add shift'), findsOneWidget);
+      expect(source.checkIns, 0);
+      expect(source.checkOuts, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'groups only by application ID with worker, count and chronological shifts',
@@ -247,7 +426,13 @@ void main() {
           tester,
           find.descendant(of: group, matching: find.text('Add shift')),
         );
-        expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byType(WorkAssignmentCreationDialog),
+            matching: find.byType(DropdownButtonFormField<String>),
+          ),
+          findsNothing,
+        );
         expect(find.textContaining('Worker: Synthetic worker'), findsWidgets);
         if (lateEvening) {
           await schedule(
@@ -432,6 +617,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('2 shifts'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tap(tester, find.text('Show shift details').first);
+      expect(find.text('Hide shift details'), findsOneWidget);
+      expect(find.text('View attendance GPS'), findsNWidgets(2));
       expect(tester.takeException(), isNull);
       await tap(tester, find.text('Add shift'));
       await schedule(tester);

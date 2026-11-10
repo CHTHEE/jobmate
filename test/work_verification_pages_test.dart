@@ -81,6 +81,11 @@ void main() {
       };
       await showPage(tester);
       await tester.pumpAndSettle();
+      expect(find.textContaining('Scheduled start:'), findsNothing);
+      final details = find.text('Show shift details');
+      await tester.ensureVisible(details);
+      await tester.tap(details);
+      await tester.pumpAndSettle();
       for (final text in [
         'Server job',
         'Assigned worker',

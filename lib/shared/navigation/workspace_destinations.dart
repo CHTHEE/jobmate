@@ -27,11 +27,6 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
       ),
       (AppRoutes.workers, 'Workers (demo)', Icons.groups_outlined),
       (
-        AppRoutes.attendanceReview,
-        'Attendance Review (demo)',
-        Icons.fact_check_outlined,
-      ),
-      (
         AppRoutes.employerPayments,
         'Payments (sandbox)',
         Icons.receipt_long_outlined,
