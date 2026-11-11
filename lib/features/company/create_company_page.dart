@@ -10,7 +10,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
 
 import '../../shared/widgets/app_workspace.dart';
-import '../../shared/widgets/design_primitives.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/mobile_back_action.dart';
@@ -238,7 +237,7 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
                 .limit(10);
             history = List<Map<String, dynamic>>.from(rows);
           } catch (_) {
-            historyError = 'History could not be loaded. Refresh to retry.';
+            historyError = 'History could not be loaded.';
           }
         }
       }
@@ -903,10 +902,6 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
             padding: EdgeInsets.only(top: 8),
             child: Text('Logo unavailable.'),
           ),
-          TextButton(
-            onPressed: _isBusy ? null : _loadCompany,
-            child: const Text('Try loading again'),
-          ),
         ],
         if (_selectedLogoBytes != null && _canEdit)
           TextButton(
@@ -963,6 +958,61 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
     return '${format.formatMediumDate(parsed)}, ${format.formatTimeOfDay(TimeOfDay.fromDateTime(parsed), alwaysUse24HourFormat: true)}';
   }
 
+  Widget _companyLogoHero() {
+    final logo = _savedLogoBytes;
+    final name = _company?['company_name'] as String?;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 84,
+            height: 84,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: logo == null
+                ? const Icon(Icons.business_outlined, size: 44)
+                : Image.memory(
+                    logo,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) =>
+                        const Icon(Icons.business_outlined, size: 44),
+                  ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name?.trim().isNotEmpty == true ? name! : 'Company profile',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  name == null
+                      ? 'Add your company details and logo.'
+                      : 'Company logo and profile information',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+          if (_company != null) WorkspaceStatus(_status),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -980,32 +1030,11 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
           navigationLocked: _isBusy,
           onNavigate: _navigate,
           child: WorkspaceContent(
+            maxWidth: 1100,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ProfileHeading(
-                  title:
-                      _company?['company_name'] as String? ??
-                      'Company profile & verification',
-                  description: 'Your company identity, membership and supporting documents.',
-                  icon: Icons.business_outlined,
-                  avatar: _savedLogoBytes == null
-                      ? null
-                      : Image.memory(
-                          _savedLogoBytes!,
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) =>
-                              const Icon(Icons.business_outlined, size: 28),
-                        ),
-                  trailing: _company == null
-                      ? null
-                      : Align(
-                          alignment: Alignment.centerLeft,
-                          child: WorkspaceStatus(_status),
-                        ),
-                ),
+                _companyLogoHero(),
                 if (_loadError != null)
                   WorkspaceCard(
                     title: 'Company unavailable',

@@ -137,11 +137,7 @@ Map<String, List<WorkspaceDestination>> adminWorkspaceDestinations(
       if (has('can_manage_user_reports'))
         (AppRoutes.adminReports, 'User Reports', Icons.flag_outlined),
       if (has('can_manage_job_moderation'))
-        (
-          AppRoutes.adminJobModeration,
-          'Job Moderation',
-          Icons.work_outline,
-        ),
+        (AppRoutes.adminJobModeration, 'Job Moderation', Icons.work_outline),
       if (has('can_manage_disputes'))
         (AppRoutes.adminDisputes, 'Disputes', Icons.gavel_outlined),
       (
@@ -156,12 +152,6 @@ Map<String, List<WorkspaceDestination>> adminWorkspaceDestinations(
           AppRoutes.companyReviews,
           'Company Verification',
           Icons.business_outlined,
-        ),
-      if (has('can_invite_admins'))
-        (
-          AppRoutes.inviteAdmin,
-          'Invite administrator',
-          Icons.person_add_alt_1_outlined,
         ),
       if (has('can_manage_admin_permissions'))
         (

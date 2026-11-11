@@ -54,3 +54,10 @@ app.*.map.json
 
 #Temporary local working files
 /tmp/
+supabase/.temp/
+supabase/diagnostics/
+supabase/migrations/
+supabase/patches/
+
+*_test.dart
+*test*

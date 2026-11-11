@@ -1,5 +1,6 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -19,80 +20,203 @@ class CompanyManagementPage extends StatefulWidget {
 }
 
 class _CompanyManagementPageState extends State<CompanyManagementPage> {
-  static const _pageSize = 30;
+  static const _pageSize = 5;
   late final CompanyManagementGateway _gateway =
       widget.gateway ??
       SupabaseCompanyManagementGateway(Supabase.instance.client);
   List<Map<String, dynamic>> _companies = [], _history = [];
   Map<String, dynamic>? _company;
-  int _offset = 0;
-  bool _loading = true, _busy = false, _hasMore = false;
+  final _listController = ScrollController();
+  String? _selectedCompanyId;
+  bool _loading = false, _loadingMore = false, _detailsLoading = false;
+  bool _busy = false, _hasMore = false;
   bool _canManageRestrictions = false;
   String? _error;
+  String? _detailsError;
 
   @override
   void initState() {
     super.initState();
+    _selectedCompanyId = widget.companyId;
+    _detailsLoading = _selectedCompanyId != null;
+    _listController.addListener(_onListScroll);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _listController
+      ..removeListener(_onListScroll)
+      ..dispose();
+    super.dispose();
   }
 
   @override
   void didUpdateWidget(covariant CompanyManagementPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.companyId != widget.companyId) _load();
+    if (oldWidget.companyId != widget.companyId) {
+      _selectedCompanyId = widget.companyId;
+      _load();
+    }
+  }
+
+  void _onListScroll() {
+    if (!_listController.hasClients || _loading || _loadingMore || !_hasMore) {
+      return;
+    }
+    if (_listController.position.extentAfter < 220) _loadMore();
   }
 
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
+      _detailsLoading = _selectedCompanyId != null;
     });
     try {
-      final canManage = await _gateway.canManageRestrictions();
-      if (widget.companyId == null) {
-        final rows = await _gateway.list(limit: _pageSize + 1, offset: _offset);
-        if (!mounted) return;
+      // Directory access is read-only for every active Admin. Keep its
+      // initial load independent from optional restriction permissions.
+      unawaited(_loadRestrictionPermission());
+      final rows = await _gateway
+          .list(limit: _pageSize + 1, offset: 0)
+          .timeout(const Duration(seconds: 20));
+      if (!mounted) return;
+      final companies = rows.take(_pageSize).toList();
+      final requested = _selectedCompanyId;
+      final selected =
+          widget.companyId ??
+          requested ??
+          (companies.isEmpty
+              ? null
+              : companies.first['company_id']?.toString());
+      setState(() {
+        _companies = companies;
+        _hasMore = rows.length > _pageSize;
+        _selectedCompanyId = selected;
+        _company = null;
+        _history = [];
+        _detailsError = null;
+        _detailsLoading = selected != null;
+      });
+      if (selected != null) await _loadCompanyDetails(selected);
+    } catch (_) {
+      if (mounted) {
         setState(() {
-          _companies = rows.take(_pageSize).toList();
-          _hasMore = rows.length > _pageSize;
-          _company = null;
-          _history = [];
-          _canManageRestrictions = canManage;
-        });
-      } else {
-        final company = canManage
-            ? await _gateway.managementDetails(widget.companyId!)
-            : await _gateway.details(widget.companyId!);
-        final history = canManage
-            ? await _gateway.history(widget.companyId!)
-            : <Map<String, dynamic>>[];
-        if (!mounted) return;
-        setState(() {
-          _company = company;
-          _history = history;
-          _canManageRestrictions = canManage;
+          _error = 'We could not load company information. Please try again.';
+          if (_selectedCompanyId != null && _company == null) {
+            _detailsError =
+                'We could not load company details. Please try again.';
+          }
         });
       }
-    } catch (_) {
-      if (mounted)
-        setState(
-          () => _error =
-              'We could not load company information. Please try again.',
-        );
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          if (_company == null) _detailsLoading = false;
+        });
+      }
     }
   }
 
-  void _page(int amount) {
-    if (_loading || (amount > 0 && !_hasMore)) return;
-    final next = _offset + amount;
-    if (next < 0) return;
+  Future<void> _loadMore() async {
+    if (_loading || _loadingMore || !_hasMore) return;
     setState(() {
-      _offset = next;
-      _companies = [];
+      _loadingMore = true;
+      _error = null;
     });
-    _load();
+    try {
+      final rows = await _gateway
+          .list(limit: _pageSize + 1, offset: _companies.length)
+          .timeout(const Duration(seconds: 20));
+      if (!mounted) return;
+      setState(() {
+        final seen = _companies.map((item) => item['company_id']).toSet();
+        _companies.addAll(
+          rows
+              .take(_pageSize)
+              .where((item) => !seen.contains(item['company_id'])),
+        );
+        _hasMore = rows.length > _pageSize;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error = 'We could not load more companies. Please retry.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  Future<void> _loadCompanyDetails(String companyId) async {
+    setState(() {
+      _detailsLoading = true;
+      _detailsError = null;
+    });
+    try {
+      final canManage = await _gateway.canManageRestrictions().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => false,
+      );
+      final company = canManage
+          ? await _gateway
+                .managementDetails(companyId)
+                .timeout(const Duration(seconds: 20))
+          : await _gateway
+                .details(companyId)
+                .timeout(const Duration(seconds: 20));
+      final history = canManage
+          ? await _gateway
+                .history(companyId)
+                .timeout(const Duration(seconds: 20))
+          : <Map<String, dynamic>>[];
+      if (!mounted || _selectedCompanyId != companyId) return;
+      setState(() {
+        _company = company;
+        _history = history;
+        _canManageRestrictions = canManage;
+        _detailsError = null;
+      });
+    } catch (_) {
+      if (mounted && _selectedCompanyId == companyId) {
+        setState(() {
+          _company = null;
+          _history = [];
+          _detailsError = 'We could not load company details. Please retry.';
+        });
+      }
+    } finally {
+      if (mounted && _selectedCompanyId == companyId) {
+        setState(() => _detailsLoading = false);
+      }
+    }
+  }
+
+  void _selectCompany(Map<String, dynamic> item) {
+    final id = item['company_id']?.toString();
+    if (id == null || id.isEmpty || id == _selectedCompanyId) return;
+    setState(() {
+      _selectedCompanyId = id;
+      _company = null;
+      _history = [];
+      _detailsError = null;
+    });
+    _loadCompanyDetails(id);
+  }
+
+  Future<void> _loadRestrictionPermission() async {
+    try {
+      final canManage = await _gateway.canManageRestrictions().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => false,
+      );
+      if (mounted) setState(() => _canManageRestrictions = canManage);
+    } catch (error) {
+      debugPrint('Company restriction permission lookup failed: $error');
+      if (mounted) setState(() => _canManageRestrictions = false);
+    }
   }
 
   Future<void> _changeRestriction() async {
@@ -111,7 +235,9 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
       _error = null;
     });
     try {
-      await _gateway.setRestriction(widget.companyId!, action, reason);
+      final companyId = _selectedCompanyId;
+      if (companyId == null) return;
+      await _gateway.setRestriction(companyId, action, reason);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -122,10 +248,11 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
       );
       await _load();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
-          () => _error = 'The Company action was not confirmed. Reload and check its current status.',
+          () => _detailsError = 'The Company action was not confirmed. Reload and check its current status.',
         );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -135,93 +262,194 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
       ? value.toString()
       : 'Not provided';
 
-  Widget _directory() => ResponsiveContent(
-    maxWidth: 1050,
-    child: ListView(
-      padding: ResponsiveLayout.pagePadding(context),
-      children: [
-        const PageHeading(
-          title: 'Companies',
-          description:
-              'Browse company profiles, membership and current status.',
+  Widget _companyListRow(Map<String, dynamic> item) {
+    final selected = item['company_id']?.toString() == _selectedCompanyId;
+    return Card.outlined(
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        minVerticalPadding: 18,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+        selected: selected,
+        selectedTileColor: const Color(0xFFE8F8F5),
+        leading: const CircleAvatar(
+          radius: 25,
+          backgroundColor: Color(0xFF9AF3E4),
+          foregroundColor: Color(0xFF075E58),
+          child: Icon(Icons.business_outlined),
         ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: _loading ? null : _load,
-            child: const Text('Refresh'),
+        title: Text(_value(item['company_name'])),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            '${_status(item['verification_status'])} / '
+            '${_status(item['restriction_status'])} / '
+            '${_value(item['member_count'])} members',
           ),
         ),
-        if (_companies.isEmpty && !_loading && _error == null)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Center(child: Text('No companies found.')),
-          ),
-        for (final item in _companies)
-          Card.outlined(
-            child: ListTile(
-              title: Text(_value(item['company_name'])),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    Chip(
-                      label: Text(
-                        'Operations: ${_status(item['restriction_status'])}',
+        trailing: Icon(
+          Icons.chevron_right,
+          color: selected ? const Color(0xFF087F75) : null,
+        ),
+        onTap: () => _selectCompany(item),
+      ),
+    );
+  }
+
+  Widget _directory() => LayoutBuilder(
+    builder: (context, constraints) => ResponsiveContent(
+      maxWidth: 1320,
+      child: SizedBox(
+        height: constraints.maxHeight,
+        child: Padding(
+          padding: ResponsiveLayout.pagePadding(context),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const PageHeading(
+                title: 'Company management',
+                description:
+                    'Browse company profiles and administrative status.',
+              ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, panes) {
+                    final list = Card.outlined(
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Companies (${_companies.length})',
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Refresh companies',
+                                  onPressed: _loading ? null : _load,
+                                  icon: const Icon(Icons.refresh),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Divider(height: 1),
+                          Expanded(
+                            child: _companies.isEmpty && _loading
+                                ? const Center(
+                                    child: CircularProgressIndicator(),
+                                  )
+                                : _companies.isEmpty && _error == null
+                                ? const Center(
+                                    child: Text('No companies found.'),
+                                  )
+                                : ListView(
+                                    key: const ValueKey('admin-company-list'),
+                                    controller: _listController,
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(),
+                                    padding: const EdgeInsets.all(8),
+                                    children: [
+                                      for (final item in _companies)
+                                        _companyListRow(item),
+                                      if (_error != null)
+                                        Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: Column(
+                                            children: [
+                                              Text(
+                                                _error!,
+                                                textAlign: TextAlign.center,
+                                              ),
+                                              TextButton(
+                                                onPressed: _loadingMore
+                                                    ? null
+                                                    : _loadMore,
+                                                child: const Text('Retry'),
+                                              ),
+                                            ],
+                                          ),
+                                        )
+                                      else if (_loadingMore)
+                                        const Padding(
+                                          padding: EdgeInsets.all(16),
+                                          child: Center(
+                                            child: SizedBox(
+                                              width: 22,
+                                              height: 22,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                          ),
+                        ],
                       ),
-                    ),
-                    Chip(
-                      label: Text(
-                        'Verification: ${_status(item['verification_status'])}',
+                    );
+                    final detail = Card.outlined(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(20, 16, 20, 12),
+                            child: Text('Company details'),
+                          ),
+                          const Divider(height: 1),
+                          Expanded(
+                            child: _detailsLoading
+                                ? const Center(
+                                    child: CircularProgressIndicator(),
+                                  )
+                                : _details(),
+                          ),
+                        ],
                       ),
-                    ),
-                    Chip(
-                      label: Text('Members: ${_value(item['member_count'])}'),
-                    ),
-                    if (item['industry'] != null)
-                      Chip(label: Text(_value(item['industry']))),
-                    if (item['location'] != null)
-                      Chip(label: Text(_value(item['location']))),
-                  ],
+                    );
+                    if (panes.maxWidth < 760) {
+                      return Column(
+                        children: [
+                          Expanded(flex: 5, child: list),
+                          const SizedBox(height: 10),
+                          Expanded(flex: 4, child: detail),
+                        ],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(flex: 5, child: list),
+                        const SizedBox(width: 12),
+                        Expanded(flex: 6, child: detail),
+                      ],
+                    );
+                  },
                 ),
               ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: item['company_id'] is String
-                  ? () => context.push(
-                      '${AppRoutes.adminCompanies}/${item['company_id']}',
-                    )
-                  : null,
-            ),
+            ],
           ),
-        if (_error != null) _errorPanel(),
-        if (_loading)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        if (!_loading && _error == null)
-          ResponsivePagination(
-            page: _offset ~/ _pageSize + 1,
-            onPrevious: _offset == 0 ? null : () => _page(-_pageSize),
-            onNext: !_hasMore ? null : () => _page(_pageSize),
-          ),
-      ],
+        ),
+      ),
     ),
   );
 
-  Widget _errorPanel() => Padding(
+  Widget _errorPanel({bool details = false}) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 16),
     child: Column(
       children: [
         Text(
-          _error!,
+          (details ? _detailsError : _error)!,
           textAlign: TextAlign.center,
           style: TextStyle(color: Theme.of(context).colorScheme.error),
         ),
         TextButton(
-          onPressed: _loading ? null : _load,
+          onPressed: details
+              ? (_detailsLoading || _selectedCompanyId == null
+                    ? null
+                    : () => _loadCompanyDetails(_selectedCompanyId!))
+              : (_loading ? null : _load),
           child: const Text('Retry'),
         ),
       ],
@@ -231,6 +459,11 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
   Widget _details() {
     final item = _company;
     if (item == null) {
+      if (_selectedCompanyId == null) {
+        return const Center(
+          child: Text('Select a company to view its details.'),
+        );
+      }
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -238,11 +471,13 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                _error ?? 'Company details are unavailable.',
+                _detailsError ?? 'Company details are unavailable.',
                 textAlign: TextAlign.center,
               ),
               TextButton(
-                onPressed: _loading ? null : _load,
+                onPressed: _detailsLoading || _selectedCompanyId == null
+                    ? null
+                    : () => _loadCompanyDetails(_selectedCompanyId!),
                 child: const Text('Retry'),
               ),
             ],
@@ -255,104 +490,101 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
         .whereType<Map>()
         .map((m) => Map<String, dynamic>.from(m))
         .toList();
-    return ResponsiveContent(
-      maxWidth: 980,
-      child: ListView(
-        key: const ValueKey('company-details-scroll'),
-        padding: ResponsiveLayout.pagePadding(context),
-        children: [
-          PageHeading(
-            title: _value(item['company_name']),
-            description: 'Company profile and current administrative status.',
-          ),
-          Card.outlined(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _copyableId(item['company_id']?.toString() ?? ''),
+    return ListView(
+      key: const ValueKey('company-details-scroll'),
+      padding: const EdgeInsets.all(20),
+      children: [
+        PageHeading(
+          title: _value(item['company_name']),
+          description: 'Company profile and current administrative status.',
+        ),
+        Card.outlined(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _copyableId(item['company_id']?.toString() ?? ''),
+                _info(
+                  'Operational status',
+                  _status(item['restriction_status']),
+                ),
+                _info(
+                  'Verification status',
+                  _status(item['verification_status']),
+                ),
+                _info('Description', _value(item['company_description'])),
+                _info('Industry', _value(item['industry'])),
+                _info('Location', _value(item['location'])),
+                _info('Created', _date(item['created_at'])),
+                if (_canManageRestrictions && restricted)
                   _info(
-                    'Operational status',
-                    _status(item['restriction_status']),
+                    'Restriction reason',
+                    _value(item['restriction_reason']),
                   ),
-                  _info(
-                    'Verification status',
-                    _status(item['verification_status']),
+                if (_canManageRestrictions) ...[
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _busy ? null : _changeRestriction,
+                    icon: Icon(restricted ? Icons.lock_open : Icons.block),
+                    label: Text(
+                      _busy
+                          ? 'Saving…'
+                          : restricted
+                          ? 'Restore company'
+                          : 'Restrict company',
+                    ),
                   ),
-                  _info('Description', _value(item['company_description'])),
-                  _info('Industry', _value(item['industry'])),
-                  _info('Location', _value(item['location'])),
-                  _info('Created', _date(item['created_at'])),
-                  if (_canManageRestrictions && restricted)
-                    _info(
-                      'Restriction reason',
-                      _value(item['restriction_reason']),
-                    ),
-                  if (_canManageRestrictions) ...[
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: _busy ? null : _changeRestriction,
-                      icon: Icon(restricted ? Icons.lock_open : Icons.block),
-                      label: Text(
-                        _busy
-                            ? 'Saving…'
-                            : restricted
-                            ? 'Restore company'
-                            : 'Restrict company',
-                      ),
-                    ),
-                  ],
-                  if (_error != null) _errorPanel(),
                 ],
-              ),
+                if (_detailsError != null) _errorPanel(details: true),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Memberships (${members.length})',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 8),
+        if (members.isEmpty) const Text('No memberships are recorded.'),
+        for (final member in members)
+          Card.outlined(
+            child: ListTile(
+              leading: const Icon(Icons.person_outline),
+              title: Text(_value(member['name'])),
+              subtitle: Text(_status(member['member_role'])),
+            ),
+          ),
+        if (_canManageRestrictions) ...[
+          const SizedBox(height: 20),
           Text(
-            'Memberships (${members.length})',
+            'Restriction history and Admin audit',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
-          if (members.isEmpty) const Text('No memberships are recorded.'),
-          for (final member in members)
+          if (_history.isEmpty)
+            const Text('No restriction actions have been recorded.'),
+          for (final row in _history)
             Card.outlined(
               child: ListTile(
-                leading: const Icon(Icons.person_outline),
-                title: Text(_value(member['name'])),
-                subtitle: Text(_status(member['member_role'])),
-              ),
-            ),
-          if (_canManageRestrictions) ...[
-            const SizedBox(height: 20),
-            Text(
-              'Restriction history and Admin audit',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            if (_history.isEmpty)
-              const Text('No restriction actions have been recorded.'),
-            for (final row in _history)
-              Card.outlined(
-                child: ListTile(
-                  leading: Icon(
-                    row['action'] == 'restricted'
-                        ? Icons.block
-                        : Icons.lock_open,
-                  ),
-                  title: Text(
-                    '${_status(row['action'])} · ${_date(row['performed_at'])}',
-                  ),
-                  subtitle: Text(
-                    'Reason: ${_value(row['reason'])}\nAdmin: ${_value(row['actor_name'])}',
-                  ),
-                  isThreeLine: true,
+                leading: Icon(
+                  row['action'] == 'restricted'
+                      ? Icons.block
+                      : Icons.lock_open,
                 ),
+                title: Text(
+                  '${_status(row['action'])} · ${_date(row['performed_at'])}',
+                ),
+                subtitle: Text(
+                  'Reason: ${_value(row['reason'])}\nAdmin: ${_value(row['actor_name'])}',
+                ),
+                isThreeLine: true,
               ),
-          ],
-          if (_error != null) _errorPanel(),
+            ),
         ],
-      ),
+        if (_detailsError != null) _errorPanel(details: true),
+      ],
     );
   }
 
@@ -430,19 +662,14 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
   @override
   Widget build(BuildContext context) => AppWorkspace(
     title: 'Company Management',
+    titleWidget: const SizedBox.shrink(),
     path: widget.companyId == null
         ? AppRoutes.adminCompanies
         : '${AppRoutes.adminCompanies}/${widget.companyId}',
     role: 'administrator',
     focused: widget.companyId != null,
     backFallback: AppRoutes.adminCompanies,
-    child:
-        _loading &&
-            (widget.companyId == null ? _companies.isEmpty : _company == null)
-        ? const Center(child: CircularProgressIndicator())
-        : widget.companyId == null
-        ? _directory()
-        : _details(),
+    child: _directory(),
   );
 }
 

@@ -93,6 +93,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       await openWorkspaceMenu(tester);
       // Read-only directories are shared with all active Admins.
+      if (find.byType(ExpansionTile).evaluate().isNotEmpty) {
+        await tester.tap(find.text('Administration'));
+        await tester.pumpAndSettle();
+      }
       expect(find.widgetWithText(ListTile, 'Users'), findsOneWidget);
       expect(find.widgetWithText(ListTile, 'Companies'), findsOneWidget);
       if (!kIsWeb) {
@@ -109,6 +113,10 @@ void main() {
       router.pop();
       await tester.pump(const Duration(seconds: 1));
       await openWorkspaceMenu(tester);
+      if (find.byType(ExpansionTile).evaluate().isNotEmpty) {
+        await tester.tap(find.text('Administration'));
+        await tester.pumpAndSettle();
+      }
       expect(find.widgetWithText(ListTile, 'Users'), findsOneWidget);
       expect(find.widgetWithText(ListTile, 'Companies'), findsOneWidget);
       expect(tester.takeException(), isNull);

@@ -74,6 +74,8 @@ class ResponsivePageAppBar extends StatelessWidget
     this.returnLabel = 'Dashboard',
     this.enabled = true,
     this.showReturnAction = true,
+    this.showWebDashboardLink = true,
+    this.showSessionActions = true,
     this.hasUnsavedChanges,
   });
 
@@ -83,6 +85,8 @@ class ResponsivePageAppBar extends StatelessWidget
   final String returnLabel;
   final bool enabled;
   final bool showReturnAction;
+  final bool showWebDashboardLink;
+  final bool showSessionActions;
   final bool Function()? hasUnsavedChanges;
 
   Future<void> _return(BuildContext context) async {
@@ -111,12 +115,12 @@ class ResponsivePageAppBar extends StatelessWidget
     final hasSession = _hasAuthenticatedSession();
     return AppBar(
       automaticallyImplyLeading: false,
-      leadingWidth: kIsWeb
+      leadingWidth: kIsWeb && showWebDashboardLink
           ? MediaQuery.sizeOf(context).width >= 600
                 ? 146
                 : 56
           : null,
-      leading: kIsWeb
+      leading: kIsWeb && showWebDashboardLink
           ? Tooltip(
               message: showReturnAction ? 'Go to dashboard' : 'JobMate',
               child: InkWell(
@@ -143,7 +147,7 @@ class ResponsivePageAppBar extends StatelessWidget
       title: title,
       actions: [
         ...actions,
-        if (hasSession) ...[
+        if (hasSession && showSessionActions) ...[
           IconButton(
             tooltip: 'Search jobs and companies',
             onPressed: enabled ? () => showJobMateSearchPanel(context) : null,
@@ -154,8 +158,8 @@ class ResponsivePageAppBar extends StatelessWidget
             onPressed: !enabled
                 ? null
                 : () => kIsWeb
-                    ? showNotificationsPanel(context)
-                    : context.push<void>(AppRoutes.notifications),
+                      ? showNotificationsPanel(context)
+                      : context.push<void>(AppRoutes.notifications),
             icon: const Icon(Icons.notifications_none_outlined),
           ),
         ],

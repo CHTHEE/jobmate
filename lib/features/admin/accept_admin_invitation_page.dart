@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/auth_layout.dart';
+import '../../shared/widgets/auth_style.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/mobile_back_action.dart';
 
@@ -25,6 +26,8 @@ class AcceptAdminInvitationPage extends StatefulWidget {
 }
 
 class _AcceptAdminInvitationPageState extends State<AcceptAdminInvitationPage> {
+  static const _allowedPasswordSymbols =
+      r"""!@#$%^&*()_+-=[]{};':"\|<>?,./`~""";
   final _supabase = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
 
@@ -38,6 +41,14 @@ class _AcceptAdminInvitationPageState extends State<AcceptAdminInvitationPage> {
 
   String? _confirmedName;
   String? _errorMessage;
+
+  Map<String, bool> _passwordRequirements(String password) => {
+    'At least 8 characters': password.length >= 8,
+    'One uppercase letter': RegExp(r'[A-Z]').hasMatch(password),
+    'One lowercase letter': RegExp(r'[a-z]').hasMatch(password),
+    'One number': RegExp(r'[0-9]').hasMatch(password),
+    'One symbol': password.split('').any(_allowedPasswordSymbols.contains),
+  };
 
   @override
   void initState() {
@@ -243,13 +254,16 @@ class _AcceptAdminInvitationPageState extends State<AcceptAdminInvitationPage> {
                             border: OutlineInputBorder(),
                           ),
                           validator: (value) {
-                            if ((value ?? '').length < 8) {
-                              return 'Use at least 8 characters.';
+                            if (_passwordRequirements(value ?? '').values
+                                .any((met) => !met)) {
+                              return 'Meet all password strength requirements.';
                             }
 
                             return null;
                           },
+                          onChanged: (_) => setState(() {}),
                         ),
+                        _passwordStrengthIndicator(_passwordController.text),
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _confirmController,
@@ -266,7 +280,20 @@ class _AcceptAdminInvitationPageState extends State<AcceptAdminInvitationPage> {
 
                             return null;
                           },
+                          onChanged: (_) => setState(() {}),
                         ),
+                        if (_confirmController.text.isNotEmpty &&
+                            _confirmController.text != _passwordController.text)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 6),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Passwords do not match yet.',
+                                style: TextStyle(color: AuthStyle.error),
+                              ),
+                            ),
+                          ),
                       ] else ...[
                         const SizedBox(height: 16),
                         const Text(
@@ -296,6 +323,46 @@ class _AcceptAdminInvitationPageState extends State<AcceptAdminInvitationPage> {
                   ),
                 ),
         ),
+      ),
+    );
+  }
+
+  Widget _passwordStrengthIndicator(String password) {
+    final requirements = _passwordRequirements(password);
+    final passed = requirements.values.where((met) => met).length;
+    final label = switch (passed) {
+      0 || 1 => 'Weak',
+      2 || 3 => 'Fair',
+      4 => 'Good',
+      _ => 'Strong',
+    };
+    final color = passed == requirements.length
+        ? AuthStyle.success
+        : passed <= 1
+        ? AuthStyle.error
+        : Colors.orange.shade700;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LinearProgressIndicator(
+            value: passed / requirements.length,
+            color: color,
+            backgroundColor: AuthStyle.border,
+            minHeight: 5,
+          ),
+          const SizedBox(height: 5),
+          Text('Password strength: $label', style: TextStyle(color: color)),
+          for (final entry in requirements.entries)
+            Text(
+              '${entry.value ? '✓' : '○'} ${entry.key}',
+              style: TextStyle(
+                color: entry.value ? AuthStyle.success : AuthStyle.body,
+                fontSize: 12,
+              ),
+            ),
+        ],
       ),
     );
   }

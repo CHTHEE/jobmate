@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/loading_overlay.dart';
@@ -18,11 +19,16 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
   final _supabase = Supabase.instance.client;
   final _actorId = Supabase.instance.client.auth.currentUser?.id;
 
-  static const _pageSize = 20;
+  static const _pageSize = 5;
 
   List<Map<String, dynamic>> _admins = [];
+  final _listController = ScrollController();
+  Map<String, dynamic>? _selectedAdmin;
+  String _searchText = '';
+  bool _canInviteAdmins = false;
 
   bool _isLoading = false;
+  bool _isLoadingMore = false;
   bool _isUpdating = false;
   bool _hasMore = false;
   bool _userManagementAvailable = false;
@@ -33,13 +39,35 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
 
   int _offset = 0;
   String? _errorMessage;
+  String? _loadMoreError;
 
   bool get _isBusy => _isLoading || _isUpdating;
 
   @override
   void initState() {
     super.initState();
+    _listController.addListener(_onListScroll);
     _loadAdmins();
+  }
+
+  @override
+  void dispose() {
+    _listController
+      ..removeListener(_onListScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onListScroll() {
+    if (!_listController.hasClients ||
+        _isLoading ||
+        _isLoadingMore ||
+        !_hasMore) {
+      return;
+    }
+    if (_listController.position.extentAfter < 220) {
+      _loadAdmins(loadMore: true);
+    }
   }
 
   void _checkSession() {
@@ -50,20 +78,28 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
     }
   }
 
-  Future<void> _loadAdmins() async {
-    if (_isLoading) return;
+  Future<void> _loadAdmins({bool loadMore = false}) async {
+    if (_isLoading || _isLoadingMore || (loadMore && !_hasMore)) return;
 
     setState(() {
-      _isLoading = true;
+      if (loadMore) {
+        _isLoadingMore = true;
+        _loadMoreError = null;
+      } else {
+        _isLoading = true;
+        _loadMoreError = null;
+      }
       _errorMessage = null;
     });
 
     try {
       _checkSession();
+      final requestOffset = loadMore ? _offset : 0;
 
       dynamic data;
       var schemaVersion = 0;
       const versions = [
+        'list_admin_accounts_v9',
         'list_admin_accounts_v8',
         'list_admin_accounts_v7',
         'list_admin_accounts_v6',
@@ -76,9 +112,9 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
         try {
           data = await _supabase.rpc(
             versions[index],
-            params: {'p_limit': _pageSize + 1, 'p_offset': _offset},
+            params: {'p_limit': _pageSize + 1, 'p_offset': requestOffset},
           );
-          schemaVersion = 8 - index;
+          schemaVersion = 9 - index;
           break;
         } on PostgrestException catch (error) {
           if (error.code != 'PGRST202' || index == versions.length - 1) {
@@ -123,13 +159,29 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
       }
 
       setState(() {
-        _hasMore = rows.length > _pageSize;
         // Older deployed projections may still return Superadmins. Hide them
         // locally during rollout; v8 also filters before pagination.
-        _admins = rows
+        final page = rows
             .where((row) => row['can_manage_admin_permissions'] != true)
             .take(_pageSize)
             .toList();
+        if (loadMore) {
+          final existingIds = _admins.map((row) => row['user_id']).toSet();
+          _admins.addAll(
+            page.where((row) => !existingIds.contains(row['user_id'])),
+          );
+        } else {
+          _admins = page;
+        }
+        _offset =
+            requestOffset + (rows.length > _pageSize ? _pageSize : rows.length);
+        _hasMore = rows.length > _pageSize;
+        final selectedId = _selectedAdmin?['user_id'];
+        Map<String, dynamic>? selected;
+        for (final row in _admins) {
+          if (row['user_id'] == selectedId) selected = row;
+        }
+        _selectedAdmin = selected ?? (_admins.isEmpty ? null : _admins.first);
         _userManagementAvailable = userManagementAvailable;
         _disputeManagementAvailable = disputeManagementAvailable;
         _companyRestrictionAvailable = companyRestrictionAvailable;
@@ -138,11 +190,15 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
             jobModerationAvailable &&
             rows.any((row) => row['can_manage_job_moderation'] is bool);
       });
+      if (!loadMore) _loadInvitePermission();
     } on PostgrestException catch (error) {
       if (!mounted) return;
-
       setState(() {
-        _errorMessage = error.message;
+        if (loadMore) {
+          _loadMoreError = 'Could not load more administrators. Retry.';
+        } else {
+          _errorMessage = error.message;
+        }
       });
     } catch (error) {
       if (!mounted) return;
@@ -150,16 +206,39 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
       debugPrint('Admin list loading failed: $error');
 
       setState(() {
-        _errorMessage = error is StateError
+        final message = error is StateError
             ? error.message.toString()
             : 'Unable to load administrators. Please retry.';
+        if (loadMore) {
+          _loadMoreError = message;
+        } else {
+          _errorMessage = message;
+        }
       });
     } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _isLoadingMore = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadInvitePermission() async {
+    final actorId = _actorId;
+    if (actorId == null) return;
+    try {
+      final row = await _supabase
+          .from('administrator_profiles')
+          .select('can_invite_admins')
+          .eq('user_id', actorId)
+          .maybeSingle();
+      if (!mounted || _supabase.auth.currentUser?.id != actorId) return;
+      setState(() => _canInviteAdmins = row?['can_invite_admins'] == true);
+    } catch (error) {
+      debugPrint('Admin invitation permission lookup failed: $error');
+      if (mounted) setState(() => _canInviteAdmins = false);
     }
   }
 
@@ -344,21 +423,7 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _changePage(int difference) {
-    if (_isBusy) return;
-
-    final nextOffset = _offset + difference;
-
-    if (nextOffset < 0) return;
-
-    setState(() {
-      _offset = nextOffset;
-    });
-
-    _loadAdmins();
-  }
-
-  Widget _buildAdminCard(Map<String, dynamic> admin) {
+  Widget _buildPermissionControls(Map<String, dynamic> admin) {
     final name = admin['name'] as String? ?? 'Unnamed administrator';
     final email = admin['email'] as String? ?? 'No email';
     final status = admin['account_status'] as String? ?? 'unknown';
@@ -503,12 +568,105 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
     );
   }
 
+  Widget _administratorRow(Map<String, dynamic> admin) {
+    final name = admin['name'] as String? ?? 'Unnamed administrator';
+    final selected = admin['user_id'] == _selectedAdmin?['user_id'];
+    final imageUrl = admin['profile_image_url'] as String?;
+    return Card.outlined(
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        selected: selected,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFF9AF3E4),
+          foregroundImage: imageUrl?.trim().isNotEmpty == true
+              ? NetworkImage(imageUrl!)
+              : null,
+          child: Text(name.isEmpty ? '?' : name[0].toUpperCase()),
+        ),
+        title: Text(name),
+        subtitle: Text('ID: ${admin['user_id'] ?? 'Unavailable'}'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => setState(() => _selectedAdmin = admin),
+      ),
+    );
+  }
+
+  Future<void> _openPermissions(Map<String, dynamic> admin) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620, maxHeight: 760),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Manage permissions — ${admin['name'] ?? 'Administrator'}',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.pop(dialogContext),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                _buildPermissionControls(admin),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showActionHistoryNotice() => showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Administrator action history'),
+      content: const Text(
+        'A unified administrator permission history is not available from the current database RPCs.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Close'),
+        ),
+      ],
+    ),
+  );
+
+  void _setAdminSearch(String value) {
+    setState(() {
+      _searchText = value;
+      final query = value.trim().toLowerCase();
+      final matches = _admins.where(
+        (admin) =>
+            query.isEmpty ||
+            (admin['name']?.toString().toLowerCase().contains(query) ?? false),
+      );
+      if (!matches.any(
+        (admin) => admin['user_id'] == _selectedAdmin?['user_id'],
+      )) {
+        _selectedAdmin = matches.isEmpty ? null : matches.first;
+      }
+    });
+  }
+
   Widget _buildBody(BuildContext context) {
-    if (_isLoading) {
+    if (_isLoading && _admins.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_errorMessage != null) {
+    if (_errorMessage != null && _admins.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -527,39 +685,300 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
       );
     }
 
-    return ResponsiveContent(
-      maxWidth: 840,
-      child: ListView(
-        padding: ResponsiveLayout.pagePadding(context),
-        children: [
-          const Text(
-            'Administrator access',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Superadmins have access to Admin tools and are not listed here. '
-            'Other Administrators can only receive access from a Superadmin and cannot change their own permissions.',
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: _isBusy ? null : _loadAdmins,
-              child: const Text('Refresh'),
+    final filteredAdmins = _admins.where((admin) {
+      final query = _searchText.trim().toLowerCase();
+      return query.isEmpty ||
+          (admin['name']?.toString().toLowerCase().contains(query) ?? false);
+    }).toList();
+    final selected = _selectedAdmin;
+    final selectedName = selected?['name'] as String? ?? '?';
+
+    return LayoutBuilder(
+      builder: (context, constraints) => ResponsiveContent(
+        maxWidth: 1320,
+        child: SizedBox(
+          height: constraints.maxHeight,
+          child: Padding(
+            padding: ResponsiveLayout.pagePadding(context),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Administrator access',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Superadmins have access to Admin tools and are not listed here. '
+                  'Other Administrators can only receive access from a Superadmin and cannot change their own permissions.',
+                ),
+                const SizedBox(height: 12),
+                LayoutBuilder(
+                  builder: (context, searchConstraints) {
+                    final search = TextField(
+                      enabled: !_isBusy,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: 'Search administrator name',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: _setAdminSearch,
+                    );
+                    final invite = _canInviteAdmins
+                        ? FilledButton.icon(
+                            onPressed: _isBusy
+                                ? null
+                                : () => context.push(AppRoutes.inviteAdmin),
+                            icon: const Icon(Icons.person_add_alt_1_outlined),
+                            label: const Text('Invite administrator'),
+                          )
+                        : null;
+                    if (searchConstraints.maxWidth < 640) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          search,
+                          if (invite != null) ...[
+                            const SizedBox(height: 8),
+                            invite,
+                          ],
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: search),
+                        if (invite != null) ...[
+                          const SizedBox(width: 12),
+                          invite,
+                        ],
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, panes) {
+                      final leftPane = Card.outlined(
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                              child: Row(
+                                children: [
+                                  const Expanded(child: Text('Administrators')),
+                                  IconButton(
+                                    tooltip: 'Refresh administrators',
+                                    onPressed: _isBusy ? null : _loadAdmins,
+                                    icon: const Icon(Icons.refresh),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Divider(height: 1),
+                            Expanded(
+                              child: filteredAdmins.isEmpty && !_hasMore
+                                  ? Center(
+                                      child: Text(
+                                        _admins.isEmpty
+                                            ? 'No administrators found.'
+                                            : 'No administrators match this search.',
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    )
+                                  : ListView(
+                                      key: const ValueKey(
+                                        'admin-administrators-list',
+                                      ),
+                                      controller: _listController,
+                                      physics:
+                                          const AlwaysScrollableScrollPhysics(),
+                                      padding: const EdgeInsets.all(8),
+                                      children: [
+                                        if (filteredAdmins.isEmpty)
+                                          const Padding(
+                                            padding: EdgeInsets.all(20),
+                                            child: Text(
+                                              'No loaded administrator matches yet.',
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ),
+                                        for (final admin in filteredAdmins)
+                                          _administratorRow(admin),
+                                        if (_loadMoreError != null)
+                                          Padding(
+                                            padding: const EdgeInsets.all(12),
+                                            child: Column(
+                                              children: [
+                                                Text(
+                                                  _loadMoreError!,
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                                TextButton(
+                                                  onPressed: _isLoadingMore
+                                                      ? null
+                                                      : () => _loadAdmins(
+                                                          loadMore: true,
+                                                        ),
+                                                  child: const Text('Retry'),
+                                                ),
+                                              ],
+                                            ),
+                                          )
+                                        else if (_isLoadingMore)
+                                          const Padding(
+                                            padding: EdgeInsets.all(16),
+                                            child: Center(
+                                              child: SizedBox(
+                                                width: 22,
+                                                height: 22,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                            ),
+                          ],
+                        ),
+                      );
+                      final rightPane = Card.outlined(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.fromLTRB(20, 16, 20, 12),
+                              child: Text('Administrator details'),
+                            ),
+                            const Divider(height: 1),
+                            Expanded(
+                              child: selected == null
+                                  ? const Center(
+                                      child: Text('Select an administrator.'),
+                                    )
+                                  : ListView(
+                                      key: const ValueKey(
+                                        'admin-detail-pane-scroll',
+                                      ),
+                                      padding: const EdgeInsets.all(20),
+                                      children: [
+                                        Row(
+                                          children: [
+                                            CircleAvatar(
+                                              radius: 34,
+                                              backgroundColor: const Color(
+                                                0xFF9AF3E4,
+                                              ),
+                                              foregroundImage:
+                                                  (selected['profile_image_url']
+                                                              as String?)
+                                                          ?.trim()
+                                                          .isNotEmpty ==
+                                                      true
+                                                  ? NetworkImage(
+                                                      selected['profile_image_url']
+                                                          as String,
+                                                    )
+                                                  : null,
+                                              child: Text(
+                                                selectedName.isEmpty
+                                                    ? '?'
+                                                    : selectedName[0]
+                                                          .toUpperCase(),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 14),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    selectedName,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .titleLarge,
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    'ID: ${selected['user_id'] ?? 'Unavailable'}',
+                                                  ),
+                                                  Text(
+                                                    'Account: ${selected['account_status'] ?? 'unknown'}',
+                                                  ),
+                                                  if ((selected['email']
+                                                              as String?)
+                                                          ?.isNotEmpty ==
+                                                      true)
+                                                    Text(
+                                                      selected['email']
+                                                          as String,
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 20),
+                                        Wrap(
+                                          spacing: 12,
+                                          runSpacing: 8,
+                                          children: [
+                                            FilledButton.icon(
+                                              onPressed: _isBusy
+                                                  ? null
+                                                  : () => _openPermissions(
+                                                      selected,
+                                                    ),
+                                              icon: const Icon(Icons.tune),
+                                              label: const Text(
+                                                'Manage permissions',
+                                              ),
+                                            ),
+                                            OutlinedButton.icon(
+                                              onPressed:
+                                                  _showActionHistoryNotice,
+                                              icon: const Icon(Icons.history),
+                                              label: const Text(
+                                                'View action history',
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (panes.maxWidth < 760) {
+                        return Column(
+                          children: [
+                            Expanded(flex: 5, child: leftPane),
+                            const SizedBox(height: 10),
+                            Expanded(flex: 4, child: rightPane),
+                          ],
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(flex: 5, child: leftPane),
+                          const SizedBox(width: 12),
+                          Expanded(flex: 6, child: rightPane),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 24),
-          if (_admins.isEmpty) const Text('No administrators on this page.'),
-          for (final admin in _admins) _buildAdminCard(admin),
-          const SizedBox(height: 8),
-          ResponsivePagination(
-            page: _offset ~/ _pageSize + 1,
-            onPrevious: _isBusy || _offset == 0
-                ? null
-                : () => _changePage(-_pageSize),
-            onNext: _isBusy || !_hasMore ? null : () => _changePage(_pageSize),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -571,6 +990,7 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage> {
       message: 'Updating administrator permission...',
       child: AppWorkspace(
         title: 'Admin permissions',
+        titleWidget: const SizedBox.shrink(),
         path: AppRoutes.adminPermissions,
         role: 'administrator',
         navigationLocked: _isBusy,

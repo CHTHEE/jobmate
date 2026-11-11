@@ -38,6 +38,8 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
   String? _sentToEmail;
   DateTime? _lastSendAt;
   String _loadingMessage = 'Please Wait...';
+  String? _emailError;
+  String? _codeError;
 
   @override
   void initState() {
@@ -60,9 +62,14 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
         : (_initialUser?.email ?? '');
 
     if (email.isEmpty) {
-      _showMessage('Please enter your email');
+      setState(() => _emailError = 'Enter your registered email address.');
       return;
     }
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      setState(() => _emailError = 'Enter a valid email address.');
+      return;
+    }
+    setState(() => _emailError = null);
 
     if (!widget.isForgorPassword) {
       if (_initialUser == null || _auth.currentUser?.id != _initialUser.id) {
@@ -130,10 +137,11 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
       return;
     }
 
-    if (code.isEmpty) {
-      _showMessage('Enter the code from your email.');
+    if (!RegExp(r'^\d{8}$').hasMatch(code)) {
+      setState(() => _codeError = 'Enter the 8-digit code from your email.');
       return;
     }
+    setState(() => _codeError = null);
 
     if (!widget.isForgorPassword) {
       if (_initialUser == null || _auth.currentUser?.id != _initialUser.id) {
@@ -190,6 +198,8 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
     setState(() {
       _codeSent = false;
       _sentToEmail = null;
+      _emailError = null;
+      _codeError = null;
     });
   }
 
@@ -256,7 +266,20 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.email],
+                  onChanged: (_) {
+                    if (_emailError != null) {
+                      setState(() => _emailError = null);
+                    }
+                  },
                 ),
+                if (_emailError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      _emailError!,
+                      style: const TextStyle(color: AuthStyle.error),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 FilledButton(
                   onPressed: _isBusy ? null : _sendCode,
@@ -312,9 +335,15 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
                   enabled: !_isBusy && !_codeSent,
                   keyboardType: TextInputType.emailAddress,
                   autofillHints: const [AutofillHints.email],
-                  decoration: const InputDecoration(
+                  onChanged: (_) {
+                    if (_emailError != null) {
+                      setState(() => _emailError = null);
+                    }
+                  },
+                  decoration: InputDecoration(
                     labelText: 'Registered email',
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
+                    errorText: _emailError,
                   ),
                 ),
 
@@ -340,10 +369,20 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
                   enabled: !_isBusy,
                   keyboardType: TextInputType.number,
                   autofillHints: const [AutofillHints.oneTimeCode],
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(
+                  maxLength: 8,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(8),
+                  ],
+                  onChanged: (_) {
+                    if (_codeError != null) {
+                      setState(() => _codeError = null);
+                    }
+                  },
+                  decoration: InputDecoration(
                     labelText: 'Verification code',
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
+                    errorText: _codeError,
                   ),
                 ),
                 const SizedBox(height: 24),

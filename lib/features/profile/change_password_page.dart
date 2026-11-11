@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/auth_layout.dart';
+import '../../shared/widgets/auth_style.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/mobile_back_action.dart';
 import '../../shared/navigation/app_routes.dart';
@@ -17,6 +18,8 @@ class ChangePasswordPage extends StatefulWidget {
 }
 
 class _ChangePasswordPageState extends State<ChangePasswordPage> {
+  static const _allowedPasswordSymbols =
+      r"""!@#$%^&*()_+-=[]{};':"\|<>?,./`~""";
   final _auth = Supabase.instance.client.auth;
 
   final _passwordController = TextEditingController();
@@ -24,6 +27,14 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   bool _isBusy = false;
   bool _passwordChanged = false;
+
+  Map<String, bool> _passwordRequirements(String password) => {
+    'At least 8 characters': password.length >= 8,
+    'One uppercase letter': RegExp(r'[A-Z]').hasMatch(password),
+    'One lowercase letter': RegExp(r'[a-z]').hasMatch(password),
+    'One number': RegExp(r'[0-9]').hasMatch(password),
+    'One symbol': password.split('').any(_allowedPasswordSymbols.contains),
+  };
 
   @override
   void dispose() {
@@ -45,8 +56,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         return;
       }
 
-      if (password.length < 8) {
-        _showMessage('Use a password with at least 8 characters.');
+      final requirements = _passwordRequirements(password);
+      if (requirements.values.any((met) => !met)) {
+        _showMessage('Meet all password strength requirements.');
         return;
       }
 
@@ -130,6 +142,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         child: Scaffold(
           appBar: ResponsivePageAppBar(
             enabled: !_isBusy && !_passwordChanged,
+            showWebDashboardLink: false,
+            showSessionActions: false,
             hasUnsavedChanges: () =>
                 _passwordController.text.isNotEmpty ||
                 _confirmController.text.isNotEmpty,
@@ -160,23 +174,38 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                     controller: _passwordController,
                     enabled: !_isBusy,
                     obscureText: true,
+                    onChanged: (_) => setState(() {}),
                     decoration: const InputDecoration(
                       labelText: 'New password',
                       border: OutlineInputBorder(),
                     ),
                   ),
+                  _passwordStrengthIndicator(_passwordController.text),
                   const SizedBox(height: 16),
 
                   TextField(
                     controller: _confirmController,
                     enabled: !_isBusy,
                     obscureText: true,
+                    onChanged: (_) => setState(() {}),
                     textInputAction: TextInputAction.done,
                     decoration: const InputDecoration(
                       labelText: 'Confirm new password',
                       border: OutlineInputBorder(),
                     ),
                   ),
+                  if (_confirmController.text.isNotEmpty &&
+                      _confirmController.text != _passwordController.text)
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: EdgeInsets.only(top: 6),
+                        child: Text(
+                          'Passwords do not match yet.',
+                          style: TextStyle(color: AuthStyle.error),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: _isBusy ? null : _changePassword,
@@ -187,6 +216,46 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _passwordStrengthIndicator(String password) {
+    final requirements = _passwordRequirements(password);
+    final passed = requirements.values.where((met) => met).length;
+    final label = switch (passed) {
+      0 || 1 => 'Weak',
+      2 || 3 => 'Fair',
+      4 => 'Good',
+      _ => 'Strong',
+    };
+    final color = passed == requirements.length
+        ? AuthStyle.success
+        : passed <= 1
+        ? AuthStyle.error
+        : Colors.orange.shade700;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LinearProgressIndicator(
+            value: passed / requirements.length,
+            color: color,
+            backgroundColor: AuthStyle.border,
+            minHeight: 5,
+          ),
+          const SizedBox(height: 5),
+          Text('Password strength: $label', style: TextStyle(color: color)),
+          for (final entry in requirements.entries)
+            Text(
+              '${entry.value ? '✓' : '○'} ${entry.key}',
+              style: TextStyle(
+                color: entry.value ? AuthStyle.success : AuthStyle.body,
+                fontSize: 12,
+              ),
+            ),
+        ],
       ),
     );
   }

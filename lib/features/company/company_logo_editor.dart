@@ -180,7 +180,7 @@ class _CompanyLogoEditorState extends State<CompanyLogoEditor> {
     } catch (_) {
       if (mounted) {
         setState(
-          () => _statusError = 'Unable to load logo review status. Refresh the status before choosing a photo.',
+          () => _statusError = 'Unable to load logo review status. Reopen the Company profile to retry before choosing a photo.',
         );
       }
     } finally {
@@ -399,18 +399,18 @@ class _CompanyLogoEditorState extends State<CompanyLogoEditor> {
             Text(switch (_request!['status']) {
               'pending' =>
                 'Pending approval. Your current photo remains unchanged.',
-              'verified' => 'Logo approved. Refresh Company profile to load the latest photo.',
+              'verified' => 'Logo approved. Reopen Company profile to load the latest photo.',
               'rejected' =>
-                'Logo rejected. ${_request!['review_comment'] ?? 'Refresh the review status for the reason.'} You may submit another photo.',
-              _ => 'Unknown review status. Refresh before continuing.',
+                'Logo rejected. ${_request!['review_comment'] ?? 'Reopen the Company profile to reload its status.'} You may submit another photo.',
+              _ => 'Unknown review status. Reopen the Company profile before continuing.',
             }, textAlign: TextAlign.center),
           if (_statusError != null)
             Text(_statusError!, style: TextStyle(color: colors.error)),
-          TextButton.icon(
-            onPressed: _working || _loadingStatus ? null : _loadStatus,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Refresh logo review status'),
-          ),
+          if (_statusError != null)
+            TextButton(
+              onPressed: _working || _loadingStatus ? null : _loadStatus,
+              child: const Text('Try again'),
+            ),
         ],
         if (_working)
           const Padding(
