@@ -29,7 +29,7 @@ import 'features/applications/applications_page.dart';
 import 'features/demo_work/phase3_store.dart';
 import 'features/recommendations/recommendations_page.dart';
 import 'features/attendance/attendance_pages.dart';
-import 'features/attendance/workers_page.dart';
+import 'features/work_attendance/company_workers_page.dart';
 import 'features/work_attendance/work_attendance_routes.dart';
 import 'features/work_attendance/work_verification_routes.dart';
 import 'features/chat/chat_page.dart';
@@ -370,7 +370,10 @@ GoRouter _createRouter() {
       ),
       _appRoute(
         AppRoutes.workers,
-        (_, _) => const Module2Gate(role: 'employer', child: WorkersPage()),
+        (_, _) => const Module2Gate(
+          role: 'employer',
+          child: CompanyWorkersPage(),
+        ),
       ),
       _appRoute(
         '${AppRoutes.attendanceReview}/:recordId/report',

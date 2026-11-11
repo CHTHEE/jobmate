@@ -25,7 +25,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
         'Work Verification',
         Icons.assignment_turned_in_outlined,
       ),
-      (AppRoutes.workers, 'Workers (demo)', Icons.groups_outlined),
+      (AppRoutes.workers, 'Company Workers', Icons.groups_outlined),
       (
         AppRoutes.employerPayments,
         'Payments (sandbox)',
