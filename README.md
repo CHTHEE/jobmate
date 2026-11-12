@@ -1474,6 +1474,55 @@ confirmation is unchanged. `list_personal_resumes` returns the latest ten versio
 and the same user's legacy resume files, newest first; the first is current.
 Older files/records are retained; no automatic deletion/cleanup is introduced.
 
+### Job Seeker Profile extension and Flutter UI
+
+The current development handoff reports the additive SQL candidate installed
+in Local and its rollback-only regression passed; those database results were
+not rerun during the Flutter UI task. The candidate defines overlap-free ISO
+weekday availability in `Asia/Kuala_Lumpur`, an application-scoped Employer
+read of applicant professional details, and a verified-Company profile read
+for active Job Seekers. Certificate documents remain private and are omitted
+from read RPC payloads; self-declared and Company-provided certificate metadata
+is labelled unverified. The Job Seeker `/profile` screen now uses the additive
+Profile contract for About Me, Skills, Certificates, Education, Work Experience,
+Languages and Weekly Availability. Existing free-text profile data is not
+backfilled, and Company review/logo approval flows are unchanged.
+
+`supabase/patches/profile_job_seeker_certification_delete_local_delta.sql`
+is an additional Local-only contract for certificate metadata deletion and an
+explicit education `is_current` field; it has not been applied. Until that delta
+is reviewed and applied, the extended editor reports unavailable when those
+objects are missing. The UI does not assume the extension is present on Shared.
+Its transaction-scoped regression is
+`supabase/diagnostics/profile_job_seeker_certification_delete_local_delta_test.sql`;
+run it only after applying the delta to the named Local database. It checks
+owner-only metadata deletion, education date/current-state constraints, and
+that deleting metadata leaves the private Storage object record in place.
+The ERD and security contract are in
+`supabase/diagnostics/profile_schema_extension_review.md`.
+
+The same `/profile` screen also provides Employers with personal Bio, Job Title,
+Department and Professional Experience fields from `employer_profiles`. Reads
+use the owner's existing RLS-protected row; writes use the active-Employer
+`save_my_employer_profile(text,text,text,text)` RPC and do not update legacy
+Company fields or `company_memberships`. The Employer view reports the Profile
+Extension as unavailable with Retry when its schema is absent; the extension
+still requires review and deployment before those fields are available in
+Shared.
+
+The existing Employer `/company` workflow now includes Company-scoped
+Specialties and Certifications, while preserving Company Description, Industry,
+verification submission and approved-logo flows. Specialty writes use the
+Profile Extension table's current-membership RLS; Certification metadata uses
+`save_company_certification`, and private documents use the existing
+`jobmate-profile-certificates` bucket with short-lived signed reads. Company
+profiles in Job Details use `get_public_company_profile_v1`; the UI displays
+only its public projection and never renders certification document paths.
+Because the installed Profile SQL has no Company certification delete RPC,
+`supabase/patches/profile_company_certification_delete_local_delta.sql` and its
+rollback-only test are prepared but not applied. No Profile SQL has been
+installed or deployed by this UI change.
+
 Resume RLS and signed-link creation permit the active owner only. No employer
 or public resume-read permission is introduced. Legacy files retain their original
 private-bucket permissions. A trigger rejects new Job Seeker verification-request

@@ -400,7 +400,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 620) {
+        if (constraints.maxWidth < 480) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -431,7 +431,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) => ResponsiveContent(
-            maxWidth: 1050,
+            maxWidth: 1320,
             child: SizedBox(
               height: constraints.maxHeight,
               child: Padding(
@@ -443,19 +443,6 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                       title: 'User management',
                       description: 'Browse Job Seeker and Employer accounts.',
                     ),
-                    TextField(
-                      controller: _searchController,
-                      enabled: true,
-                      onChanged: _changeSearch,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
-                        hintText: 'Search user name',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _buildFilters(context),
-                    const SizedBox(height: 12),
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, paneConstraints) {
@@ -481,6 +468,34 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                       ),
                                     ],
                                   ),
+                                ),
+                                const Divider(height: 1),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    12,
+                                    12,
+                                    0,
+                                  ),
+                                  child: TextField(
+                                    controller: _searchController,
+                                    onChanged: _changeSearch,
+                                    decoration: const InputDecoration(
+                                      prefixIcon: Icon(Icons.search),
+                                      hintText: 'Search user name',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    10,
+                                    12,
+                                    8,
+                                  ),
+                                  child: _buildFilters(context),
                                 ),
                                 const Divider(height: 1),
                                 Expanded(

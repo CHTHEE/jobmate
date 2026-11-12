@@ -11,6 +11,7 @@ import 'module2_widgets.dart';
 import 'published_company_logo.dart';
 import 'job_application_form.dart';
 import 'my_applications_repository.dart';
+import '../company/company_profile_sections.dart';
 
 class JobFacts extends StatelessWidget {
   const JobFacts(this.job, {super.key});
@@ -235,6 +236,13 @@ class _JobDetailsPageState extends State<JobDetailsPage>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        if (job.text('company_id').isNotEmpty)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: PublicCompanyProfileButton(
+                              companyId: job.text('company_id'),
+                            ),
+                          ),
                         JobFacts(job),
                         const SizedBox(height: 16),
                         if (job.unavailable() case final String reason)

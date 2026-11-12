@@ -58,6 +58,22 @@ supabase/.temp/
 supabase/diagnostics/
 supabase/migrations/
 supabase/patches/
+# Reviewed, versioned Profile schema-preparation artifacts only.
+!supabase/diagnostics/
+supabase/diagnostics/*
+!supabase/diagnostics/profile_schema_extension_test.sql
+!supabase/diagnostics/profile_job_seeker_certification_delete_local_delta_test.sql
+!supabase/diagnostics/profile_schema_extension_review.md
+!supabase/patches/
+supabase/patches/*
+!supabase/patches/profile_schema_extension_local.sql
 
 *_test.dart
 *test*
+!test/
+!test/job_seeker_profile_sections_test.dart
+!test/employer_profile_sections_test.dart
+!test/employer_profile_repository_test.dart
+!supabase/diagnostics/profile_schema_extension_test.sql
+!supabase/patches/profile_job_seeker_certification_delete_local_delta.sql
+.local*

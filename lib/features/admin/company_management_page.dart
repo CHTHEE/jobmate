@@ -21,6 +21,7 @@ class CompanyManagementPage extends StatefulWidget {
 
 class _CompanyManagementPageState extends State<CompanyManagementPage> {
   static const _pageSize = 5;
+  final _searchController = TextEditingController();
   late final CompanyManagementGateway _gateway =
       widget.gateway ??
       SupabaseCompanyManagementGateway(Supabase.instance.client);
@@ -28,6 +29,11 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
   Map<String, dynamic>? _company;
   final _listController = ScrollController();
   String? _selectedCompanyId;
+  Timer? _searchDebounce;
+  int _requestGeneration = 0;
+  String _search = '';
+  String? _verificationStatus;
+  String? _restrictionStatus;
   bool _loading = false, _loadingMore = false, _detailsLoading = false;
   bool _busy = false, _hasMore = false;
   bool _canManageRestrictions = false;
@@ -45,6 +51,8 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
     _listController
       ..removeListener(_onListScroll)
       ..dispose();
@@ -68,19 +76,29 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
   }
 
   Future<void> _load() async {
+    final generation = ++_requestGeneration;
     setState(() {
       _loading = true;
+      _loadingMore = false;
       _error = null;
       _detailsLoading = _selectedCompanyId != null;
+      _companies = [];
+      _hasMore = false;
     });
     try {
       // Directory access is read-only for every active Admin. Keep its
       // initial load independent from optional restriction permissions.
       unawaited(_loadRestrictionPermission());
       final rows = await _gateway
-          .list(limit: _pageSize + 1, offset: 0)
+          .list(
+            limit: _pageSize + 1,
+            offset: 0,
+            search: _search,
+            verificationStatus: _verificationStatus,
+            restrictionStatus: _restrictionStatus,
+          )
           .timeout(const Duration(seconds: 20));
-      if (!mounted) return;
+      if (!mounted || generation != _requestGeneration) return;
       final companies = rows.take(_pageSize).toList();
       final requested = _selectedCompanyId;
       final selected =
@@ -100,7 +118,7 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
       });
       if (selected != null) await _loadCompanyDetails(selected);
     } catch (_) {
-      if (mounted) {
+      if (mounted && generation == _requestGeneration) {
         setState(() {
           _error = 'We could not load company information. Please try again.';
           if (_selectedCompanyId != null && _company == null) {
@@ -110,7 +128,7 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
         });
       }
     } finally {
-      if (mounted) {
+      if (mounted && generation == _requestGeneration) {
         setState(() {
           _loading = false;
           if (_company == null) _detailsLoading = false;
@@ -121,15 +139,22 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
 
   Future<void> _loadMore() async {
     if (_loading || _loadingMore || !_hasMore) return;
+    final generation = _requestGeneration;
     setState(() {
       _loadingMore = true;
       _error = null;
     });
     try {
       final rows = await _gateway
-          .list(limit: _pageSize + 1, offset: _companies.length)
+          .list(
+            limit: _pageSize + 1,
+            offset: _companies.length,
+            search: _search,
+            verificationStatus: _verificationStatus,
+            restrictionStatus: _restrictionStatus,
+          )
           .timeout(const Duration(seconds: 20));
-      if (!mounted) return;
+      if (!mounted || generation != _requestGeneration) return;
       setState(() {
         final seen = _companies.map((item) => item['company_id']).toSet();
         _companies.addAll(
@@ -140,14 +165,46 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
         _hasMore = rows.length > _pageSize;
       });
     } catch (_) {
-      if (mounted) {
+      if (mounted && generation == _requestGeneration) {
         setState(
           () => _error = 'We could not load more companies. Please retry.',
         );
       }
     } finally {
-      if (mounted) setState(() => _loadingMore = false);
+      if (mounted && generation == _requestGeneration) {
+        setState(() => _loadingMore = false);
+      }
     }
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _requestGeneration++;
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() {
+        _search = value.trim();
+        if (widget.companyId == null) _selectedCompanyId = null;
+      });
+      _load();
+    });
+  }
+
+  Future<void> _openFilters() async {
+    final filters = await showDialog<(String?, String?)>(
+      context: context,
+      builder: (context) => _CompanyDirectoryFilterDialog(
+        verificationStatus: _verificationStatus,
+        restrictionStatus: _restrictionStatus,
+      ),
+    );
+    if (filters == null || !mounted) return;
+    setState(() {
+      _verificationStatus = filters.$1;
+      _restrictionStatus = filters.$2;
+      if (widget.companyId == null) _selectedCompanyId = null;
+    });
+    await _load();
   }
 
   Future<void> _loadCompanyDetails(String companyId) async {
@@ -326,11 +383,34 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
                                   ),
                                 ),
                                 IconButton(
+                                  tooltip: 'Search and filter companies',
+                                  onPressed: _openFilters,
+                                  color:
+                                      _verificationStatus != null ||
+                                          _restrictionStatus != null
+                                      ? const Color(0xFF087F75)
+                                      : null,
+                                  icon: const Icon(Icons.tune),
+                                ),
+                                IconButton(
                                   tooltip: 'Refresh companies',
                                   onPressed: _loading ? null : _load,
                                   icon: const Icon(Icons.refresh),
                                 ),
                               ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                            child: TextField(
+                              controller: _searchController,
+                              onChanged: _onSearchChanged,
+                              decoration: const InputDecoration(
+                                prefixIcon: Icon(Icons.search),
+                                hintText: 'Search company name',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
                             ),
                           ),
                           const Divider(height: 1),
@@ -772,6 +852,82 @@ class _RestrictionReasonDialogState extends State<_RestrictionReasonDialog> {
           Navigator.pop(context, reason);
         },
         child: Text(widget.action == 'restrict' ? 'Restrict' : 'Restore'),
+      ),
+    ],
+  );
+}
+
+class _CompanyDirectoryFilterDialog extends StatefulWidget {
+  const _CompanyDirectoryFilterDialog({
+    required this.verificationStatus,
+    required this.restrictionStatus,
+  });
+
+  final String? verificationStatus;
+  final String? restrictionStatus;
+
+  @override
+  State<_CompanyDirectoryFilterDialog> createState() =>
+      _CompanyDirectoryFilterDialogState();
+}
+
+class _CompanyDirectoryFilterDialogState
+    extends State<_CompanyDirectoryFilterDialog> {
+  late String _verification = widget.verificationStatus ?? 'all';
+  late String _restriction = widget.restrictionStatus ?? 'all';
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Filter companies'),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        DropdownButtonFormField<String>(
+          initialValue: _verification,
+          decoration: const InputDecoration(labelText: 'Verification status'),
+          items: const [
+            DropdownMenuItem(value: 'all', child: Text('All statuses')),
+            DropdownMenuItem(value: 'pending', child: Text('Pending')),
+            DropdownMenuItem(value: 'verified', child: Text('Verified')),
+            DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+          ],
+          onChanged: (value) {
+            if (value != null) setState(() => _verification = value);
+          },
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          initialValue: _restriction,
+          decoration: const InputDecoration(labelText: 'Operational status'),
+          items: const [
+            DropdownMenuItem(value: 'all', child: Text('All statuses')),
+            DropdownMenuItem(value: 'active', child: Text('Active')),
+            DropdownMenuItem(value: 'restricted', child: Text('Restricted')),
+          ],
+          onChanged: (value) {
+            if (value != null) setState(() => _restriction = value);
+          },
+        ),
+      ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context, (null, null)),
+        child: const Text('Clear'),
+      ),
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(
+          context,
+          (
+            _verification == 'all' ? null : _verification,
+            _restriction == 'all' ? null : _restriction,
+          ),
+        ),
+        child: const Text('Apply'),
       ),
     ],
   );

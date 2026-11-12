@@ -15,7 +15,7 @@ import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/mobile_back_action.dart';
 import 'company_logo.dart';
 import 'company_logo_editor.dart';
-import 'company_membership_selection.dart';
+import 'company_profile_sections.dart';
 
 class CreateCompanyPage extends StatefulWidget {
   const CreateCompanyPage({super.key});
@@ -62,6 +62,8 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
   String? _reviewComment;
   List<Map<String, dynamic>> _history = [];
   String? _historyError;
+  List<Map<String, dynamic>> _companyMemberships = [];
+  String? _selectedCompanyId;
 
   Uint8List? _fileBytes;
   String? _fileName;
@@ -116,8 +118,9 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
 
   String get _status => (_company?['verification_status'] as String?) ?? '';
 
-  bool get _eligible =>
-      _company == null || (_memberRole == 'owner' && _status == 'rejected');
+  bool get _eligible => _company == null
+      ? _companyMemberships.isEmpty
+      : _memberRole == 'owner' && _status == 'rejected';
 
   bool get _canEdit =>
       !_isBusy && _loadError == null && _eligible && _attempt == null;
@@ -148,10 +151,11 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
   }
 
   // C. Load membership, company and rejection comment.
-  Future<void> _loadCompany() async {
+  Future<void> _loadCompany({String? selectedCompanyId}) async {
     setState(() {
       _isLoading = true;
       _loadError = null;
+      _selectedCompanyId = selectedCompanyId ?? _selectedCompanyId;
     });
 
     try {
@@ -173,11 +177,56 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
         );
       }
 
-      final memberships = await _supabase
+      final membershipRows = await _supabase
           .from('company_memberships')
           .select()
           .eq('user_id', user.id);
-      final membership = selectCompanyProfileMembership(memberships);
+      final eligibleMemberships =
+          List<Map<String, dynamic>>.from(membershipRows)
+              .where(
+                (row) =>
+                    (row['membership_status'] == null ||
+                        row['membership_status'] == 'active') &&
+                    const ['owner', 'employer'].contains(row['member_role']),
+              )
+              .toList();
+      if (eligibleMemberships.isNotEmpty) {
+        try {
+          final companies = await _supabase
+              .from('companies')
+              .select('company_id,company_name')
+              .inFilter(
+                'company_id',
+                eligibleMemberships.map((row) => row['company_id']).toList(),
+              );
+          final names = {
+            for (final row in companies) row['company_id']: row['company_name'],
+          };
+          for (final row in eligibleMemberships) {
+            row['company_name'] = names[row['company_id']];
+          }
+        } catch (_) {
+          // The selected membership remains usable even if labels are unavailable.
+        }
+      }
+      final remembered = selectedCompanyId ?? _selectedCompanyId;
+      Map<String, dynamic>? membership;
+      if (remembered != null) {
+        membership = eligibleMemberships
+            .where((row) => row['company_id'] == remembered)
+            .firstOrNull;
+        if (membership == null) {
+          throw const FormatException(
+            'Your Company membership is no longer active.',
+          );
+        }
+      } else {
+        final owners = eligibleMemberships
+            .where((row) => row['member_role'] == 'owner')
+            .toList();
+        final preferred = owners.isNotEmpty ? owners : eligibleMemberships;
+        if (preferred.length == 1) membership = preferred.single;
+      }
 
       Map<String, dynamic>? company;
       String? reviewComment;
@@ -246,6 +295,8 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
       if (!mounted) return;
 
       setState(() {
+        _companyMemberships = eligibleMemberships;
+        _selectedCompanyId = membership?['company_id'] as String?;
         _company = company;
         _memberRole = (membership?['member_role'] as String?) ?? '';
         _reviewComment = reviewComment;
@@ -1050,17 +1101,73 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
                     ),
                   )
                 else if (!_isLoading) ...[
-                  if (_company == null) ...[
-                    const WorkspaceCard(
-                      title: 'Set up your company',
-                      subtitle: 'Your personal account and company profile are separate.',
-                      child: Text(
-                        'Submit your company details and a supporting PDF for review. Your employer account becomes the permanent company owner.',
+                  if (_companyMemberships.length > 1)
+                    WorkspaceCard(
+                      title: 'Company context',
+                      subtitle:
+                          'Choose which Company profile to view or manage.',
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _selectedCompanyId,
+                        decoration: const InputDecoration(labelText: 'Company'),
+                        items: [
+                          for (final membership in _companyMemberships)
+                            DropdownMenuItem(
+                              value: membership['company_id'] as String,
+                              child: Text(
+                                '${membership['company_name'] ?? membership['company_id']} · ${membership['member_role']}',
+                              ),
+                            ),
+                        ],
+                        onChanged: _isBusy
+                            ? null
+                            : (value) async {
+                                if (value == null ||
+                                    value == _selectedCompanyId) {
+                                  return;
+                                }
+                                if (_hasUnsavedInput &&
+                                    !await confirmDiscardChanges(
+                                      context,
+                                      true,
+                                    )) {
+                                  return;
+                                }
+                                if (!mounted) return;
+                                await _loadCompany(selectedCompanyId: value);
+                              },
                       ),
                     ),
+                  if (_companyMemberships.length > 1)
                     const SizedBox(height: 20),
+                  if (_company == null) ...[
+                    if (_companyMemberships.length > 1)
+                      const WorkspaceCard(
+                        title: 'Select a Company',
+                        child: Text(
+                          'Choose a Company above to load its profile.',
+                        ),
+                      )
+                    else ...[
+                      const WorkspaceCard(
+                        title: 'Set up your company',
+                        subtitle: 'Your personal account and company profile are separate.',
+                        child: Text(
+                          'Submit your company details and a supporting PDF for review. Your employer account becomes the permanent company owner.',
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
                   ] else ...[
                     _companyDetails(),
+                    const SizedBox(height: 20),
+                    CompanyProfileSections(
+                      key: ValueKey(
+                        'company-profile-${_company!['company_id']}',
+                      ),
+                      companyId: _company!['company_id'] as String,
+                      canEdit:
+                          _memberRole == 'owner' || _memberRole == 'employer',
+                    ),
                     const SizedBox(height: 20),
                     WorkspaceCard(
                       title: 'Company verification',
@@ -1091,54 +1198,56 @@ class _CreateCompanyPageState extends State<CreateCompanyPage> {
                     ),
                     const SizedBox(height: 20),
                   ],
-                  WorkspaceCard(title: 'Company logo', child: _buildLogo()),
-                  const SizedBox(height: 20),
-                  if (_eligible || _attempt != null)
-                    WorkspaceCard(
-                      title: _company == null
-                          ? 'Company registration'
-                          : 'Resubmit for review',
-                      child: _buildForm(),
-                    )
-                  else
-                    WorkspaceCard(
-                      title: 'Supporting documents',
-                      child: Text(
-                        _status == 'pending'
-                            ? 'Submitted for review. Changes are locked while review is pending.'
-                            : _memberRole != 'owner'
-                            ? 'Company submission and resubmission actions belong to the owner.'
-                            : 'This workflow supports registration and resubmission after rejection.',
-                      ),
-                    ),
-                  if (_company != null && _memberRole == 'owner') ...[
+                  if (_company != null || _companyMemberships.length <= 1) ...[
+                    WorkspaceCard(title: 'Company logo', child: _buildLogo()),
                     const SizedBox(height: 20),
-                    WorkspaceCard(
-                      title: 'Your submission history',
-                      subtitle: 'Your latest 10 company submissions. Review information is shown only when available.',
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (_historyError != null)
-                            Text(_historyError!)
-                          else if (_history.isEmpty)
-                            const Text('No submissions available.')
-                          else
-                            for (final entry in _history) ...[
-                              WorkspaceInfo(
-                                'Submitted',
-                                _submissionDate(entry['submitted_at']),
-                              ),
-                              WorkspaceInfo(
-                                'Review comment',
-                                entry['review_comment'] as String? ??
-                                    'No review comment available',
-                              ),
-                              const Divider(),
-                            ],
-                        ],
+                    if (_eligible || _attempt != null)
+                      WorkspaceCard(
+                        title: _company == null
+                            ? 'Company registration'
+                            : 'Resubmit for review',
+                        child: _buildForm(),
+                      )
+                    else if (_company != null || _companyMemberships.isEmpty)
+                      WorkspaceCard(
+                        title: 'Supporting documents',
+                        child: Text(
+                          _status == 'pending'
+                              ? 'Submitted for review. Changes are locked while review is pending.'
+                              : _memberRole != 'owner'
+                              ? 'Company submission and resubmission actions belong to the owner.'
+                              : 'This workflow supports registration and resubmission after rejection.',
+                        ),
                       ),
-                    ),
+                    if (_company != null && _memberRole == 'owner') ...[
+                      const SizedBox(height: 20),
+                      WorkspaceCard(
+                        title: 'Your submission history',
+                        subtitle: 'Your latest 10 company submissions. Review information is shown only when available.',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_historyError != null)
+                              Text(_historyError!)
+                            else if (_history.isEmpty)
+                              const Text('No submissions available.')
+                            else
+                              for (final entry in _history) ...[
+                                WorkspaceInfo(
+                                  'Submitted',
+                                  _submissionDate(entry['submitted_at']),
+                                ),
+                                WorkspaceInfo(
+                                  'Review comment',
+                                  entry['review_comment'] as String? ??
+                                      'No review comment available',
+                                ),
+                                const Divider(),
+                              ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ],
               ],

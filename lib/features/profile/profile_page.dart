@@ -12,6 +12,9 @@ import '../phase4/reputation_page.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
 
+import 'job_seeker_profile_sections.dart';
+import 'employer_profile_sections.dart';
+
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
@@ -332,132 +335,206 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildProfileHeader() {
-    final colors = Theme.of(context).colorScheme;
     final avatarUrl = _avatarUrl;
+    const accent = Color(0xFF40577D);
+    const accentSoft = Color(0xFFEAF0F8);
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        Tooltip(
-          message: _canEdit ? 'Change profile photo' : 'Profile photo',
-          child: SizedBox(
-            width: 56,
-            height: 56,
-            child: Stack(
-              children: [
-                ClipOval(
-                  child: avatarUrl == null || avatarUrl.isEmpty
-                      ? Container(
-                          width: 56,
-                          height: 56,
-                          color: colors.surfaceContainerHighest,
-                          child: const Icon(Icons.person_outline, size: 28),
-                        )
-                      : Image.network(
-                          avatarUrl,
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.cover,
-                          // BoxFit.contain: 显示完整图片，可能留白。
-                          // BoxFit.fill: 填满，可能变形。
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 56,
-                              height: 56,
-                              color: colors.surfaceContainerHighest,
-                              child: const Icon(
-                                Icons.broken_image_outlined,
-                                size: 48,
+        SizedBox(
+          height: 146,
+          child: Stack(
+            children: [
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: 96,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: EdgeInsets.all(14),
+                      child: Icon(
+                        Icons.badge_outlined,
+                        color: Colors.white54,
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 42,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Tooltip(
+                    message: _canEdit
+                        ? 'Change profile photo'
+                        : 'Profile photo',
+                    child: SizedBox(
+                      width: 96,
+                      height: 96,
+                      child: Stack(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 4,
                               ),
-                            );
-                          },
-                        ),
-                ),
-
-                Positioned(
-                  left: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: _canEdit
-                          ? colors.primary
-                          : colors.surfaceContainerHighest,
-                      border: Border.all(color: colors.surface, width: 2),
-                    ),
-                    child: Icon(
-                      Icons.camera_alt_outlined,
-                      size: 14,
-                      color: _canEdit
-                          ? colors.onPrimary
-                          : colors.onSurfaceVariant,
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x220F172A),
+                                  blurRadius: 12,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: avatarUrl == null || avatarUrl.isEmpty
+                                  ? Container(
+                                      color: accentSoft,
+                                      alignment: Alignment.center,
+                                      child: const Icon(
+                                        Icons.person_outline,
+                                        color: accent,
+                                        size: 48,
+                                      ),
+                                    )
+                                  : Image.network(
+                                      avatarUrl,
+                                      width: 96,
+                                      height: 96,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              Container(
+                                            color: accentSoft,
+                                            alignment: Alignment.center,
+                                            child: const Icon(
+                                              Icons.person_outline,
+                                              color: accent,
+                                              size: 48,
+                                            ),
+                                          ),
+                                    ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 1,
+                            bottom: 1,
+                            child: Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: _canEdit
+                                    ? accent
+                                    : const Color(0xFF718096),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt_outlined,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          Positioned.fill(
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _canEdit ? _pickAvatar : null,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-
-                Positioned.fill(
-                  child: Material(
-                    type: MaterialType.transparency,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(60),
-                      onTap: _canEdit ? _pickAvatar : null,
-                      // GestureDetector 也能处理点击；
-                      // InkWell 提供 Material 点击反馈。
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-
-        const SizedBox(height: 16),
-
         Text(
           _savedName.isEmpty ? 'Personal profile' : _savedName,
-          style: const TextStyle(
-            fontFamily: 'Outfit',
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 8),
-        Text(_email, textAlign: TextAlign.center),
-        const SizedBox(height: 16),
+        const SizedBox(height: 6),
+        Text(
+          _email,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Color(0xFF64748B)),
+        ),
+        const SizedBox(height: 14),
         Wrap(
           alignment: WrapAlignment.center,
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 6,
+          runSpacing: 6,
           children: [
-            Chip(
-              avatar: const Icon(Icons.account_circle_outlined, size: 18),
-              label: Text('Account: ${_displayLabel(_accountStatus)}'),
-            ),
+            _profileBadge(Icons.badge_outlined, _displayLabel(_role)),
+            _profileBadge(Icons.circle, _displayLabel(_accountStatus)),
             if (_role != 'job_seeker')
-              Chip(
-                avatar: Icon(
-                  _verificationStatus == 'verified'
-                      ? Icons.verified_outlined
-                      : Icons.pending_outlined,
-                  size: 18,
-                ),
-                label: Text(
-                  'Verification: '
-                  '${_displayLabel(_verificationStatus)}',
-                ),
+              _profileBadge(
+                _verificationStatus == 'verified'
+                    ? Icons.verified_outlined
+                    : Icons.pending_outlined,
+                _displayLabel(_verificationStatus),
               ),
-            Chip(
-              avatar: const Icon(Icons.badge_outlined, size: 18),
-              label: Text('Role: ${_displayLabel(_role)}'),
-            ),
           ],
         ),
+        if (_createdAt != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Member since ${MaterialLocalizations.of(context).formatMediumDate(
+              _createdAt!.toLocal(),
+            )}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+          ),
+        ],
       ],
     );
   }
+
+  Widget _profileBadge(IconData icon, String label) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: const Color(0xFFEAF0F8),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: const Color(0xFFD7E0EE)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: const Color(0xFF40577D)),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF334155),
+          ),
+        ),
+      ],
+    ),
+  );
 
   void _startEditing() {
     if (!_canEdit) return;
@@ -505,10 +582,28 @@ class _ProfilePageState extends State<ProfilePage> {
       children: [
         Row(
           children: [
-            const Expanded(
-              child: Text(
-                'Personal Details',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            const Icon(
+              Icons.contact_page_outlined,
+              color: Color(0xFF40577D),
+              size: 24,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Personal details',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Your contact information',
+                    style: TextStyle(color: Color(0xFF64748B)),
+                  ),
+                ],
               ),
             ),
 
@@ -521,12 +616,9 @@ class _ProfilePageState extends State<ProfilePage> {
           ],
         ),
 
-        const SizedBox(height: 16),
-
-        const Text('Email'),
-        Text(_email),
-
-        const SizedBox(height: 16),
+        const Divider(height: 28),
+        _infoRow('Email address', _email),
+        const Divider(height: 1),
 
         if (_isEditing) ...[
           TextField(
@@ -578,11 +670,12 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 12),
         ] else ...[
           _infoRow(
-            'Full Name',
+            'Full name',
             _savedName.isEmpty ? 'Not provided' : _savedName,
           ),
+          const Divider(height: 1),
           _infoRow(
-            'Phone Number',
+            'Phone number',
             _savedPhone.isEmpty ? 'Not provided' : _savedPhone,
           ),
         ],
@@ -632,90 +725,127 @@ class _ProfilePageState extends State<ProfilePage> {
         child: _buildPersonalDetails(),
       ),
     );
-    final profileSections = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) => constraints.maxWidth >= 800
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(width: 300, child: identity),
-                    const SizedBox(width: 20),
-                    Expanded(child: details),
-                  ],
-                )
-              : Column(
-                  children: [identity, const SizedBox(height: 20), details],
-                ),
-        ),
+    final securityPanel = WorkspaceCard(
+      title: 'Account security',
+      subtitle: 'Verify your email before setting a new password.',
+      child: OutlinedButton.icon(
+        onPressed: _canEdit ? _openPasswordVerification : null,
+        icon: const Icon(Icons.lock_outline),
+        label: const Text('Change password'),
+      ),
+    );
+    final rightSections = <Widget>[
+      details,
+      const SizedBox(height: 20),
+      securityPanel,
+    ];
+    if (_role == 'job_seeker') {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId != null) {
+        rightSections.addAll([
+          const SizedBox(height: 20),
+          JobSeekerProfileSections(userId: userId, canEdit: _canEdit),
+        ]);
+      }
+    }
+    if (_role == 'employer') {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId != null) {
+        rightSections.addAll([
+          const SizedBox(height: 20),
+          EmployerProfileSections(userId: userId, canEdit: _canEdit),
+        ]);
+      }
+    }
+    if (_role == 'job_seeker' || _role == 'employer') {
+      rightSections.addAll([
         const SizedBox(height: 20),
         WorkspaceCard(
-          title: 'Account security',
-          subtitle: 'Verify your email before setting a new password.',
-          child: OutlinedButton.icon(
-            onPressed: _canEdit ? _openPasswordVerification : null,
-            icon: const Icon(Icons.lock_outline),
-            label: const Text('Change password'),
-          ),
-        ),
-        if (_role == 'job_seeker' || _role == 'employer') ...[
-          const SizedBox(height: 20),
-          WorkspaceCard(
-            title: _role == 'job_seeker'
-                ? 'My Resume'
-                : 'Personal verification',
-            subtitle: _role == 'job_seeker'
-                ? 'Upload or replace your resume anytime. No administrator approval is required.'
-                : 'Personal documents and history are separate from company verification.',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_role != 'job_seeker')
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: WorkspaceStatus(_verificationStatus),
-                  ),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: _canEdit ? _openDocumentSubmission : null,
-                  icon: const Icon(Icons.folder_outlined),
-                  label: Text(
-                    _role == 'job_seeker'
-                        ? 'Manage resume'
-                        : 'Documents & submission history',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-        if (_role == 'employer') ...[
-          const SizedBox(height: 20),
-          WorkspaceCard(
-            title: 'Company profile',
-            subtitle: 'View your company details, membership and company verification on the Company page.',
-            child: OutlinedButton.icon(
-              onPressed: _canEdit && !_isEditing
-                  ? () => context.push<void>(AppRoutes.company)
-                  : null,
-              icon: const Icon(Icons.business_outlined),
-              label: const Text('Open company profile'),
-            ),
-          ),
-        ],
-        const SizedBox(height: 20),
-        WorkspaceCard(
-          title: 'Account details',
+          title: _role == 'job_seeker' ? 'My Resume' : 'Personal verification',
+          subtitle: _role == 'job_seeker'
+              ? 'Upload or replace your resume anytime. No administrator approval is required.'
+              : 'Personal documents and history are separate from company verification.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _infoRow('Created', _formatDate(_createdAt)),
-              _infoRow('Last updated', _formatDate(_updatedAt)),
+              if (_role != 'job_seeker')
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: WorkspaceStatus(_verificationStatus),
+                ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _canEdit ? _openDocumentSubmission : null,
+                icon: const Icon(Icons.folder_outlined),
+                label: Text(
+                  _role == 'job_seeker'
+                      ? 'Manage resume'
+                      : 'Documents & submission history',
+                ),
+              ),
             ],
           ),
         ),
-      ],
+      ]);
+    }
+    if (_role == 'employer') {
+      rightSections.addAll([
+        const SizedBox(height: 20),
+        WorkspaceCard(
+          title: 'Company profile',
+          subtitle:
+              'View your company details, membership and company verification on the Company page.',
+          child: OutlinedButton.icon(
+            onPressed: _canEdit && !_isEditing
+                ? () => context.push<void>(AppRoutes.company)
+                : null,
+            icon: const Icon(Icons.business_outlined),
+            label: const Text('Open company profile'),
+          ),
+        ),
+      ]);
+    }
+    rightSections.addAll([
+      const SizedBox(height: 20),
+      WorkspaceCard(
+        title: 'Account details',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _infoRow('Created', _formatDate(_createdAt)),
+            _infoRow('Last updated', _formatDate(_updatedAt)),
+          ],
+        ),
+      ),
+    ]);
+    if (_role == 'job_seeker') {
+      rightSections.addAll([
+        const SizedBox(height: 20),
+        ReputationContent(interactive: !_isEditing && !_isBusy),
+      ]);
+    }
+    final profileDetails = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: rightSections,
+    );
+    final profileSections = LayoutBuilder(
+      builder: (context, constraints) => constraints.maxWidth >= 800
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: 300, child: identity),
+                const SizedBox(width: 20),
+                Expanded(child: profileDetails),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                identity,
+                const SizedBox(height: 20),
+                profileDetails,
+              ],
+            ),
     );
     return LoadingOverlay(
       isLoading: _isBusy,
@@ -754,33 +884,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ],
                   ),
-                )
-              else if (_role == 'job_seeker')
-                LayoutBuilder(
-                  builder: (context, constraints) => constraints.maxWidth >= 900
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(flex: 3, child: profileSections),
-                            const SizedBox(width: 20),
-                            Expanded(
-                              flex: 2,
-                              child: ReputationContent(
-                                interactive: !_isEditing && !_isBusy,
-                              ),
-                            ),
-                          ],
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            profileSections,
-                            const SizedBox(height: 20),
-                            ReputationContent(
-                              interactive: !_isEditing && !_isBusy,
-                            ),
-                          ],
-                        ),
                 )
               else
                 profileSections,
