@@ -40,9 +40,7 @@ class SupabaseCompanyManagementGateway implements CompanyManagementGateway {
     if (result is! List) {
       throw const FormatException('Unexpected company directory response.');
     }
-    return result
-        .map((row) => Map<String, dynamic>.from(row as Map))
-        .toList();
+    return result.map((row) => Map<String, dynamic>.from(row as Map)).toList();
   }
 
   @override
@@ -92,18 +90,12 @@ class SupabaseCompanyManagementGateway implements CompanyManagementGateway {
   Future<List<Map<String, dynamic>>> history(String companyId) async {
     final result = await client.rpc(
       'list_company_restriction_history',
-      params: {
-        'p_company_id': companyId,
-        'p_limit': 51,
-        'p_offset': 0,
-      },
+      params: {'p_company_id': companyId, 'p_limit': 51, 'p_offset': 0},
     );
     if (result is! List) {
       throw const FormatException('Unexpected restriction history response.');
     }
-    return result
-        .map((row) => Map<String, dynamic>.from(row as Map))
-        .toList();
+    return result.map((row) => Map<String, dynamic>.from(row as Map)).toList();
   }
 
   @override

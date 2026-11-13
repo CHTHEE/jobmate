@@ -61,13 +61,14 @@ class AppWorkspace extends StatelessWidget {
   Widget build(BuildContext context) {
     if (role == 'administrator' || role == 'admin') {
       return _AdminNavigationPermissions(
-        builder: (permissions) => _buildWorkspace(
-          context,
-          adminWorkspaceDestinations(permissions),
-        ),
+        builder: (permissions) =>
+            _buildWorkspace(context, adminWorkspaceDestinations(permissions)),
       );
     }
-    return _buildWorkspace(context, navigationGroups ?? workspaceDestinations(role));
+    return _buildWorkspace(
+      context,
+      navigationGroups ?? workspaceDestinations(role),
+    );
   }
 
   Widget _buildWorkspace(
@@ -102,7 +103,8 @@ class AppWorkspace extends StatelessWidget {
         // Keep short landscape forms usable while the software keyboard is up.
         final keepAdminTabsOnDetails =
             role == 'administrator' || role == 'admin';
-        final showBottomBar = !kIsWeb &&
+        final showBottomBar =
+            !kIsWeb &&
             !keyboardOpen &&
             (!detail || keepAdminTabsOnDetails) &&
             primary.isNotEmpty;
@@ -119,8 +121,8 @@ class AppWorkspace extends StatelessWidget {
             onPressed: navigationLocked
                 ? null
                 : () => kIsWeb
-                    ? showNotificationsPanel(context)
-                    : context.push<void>(AppRoutes.notifications),
+                      ? showNotificationsPanel(context)
+                      : context.push<void>(AppRoutes.notifications),
             icon: const Icon(Icons.notifications_none_outlined),
           ),
           ...actions,
@@ -146,7 +148,8 @@ class AppWorkspace extends StatelessWidget {
           locked: navigationLocked,
           accountActions: accountActions,
           showMoreHeading: moreSheet,
-          collapsible: role == 'employer' ||
+          collapsible:
+              role == 'employer' ||
               role == 'job_seeker' ||
               role == 'administrator' ||
               role == 'admin',
@@ -408,7 +411,8 @@ class AppWorkspace extends StatelessWidget {
                       ),
                       const SizedBox(width: 12),
                       Flexible(
-                        child: titleWidget ??
+                        child:
+                            titleWidget ??
                             Text(
                               title,
                               maxLines: 1,
@@ -419,12 +423,12 @@ class AppWorkspace extends StatelessWidget {
                     ],
                   )
                 : titleWidget ??
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
             actions: [
               ...headerActions,
               if (!showBottomBar &&

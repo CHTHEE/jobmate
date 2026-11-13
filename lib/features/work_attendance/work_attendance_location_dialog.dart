@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import 'work_attendance_location_service.dart';
@@ -7,20 +6,20 @@ import 'work_attendance_models.dart';
 /// Returns the selected location only when the worker confirms attendance.
 /// Returns null when the worker cancels.
 class WorkAttendanceLocationDialog extends StatefulWidget {
-const WorkAttendanceLocationDialog({
-  super.key,
-  required this.jobTitle,
-  required this.checkingIn,
-  required this.canContinue,
-  this.captureLocation,
-});
+  const WorkAttendanceLocationDialog({
+    super.key,
+    required this.jobTitle,
+    required this.checkingIn,
+    required this.canContinue,
+    this.captureLocation,
+  });
 
-final String jobTitle;
-final bool checkingIn;
-final bool Function() canContinue;
+  final String jobTitle;
+  final bool checkingIn;
+  final bool Function() canContinue;
 
-/// Optional override for tests; production uses the device GPS service.
-final Future<WorkAttendanceLocation> Function()? captureLocation;
+  /// Optional override for tests; production uses the device GPS service.
+  final Future<WorkAttendanceLocation> Function()? captureLocation;
 
   @override
   State<WorkAttendanceLocationDialog> createState() =>
@@ -48,8 +47,8 @@ class _WorkAttendanceLocationDialogState
       _location = null;
     });
 
-final result = await (widget.captureLocation?.call() ??
-    _locationService.capture());
+    final result =
+        await (widget.captureLocation?.call() ?? _locationService.capture());
 
     if (!mounted) return;
 
@@ -127,18 +126,11 @@ final result = await (widget.captureLocation?.call() ??
           child: const Text('Cancel'),
         ),
         if (!_loading && widget.canContinue())
-          TextButton(
-            onPressed: _capture,
-            child: const Text('Retry GPS'),
-          ),
+          TextButton(onPressed: _capture, child: const Text('Retry GPS')),
         if (!_loading && location != null && widget.canContinue())
           FilledButton(
             onPressed: () => Navigator.pop(context, location),
-            child: Text(
-              granted
-                  ? 'Confirm $action'
-                  : 'Continue without GPS',
-            ),
+            child: Text(granted ? 'Confirm $action' : 'Continue without GPS'),
           ),
       ],
     );

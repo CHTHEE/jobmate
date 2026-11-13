@@ -68,43 +68,51 @@ class _SignUpPageState extends State<SignUpPage> {
                 subtitle: 'Choose the option that best describes you.',
               ),
               const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final jobSeekerCard = _accountTypeCard(
-                    value: 'job_seeker',
-                    title: 'Job Seeker',
-                    description: 'Find and apply for available jobs.',
-                    icon: Icons.search_rounded,
-                  );
-                  final employerCard = _accountTypeCard(
-                    value: 'employer',
-                    title: 'Employer',
-                    description: 'Register and manage one Company.',
-                    icon: Icons.business_outlined,
-                  );
+              RadioGroup<String>(
+                groupValue: _selectedRole,
+                onChanged: (newValue) {
+                  if (!_isLoading && newValue != null) {
+                    setState(() => _selectedRole = newValue);
+                  }
+                },
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final jobSeekerCard = _accountTypeCard(
+                      value: 'job_seeker',
+                      title: 'Job Seeker',
+                      description: 'Find and apply for available jobs.',
+                      icon: Icons.search_rounded,
+                    );
+                    final employerCard = _accountTypeCard(
+                      value: 'employer',
+                      title: 'Employer',
+                      description: 'Register and manage one Company.',
+                      icon: Icons.business_outlined,
+                    );
 
-                  if (constraints.maxWidth < 700) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                    if (constraints.maxWidth < 700) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          jobSeekerCard,
+                          const SizedBox(height: 10),
+                          employerCard,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      // This Row is inside a vertical scroll view, so its height
+                      // is unbounded. Stretch would try to fill infinite height.
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        jobSeekerCard,
-                        const SizedBox(height: 10),
-                        employerCard,
+                        Expanded(child: jobSeekerCard),
+                        const SizedBox(width: 12),
+                        Expanded(child: employerCard),
                       ],
                     );
-                  }
-
-                  return Row(
-                    // This Row is inside a vertical scroll view, so its height
-                    // is unbounded. Stretch would try to fill infinite height.
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: jobSeekerCard),
-                      const SizedBox(width: 12),
-                      Expanded(child: employerCard),
-                    ],
-                  );
-                },
+                  },
+                ),
               ),
               if (_selectedRole == 'employer') ...[
                 const SizedBox(height: 12),
@@ -317,7 +325,7 @@ class _SignUpPageState extends State<SignUpPage> {
       ),
       child: RadioListTile<String>(
         value: value,
-        groupValue: _selectedRole,
+        enabled: !_isLoading,
         selected: selected,
         activeColor: AuthStyle.teal,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -333,13 +341,6 @@ class _SignUpPageState extends State<SignUpPage> {
           ),
         ),
         subtitle: Text(description),
-        onChanged: _isLoading
-            ? null
-            : (newValue) {
-                if (newValue != null) {
-                  setState(() => _selectedRole = newValue);
-                }
-              },
       ),
     );
   }

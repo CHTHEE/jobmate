@@ -65,6 +65,7 @@ class BrowseJob {
     : fields = Map.unmodifiable({
         for (final key in const [
           'job_id',
+          'company_id',
           'logo_storage_path',
           'title',
           'department',

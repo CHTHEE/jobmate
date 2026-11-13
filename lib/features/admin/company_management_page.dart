@@ -649,9 +649,7 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
             Card.outlined(
               child: ListTile(
                 leading: Icon(
-                  row['action'] == 'restricted'
-                      ? Icons.block
-                      : Icons.lock_open,
+                  row['action'] == 'restricted' ? Icons.block : Icons.lock_open,
                 ),
                 title: Text(
                   '${_status(row['action'])} · ${_date(row['performed_at'])}',
@@ -920,13 +918,10 @@ class _CompanyDirectoryFilterDialogState
         child: const Text('Cancel'),
       ),
       FilledButton(
-        onPressed: () => Navigator.pop(
-          context,
-          (
-            _verification == 'all' ? null : _verification,
-            _restriction == 'all' ? null : _restriction,
-          ),
-        ),
+        onPressed: () => Navigator.pop(context, (
+          _verification == 'all' ? null : _verification,
+          _restriction == 'all' ? null : _restriction,
+        )),
         child: const Text('Apply'),
       ),
     ],

@@ -76,27 +76,42 @@ class SupabaseCompanyProfileRepository implements CompanyProfileRepository {
       );
     }
     if (specialtyId == null) {
-      await client.from('company_specialties').insert({
-        'company_id': companyId,
-        'specialty': normalized,
-      });
+      final inserted = await client
+          .from('company_specialties')
+          .insert({'company_id': companyId, 'specialty': normalized})
+          .select('specialty_id');
+      if (inserted.isEmpty) {
+        throw StateError('The specialty was not created. Refresh and retry.');
+      }
     } else {
-      await client
+      final updated = await client
           .from('company_specialties')
           .update({'specialty': normalized})
           .eq('company_id', companyId)
-          .eq('specialty_id', specialtyId);
+          .eq('specialty_id', specialtyId)
+          .select('specialty_id');
+      if (updated.isEmpty) {
+        throw StateError(
+          'This specialty is no longer available or you do not have access. Refresh and retry.',
+        );
+      }
     }
   }
 
   @override
   Future<void> deleteSpecialty(String companyId, String specialtyId) async {
     _requireMember(companyId);
-    await client
+    final deleted = await client
         .from('company_specialties')
         .delete()
         .eq('company_id', companyId)
-        .eq('specialty_id', specialtyId);
+        .eq('specialty_id', specialtyId)
+        .select('specialty_id');
+    if (deleted.isEmpty) {
+      throw StateError(
+        'This specialty is no longer available or you do not have access. Refresh and retry.',
+      );
+    }
   }
 
   @override
@@ -285,6 +300,10 @@ class _CompanyProfileSectionsState extends State<CompanyProfileSections> {
             content: Text(
               e is FormatException
                   ? e.message
+                  : e is StateError
+                  ? e.message.toString()
+                  : e is PostgrestException && e.code == '42501'
+                  ? 'Your Company membership no longer permits this change.'
                   : 'Unable to save this Company profile change. Please retry.',
             ),
           ),
@@ -372,10 +391,22 @@ class _CompanyProfileSectionsState extends State<CompanyProfileSections> {
                           if (dialogContext.mounted) {
                             Navigator.pop(dialogContext);
                           }
-                        } catch (_) {
+                        } catch (failure) {
                           setDialogState(() {
                             saving = false;
-                            error = 'Unable to save specialty. Your text is still here; retry or edit it.';
+                            error =
+                                failure is PostgrestException &&
+                                    failure.code == '42501'
+                                ? 'Your Company membership no longer permits this change. Your text is preserved.'
+                                : failure is StateError &&
+                                      (failure.message.toString().contains(
+                                            'no longer available',
+                                          ) ||
+                                          failure.message.toString().contains(
+                                            'not created',
+                                          ))
+                                ? failure.message.toString()
+                                : 'Unable to save specialty. Your text is still here; retry or edit it.';
                           });
                         }
                       },
@@ -921,6 +952,8 @@ class _PublicCompanyDialogState extends State<_PublicCompanyDialog> {
                   ),
                   if ((profile!['industry'] as String? ?? '').isNotEmpty)
                     Text('Industry: ${profile!['industry']}'),
+                  if ((profile!['location'] as String? ?? '').isNotEmpty)
+                    Text('Location: ${profile!['location']}'),
                   const SizedBox(height: 12),
                   const Text(
                     'Specialties',

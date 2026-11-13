@@ -7,6 +7,7 @@ import '../../shared/widgets/design_primitives.dart';
 import '../jobs/job_display.dart';
 import '../jobs/job_preview.dart';
 import 'employer_applicants_repository.dart';
+import 'employer_applicant_profile.dart';
 import 'module2_widgets.dart';
 import 'my_applications_repository.dart';
 import 'employer_status_change_form.dart';
@@ -320,6 +321,7 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
                                 repository: repo,
                                 applicant: applicant,
                               ),
+                            ApplicantProfileButton(applicationId: applicant.id),
                             if (applicant.coverNote?.trim().isNotEmpty ==
                                 true) ...[
                               const SizedBox(height: 12),

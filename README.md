@@ -1518,10 +1518,16 @@ Profile Extension table's current-membership RLS; Certification metadata uses
 `jobmate-profile-certificates` bucket with short-lived signed reads. Company
 profiles in Job Details use `get_public_company_profile_v1`; the UI displays
 only its public projection and never renders certification document paths.
+The Employer applicant list now opens a read-only professional profile through
+`get_applicant_profile_for_company(p_application_id)`. The Application ID is
+the only lookup key; applicant and Company identity remain server-derived.
+The current RPC Education projection does not include `is_current`, so the
+Employer view does not infer or display a current-study state. Certificate
+document paths are not returned or shown.
 Because the installed Profile SQL has no Company certification delete RPC,
 `supabase/patches/profile_company_certification_delete_local_delta.sql` and its
-rollback-only test are prepared but not applied. No Profile SQL has been
-installed or deployed by this UI change.
+rollback-only test are prepared but not applied. This Flutter change does not
+modify or deploy Profile SQL.
 
 Resume RLS and signed-link creation permit the active owner only. No employer
 or public resume-read permission is introduced. Legacy files retain their original

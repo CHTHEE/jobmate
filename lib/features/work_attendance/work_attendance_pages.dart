@@ -35,7 +35,8 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
   String? _actor;
   bool _confirming = false;
 
-  EngagementClosureGateway? get _closureGateway => widget.closureGateway ??
+  EngagementClosureGateway? get _closureGateway =>
+      widget.closureGateway ??
       (widget.repository.source is SupabaseWorkAttendanceSource
           ? SupabaseEngagementClosureGateway(Supabase.instance.client)
           : null);
@@ -357,15 +358,15 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
                               ),
                               const SizedBox(height: 8),
                               if (_closureGateway != null)
-                              EngagementClosureControls(
-                                key: ValueKey((
-                                  'closure-request-${shifts.first.applicationId}',
-                                  widget.repository.source.userId,
-                                )),
-                                applicationId: shifts.first.applicationId,
-                                worker: true,
-                                gateway: _closureGateway,
-                              ),
+                                EngagementClosureControls(
+                                  key: ValueKey((
+                                    'closure-request-${shifts.first.applicationId}',
+                                    widget.repository.source.userId,
+                                  )),
+                                  applicationId: shifts.first.applicationId,
+                                  worker: true,
+                                  gateway: _closureGateway,
+                                ),
                             ],
                           ),
                         ),

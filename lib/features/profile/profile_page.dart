@@ -385,10 +385,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 4,
-                              ),
+                              border: Border.all(color: Colors.white, width: 4),
                               boxShadow: const [
                                 BoxShadow(
                                   color: Color(0x220F172A),
@@ -416,14 +413,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                       errorBuilder:
                                           (context, error, stackTrace) =>
                                               Container(
-                                            color: accentSoft,
-                                            alignment: Alignment.center,
-                                            child: const Icon(
-                                              Icons.person_outline,
-                                              color: accent,
-                                              size: 48,
-                                            ),
-                                          ),
+                                                color: accentSoft,
+                                                alignment: Alignment.center,
+                                                child: const Icon(
+                                                  Icons.person_outline,
+                                                  color: accent,
+                                                  size: 48,
+                                                ),
+                                              ),
                                     ),
                             ),
                           ),
@@ -470,9 +467,8 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         Text(
           _savedName.isEmpty ? 'Personal profile' : _savedName,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+          style: Theme.of(context).textTheme.titleLarge
+              ?.copyWith(fontWeight: FontWeight.w700),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 6),
@@ -501,9 +497,7 @@ class _ProfilePageState extends State<ProfilePage> {
         if (_createdAt != null) ...[
           const SizedBox(height: 12),
           Text(
-            'Member since ${MaterialLocalizations.of(context).formatMediumDate(
-              _createdAt!.toLocal(),
-            )}',
+            'Member since ${MaterialLocalizations.of(context).formatMediumDate(_createdAt!.toLocal())}',
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
           ),
@@ -594,9 +588,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 children: [
                   Text(
                     'Personal details',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 2),
                   const Text(
@@ -793,8 +786,7 @@ class _ProfilePageState extends State<ProfilePage> {
         const SizedBox(height: 20),
         WorkspaceCard(
           title: 'Company profile',
-          subtitle:
-              'View your company details, membership and company verification on the Company page.',
+          subtitle: 'View your company details, membership and company verification on the Company page.',
           child: OutlinedButton.icon(
             onPressed: _canEdit && !_isEditing
                 ? () => context.push<void>(AppRoutes.company)
@@ -840,11 +832,7 @@ class _ProfilePageState extends State<ProfilePage> {
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                identity,
-                const SizedBox(height: 20),
-                profileDetails,
-              ],
+              children: [identity, const SizedBox(height: 20), profileDetails],
             ),
     );
     return LoadingOverlay(

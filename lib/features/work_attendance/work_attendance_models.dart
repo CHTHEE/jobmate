@@ -182,9 +182,7 @@ class WorkAttendanceLocation {
     );
   }
 
-  const WorkAttendanceLocation.denied()
-      : this._(status: 'denied');
+  const WorkAttendanceLocation.denied() : this._(status: 'denied');
 
-  const WorkAttendanceLocation.unavailable()
-      : this._(status: 'unavailable');
+  const WorkAttendanceLocation.unavailable() : this._(status: 'unavailable');
 }

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -15,10 +15,9 @@ const _coreSkills = <(String, String)>[
 String evaluationDirection(bool employer) =>
     employer ? 'employer_to_worker' : 'worker_to_company';
 
-String softSkillEvaluationRoot(bool employer) =>
-    employer
-        ? AppRoutes.employerSoftSkillEvaluations
-        : AppRoutes.softSkillEvaluations;
+String softSkillEvaluationRoot(bool employer) => employer
+    ? AppRoutes.employerSoftSkillEvaluations
+    : AppRoutes.softSkillEvaluations;
 
 class SoftSkillEvaluationsPage extends StatefulWidget {
   const SoftSkillEvaluationsPage({
@@ -198,13 +197,20 @@ class _SoftSkillEvaluationsPageState extends State<SoftSkillEvaluationsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${row['job_title'] ?? 'Job'}', style: Theme.of(context).textTheme.titleMedium),
-            Text('${row['target_label'] ?? ''} Â· ${row['given_by_me'] == true ? 'Given by you' : 'Received'}'),
+            Text(
+              '${row['job_title'] ?? 'Job'}',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Text(
+              '${row['target_label'] ?? ''} Â· ${row['given_by_me'] == true ? 'Given by you' : 'Received'}',
+            ),
             if (submitted != null) Text('Submitted ${_date(submitted)}'),
             const SizedBox(height: 8),
-            Text(count == 0
-                ? 'Core Skill Average: Not enough numeric ratings (0 valid ratings).'
-                : 'Core Skill Average: ${average ?? 'â€”'} / 5 ($count valid ratings)'),
+            Text(
+              count == 0
+                  ? 'Core Skill Average: Not enough numeric ratings (0 valid ratings).'
+                  : 'Core Skill Average: ${average ?? 'â€”'} / 5 ($count valid ratings)',
+            ),
             if (row['given_by_me'] == true &&
                 row['both_parties_submitted'] != true)
               const Padding(
@@ -214,7 +220,9 @@ class _SoftSkillEvaluationsPageState extends State<SoftSkillEvaluationsPage> {
                 ),
               ),
             for (final rating in ratings)
-              Text('${rating['label']}: ${rating['not_observed'] == true ? 'Not Observed' : '${rating['rating']} / 5'}'),
+              Text(
+                '${rating['label']}: ${rating['not_observed'] == true ? 'Not Observed' : '${rating['rating']} / 5'}',
+              ),
             if ((row['comment'] as String?)?.isNotEmpty == true) ...[
               const SizedBox(height: 8),
               Text('${row['comment']}'),
@@ -226,8 +234,9 @@ class _SoftSkillEvaluationsPageState extends State<SoftSkillEvaluationsPage> {
   }
 }
 
-String _department(dynamic value) =>
-    value is String && value.trim().isNotEmpty ? ' Â· Department: ${value.trim()}' : '';
+String _department(dynamic value) => value is String && value.trim().isNotEmpty
+    ? ' Â· Department: ${value.trim()}'
+    : '';
 
 String _date(DateTime value) =>
     '${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
@@ -244,7 +253,8 @@ class _MessageState extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(message, textAlign: TextAlign.center),
-        if (retry != null) TextButton(onPressed: retry, child: const Text('Retry')),
+        if (retry != null)
+          TextButton(onPressed: retry, child: const Text('Retry')),
       ],
     ),
   );
@@ -305,25 +315,40 @@ class _EvaluationFormState extends State<_EvaluationForm> {
   Future<void> _submit() async {
     final selectedIds = selected.map((item) => item['id'] as String).toList();
     final allIds = [..._coreSkills.map((item) => item.$1), ...selectedIds];
-    if (selectedIds.length != 2 || selectedIds.toSet().length != 2 ||
+    if (selectedIds.length != 2 ||
+        selectedIds.toSet().length != 2 ||
         allIds.any((id) => !responses.containsKey(id)) ||
         !responses.values.any((value) => value is int)) {
-      setState(() => error = 'Answer all five criteria and give at least one numeric rating.');
+      setState(
+        () => error =
+            'Answer all five criteria and give at least one numeric rating.',
+      );
       return;
     }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Review evaluation'),
-        content: Text('Submit your evaluation for ${widget.row?['target_label']} on ${widget.row?['job_title']}? You cannot submit another evaluation for this Job Application and direction.'),
+        content: Text(
+          'Submit your evaluation for ${widget.row?['target_label']} on ${widget.row?['job_title']}? You cannot submit another evaluation for this Job Application and direction.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Continue editing')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Submit evaluation')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Continue editing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Submit evaluation'),
+          ),
         ],
       ),
     );
     if (confirmed != true || !mounted) return;
-    setState(() { saving = true; error = null; });
+    setState(() {
+      saving = true;
+      error = null;
+    });
     try {
       await widget.gateway.submit(
         applicationId: widget.applicationId,
@@ -347,21 +372,44 @@ class _EvaluationFormState extends State<_EvaluationForm> {
   Widget build(BuildContext context) {
     final row = widget.row;
     if (row == null) {
-      return ListView(children: [
-        TextButton.icon(onPressed: () => context.go(widget.root), icon: const Icon(Icons.arrow_back), label: const Text('Evaluations')),
-        const _MessageState(message: 'This Job Application is not closed and eligible, or an evaluation for this direction has already been submitted.'),
-      ]);
+      return ListView(
+        children: [
+          TextButton.icon(
+            onPressed: () => context.go(widget.root),
+            icon: const Icon(Icons.arrow_back),
+            label: const Text('Evaluations'),
+          ),
+          const _MessageState(
+            message: 'This Job Application is not closed and eligible, or an evaluation for this direction has already been submitted.',
+          ),
+        ],
+      );
     }
     return ListView(
       children: [
-        TextButton.icon(onPressed: saving ? null : () => context.go(widget.root), icon: const Icon(Icons.arrow_back), label: const Text('Evaluations')),
-        Text('${row['job_title']}', style: Theme.of(context).textTheme.headlineSmall),
-        Text('${widget.employer ? 'Your evaluation of worker' : 'Your evaluation of Company'}: ${row['target_label']}'),
-        if (_department(row['department']).isNotEmpty) Text(_department(row['department']).substring(3)),
+        TextButton.icon(
+          onPressed: saving ? null : () => context.go(widget.root),
+          icon: const Icon(Icons.arrow_back),
+          label: const Text('Evaluations'),
+        ),
+        Text(
+          '${row['job_title']}',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        Text(
+          '${widget.employer ? 'Your evaluation of worker' : 'Your evaluation of Company'}: ${row['target_label']}',
+        ),
+        if (_department(row['department']).isNotEmpty)
+          Text(_department(row['department']).substring(3)),
         const SizedBox(height: 12),
-        const Text('The current Job Posting schema has no controlled Job Category. General recommendations are shown until one is added.'),
+        const Text(
+          'The current Job Posting schema has no controlled Job Category. General recommendations are shown until one is added.',
+        ),
         const SizedBox(height: 16),
-        Text('Progress: $answered / 5 responses', style: Theme.of(context).textTheme.titleSmall),
+        Text(
+          'Progress: $answered / 5 responses',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
         LinearProgressIndicator(value: answered / 5),
         const SizedBox(height: 20),
         for (final skill in _coreSkills)
@@ -369,8 +417,10 @@ class _EvaluationFormState extends State<_EvaluationForm> {
             id: skill.$1,
             label: skill.$2,
             explanation: switch (skill.$1) {
-              'communication' => 'Shares information clearly and listens respectfully.',
-              'responsibility' => 'Follows through on agreed duties and commitments.',
+              'communication' =>
+                'Shares information clearly and listens respectfully.',
+              'responsibility' =>
+                'Follows through on agreed duties and commitments.',
               _ => 'Acts respectfully and appropriately at work.',
             },
             value: responses[skill.$1],
@@ -378,30 +428,56 @@ class _EvaluationFormState extends State<_EvaluationForm> {
             onChanged: (value) => setState(() => responses[skill.$1] = value),
           ),
         const SizedBox(height: 8),
-        Text(widget.employer ? 'Recommended job skills' : 'Employer experience criteria', style: Theme.of(context).textTheme.titleLarge),
+        Text(
+          widget.employer
+              ? 'Recommended job skills'
+              : 'Employer experience criteria',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
         for (var index = 0; index < 2; index++) ...[
           DropdownButtonFormField<String>(
-            key: ValueKey('additional-$index-${selected.length > index ? selected[index]['id'] : ''}'),
-            initialValue: selected.length > index ? selected[index]['id'] as String : null,
-            decoration: InputDecoration(labelText: 'Additional criterion ${index + 1}'),
+            key: ValueKey(
+              'additional-$index-${selected.length > index ? selected[index]['id'] : ''}',
+            ),
+            initialValue: selected.length > index
+                ? selected[index]['id'] as String
+                : null,
+            decoration: InputDecoration(
+              labelText: 'Additional criterion ${index + 1}',
+            ),
             items: [
               for (final item in available)
-                if (item['id'] == (selected.length > index ? selected[index]['id'] : null) ||
+                if (item['id'] ==
+                        (selected.length > index
+                            ? selected[index]['id']
+                            : null) ||
                     !selected.any((other) => other['id'] == item['id']))
-                  DropdownMenuItem(value: item['id'] as String, child: Text(item['label'] as String)),
+                  DropdownMenuItem(
+                    value: item['id'] as String,
+                    child: Text(item['label'] as String),
+                  ),
             ],
-            onChanged: saving ? null : (value) {
-              if (value == null) return;
-              final picked = available.firstWhere((item) => item['id'] == value);
-              setState(() {
-                if (selected.length > index) {
-                  selected[index] = picked;
-                } else {
-                  selected.add(picked);
-                }
-                responses.removeWhere((id, _) => ![..._coreSkills.map((item) => item.$1), ...selected.map((item) => item['id'])].contains(id));
-              });
-            },
+            onChanged: saving
+                ? null
+                : (value) {
+                    if (value == null) return;
+                    final picked = available.firstWhere(
+                      (item) => item['id'] == value,
+                    );
+                    setState(() {
+                      if (selected.length > index) {
+                        selected[index] = picked;
+                      } else {
+                        selected.add(picked);
+                      }
+                      responses.removeWhere(
+                        (id, _) => ![
+                          ..._coreSkills.map((item) => item.$1),
+                          ...selected.map((item) => item['id']),
+                        ].contains(id),
+                      );
+                    });
+                  },
           ),
           if (selected.length > index)
             _RatingCard(
@@ -410,7 +486,9 @@ class _EvaluationFormState extends State<_EvaluationForm> {
               explanation: selected[index]['explanation'] as String,
               value: responses[selected[index]['id']],
               enabled: !saving,
-              onChanged: (value) => setState(() => responses[selected[index]['id'] as String] = value),
+              onChanged: (value) => setState(
+                () => responses[selected[index]['id'] as String] = value,
+              ),
             ),
         ],
         const SizedBox(height: 12),
@@ -422,14 +500,24 @@ class _EvaluationFormState extends State<_EvaluationForm> {
           maxLines: 6,
           decoration: const InputDecoration(labelText: 'Optional feedback'),
         ),
-        if (error != null) Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-        ),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
         const SizedBox(height: 12),
         FilledButton.icon(
           onPressed: saving ? null : _submit,
-          icon: saving ? const SizedBox(width: 18,height: 18,child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_outlined),
+          icon: saving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.send_outlined),
           label: Text(saving ? 'Submittingâ€¦' : 'Review and submit'),
         ),
       ],
@@ -455,7 +543,11 @@ class _RatingCard extends StatelessWidget {
   final ValueChanged<dynamic> onChanged;
 
   static const _ratingLabels = {
-    1: 'Very Poor', 2: 'Poor', 3: 'Satisfactory', 4: 'Good', 5: 'Excellent',
+    1: 'Very Poor',
+    2: 'Poor',
+    3: 'Satisfactory',
+    4: 'Good',
+    5: 'Excellent',
   };
 
   @override
@@ -471,19 +563,23 @@ class _RatingCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(explanation, style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            for (var score = 1; score <= 5; score++)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var score = 1; score <= 5; score++)
+                ChoiceChip(
+                  label: Text('$score Â· ${_ratingLabels[score]}'),
+                  selected: value == score,
+                  onSelected: enabled ? (_) => onChanged(score) : null,
+                ),
               ChoiceChip(
-                label: Text('$score Â· ${_ratingLabels[score]}'),
-                selected: value == score,
-                onSelected: enabled ? (_) => onChanged(score) : null,
+                label: const Text('Not Observed'),
+                selected: value == 'not_observed',
+                onSelected: enabled ? (_) => onChanged('not_observed') : null,
               ),
-            ChoiceChip(
-              label: const Text('Not Observed'),
-              selected: value == 'not_observed',
-              onSelected: enabled ? (_) => onChanged('not_observed') : null,
-            ),
-          ]),
+            ],
+          ),
         ],
       ),
     ),

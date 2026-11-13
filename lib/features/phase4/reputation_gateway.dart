@@ -6,7 +6,8 @@ abstract interface class ReputationGateway {
 }
 
 class SupabaseReputationGateway implements ReputationGateway {
-  SupabaseReputationGateway(this.client) : _actorId = client.auth.currentUser?.id;
+  SupabaseReputationGateway(this.client)
+    : _actorId = client.auth.currentUser?.id;
 
   final SupabaseClient client;
   final String? _actorId;

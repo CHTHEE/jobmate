@@ -1,4 +1,3 @@
-
 import 'package:geolocator/geolocator.dart';
 
 import 'work_attendance_models.dart';

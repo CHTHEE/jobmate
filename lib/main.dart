@@ -370,10 +370,8 @@ GoRouter _createRouter() {
       ),
       _appRoute(
         AppRoutes.workers,
-        (_, _) => const Module2Gate(
-          role: 'employer',
-          child: CompanyWorkersPage(),
-        ),
+        (_, _) =>
+            const Module2Gate(role: 'employer', child: CompanyWorkersPage()),
       ),
       _appRoute(
         '${AppRoutes.attendanceReview}/:recordId/report',
@@ -578,9 +576,7 @@ GoRouter _createRouter() {
       ),
       _appRoute(
         AppRoutes.adminJobModerationDetails,
-        (_, state) => JobModerationPage(
-          jobId: state.pathParameters['jobId'],
-        ),
+        (_, state) => JobModerationPage(jobId: state.pathParameters['jobId']),
       ),
       _appRoute(
         AppRoutes.notifications,

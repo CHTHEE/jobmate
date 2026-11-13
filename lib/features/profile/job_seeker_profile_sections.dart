@@ -60,12 +60,16 @@ String? validateWeeklyAvailabilitySlot({
 
 abstract interface class JobSeekerProfileRepository {
   Future<JobSeekerProfileData> load(String userId);
-  Future<void> saveAbout(String headline, String bio);
-  Future<void> saveRecord(String section, Map<String, dynamic> values);
-  Future<void> deleteRecord(String section, String id);
-  Future<String> uploadCertificate(String recordId, XFile file);
-  Future<void> saveCertificate(Map<String, dynamic> values);
-  Future<String> certificateUrl(String path);
+  Future<void> saveAbout(String userId, String headline, String bio);
+  Future<void> saveRecord(
+    String userId,
+    String section,
+    Map<String, dynamic> values,
+  );
+  Future<void> deleteRecord(String userId, String section, String id);
+  Future<String> uploadCertificate(String userId, String recordId, XFile file);
+  Future<void> saveCertificate(String userId, Map<String, dynamic> values);
+  Future<String> certificateUrl(String userId, String path);
 }
 
 class SupabaseJobSeekerProfileRepository implements JobSeekerProfileRepository {
@@ -150,6 +154,7 @@ class SupabaseJobSeekerProfileRepository implements JobSeekerProfileRepository {
       languagesFuture,
       availabilityFuture,
     ]);
+    _checkOwner(userId);
     final profile = results[0] as Map<String, dynamic>?;
     return {
       'about': profile == null ? <Map<String, dynamic>>[] : [profile],
@@ -166,7 +171,8 @@ class SupabaseJobSeekerProfileRepository implements JobSeekerProfileRepository {
       (result as List).cast<Map<String, dynamic>>();
 
   @override
-  Future<void> saveAbout(String headline, String bio) async {
+  Future<void> saveAbout(String userId, String headline, String bio) async {
+    _checkOwner(userId);
     await client.rpc(
       'save_my_job_seeker_profile',
       params: {
@@ -174,12 +180,16 @@ class SupabaseJobSeekerProfileRepository implements JobSeekerProfileRepository {
         'p_bio': bio.trim().isEmpty ? null : bio.trim(),
       },
     );
+    _checkOwner(userId);
   }
 
   @override
-  Future<void> saveRecord(String section, Map<String, dynamic> values) async {
-    final userId = client.auth.currentUser?.id;
-    if (userId == null) throw StateError('Please sign in again.');
+  Future<void> saveRecord(
+    String userId,
+    String section,
+    Map<String, dynamic> values,
+  ) async {
+    _checkOwner(userId);
     final table = _table(section);
     final idColumn = _sections[section]!;
     final id = values[idColumn] as String? ?? _uuid.v4();
@@ -206,19 +216,20 @@ class SupabaseJobSeekerProfileRepository implements JobSeekerProfileRepository {
     } else {
       await client.from(table).insert(record);
     }
+    _checkOwner(userId);
   }
 
   @override
-  Future<void> deleteRecord(String section, String id) async {
+  Future<void> deleteRecord(String userId, String section, String id) async {
+    _checkOwner(userId);
     if (section == 'certifications') {
       await client.rpc(
         'delete_my_job_seeker_certification',
         params: {'p_certification_id': id},
       );
+      _checkOwner(userId);
       return;
     }
-    final userId = client.auth.currentUser?.id;
-    if (userId == null) throw StateError('Please sign in again.');
     final deleted = await client
         .from(_table(section))
         .delete()
@@ -228,6 +239,7 @@ class SupabaseJobSeekerProfileRepository implements JobSeekerProfileRepository {
     if (deleted.isEmpty) {
       throw StateError('This profile entry is unavailable. Refresh and retry.');
     }
+    _checkOwner(userId);
   }
 
   String _table(String section) => switch (section) {
@@ -240,9 +252,12 @@ class SupabaseJobSeekerProfileRepository implements JobSeekerProfileRepository {
   };
 
   @override
-  Future<String> uploadCertificate(String recordId, XFile file) async {
-    final userId = client.auth.currentUser?.id;
-    if (userId == null) throw StateError('Please sign in again.');
+  Future<String> uploadCertificate(
+    String userId,
+    String recordId,
+    XFile file,
+  ) async {
+    _checkOwner(userId);
     if (await file.length() > 5 * 1024 * 1024) {
       throw StateError('Choose a certificate document no larger than 5 MiB.');
     }
@@ -269,11 +284,16 @@ class SupabaseJobSeekerProfileRepository implements JobSeekerProfileRepository {
           Uint8List.fromList(bytes),
           fileOptions: FileOptions(contentType: mime, upsert: false),
         );
+    _checkOwner(userId);
     return path;
   }
 
   @override
-  Future<void> saveCertificate(Map<String, dynamic> values) async {
+  Future<void> saveCertificate(
+    String userId,
+    Map<String, dynamic> values,
+  ) async {
+    _checkOwner(userId);
     await client.rpc(
       'save_job_seeker_certification',
       params: {
@@ -285,12 +305,18 @@ class SupabaseJobSeekerProfileRepository implements JobSeekerProfileRepository {
         'p_storage_path': values['document_storage_path'],
       },
     );
+    _checkOwner(userId);
   }
 
   @override
-  Future<String> certificateUrl(String path) => client.storage
-      .from('jobmate-profile-certificates')
-      .createSignedUrl(path, 60);
+  Future<String> certificateUrl(String userId, String path) async {
+    _checkOwner(userId);
+    final url = await client.storage
+        .from('jobmate-profile-certificates')
+        .createSignedUrl(path, 60);
+    _checkOwner(userId);
+    return url;
+  }
 }
 
 class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
@@ -299,6 +325,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
   bool _loading = true;
   bool _saving = false;
   String? _loadError;
+  int _loadGeneration = 0;
 
   static const _days = [
     'Monday',
@@ -332,24 +359,47 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant JobSeekerProfileSections oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId != widget.userId) {
+      _data = {};
+      _load();
+    }
+  }
+
   Future<void> _load() async {
+    final generation = ++_loadGeneration;
+    final ownerId = widget.userId;
     setState(() {
       _loading = true;
       _loadError = null;
     });
     try {
-      final data = await _repository.load(widget.userId);
-      if (!mounted) return;
+      final data = await _repository.load(ownerId);
+      if (!mounted ||
+          generation != _loadGeneration ||
+          widget.userId != ownerId) {
+        return;
+      }
       setState(() => _data = data);
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted ||
+          generation != _loadGeneration ||
+          widget.userId != ownerId) {
+        return;
+      }
       setState(() {
         _loadError = _extensionUnavailable(error)
             ? 'Job Seeker Profile editing is not available in this Supabase environment yet.'
             : 'Unable to load the extended profile. Please retry.';
       });
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted &&
+          generation == _loadGeneration &&
+          widget.userId == ownerId) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -371,14 +421,25 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
     }
   }
 
-  Future<bool> _perform(Future<void> Function() action) async {
+  Future<bool> _perform(
+    Future<void> Function() action, {
+    required String expectedUserId,
+  }) async {
+    if (widget.userId != expectedUserId) {
+      _message('Your account changed. Reopen your profile before editing.');
+      return false;
+    }
     if (_saving) return false;
     setState(() => _saving = true);
     try {
       await action();
+      if (!mounted || widget.userId != expectedUserId) {
+        _message('Your account changed. Reopen your profile before editing.');
+        return false;
+      }
       try {
-        final refreshed = await _repository.load(widget.userId);
-        if (mounted) {
+        final refreshed = await _repository.load(expectedUserId);
+        if (mounted && widget.userId == expectedUserId) {
           setState(() {
             _data = refreshed;
             _loadError = null;
@@ -417,6 +478,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
   List<Map<String, dynamic>> _rows(String section) => _data[section] ?? [];
 
   Future<void> _editAbout() async {
+    final ownerId = widget.userId;
     final aboutRows = _rows('about');
     final row = aboutRows.isEmpty ? <String, dynamic>{} : aboutRows.first;
     final headline = TextEditingController(
@@ -430,8 +492,10 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
         _textField(headline, 'Headline', max: 160),
         _textField(bio, 'Bio', max: 4000, lines: 5),
       ],
-      save: () =>
-          _perform(() => _repository.saveAbout(headline.text, bio.text)),
+      save: () => _perform(
+        () => _repository.saveAbout(ownerId, headline.text, bio.text),
+        expectedUserId: ownerId,
+      ),
     );
     if (result == true) _message('About me saved.');
   }
@@ -460,6 +524,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
   }
 
   Future<void> _editSkill(Map<String, dynamic>? row) async {
+    final ownerId = widget.userId;
     final name = TextEditingController(
       text: row?['skill_name'] as String? ?? '',
     );
@@ -487,11 +552,12 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
           return false;
         }
         return _perform(
-          () => _repository.saveRecord('skills', {
+          () => _repository.saveRecord(ownerId, 'skills', {
             if (row != null) 'skill_id': row['skill_id'],
             'skill_name': name.text.trim(),
             'proficiency': level,
           }),
+          expectedUserId: ownerId,
         );
       },
     );
@@ -499,6 +565,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
   }
 
   Future<void> _editLanguage(Map<String, dynamic>? row) async {
+    final ownerId = widget.userId;
     final name = TextEditingController(
       text: row?['language_name'] as String? ?? '',
     );
@@ -525,11 +592,12 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
           return false;
         }
         return _perform(
-          () => _repository.saveRecord('languages', {
+          () => _repository.saveRecord(ownerId, 'languages', {
             if (row != null) 'language_id': row['language_id'],
             'language_name': name.text.trim(),
             'proficiency': level,
           }),
+          expectedUserId: ownerId,
         );
       },
     );
@@ -537,6 +605,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
   }
 
   Future<void> _editEducation(Map<String, dynamic>? row) async {
+    final ownerId = widget.userId;
     final institution = TextEditingController(
       text: row?['institution'] as String? ?? '',
     );
@@ -586,7 +655,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
           return false;
         }
         return _perform(
-          () => _repository.saveRecord('education', {
+          () => _repository.saveRecord(ownerId, 'education', {
             if (row != null) 'education_id': row['education_id'],
             'institution': institution.text.trim(),
             'qualification': _nullable(qualification.text),
@@ -596,6 +665,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
             'is_current': studying,
             'description': _nullable(description.text),
           }),
+          expectedUserId: ownerId,
         );
       },
     );
@@ -603,6 +673,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
   }
 
   Future<void> _editExperience(Map<String, dynamic>? row) async {
+    final ownerId = widget.userId;
     final company = TextEditingController(
       text: row?['employer_name'] as String? ?? '',
     );
@@ -652,7 +723,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
           return false;
         }
         return _perform(
-          () => _repository.saveRecord('experience', {
+          () => _repository.saveRecord(ownerId, 'experience', {
             if (row != null) 'experience_id': row['experience_id'],
             'employer_name': company.text.trim(),
             'job_title': title.text.trim(),
@@ -662,6 +733,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
             'is_current': current,
             'description': _nullable(description.text),
           }),
+          expectedUserId: ownerId,
         );
       },
     );
@@ -669,6 +741,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
   }
 
   Future<void> _editCertification(Map<String, dynamic>? row) async {
+    final ownerId = widget.userId;
     final id = row?['certification_id'] as String? ?? const Uuid().v4();
     final name = TextEditingController(
       text: row?['certification_name'] as String? ?? '',
@@ -762,7 +835,17 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
         }
         if (stagedFile != null && stagedPath == null) {
           try {
-            stagedPath = await _repository.uploadCertificate(id, stagedFile!);
+            if (widget.userId != ownerId) {
+              _message(
+                'Your account changed. Reopen your profile before editing.',
+              );
+              return false;
+            }
+            stagedPath = await _repository.uploadCertificate(
+              ownerId,
+              id,
+              stagedFile!,
+            );
             path = stagedPath;
           } catch (error) {
             _message(_friendlyError(error));
@@ -770,7 +853,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
           }
         }
         return _perform(
-          () => _repository.saveCertificate({
+          () => _repository.saveCertificate(ownerId, {
             'certification_id': id,
             'certification_name': name.text.trim(),
             'issuer': _nullable(issuer.text),
@@ -778,6 +861,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
             'expires_on': _dateString(expires),
             'document_storage_path': path,
           }),
+          expectedUserId: ownerId,
         );
       },
     );
@@ -785,6 +869,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
   }
 
   Future<void> _editAvailability(Map<String, dynamic>? row) async {
+    final ownerId = widget.userId;
     int day = row?['iso_weekday'] as int? ?? 1;
     TimeOfDay start =
         _time(row?['start_time']) ?? const TimeOfDay(hour: 9, minute: 0);
@@ -854,13 +939,14 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
           return false;
         }
         return _perform(
-          () => _repository.saveRecord('availability', {
+          () => _repository.saveRecord(ownerId, 'availability', {
             if (row != null) 'slot_id': row['slot_id'],
             'iso_weekday': day,
             'start_time': _timeString(start),
             'end_time': _timeString(end),
             'timezone_name': 'Asia/Kuala_Lumpur',
           }),
+          expectedUserId: ownerId,
         );
       },
     );
@@ -962,6 +1048,7 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
   }
 
   Future<void> _delete(String section, Map<String, dynamic> row) async {
+    final ownerId = widget.userId;
     final idColumn = switch (section) {
       'skills' => 'skill_id',
       'certifications' => 'certification_id',
@@ -993,7 +1080,8 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
     );
     if (ok != true) return;
     final removed = await _perform(
-      () => _repository.deleteRecord(section, row[idColumn] as String),
+      () => _repository.deleteRecord(ownerId, section, row[idColumn] as String),
+      expectedUserId: ownerId,
     );
     if (removed) _message('Entry removed.');
   }
@@ -1001,7 +1089,11 @@ class _JobSeekerProfileSectionsState extends State<JobSeekerProfileSections> {
   Future<void> _viewCertificate(String? path) async {
     if (path == null) return;
     try {
-      final url = await _repository.certificateUrl(path);
+      final ownerId = widget.userId;
+      final url = await _repository.certificateUrl(ownerId, path);
+      if (!mounted || widget.userId != ownerId) {
+        throw StateError('Your account changed. Reopen your profile.');
+      }
       final opened = await launchUrl(
         Uri.parse(url),
         mode: LaunchMode.platformDefault,

@@ -20,7 +20,7 @@ abstract final class AuthStyle {
     fontSize: 32,
     color: heading,
   );
-  
+
   static ThemeData theme(BuildContext context) {
     final base = JobMateTheme.apply(Theme.of(context));
     OutlineInputBorder outline(Color color, [double width = 1]) =>
@@ -142,7 +142,7 @@ class _AuthFieldState extends State<AuthField> {
   bool _hidden = true;
   @override
   Widget build(BuildContext context) => Padding(
-   padding: EdgeInsets.only(bottom: widget.bottomSpacing),
+    padding: EdgeInsets.only(bottom: widget.bottomSpacing),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

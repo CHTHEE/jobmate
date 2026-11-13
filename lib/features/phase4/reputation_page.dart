@@ -89,7 +89,9 @@ class _ReputationContentState extends State<ReputationContent> {
       } else if (snapshot.hasError) {
         body = WorkspaceCard(
           title: 'Reputation unavailable',
-          child: const Text('We could not load the verified summary. Try again.'),
+          child: const Text(
+            'We could not load the verified summary. Try again.',
+          ),
         );
       } else if (widget.employer) {
         body = _companyContent(
@@ -141,14 +143,17 @@ class _ReputationContentState extends State<ReputationContent> {
           subtitle: 'Company evaluations revealed after both sides submit.',
           leading: const Icon(Icons.rate_review_outlined),
           child: _metric(
-            average == null ? 'No ratings yet' : '${average.toStringAsFixed(2)} / 5',
+            average == null
+                ? 'No ratings yet'
+                : '${average.toStringAsFixed(2)} / 5',
             '$rated Core-rated applications - $published published evaluations',
           ),
         ),
         const SizedBox(height: 12),
         WorkspaceCard(
           title: 'Working Performance',
-          subtitle: 'Verified work records only; each row is one scheduled Shift.',
+          subtitle:
+              'Verified work records only; each row is one scheduled Shift.',
           leading: const Icon(Icons.verified_outlined),
           child: _metric(
             shifts == 0 ? 'No verified completed Shifts yet' : '$shifts',

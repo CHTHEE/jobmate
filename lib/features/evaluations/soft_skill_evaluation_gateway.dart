@@ -1,4 +1,4 @@
-﻿import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 abstract interface class SoftSkillEvaluationGateway {
   Future<List<Map<String, dynamic>>> candidates(String direction);
@@ -12,8 +12,7 @@ abstract interface class SoftSkillEvaluationGateway {
   });
 }
 
-class SupabaseSoftSkillEvaluationGateway
-    implements SoftSkillEvaluationGateway {
+class SupabaseSoftSkillEvaluationGateway implements SoftSkillEvaluationGateway {
   SupabaseSoftSkillEvaluationGateway(this.client)
     : _actorId = client.auth.currentUser?.id;
 
@@ -40,10 +39,9 @@ class SupabaseSoftSkillEvaluationGateway
   @override
   Future<List<Map<String, dynamic>>> candidates(String direction) async =>
       _rows(
-        await _rpc(
-          'list_application_evaluation_candidates',
-          {'p_direction': direction},
-        ),
+        await _rpc('list_application_evaluation_candidates', {
+          'p_direction': direction,
+        }),
       );
 
   @override
@@ -57,13 +55,11 @@ class SupabaseSoftSkillEvaluationGateway
     required List<String> selectedAdditionalSkillIds,
     required Map<String, dynamic> ratings,
     required String? comment,
-  }) async =>
-      (await _rpc('submit_application_soft_skill_evaluation', {
-            'p_application_id': applicationId,
-            'p_direction': direction,
-            'p_selected_additional_skill_ids': selectedAdditionalSkillIds,
-            'p_ratings': ratings,
-            'p_comment': comment,
-          }))
-          as String;
+  }) async => (await _rpc('submit_application_soft_skill_evaluation', {
+    'p_application_id': applicationId,
+    'p_direction': direction,
+    'p_selected_additional_skill_ids': selectedAdditionalSkillIds,
+    'p_ratings': ratings,
+    'p_comment': comment,
+  })) as String;
 }

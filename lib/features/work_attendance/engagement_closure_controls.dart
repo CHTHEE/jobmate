@@ -421,7 +421,9 @@ class _CompanyEngagementClosureRequestsState
         widget.onClosed?.call('${row['application_id']}');
       }
     } catch (error) {
-      if (current()) {
+      if (mounted &&
+          generation == _generation &&
+          identical(gateway, _gateway)) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(_serverMessage(error))));
       }
