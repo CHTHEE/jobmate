@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../jobs/job_display.dart';
+import '../chat/chat_application_button.dart';
 import 'module2_widgets.dart';
 import 'my_applications_repository.dart';
 import 'hiring_membership_panel.dart';
@@ -270,6 +271,11 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
                                 ),
                           child: const Text('View Job'),
                         ),
+                      ),
+                      ChatApplicationButton(
+                        key: ValueKey('chat:${application.id}'),
+                        applicationId: application.id,
+                        enabled: !repo.responding && !confirming,
                       ),
                       if (repo.responding) ...[
                         const SizedBox(height: 12),

@@ -6,6 +6,7 @@ import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../jobs/job_display.dart';
 import '../jobs/job_preview.dart';
+import '../chat/chat_application_button.dart';
 import 'employer_applicants_repository.dart';
 import 'employer_applicant_profile.dart';
 import 'module2_widgets.dart';
@@ -333,6 +334,12 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
                             ],
                             const SizedBox(height: 12),
                             SelectableText('Application ID: ${applicant.id}'),
+                            ChatApplicationButton(
+                              key: ValueKey('chat:${applicant.id}'),
+                              applicationId: applicant.id,
+                              employer: true,
+                              enabled: !repo.updating,
+                            ),
                             if (applicant.employerNext.isNotEmpty) ...[
                               const SizedBox(height: 16),
                               Wrap(

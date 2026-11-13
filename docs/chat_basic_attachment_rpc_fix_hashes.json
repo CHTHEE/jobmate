@@ -1,0 +1,15 @@
+{
+  "backend_bundle_sha256": "e05b8e8785c2707aa1e93cf881c63a327e7156feb939c03ce4e6ec644ea1dc5d",
+  "supersedes_bundle_sha256": "1b5a1f0109d542225e9f0296dd777b166643acb2f196377837bd235687ca6d8c",
+  "change": "Only index.ts: accept successful empty responses for the two known void RPCs; strict JSON and HTTP error checks retained",
+  "files": {
+    "supabase/candidates/chat_basic_attachment_migration_r1.sql": "96213f66af7639710eab1431373c70486dda92873577de7781ad010cb9ab09b2",
+    "supabase/candidates/chat_basic_catalog_verification_r1.sql": "7e1d956d5e0e6beb2b2ee3bf9533820b39d4c80bef57f13ceee3111d028626c3",
+    "supabase/candidates/chat_basic_empty_rollback_candidate.sql": "771d917c4b6c4f72e62c06f1ad987621f8ca31961ee4a9b73720baa809c7ad96",
+    "supabase/candidates/chat_basic_rollback_validation_r1_candidate.sql": "4fb01897ba657df5118046b31d6f41994bfbfa0093f980976bbe4824d47ac010",
+    "supabase/candidates/chat_basic_security_tests.sql": "b875a41c7021e51b7468b50c5fec7693ff9f0bbf4ac60c0c4ebc8bf79e606b72",
+    "supabase/functions/_shared/chat_basic/protocol.mjs": "6492afd10ac3f538d896602c0f7bc288b56b5929fae19cbaa0bf6ca49c346700",
+    "supabase/functions/_shared/chat_basic/validate.mjs": "af15016da95e12090761f02f9d107a334a474b8b59e018cf5f816bb34b774f2d",
+    "supabase/functions/chat-basic-attachments/index.ts": "0d3489760f530a7a18d63b62d92035e5a7be83e5add40d6b46b72ab375b15bc8"
+  }
+}

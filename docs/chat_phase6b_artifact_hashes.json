@@ -1,0 +1,17 @@
+{
+  "backend_bundle_sha256": "a57c91ae7ee43bcc17f7b2a42a8c81b439328db78449bdf714d624eadf268875",
+  "files": {
+    "supabase/candidates/chat_phase6b_attachment_foundation.sql": "ede7776a212221d4d0814d6def3f1ed811cfcb92c56095e5a281f2126b5ef445",
+    "supabase/candidates/chat_phase6b_catalog_verification.sql": "ea9404f578425b0164bc49e207b3955b5432719dfc40037c4043a423973c24f1",
+    "supabase/candidates/chat_phase6b_empty_rollback_candidate.sql": "10888f1f4ca5f2263ebd8587817316b26d4f972e2436755f3a4ac538e0ebb5f1",
+    "supabase/candidates/chat_phase6b_readonly_preflight.sql": "6833542502fe093bd4b40097870cc146a2a3e126c33b8f631b402e65582e6e43",
+    "supabase/candidates/chat_phase6b_rollback_validation_candidate.sql": "7ca515024f1fbd4d29cc6cbaca630f4f8842654dbb8b6714315216a76c6f62ad",
+    "supabase/candidates/chat_phase6b_security_tests.sql": "d3329c2d7f43ad0542428b904e6c0b4dcbea695708ab89da6dd4181fa23b5015",
+    "supabase/functions/_shared/chat_attachments/protocol.mjs": "e8e7a7c34d239fa60bdab42a39e1dbead422798283635e4b6c8b5870ee5489f6",
+    "supabase/functions/chat-attachments/index.ts": "78e7c5330f4d2023eef5b4bf02a2dba2aac11378df8d576b40ebae12a1ce05a1",
+    "tools/chat_scanner/clamd.conf.example": "ea3b015daab056ed91f44014bf8f80bb76d27c9ec79500fe2a4aa7c4a80f1f98",
+    "tools/chat_scanner/jobmate-chat-scanner.service.example": "f659b8fa7289750f2f32561c5c8d571aa672e41a4fb3e7ccf0284b7b7ee53501",
+    "tools/chat_scanner/server.mjs": "d08a11ef7121a13e4e70161fc6430063089d3980da55d370f85146bc94329309",
+    "tools/chat_scanner/validate.mjs": "ba4545043a2da4d733d632a8c56ea7e50ac8dc2ec226977f9f9d629983025e6c"
+  }
+}

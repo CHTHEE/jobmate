@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -32,7 +33,9 @@ import 'features/attendance/attendance_pages.dart';
 import 'features/work_attendance/company_workers_page.dart';
 import 'features/work_attendance/work_attendance_routes.dart';
 import 'features/work_attendance/work_verification_routes.dart';
-import 'features/chat/chat_page.dart';
+import 'features/chat/chat_routes.dart';
+import 'features/chat/debug/chat_runtime_controller.dart';
+import 'features/chat/debug/chat_runtime_page.dart';
 import 'features/location/location_pages.dart';
 import 'features/phase4/phase4_store.dart';
 import 'features/phase4/evaluation_pages.dart';
@@ -113,6 +116,8 @@ GoRouter _createRouter() {
       return null;
     },
     routes: [
+      if (kDebugMode)
+        _appRoute(chatRuntimeAcceptancePath, (_, _) => const ChatRuntimePage()),
       _appRoute(
         AppRoutes.settings,
         (_, _) =>
@@ -394,35 +399,12 @@ GoRouter _createRouter() {
           ),
         ),
       ),
-      _appRoute(
-        AppRoutes.messages,
-        (_, _) => const Module2Gate(role: 'job_seeker', child: ChatPage()),
-      ),
-      _appRoute(
-        '${AppRoutes.messages}/:conversationId',
-        (_, state) => Module2Gate(
-          role: 'job_seeker',
-          child: ChatPage(
-            conversationId: state.pathParameters['conversationId'],
-          ),
-        ),
-      ),
-      _appRoute(
-        AppRoutes.employerMessages,
-        (_, _) => const Module2Gate(
-          role: 'employer',
-          child: ChatPage(employer: true),
-        ),
-      ),
-      _appRoute(
+      chatRoute(AppRoutes.messages),
+      chatRoute('${AppRoutes.messages}/:conversationId'),
+      chatRoute(AppRoutes.employerMessages, employer: true),
+      chatRoute(
         '${AppRoutes.employerMessages}/:conversationId',
-        (_, state) => Module2Gate(
-          role: 'employer',
-          child: ChatPage(
-            employer: true,
-            conversationId: state.pathParameters['conversationId'],
-          ),
-        ),
+        employer: true,
       ),
       _appRoute(
         AppRoutes.nearbyJobs,

@@ -35,11 +35,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
     'Communication': [
       (AppRoutes.disputes, 'My disputes', Icons.gavel_outlined),
       (AppRoutes.userReports, 'My reports', Icons.flag_outlined),
-      (
-        AppRoutes.employerMessages,
-        'Messages (demo)',
-        Icons.chat_bubble_outline,
-      ),
+      (AppRoutes.employerMessages, 'Messages', Icons.chat_bubble_outline),
     ],
     'Company': [
       (AppRoutes.company, 'Company profile', Icons.business_outlined),
@@ -110,7 +106,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
       'Communication': [
         (AppRoutes.disputes, 'My disputes', Icons.gavel_outlined),
         (AppRoutes.userReports, 'My reports', Icons.flag_outlined),
-        (AppRoutes.messages, 'Messages (demo)', Icons.chat_bubble_outline),
+        (AppRoutes.messages, 'Messages', Icons.chat_bubble_outline),
       ],
     },
     if (role == 'job_seeker')

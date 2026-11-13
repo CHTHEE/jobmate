@@ -1,0 +1,25 @@
+{
+  "preparation": "PASS",
+  "path": "C:\\Users\\theec\\AppData\\Local\\Temp\\chat_basic_rollback_validation_APPROVED_20261113.sql",
+  "sha256": "c0728eb0d85bcce6a9a14468022eb00e70c456a3b8553e4ae1d2bacc027ce767",
+  "source_sha256": "05b7ea04ef94caaf7086e012d0641f628e332a8114c7e933249fe3f1a3481957",
+  "approved_bundle_sha256": "15beba70d5fcedc33a9f48a0f28ad843c6fca744a8300d26dacd81bf2d1d1a1e",
+  "reported_pre_trial_baseline": {
+    "record_count": 2652,
+    "unique_key_count": 2652,
+    "baseline_md5": "9117d06648f2fe2c85ac5d3131faee1f",
+    "five_absences": "PASS",
+    "evidence_status": "CH reported complete export preserved; not independently inspected by Codex"
+  },
+  "pinned_backend_md5": "a5d682393de3f9ffc66f01c5264ec7c1",
+  "changes_only": [
+    "Remove new attachment approval guard from temporary copy",
+    "Insert approved SET LOCAL backend MD5",
+    "Insert exact read-only PID/context and catalogue SELECTs from runbook"
+  ],
+  "preserved": "Every other source byte including DDL, preflight, timeouts, assertions, marker and final ROLLBACK",
+  "original_artifacts": "all eight hash matches; both original SQL guards/source hashes unchanged",
+  "executable_COMMIT": false,
+  "business_RPC_invocation": false,
+  "live_SQL_executed": false
+}

@@ -1,5 +1,49 @@
 # JobMate
 
+Chat's active attachment design is a Supabase-only **basic university demo**:
+JPG/JPEG, PNG, PDF, DOCX and XLSX up to 5 MiB, private Storage and trusted Edge
+file-type/content validation. It provides **no antivirus protection** and requires
+no external scanner or hosting. CH/KZ approved general activation;
+`JOBMATE_CHAT_BASIC_ATTACHMENTS` now defaults true. CH reports backend/Edge activation
+and Web image-preview, PDF-download and text-message acceptance successful.
+The scanner architecture remains a future
+enhancement. See [basic attachments and approval steps](docs/chat_basic_attachments.md).
+
+CH reports the corrected basic attachment rollback trial and exact before/after
+catalogue comparison complete. [Disabled backend deployment preparation](docs/chat_basic_deployment_preparation.md)
+records that evidence and the separate deployment/QA approvals still required.
+That preparation record is historical; see the approved activation steps in
+[basic attachment activation](docs/chat_basic_activation.md).
+
+Basic attachment CORS supports normal `flutter run -d chrome` with automatically
+assigned HTTP localhost/127.0.0.1 ports. `CHAT_BASIC_ALLOWED_ORIGIN` separately
+allows one exact production origin; no per-developer port configuration is needed.
+The approved local default does not itself change the backend/Edge release gates.
+
+Chat attachment selection includes Android MIME/iOS document-type filters, and
+Android release builds have Internet permission. Shared Chat uses platform plugins
+and byte-based previews/uploads. Downloads now use one click: Web opens its download
+tab during the gesture, then obtains the authorized URL; mobile uses the system
+browser/download UI. Android/iOS device acceptance remains pending.
+
+Image attachments display thumbnails with a tap-to-open zoomable preview;
+PDF, Word and Excel attachments use file cards and downloads without an embedded
+document viewer. Preview openings obtain fresh authorized short-lived URLs.
+
+The final Chat polish adds compact incoming/outgoing bubbles, navigation unread
+dots and automatic reads only for incoming content displayed in a visible thread.
+Unread dots use existing RPC/Realtime results; cross-tab read-state clearing has
+a 30-second repair refresh without publication changes. See
+[Chat UI polish and acceptance](docs/chat_ui_polish.md).
+
+Option B defers automatic hourly attachment cleanup for the university demo.
+No cleanup Cron job is registered according to CH's checks. pg_net queue access
+and unconfirmed safe http 1.6 redirects remain blockers; the existing authorized
+Edge cleanup endpoint remains available for manual maintenance. Abandoned uploads
+may accumulate until cleanup runs. Existing secrets/extensions remain unchanged.
+Resolve this known limitation before production use; see the
+[cleanup compatibility review](docs/chat_basic_cleanup_http_review.md).
+
 ## 1. Project Overview
 
 JobMate is a Final Year Project (FYP): an AI-assisted recruitment and workforce management platform developed collaboratively with Flutter and Dart for **Web and Android**. Supabase provides authentication, database access, storage and Edge Functions. Gemini integration is intended to run through a Supabase Edge Function, keeping AI credentials off the client.
@@ -254,6 +298,14 @@ are separate release gates. Keep Module 4 writes paused outside separately
 approved synthetic-fixture QA until cutover is complete. The alternative
 `20261105000200` prototype is excluded and must not be deployed.
 
+Scheduling release note: the undeployed November 10 candidate now uses
+application-row NOWAIT locks for direct schedule UPDATEs to avoid waiting back
+on application-first cancellation. Contention raises 55P03 and requires rollback
+and whole-operation retry; cancellation and authorization remain unchanged.
+The owner reports the previous candidate's B1 31/31 rehearsal and fresh A0 31/31;
+the revised candidate still needs compilation/concurrency/API verification.
+See [the release sequence](docs/module4_release_execution.md). Neither patch is permanently deployed.
+
 Module 4 production worker attendance at `/work-attendance` now supports
 confirmed check-in/check-out through the existing attendance RPCs. The worker
 confirms fresh GPS coordinates when available, or retries/continues with denied
@@ -270,6 +322,27 @@ implementation; live attendance actions and device acceptance require explicit
 testing approval.
 
 Module 4 cards use server-derived status banners and contextual evidence actions.
+The employer Work Verification route presents Work Assignments & Verification
+with loaded-record summary counts, local job/worker search, and job, shift and
+verification filters. Awaiting-verification counts use `pending_review`; Verified
+uses `verified`, independently of assignment/attendance status. Counts describe
+the loaded authorized projection, not a guaranteed complete company total.
+Worker-name search reuses the existing authorized name lookup and omits unavailable
+names. Compact shift cards preserve GPS, evidence, Add shift and closure actions.
+The short Work Verification sidebar label remains; Attendance Review (demo) is
+hidden from normal employer navigation but its direct route remains available.
+Workers (demo) and Payments (sandbox) are unchanged.
+Worker attendance details and authorized employer Work Verification show an
+informational On Time/Late check-in label using saved server timestamps: exactly
+15 minutes after scheduled start is On Time; later is Late. No check-in means no
+label. This presentation rule does not affect status, eligibility, review or pay.
+The Add shift/Create Assignment dialog uses one `Shift date (MYT)` and Material
+clock pickers with AM/PM display. Both timestamps use the selected Malaysia date
+(UTC+08:00), independent of device timezone; overnight shifts require separate
+daily assignments. Field errors appear after Review and clear as values become
+valid. Review/explicit confirmation and server scheduling checks remain required.
+The picker alone caps text scaling at 1.3 to keep its fixed-size Material controls
+usable on narrow screens; the surrounding scrollable form retains full scaling.
 Worker attendance groups shifts by hired application ID, with the job title,
 company name and shift count shown once per group. Groups remain expanded and
 shifts appear in scheduled-start order; attendance and evidence actions still
@@ -299,8 +372,11 @@ application using Add shift on each expanded employer assignment group. Groups
 use application ID, show the hired worker, job title and shift count, and list
 shifts chronologically. Add shift resolves that application against fresh
 authorized eligibility data; unavailable applications cannot be substituted.
-Each shift has its own agreed MYT start/end dates, times and workplace, including
-overnight schedules. No worker availability form or per-shift acceptance is added.
+Each assignment represents one shift with a future start, a strictly later end,
+and both times on the same Malaysia (UTC+8) calendar date. Multi-day work requires
+separate daily assignments; overnight shifts are rejected by Flutter. Matching
+server enforcement is proposed in `docs/work_shift_schedule_validation.sql` for
+review only and has not been deployed. No worker availability form or per-shift acceptance is added.
 Attendance, GPS, evidence and verification remain independent per shift.
 Employers can also use the existing Create Assignment selector for a hired
 application from Work Verification, with explicit worker/job/company/MYT schedule
@@ -1675,6 +1751,33 @@ Applications reloads the list. Tests use local fakes/mock HTTP only and never
 change live applications. Live acceptance testing starts by inspecting Interview
 withdrawal without pressing it, followed by an employer offer and deliberate
 Job Seeker acceptance after verifying Offered status.
+
+### Chat backend and Flutter data layer
+
+Chat backend is permanently deployed, with CH-confirmed prospective catalogue
+integrity verification. The typed five-RPC Chat source/repository and persistent
+send retry storage are available in `lib/features/chat/`; authenticated runtime
+acceptance passed the core controlled messaging fixture checks. Messages now uses
+the real repository for both participants, with application entry buttons,
+responsive list/thread navigation, persisted-send recovery, pagination and
+authenticated Realtime reconciliation. Read marking is explicit on displayed
+messages. Ordinary unsent drafts are memory-only; navigation prompts protect
+them, but browser refresh/tab closure does not. No fake presence/receipts or
+attachments are included. Final UI/device/security acceptance remains pending.
+See [Phase 5 evidence and Phase 6 review](docs/chat_phase5_runtime_review_and_phase6_ui.md).
+See [Chat Phase 3 acceptance and UI integration](docs/chat_phase3_runtime_acceptance.md).
+
+For temporary authenticated runtime acceptance, a debug-only tester is available
+at `/#/debug/chat-acceptance` after normal sign-in. Run
+`flutter run -d chrome --web-hostname=localhost --web-port=7357 --no-pub`, then open
+`http://localhost:7357/#/debug/chat-acceptance`. It uses the actual typed repository,
+supports explicit reads/pagination and Realtime observation, and copies evidence
+without message text or credentials. CH/KZ approved the fixed QA application and
+two participant messages; only those active identities can enable scoped writes
+after **Check account**. Request IDs/text are fixed, preventing extra logical
+messages on retries/restarts. Backend denial/read-only stops the trial. See the
+linked acceptance procedure for exact buttons and scope. No production navigation/demo change; release/profile
+builds omit the tester route. Live acceptance remains pending CH's results.
 
 ### Flutter learning resources
 

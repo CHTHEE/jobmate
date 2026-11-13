@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/notifications/notifications_page.dart';
+import '../../features/chat/chat_unread.dart';
 import '../../features/search/universal_search_page.dart';
 import '../navigation/app_routes.dart';
 import 'auth_style.dart';
@@ -585,7 +586,10 @@ class _WorkspaceMenuState extends State<_WorkspaceMenu> {
     selectedTileColor: JobMateTheme.teal50,
     selectedColor: JobMateTheme.darkTeal,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    leading: Icon(item.$3, size: 20),
+    leading:
+        item.$1 == AppRoutes.messages || item.$1 == AppRoutes.employerMessages
+        ? ChatUnreadIcon(icon: item.$3)
+        : Icon(item.$3, size: 20),
     title: Text(item.$2),
     enabled: !widget.locked,
     onTap: () => widget.onSelected(item.$1),

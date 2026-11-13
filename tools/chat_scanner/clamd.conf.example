@@ -1,0 +1,23 @@
+# REVIEW WITH HOST OPERATOR. Merge into the installed clamd configuration;
+# do not start/install anything from this repository automatically.
+LocalSocket /run/clamav/clamd.ctl
+LocalSocketMode 660
+User clamav
+DatabaseDirectory /var/lib/clamav
+MaxThreads 1
+StreamMaxLength 10M
+MaxFileSize 10M
+MaxScanSize 32M
+MaxFiles 256
+MaxRecursion 8
+MaxScanTime 40000
+ScanArchive yes
+ScanOLE2 yes
+ScanPDF yes
+ScanXMLDOCS yes
+HeuristicAlerts yes
+AlertEncrypted yes
+AlertOLE2Macros yes
+AlertExceedsMax yes
+AlertBrokenMedia yes
+# No TCPSocket. FreshClam updates and clamd reload monitoring are mandatory.

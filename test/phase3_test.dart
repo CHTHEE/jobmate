@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jobmate/features/recommendations/recommendations_page.dart';
 import 'package:jobmate/features/attendance/attendance_pages.dart';
-import 'package:jobmate/features/chat/chat_page.dart';
 import 'package:jobmate/features/location/location_pages.dart';
 import 'package:jobmate/features/demo_work/local_attachment.dart';
 import 'package:jobmate/features/demo_work/phase3_store.dart';
@@ -32,11 +31,11 @@ void main() {
                 'For You (demo)': AppRoutes.recommendations,
                 'Nearby Jobs (demo)': AppRoutes.nearbyJobs,
                 'My Work Shifts': AppRoutes.workAttendance,
-                'Messages (demo)': AppRoutes.messages,
+                'Messages': AppRoutes.messages,
               }
             : {
                 'Attendance Review (demo)': AppRoutes.attendanceReview,
-                'Messages (demo)': AppRoutes.employerMessages,
+                'Messages': AppRoutes.employerMessages,
                 'Location Picker (demo)': AppRoutes.jobLocationDemo,
               };
         await tester.pumpWidget(
@@ -212,9 +211,6 @@ void main() {
       'Review',
       'Worker Details',
       'Report',
-      'Messages',
-      'Conversation',
-      'Employer Conversation',
       'Nearby',
       'Workplace',
       'Location Picker',
@@ -245,13 +241,6 @@ void main() {
             report: true,
             store: store,
           ),
-          'Messages' => ChatPage(store: store),
-          'Conversation' => ChatPage(conversationId: 'chat-3', store: store),
-          'Employer Conversation' => ChatPage(
-            employer: true,
-            conversationId: 'chat-1',
-            store: store,
-          ),
           'Nearby' => NearbyJobsPage(repository: jobs),
           'Workplace' => NearbyDetailPage(
             jobId: 'demo-job-2',
@@ -269,26 +258,6 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('DEMO / PREVIEW'), findsOneWidget);
         expect(tester.takeException(), isNull);
-        if (page == 'Conversation') {
-          await tester.ensureVisible(find.byType(TextField).last);
-          await tester.enterText(
-            find.byType(TextField).last,
-            'Hello local demo',
-          );
-          await tester.pumpAndSettle();
-          expect(
-            store.conversation('chat-3')!.drafts['job_seeker'],
-            'Hello local demo',
-          );
-          await tester.ensureVisible(find.text('Send (demo)'));
-          await tester.tap(find.text('Send (demo)'));
-          await tester.pumpAndSettle();
-          expect(
-            store.conversation('chat-3')!.messages.last.text,
-            'Hello local demo',
-          );
-          expect(tester.takeException(), isNull);
-        }
         if (page == 'Location Picker') {
           await tester.enterText(
             find.byType(TextField).first,

@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Supabase Auth, Chat and private attachment transfers in release builds. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Location is requested only during attendance check-in/check-out. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />

@@ -1,0 +1,14 @@
+{
+  "backend_bundle_sha256": "52e68790f64b6f566bac30a871899b6130c6c6b1ad65606b23100a6e6e9fa317",
+  "supersedes_failed_bundle": "15beba70d5fcedc33a9f48a0f28ad843c6fca744a8300d26dacd81bf2d1d1a1e",
+  "files": {
+    "supabase/candidates/chat_basic_attachment_migration_r1.sql": "96213f66af7639710eab1431373c70486dda92873577de7781ad010cb9ab09b2",
+    "supabase/candidates/chat_basic_catalog_verification_r1.sql": "7e1d956d5e0e6beb2b2ee3bf9533820b39d4c80bef57f13ceee3111d028626c3",
+    "supabase/candidates/chat_basic_empty_rollback_candidate.sql": "771d917c4b6c4f72e62c06f1ad987621f8ca31961ee4a9b73720baa809c7ad96",
+    "supabase/candidates/chat_basic_rollback_validation_r1_candidate.sql": "4fb01897ba657df5118046b31d6f41994bfbfa0093f980976bbe4824d47ac010",
+    "supabase/candidates/chat_basic_security_tests.sql": "b875a41c7021e51b7468b50c5fec7693ff9f0bbf4ac60c0c4ebc8bf79e606b72",
+    "supabase/functions/_shared/chat_basic/protocol.mjs": "43027b80fb9e40aff0c6d7334d32f5339c8624be69dd67f85b3396a949ca5782",
+    "supabase/functions/_shared/chat_basic/validate.mjs": "af15016da95e12090761f02f9d107a334a474b8b59e018cf5f816bb34b774f2d",
+    "supabase/functions/chat-basic-attachments/index.ts": "c7abf9adca9ec15ed1b77ae9f614b1e132f839f113b2c2520a1e966199e0b606"
+  }
+}

@@ -18,6 +18,9 @@ import 'package:jobmate/features/recommendations/recommendations_page.dart';
 import 'package:jobmate/features/attendance/attendance_pages.dart';
 import 'package:jobmate/features/attendance/workers_page.dart';
 import 'package:jobmate/features/chat/chat_page.dart';
+
+import 'fixtures/chat_ui.dart';
+
 import 'package:jobmate/features/location/location_pages.dart';
 import 'package:jobmate/features/phase4/phase4_store.dart';
 import 'package:jobmate/features/phase4/evaluation_pages.dart';
@@ -145,7 +148,10 @@ void main() {
             report: true,
             store: work,
           ),
-          'chat' => ChatPage(conversationId: 'chat-1', store: work),
+          'chat' => ChatPage(
+            conversationId: chatConversation,
+            controller: fixtureChatUi(),
+          ),
           'nearby' => NearbyJobsPage(repository: jobs),
           'location-picker' => JobLocationDemoPage(store: work),
           'evaluate' => EvaluationFormPage(
@@ -207,6 +213,7 @@ void main() {
           'application-detail',
           'applicants',
           'applicant-detail',
+          'chat',
         ].contains(screen)) {
           expect(find.text('DEMO / PREVIEW'), findsOneWidget);
         }
