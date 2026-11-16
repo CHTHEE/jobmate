@@ -116,6 +116,59 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets(
+    'application groups omit raw ID details while retaining independent controls and shifts',
+    (tester) async {
+      rows = [shift(10), shift(11, application: 6)];
+      await show(tester);
+      Finder group(int application) =>
+          find.byKey(ValueKey('application-${uid(application)}'));
+      Finder inGroup(int application, String text) =>
+          find.descendant(of: group(application), matching: find.text(text));
+      void expectNoRawDetails() {
+        expect(find.text('Application details'), findsNothing);
+        expect(find.textContaining('Application ID:'), findsNothing);
+        expect(find.text(uid(4)), findsNothing);
+        expect(find.text(uid(6)), findsNothing);
+      }
+
+      expectNoRawDetails();
+      for (final application in [4, 6, 4]) {
+        final shiftId = application == 4 ? 10 : 11;
+        final otherShiftId = application == 4 ? 11 : 10;
+        expect(inGroup(application, 'Engagement status: Open'), findsOneWidget);
+        expect(inGroup(application, 'Close Engagement'), findsOneWidget);
+        expect(
+          tester
+              .widget<OutlinedButton>(
+                find.descendant(
+                  of: group(application),
+                  matching: find.widgetWithText(OutlinedButton, 'Add shift'),
+                ),
+              )
+              .onPressed,
+          isNotNull,
+        );
+        await tap(tester, inGroup(application, 'Hide application shifts'));
+        expect(find.byKey(ValueKey(uid(shiftId))), findsNothing);
+        expect(find.byKey(ValueKey(uid(otherShiftId))), findsOneWidget);
+        expectNoRawDetails();
+        await tap(tester, inGroup(application, 'Show application shifts'));
+        expect(find.byKey(ValueKey(uid(shiftId))), findsOneWidget);
+        expect(inGroup(application, 'Engagement status: Open'), findsOneWidget);
+        expect(inGroup(application, 'Close Engagement'), findsOneWidget);
+        expectNoRawDetails();
+        expect(tester.takeException(), isNull);
+      }
+      expect(repository.company.rows.map((r) => r.applicationId), [
+        uid(4),
+        uid(6),
+      ]);
+      expect(source.checkIns, 0);
+      expect(source.checkOuts, 0);
+    },
+  );
+
   Future<void> schedule(
     WidgetTester tester, {
     String startDate = '2026-11-07',
@@ -213,7 +266,7 @@ void main() {
       expect(find.byKey(ValueKey(uid(12))), findsNothing);
       expect(find.text('Create Assignment'), findsOneWidget);
       expect(find.text('Add shift'), findsOneWidget);
-      expect(find.text('View attendance GPS'), findsOneWidget);
+      expect(find.text('View attendance GPS'), findsNothing);
       expect(source.calls, reads);
       expect(source.checkIns, 0);
       expect(source.checkOuts, 0);
@@ -272,14 +325,15 @@ void main() {
       rows = [shift(10)..['check_in_at'] = timestamp];
       await show(tester);
       expect(
-        find.textContaining('Check-in timing:'),
+        find.byWidgetPredicate(
+          (w) =>
+              w is Tooltip &&
+              (w.message?.startsWith('Check-in timing:') ?? false),
+        ),
         expected == null ? findsNothing : findsOneWidget,
       );
       if (expected != null) {
-        expect(
-          find.text('Check-in timing: $expected (15-minute grace period)'),
-          findsOneWidget,
-        );
+        expect(find.text(expected), findsOneWidget);
       }
       expect(source.checkIns, 0);
       expect(source.checkOuts, 0);
@@ -299,10 +353,10 @@ void main() {
       await show(tester);
       Finder card(int n) => find.byKey(ValueKey(uid(n)));
       Finder toggle(int n, String label) =>
-          find.descendant(of: card(n), matching: find.text(label));
-      expect(find.text('Show shift details'), findsNWidgets(2));
+          find.descendant(of: card(n), matching: find.byTooltip(label));
+      expect(find.byTooltip('Show shift details'), findsNWidgets(2));
       expect(find.textContaining('Scheduled start:'), findsNothing);
-      expect(find.text('View attendance GPS'), findsNWidgets(2));
+      expect(find.text('View attendance GPS'), findsNothing);
       await tap(tester, toggle(10, 'Show shift details'));
       expect(toggle(10, 'Hide shift details'), findsOneWidget);
       expect(toggle(11, 'Show shift details'), findsOneWidget);
@@ -343,7 +397,7 @@ void main() {
       expect(toggle(10, 'Hide shift details'), findsOneWidget);
       expect(toggle(11, 'Show shift details'), findsOneWidget);
       await tap(tester, toggle(11, 'Show shift details'));
-      expect(find.text('Hide shift details'), findsNWidgets(2));
+      expect(find.byTooltip('Hide shift details'), findsNWidgets(2));
       await tap(tester, toggle(10, 'Hide shift details'));
       expect(toggle(10, 'Show shift details'), findsOneWidget);
       expect(toggle(11, 'Hide shift details'), findsOneWidget);
@@ -371,8 +425,10 @@ void main() {
       expect(separate, findsOneWidget);
       expect(find.text('Worker: Synthetic worker'), findsNWidgets(2));
       expect(find.text('QA Assistant'), findsNWidgets(2));
-      expect(find.text('2 shifts'), findsOneWidget);
-      expect(find.text('1 shift'), findsOneWidget);
+      expect(find.text('2 total shifts'), findsOneWidget);
+      expect(find.text('1 total shift'), findsOneWidget);
+      expect(find.text('2 shifts'), findsNothing);
+      expect(find.textContaining('Application: '), findsNothing);
       expect(
         tester
             .widgetList<Card>(
@@ -445,9 +501,9 @@ void main() {
         } else {
           await schedule(tester);
         }
-        await tap(tester, find.text('Review assignment'));
+        await tap(tester, find.text('Review Shift'));
         expect(candidates.creates, lateEvening ? 1 : 0);
-        await tap(tester, find.text('Confirm creation'));
+        await tap(tester, find.text('Confirm & Save'));
         expect(find.byType(AlertDialog), findsNothing);
       }
       expect(parameters.map((p) => p['p_application_id']), [uid(4), uid(4)]);
@@ -460,8 +516,8 @@ void main() {
         '2026-11-09T15:15:00.000Z',
       ]);
       expect(rows.take(2), original);
-      expect(find.text('3 shifts'), findsOneWidget);
-      expect(find.text('1 shift'), findsOneWidget);
+      expect(find.text('3 total shifts'), findsOneWidget);
+      expect(find.text('1 total shift'), findsOneWidget);
     },
   );
 
@@ -483,10 +539,10 @@ void main() {
       find.textContaining('no longer available for scheduling'),
       findsOneWidget,
     );
-    expect(find.text('Review assignment'), findsNothing);
+    expect(find.text('Review Shift'), findsNothing);
     expect(candidates.creates, 0);
     expect(candidates.reservations, 0);
-    await tap(tester, find.text('Close'));
+    await tap(tester, find.byTooltip('Close assignment dialog'));
     expect(find.byType(AlertDialog), findsNothing);
   });
 
@@ -506,11 +562,11 @@ void main() {
       ]);
       await tap(tester, find.text('Retry loading applications'));
       await schedule(tester, startDate: '2026-11-05', endDate: '2026-11-05');
-      await tap(tester, find.text('Close'));
+      await tap(tester, find.byTooltip('Close assignment dialog'));
       expect(find.text('Your unsaved input will be lost.'), findsOneWidget);
       await tap(tester, find.text('Stay'));
-      await tap(tester, find.text('Review assignment'));
-      await tap(tester, find.text('Confirm creation'));
+      await tap(tester, find.text('Review Shift'));
+      await tap(tester, find.text('Confirm & Save'));
       expect(
         find.text(
           'This shift already exists or overlaps another worker shift.',
@@ -534,7 +590,9 @@ void main() {
           ..['verified_at'] = '2026-11-05T10:00:00Z',
         shift(11)
           ..['assignment_status'] = 'awaiting_verification'
-          ..['verification_status'] = 'pending_review',
+          ..['verification_status'] = 'pending_review'
+          ..['check_in_at'] = '2026-11-05T01:00:00Z'
+          ..['check_out_at'] = '2026-11-05T09:00:00Z',
       ];
       final router = GoRouter(
         initialLocation: '/work-verification',
@@ -554,14 +612,14 @@ void main() {
       final completed = find.byKey(ValueKey(uid(10)));
       final pending = find.byKey(ValueKey(uid(11)));
       expect(
-        find.descendant(
-          of: completed,
-          matching: find.text('Completed / Verified'),
-        ),
+        find.descendant(of: completed, matching: find.text('Work Verified')),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: pending, matching: find.text('Pending Review')),
+        find.descendant(
+          of: pending,
+          matching: find.text('Verification: Pending review'),
+        ),
         findsOneWidget,
       );
       expect(
@@ -616,16 +674,16 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('2 shifts'), findsOneWidget);
+      expect(find.text('2 total shifts'), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tap(tester, find.text('Show shift details').first);
-      expect(find.text('Hide shift details'), findsOneWidget);
-      expect(find.text('View attendance GPS'), findsNWidgets(2));
+      await tap(tester, find.byTooltip('Show shift details').first);
+      expect(find.byTooltip('Hide shift details'), findsOneWidget);
+      expect(find.text('View attendance GPS'), findsNothing);
       expect(tester.takeException(), isNull);
       await tap(tester, find.text('Add shift'));
       await schedule(tester);
-      await tap(tester, find.text('Review assignment'));
-      expect(find.text('Confirm creation'), findsOneWidget);
+      await tap(tester, find.text('Review Shift'));
+      expect(find.text('Confirm & Save'), findsOneWidget);
       expect(candidates.creates, 0);
       expect(tester.takeException(), isNull);
     });

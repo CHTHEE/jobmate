@@ -2,6 +2,15 @@ import 'package:flutter/material.dart';
 
 import 'work_attendance_models.dart';
 
+String workVerificationStatusLabel(WorkVerificationStatus status) =>
+    switch (status) {
+      WorkVerificationStatus.notSubmitted => 'Not submitted',
+      WorkVerificationStatus.pendingReview => 'Pending review',
+      WorkVerificationStatus.moreEvidenceRequired => 'More evidence required',
+      WorkVerificationStatus.verified => 'Verified',
+      WorkVerificationStatus.disputed => 'Disputed',
+    };
+
 /// Informational only: compare saved server instants, never the device clock.
 /// This does not change assignment status, eligibility, review or payment.
 String? workCheckInTimingLabel(DateTime scheduledStart, DateTime? checkInAt) {
@@ -20,11 +29,13 @@ class WorkCheckInTiming extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = workCheckInTimingLabel(
       assignment.scheduledStart,
-      assignment.checkInAt,
+      assignment.effectiveCheckInAt,
     );
     return label == null
         ? const SizedBox.shrink()
-        : Text('Check-in timing: $label (15-minute grace period)');
+        : Text(
+            '${assignment.resolution?.decision == 'corrected' ? 'Corrected check-in timing' : 'Check-in timing'}: $label (15-minute grace period)',
+          );
   }
 }
 
@@ -105,7 +116,7 @@ enum WorkStage {
     awaitingEvidence =>
       employer
           ? 'Waiting for worker evidence'
-          : 'Your shift is complete — add evidence',
+          : 'Attendance recorded — add evidence',
     pendingReview =>
       employer
           ? 'Action needed: review evidence'

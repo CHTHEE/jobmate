@@ -18,14 +18,22 @@ GoRoute workAttendanceRoute({
   WorkAttendanceSource? source,
   Future<bool> Function()? checkAccess,
   bool evidence = false,
+  bool history = false,
 }) => GoRoute(
-  path: evidence ? AppRoutes.workAttendanceEvidence : AppRoutes.workAttendance,
+  path: evidence
+      ? AppRoutes.workAttendanceEvidence
+      : history
+      ? AppRoutes.attendanceHistory
+      : AppRoutes.workAttendance,
   pageBuilder: (_, state) => appPage(
     state,
     _WorkAttendanceAccess(
       source: source,
       checkAccess: checkAccess,
       assignmentId: evidence ? state.pathParameters['assignmentId'] : null,
+      history: history,
+      returnToHistory:
+          evidence && state.uri.queryParameters['from'] == 'history',
     ),
   ),
 );
@@ -35,8 +43,12 @@ class _WorkAttendanceAccess extends StatefulWidget {
     this.source,
     this.checkAccess,
     this.assignmentId,
+    this.history = false,
+    this.returnToHistory = false,
   });
   final String? assignmentId;
+  final bool history;
+  final bool returnToHistory;
   final WorkAttendanceSource? source;
   final Future<bool> Function()? checkAccess;
   @override
@@ -73,12 +85,22 @@ class _WorkAttendanceAccessState extends State<_WorkAttendanceAccess> {
       key: ValueKey(widget.assignmentId),
       source: source,
       assignmentId: widget.assignmentId,
+      history: widget.history,
+      returnToHistory: widget.returnToHistory,
     ),
   );
 }
 
 class _OwnedWorkerList extends StatefulWidget {
-  const _OwnedWorkerList({super.key, required this.source, this.assignmentId});
+  const _OwnedWorkerList({
+    super.key,
+    required this.source,
+    this.assignmentId,
+    this.history = false,
+    this.returnToHistory = false,
+  });
+  final bool history;
+  final bool returnToHistory;
   final String? assignmentId;
   final WorkAttendanceSource source;
   @override
@@ -102,6 +124,9 @@ class _OwnedWorkerListState extends State<_OwnedWorkerList> {
 
   @override
   Widget build(BuildContext context) => evidence == null
-      ? WorkAttendancePage(repository: repository)
-      : WorkEvidencePage(repository: evidence!);
+      ? WorkAttendancePage(repository: repository, history: widget.history)
+      : WorkEvidencePage(
+          repository: evidence!,
+          returnToHistory: widget.returnToHistory,
+        );
 }

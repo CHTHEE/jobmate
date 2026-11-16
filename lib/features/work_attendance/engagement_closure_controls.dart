@@ -131,6 +131,7 @@ class EngagementClosureControls extends StatefulWidget {
     this.onClosed,
     this.onStatusChanged,
     this.refreshToken = 0,
+    this.shiftSummary,
   });
   final String applicationId;
   final bool worker;
@@ -138,6 +139,7 @@ class EngagementClosureControls extends StatefulWidget {
   final VoidCallback? onClosed;
   final ValueChanged<EngagementClosureStatusSnapshot>? onStatusChanged;
   final int refreshToken;
+  final String? shiftSummary;
 
   @override
   State<EngagementClosureControls> createState() =>
@@ -320,9 +322,26 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
         Text(switch (_status!['closure_status']) {
           'closed' => 'Engagement status: Closed',
           'closure_requested' => 'Engagement status: Closure requested',
-          'ineligible' => 'Engagement status: Ineligible to close',
+          'ineligible' => 'Engagement status: Open',
           _ => 'Engagement status: Open',
         }),
+        if (_status!['eligible'] == true &&
+            _status!['closure_status'] != 'closed' &&
+            _status!['closure_status'] != 'closure_requested') ...[
+          const Text(
+            'Eligible for closure',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          if (widget.shiftSummary != null) Text(widget.shiftSummary!),
+          Text(
+            widget.worker
+                ? 'All shifts meet the closure requirements. You can now request to close this engagement.'
+                : 'All shifts meet the closure requirements. This engagement can be closed after confirmation.',
+          ),
+        ],
+        if (_status!['eligible'] != true &&
+            _status!['closure_status'] != 'closed')
+          const Text('Not yet eligible for closure'),
         if (_status!['eligibility_reason'] is String &&
             (_status!['eligibility_reason'] as String).isNotEmpty)
           Text('${_status!['eligibility_reason']}'),
@@ -336,7 +355,35 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
           _status!['closure_status'] != 'closure_requested' &&
           (widget.worker || _status!['eligible'] == true))
         OutlinedButton.icon(
-          onPressed: _busy ? null : _act,
+          style: _status!['eligible'] == true
+              ? OutlinedButton.styleFrom(
+                  backgroundColor: Theme.of(context)
+                      .colorScheme
+                      .primaryContainer,
+                  foregroundColor: Theme.of(context)
+                      .colorScheme
+                      .onPrimaryContainer,
+                )
+              : null,
+          onPressed: _busy
+              ? null
+              : widget.worker && _status!['eligible'] != true
+              ? () => showDialog<void>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Closure requirements'),
+                    content: Text(
+                      _status!['eligibility_reason'] as String? ?? 'Refresh engagement status to review closure requirements.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                )
+              : _act,
           icon: _busy
               ? const SizedBox(
                   width: 18,
@@ -348,7 +395,13 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
                       ? Icons.request_page_outlined
                       : Icons.task_alt_outlined,
                 ),
-          label: Text(widget.worker ? 'Request closure' : 'Close Engagement'),
+          label: Text(
+            widget.worker
+                ? _status!['eligible'] == true
+                      ? 'Request closure'
+                      : 'View closure requirements'
+                : 'Close Engagement',
+          ),
         ),
       if (_busy) const LinearProgressIndicator(),
     ],

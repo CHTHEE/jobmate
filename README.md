@@ -321,6 +321,115 @@ committed. Existing attendance demos remain separate. This describes the client
 implementation; live attendance actions and device acceptance require explicit
 testing approval.
 
+The owner reports Batch 1 deployed and manually reviewed on both role screens.
+Batch 1 attendance lifecycle UI uses the additive, **not deployed by the agent**
+`supabase/diagnostics/module4_attendance_lifecycle_read_candidate.sql`. It wraps
+the existing authorized assignment-list RPCs without replacing them, adding one
+server statement timestamp per snapshot. Shared Flutter classification uses that
+timestamp, never the device clock. Missing-contract fallback retains existing
+lists/actions and explicitly reports unavailable timing; permission/network/data
+errors do not trigger fallback. Snapshot classifications update on Refresh.
+The existing `/attendance/history` URL now uses real owned assignments: All
+includes past shifts (using the server snapshot), Recorded requires valid effective
+attendance (not payment/work approval), and Issues covers unresolved missed,
+overdue, incomplete, inconsistent, late-checkout and disputed records. Future
+assignments stay in My Work Shifts. Cancelled work is not Recorded or an attendance
+issue. Check-out Overdue begins strictly after scheduled end; Incomplete begins
+strictly after end+24h. Both are informational: checkout enforcement is unchanged.
+There is no automatic absence, penalty, correction or payment decision. Batch 2
+resolution writes/cutoff require separate contract review and approval. Review the
+read-only `module4_attendance_lifecycle_read_inspection.sql` and existing B1 catalog
+checks before any operator-approved installation. No candidate SQL was executed.
+
+Attendance UI uses compact collapsible job/application groups. Actionable worker
+checkout and evidence controls remain visible when a group is collapsed. Worker
+evidence uses the same server-snapshot attendance lifecycle as the shift summary;
+raw workflow statuses are used for evidence eligibility, not attendance labels.
+Ineligible worker closure actions open informational requirements. Attendance
+History remains read-only, with an origin-aware return from evidence details.
+See [final UI polish and validation](docs/module4_final_ui_polish.md).
+The November 16 polish adds consistent action-required colors, a scrollable
+evidence form with a bottom submit area, single-dialog employer confirmation,
+clear attendance-resolution success, conditional empty-record actions and
+separate engagement/closure eligibility labels. See the
+[consolidated UI report and Git preparation](docs/module4_final_consolidated_ui_report.md)
+for validation, remaining manual correction/cutoff QA and the proposed staging scope.
+Current owner-supplied QA: normal late checkout, evidence round 1 and employer
+verification passed on 16 November, with stored timestamps/GPS shape confirmed
+read-only. The engagement now has five shifts (three verified, one confirmed
+absent, one unresolved), and closure blocking passed. Shift B must remain untouched
+until after **17 November 2026, 2:35 PM MYT** for expired-checkout/rejection,
+correction/evidence/verification and successful-closure QA. Those live tests have
+not passed yet. A has no pre-checkout fingerprint proof; B's baseline is saved for
+tomorrow. See the [current QA record](docs/module4_final_qa_2026-11-16.md) and
+[final pre-commit review](docs/module4_precommit_review_2026-11-16.md).
+
+CH reports Batch 2 **deployed to the existing live Supabase database on
+14 November 2026**, using
+`supabase/migrations/20261114000100_attendance_resolution_candidate.sql`.
+Permanent execution returned `Success. No rows returned.` The post-deployment
+verification passed **34/34 checks**, with every `passed` and `all_checks_passed`
+value true and no SQL errors. Do not rerun this or previous migrations.
+The migration uses the owner's live-definition export and aborts on dependency drift. One
+immutable assignment-scoped employer resolution records reason, actor, server
+time, request ID, original attendance/GPS snapshot and separate corrected times.
+Correction is permitted only for ended, open, unverified shifts before any
+evidence attempt/submission; after a resolution, changes require a separately
+reviewed superseding-audit contract. Confirmed absence requires untouched attendance
+and does not change the assignment to completed/verified. Clients cannot directly
+read or write the audit table. Existing lifecycle signatures remain; optional
+resolution metadata enables the real Review Attendance dialog only when the
+backend supplies eligibility. Requests use an explicit preview/confirmation,
+optimistic version, application-first locking, one resolution per assignment and
+payload-matching idempotency; uncertain results retain the same request for manual
+reconciliation/retry. Original timestamps and GPS are never overwritten.
+Affected attendance/assignment writes require READ COMMITTED, including trusted
+writers, to prevent an old repeatable-read snapshot from bypassing resolution
+guards. The existing authenticated API was measured as READ COMMITTED; confirm
+any additional trusted writers during controlled integration QA.
+
+The same migration installs the correction path AND ordinary checkout cutoff:
+scheduled end+24h inclusive; after it, employer correction is required. Historical
+active shifts without an eligible correction path abort deployment.
+Manual correction may record a true checkout beyond that ordinary cutoff, up to
+the resolution's server time, with an explicit reason/actual-time confirmation.
+Corrected check-in still stays inside the original check-in window. Effective
+attendance is read through a private view by the fingerprint-guarded existing
+evidence/verification functions. The advisory evidence target remains effective
+checkout+24h, even when already overdue after a historical correction; it never
+blocks submission or approves pay. Check-in and the 15-minute grace rule remain.
+Normal closure continues to require at least one verified shift, and accepts
+audited absence for remaining shifts while retaining cancellation, reservation,
+dispute and existing closure audit checks. Resolution never closes an engagement.
+
+An all-absent engagement remains ineligible for normal successful closure. A
+future explicit `unsuccessful_no_work` closure outcome would require a separate
+schema/contract review with KZ: all shifts resolved absent or audited cancelled,
+no verified work, no unresolved reservations/disputes, explicit employer reason,
+and an immutable decision. Evaluation/reputation eligibility currently tied to
+closure must be reviewed before introducing that outcome. No such path or KZ
+side effect is implemented by this candidate.
+
+The completed deployment sequence used the dependency inspection, read-only
+preflight, rollback compilation rehearsal, permanent migration, then
+`supabase/diagnostics/module4_attendance_resolution_post_deployment.sql`.
+These catalog checks do not establish runtime authorization, concurrency or
+end-to-end workflow acceptance. Those remain subject to controlled manual QA
+in Chrome with the existing employer and job seeker test accounts. Old B1
+fingerprints for intentionally changed functions differ; do not restore old
+functions or reapply migrations to make those historical checks pass.
+
+The November 14 Batch 2 pre-deployment validation now pins the six actual Supabase
+DDL hooks and existing dependency ACLs. CH reports the read-only preflight passed
+at 16:29:47 MYT. CH also reports the strengthened rollback rehearsal passed with
+`BATCH2_ALL_CHECKS_PASSED_AND_BASELINE_RESTORED`: PostgreSQL creation, asserted
+catalog/cutoff checks and original baseline restoration passed. Real authorization/
+concurrency and workflow integration remain unverified. Follow the QA checklist, limitations and
+targeted staging list in [Batch 2 deployment handoff](docs/module4_batch2_deployment_handoff.md).
+Launch the updated application from the project root with `flutter run -d chrome`;
+startup uses the existing bundled `.env`, without additional Dart defines. The
+deployed SQL and rollback artifacts are retained as deployment records.
+
 Module 4 cards use server-derived status banners and contextual evidence actions.
 The employer Work Verification route presents Work Assignments & Verification
 with loaded-record summary counts, local job/worker search, and job, shift and

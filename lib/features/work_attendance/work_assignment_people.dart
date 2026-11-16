@@ -74,10 +74,12 @@ class WorkAssignmentWorkerName extends StatefulWidget {
     required this.assignment,
     required this.companyId,
     this.loader,
+    this.profileHeader = false,
   });
   final CompanyWorkAssignment assignment;
   final String companyId;
   final WorkAssignmentNameLoader? loader;
+  final bool profileHeader;
   @override
   State<WorkAssignmentWorkerName> createState() =>
       _WorkAssignmentWorkerNameState();
@@ -102,10 +104,48 @@ class _WorkAssignmentWorkerNameState extends State<WorkAssignmentWorkerName> {
   @override
   Widget build(BuildContext context) => FutureBuilder<String?>(
     future: name,
-    builder: (_, snapshot) => Text(
-      snapshot.connectionState != ConnectionState.done || snapshot.data == null
-          ? 'Assigned worker'
-          : 'Worker: ${snapshot.data}',
-    ),
+    builder: (context, snapshot) {
+      final value = snapshot.connectionState == ConnectionState.done
+          ? snapshot.data
+          : null;
+      final label = value == null ? 'Assigned worker' : 'Worker: $value';
+      if (!widget.profileHeader) return Text(label);
+      final parts =
+          value
+              ?.trim()
+              .split(RegExp(r'\s+'))
+              .where((part) => part.isNotEmpty) ??
+          <String>[];
+      final initials = parts
+          .take(2)
+          .map((p) => p.characters.first.toUpperCase())
+          .join();
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            child: initials.isEmpty
+                ? const Icon(Icons.person_outline)
+                : Text(initials),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  'Hired',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    },
   );
 }

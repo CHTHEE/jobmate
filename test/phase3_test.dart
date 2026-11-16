@@ -34,7 +34,7 @@ void main() {
                 'Messages': AppRoutes.messages,
               }
             : {
-                'Attendance Review (demo)': AppRoutes.attendanceReview,
+                'Work Verification': AppRoutes.workVerification,
                 'Messages': AppRoutes.employerMessages,
                 'Location Picker (demo)': AppRoutes.jobLocationDemo,
               };

@@ -66,6 +66,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Advisory evidence timing'));
+      await tester.tap(find.text('Advisory evidence timing'));
+      await tester.pumpAndSettle();
       expect(find.text('Evidence: Submitted'), findsOneWidget);
       expect(find.text('Evidence: Overdue'), findsNothing);
       server.status = 'more_evidence_required';
@@ -201,6 +204,37 @@ void main() {
   });
 
   testWidgets(
+    'verified summary hides suggested deadline but retains historical due instant',
+    (tester) async {
+      final row = workerRow(
+        checkedOut()
+          ..['assignment_status'] = 'completed'
+          ..['verification_status'] = 'verified',
+      );
+      final timing = EvidenceDeadline.fromAssignment(
+        row,
+        now: checkout.add(const Duration(days: 10)),
+      );
+      expect(timing.dueAt, checkout.add(const Duration(hours: 24)));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: EvidenceDeadlineSummary(assignment: row)),
+        ),
+      );
+      expect(find.text('Evidence: Verified'), findsOneWidget);
+      expect(
+        find.text('Evidence has been verified; no submission is due.'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Suggested initial evidence due:'),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'summary displays MYT year rollover and refreshes on minute and resume',
     (tester) async {
       var now = checkout.add(const Duration(hours: 23, minutes: 59));
@@ -333,9 +367,25 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.text('2 shifts'), findsOneWidget);
+        expect(
+          find.text(employer ? '2 total shifts' : '2 shifts'),
+          findsOneWidget,
+        );
         final late = find.byKey(const ValueKey(id));
         final recent = find.byKey(const ValueKey(other));
+        {
+          for (final card in [late, recent]) {
+            final details = find.descendant(
+              of: card,
+              matching: employer
+                  ? find.byTooltip('Show shift details')
+                  : find.text('Attendance summary'),
+            );
+            await tester.ensureVisible(details);
+            await tester.tap(details);
+            await tester.pumpAndSettle();
+          }
+        }
         expect(
           find.descendant(of: late, matching: find.text('Evidence: Overdue')),
           findsOneWidget,

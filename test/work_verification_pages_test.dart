@@ -82,7 +82,7 @@ void main() {
       await showPage(tester);
       await tester.pumpAndSettle();
       expect(find.textContaining('Scheduled start:'), findsNothing);
-      final details = find.text('Show shift details');
+      final details = find.byTooltip('Show shift details');
       await tester.ensureVisible(details);
       await tester.tap(details);
       await tester.pumpAndSettle();
@@ -92,7 +92,7 @@ void main() {
         'Scheduled start: 06/11/2026 04:30 MYT',
         'Scheduled end: 06/11/2026 13:00 MYT',
         'Workplace: Server location',
-        'Pending Review',
+        'Verification: Pending review',
         'Action needed: review evidence',
       ]) {
         expect(find.text(text), findsOneWidget);

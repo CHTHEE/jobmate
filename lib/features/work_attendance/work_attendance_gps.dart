@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'work_attendance_models.dart';
+import 'work_shift_ui.dart';
 
 /// Read-only projection. GPS is device-reported, not proof of attendance.
 class WorkAttendanceGpsPoint {
@@ -242,26 +243,36 @@ class _WorkAttendanceGpsDialogState extends State<WorkAttendanceGpsDialog> {
   }
 
   Widget _point(String title, WorkAttendanceGpsPoint point) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 12),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: ShiftDetailPanel(
+      title: title,
+      icon: title == 'Check-in' ? Icons.login : Icons.logout,
       children: [
-        Text(
-          '$title GPS: ${point.label}',
-          style: Theme.of(context).textTheme.titleMedium,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$title GPS: ${point.label}',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            if (point.recordedAt != null)
+              Text(
+                'Recorded: ${shiftDateLabel(point.recordedAt!)} · ${shiftTimeLabel(point.recordedAt!)} MYT',
+              )
+            else
+              const Text('Attendance: Not recorded'),
+            if (point.latitude != null) ...[
+              SelectableText(
+                'Latitude: ${point.latitude}\nLongitude: ${point.longitude}',
+              ),
+              TextButton.icon(
+                onPressed: () => _open(point),
+                icon: const Icon(Icons.open_in_new),
+                label: Text('Open $title in Google Maps'),
+              ),
+            ],
+          ],
         ),
-        if (point.recordedAt != null)
-          Text('Recorded: ${_myt(point.recordedAt!)}'),
-        if (point.latitude != null) ...[
-          SelectableText(
-            'Latitude: ${point.latitude}\nLongitude: ${point.longitude}',
-          ),
-          TextButton.icon(
-            onPressed: () => _open(point),
-            icon: const Icon(Icons.open_in_new),
-            label: Text('Open $title in Google Maps'),
-          ),
-        ],
       ],
     ),
   );
@@ -272,51 +283,69 @@ class _WorkAttendanceGpsDialogState extends State<WorkAttendanceGpsDialog> {
       final repository = widget.repository;
       final record = repository.record;
       return AlertDialog(
-        title: const Text('Attendance GPS'),
+        title: Row(
+          children: [
+            const Expanded(child: Text('Attendance GPS')),
+            IconButton(
+              tooltip: 'Close attendance GPS',
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.close),
+            ),
+          ],
+        ),
         content: SizedBox(
           width: 480,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (!repository.current)
-                  const Text(
-                    'Your account changed. Close this GPS view and reopen it.',
-                  )
-                else if (repository.loading)
-                  const Center(child: CircularProgressIndicator())
-                else if (repository.error != null)
-                  Text(repository.error!)
-                else if (record != null) ...[
-                  const Text(
-                    'Device-reported location does not prove attendance. Opening a map shares these coordinates with Google.',
-                  ),
-                  _point('Check-in', record.checkIn),
-                  _point('Check-out', record.checkOut),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * .6,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!repository.current)
+                    const Text(
+                      'Your account changed. Close this GPS view and reopen it.',
+                    )
+                  else if (repository.loading)
+                    const Center(child: CircularProgressIndicator())
+                  else if (repository.error != null)
+                    Text(repository.error!)
+                  else if (record != null) ...[
+                    const Text(
+                      'Device-reported location does not prove attendance. Opening a map shares these coordinates with Google.',
+                    ),
+                    _point('Check-in', record.checkIn),
+                    _point('Check-out', record.checkOut),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
         actions: [
-          if (repository.current)
-            TextButton(
-              onPressed: repository.loading ? null : repository.load,
-              child: const Text('Refresh GPS'),
+          SizedBox(
+            width: 480,
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                if (repository.current)
+                  OutlinedButton(
+                    onPressed: repository.loading ? null : repository.load,
+                    child: const Text('Refresh GPS'),
+                  ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+              ],
             ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
           ),
         ],
       );
     },
   );
-}
-
-String _myt(DateTime time) {
-  final value = time.toUtc().add(const Duration(hours: 8));
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${two(value.day)}/${two(value.month)}/${value.year} ${two(value.hour)}:${two(value.minute)} MYT';
 }

@@ -15,6 +15,10 @@ import 'work_assignment_creation_repository.dart';
 import 'work_assignment_people.dart';
 import 'work_evidence_deadline.dart';
 import 'engagement_closure_controls.dart';
+import 'work_attendance_lifecycle.dart';
+import 'work_attendance_resolution.dart';
+import 'work_attendance_resolution_dialog.dart';
+import 'work_shift_ui.dart';
 
 /// The caller supplies the selected company and owns the repository.
 /// Access is checked against existing employer membership/verification rules;
@@ -29,6 +33,7 @@ class WorkVerificationPage extends StatefulWidget {
     this.loadWorkerName,
     this.gpsSource,
     this.closureGateway,
+    this.resolutionSource,
   });
   final WorkAttendanceRepository repository;
   final String companyId;
@@ -39,6 +44,7 @@ class WorkVerificationPage extends StatefulWidget {
   final WorkAssignmentNameLoader? loadWorkerName;
   final WorkAttendanceGpsSource? gpsSource;
   final EngagementClosureGateway? closureGateway;
+  final WorkAttendanceResolutionSource? resolutionSource;
 
   @override
   State<WorkVerificationPage> createState() => _WorkVerificationPageState();
@@ -48,6 +54,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
   String? _actor, _authorizedActor, _company;
   final _search = TextEditingController();
   final Set<String> _expandedShiftIds = {};
+  final Set<String> _collapsedApplicationIds = {};
   String _jobFilter = '', _shiftFilter = '', _verificationFilter = '';
   final Map<String, String> _workerNames = {};
   final Map<String, Future<String?>> _workerNameReads = {};
@@ -91,7 +98,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
   bool _matches(CompanyWorkAssignment row) {
     final query = _search.text.trim().toLowerCase();
     return (_jobFilter.isEmpty || row.jobId == _jobFilter) &&
-        (_shiftFilter.isEmpty || row.assignmentStatus.name == _shiftFilter) &&
+        matchesAttendanceShiftFilter(row, _shiftFilter) &&
         (_verificationFilter.isEmpty ||
             row.verificationStatus.name == _verificationFilter) &&
         (query.isEmpty ||
@@ -150,6 +157,40 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
     } finally {
       repository.dispose();
       if (mounted) setState(() => _dialogOpen = false);
+    }
+  }
+
+  Future<void> _reviewAttendance(CompanyWorkAssignment row) async {
+    final attendance = widget.repository.source;
+    final source =
+        widget.resolutionSource ??
+        (attendance is SupabaseWorkAttendanceSource
+            ? SupabaseWorkAttendanceResolutionSource(attendance.client)
+            : null);
+    if (_dialogOpen ||
+        row.resolution?.canReview != true ||
+        source == null ||
+        source.userId != _authorizedActor ||
+        _company != widget.companyId) {
+      return;
+    }
+    final actor = _authorizedActor;
+    setState(() => _dialogOpen = true);
+    try {
+      await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => WorkAttendanceResolutionDialog(
+          assignment: row,
+          source: source,
+          workerName: _workerNames[row.applicationId],
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _dialogOpen = false);
+        if (widget.repository.source.userId == actor) await _load();
+      }
     }
   }
 
@@ -217,6 +258,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
     if (actor == _actor) return;
     _actor = actor;
     _expandedShiftIds.clear();
+    _collapsedApplicationIds.clear();
     _clearFilters();
     _workerNames.clear();
     _workerNameReads.clear();
@@ -307,6 +349,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
       if (!identical(oldWidget.repository, widget.repository) ||
           oldWidget.companyId != widget.companyId) {
         _expandedShiftIds.clear();
+        _collapsedApplicationIds.clear();
       }
       _clearFilters();
       _people = null;
@@ -386,7 +429,11 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                   error == null &&
                   state.rows.isNotEmpty) ...[
                 const SizedBox(height: 20),
-                _AssignmentOverview(rows: state.rows),
+                _AssignmentOverview(
+                  rows: state.rows,
+                  onIssues: () =>
+                      setState(() => _shiftFilter = 'attendanceIssues'),
+                ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _search,
@@ -459,6 +506,9 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                           '': 'All shift statuses',
                           for (final status in WorkAssignmentStatus.values)
                             status.name: _shiftStatusLabel(status),
+                          'attendanceIssues': 'Attendance Issues',
+                          for (final status in AttendanceLifecycle.values)
+                            'attendance:${status.name}': status.label,
                         }, (v) => _shiftFilter = v),
                         filter('Verification status', _verificationFilter, {
                           '': 'All verification states',
@@ -481,6 +531,13 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                     'Showing ${state.rows.where(_matches).length} of ${state.rows.length} loaded shifts',
                   ),
                 ),
+                Text(
+                  '${_applicationGroups(state.rows.where(_matches).toList()).length} matching hired application groups',
+                ),
+                if (state.rows.any((row) => row.attendanceAsOf == null))
+                  const Text(
+                    'Attendance issue totals unavailable until server attendance timing can be loaded. Refresh after the read contract is approved and installed.',
+                  ),
                 if (!state.rows.any(_matches))
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 24),
@@ -531,12 +588,10 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                         child: Offstage(
                           offstage: !shifts.any(_matches),
                           child: Container(
-                            margin: const EdgeInsets.only(bottom: 20),
+                            margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerLow,
+                              color: Theme.of(context).colorScheme.surface,
                               border: Border.all(
                                 color: Theme.of(context)
                                     .colorScheme
@@ -565,31 +620,166 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                                   assignment: shifts.first,
                                   companyId: widget.companyId,
                                   loader: _workerName,
+                                  profileHeader: true,
                                 ),
-                                Text(
-                                  '${shifts.length} ${shifts.length == 1 ? 'shift' : 'shifts'}',
+                                if (!shifts.every(_matches))
+                                  Text(
+                                    '${shifts.where(_matches).length} matching of ${shifts.length} shifts',
+                                  ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 6,
+                                  children: [
+                                    AttendanceStatusBadge(
+                                      label:
+                                          '${shifts.length} total ${shifts.length == 1 ? 'shift' : 'shifts'}',
+                                    ),
+                                    AttendanceStatusBadge(
+                                      label:
+                                          '${shifts.where((r) => r.verificationStatus == WorkVerificationStatus.verified).length} verified',
+                                      tone:
+                                          shifts.any(
+                                            (r) =>
+                                                r.verificationStatus ==
+                                                WorkVerificationStatus.verified,
+                                          )
+                                          ? AttendanceTone.positive
+                                          : AttendanceTone.neutral,
+                                    ),
+                                    AttendanceStatusBadge(
+                                      label:
+                                          '${shifts.where((r) => r.verificationStatus == WorkVerificationStatus.pendingReview).length} awaiting review',
+                                      tone:
+                                          shifts.any(
+                                            (r) =>
+                                                r.verificationStatus ==
+                                                WorkVerificationStatus
+                                                    .pendingReview,
+                                          )
+                                          ? AttendanceTone.pending
+                                          : AttendanceTone.neutral,
+                                    ),
+                                    AttendanceStatusBadge(
+                                      label:
+                                          shifts.any(
+                                            (r) => r.attendanceAsOf == null,
+                                          )
+                                          ? 'Issues unavailable'
+                                          : '${shifts.where((r) => AttendanceLifecycle.of(r).isIssue).length} unresolved issues',
+                                      tone:
+                                          shifts.any(
+                                            (row) =>
+                                                AttendanceLifecycle.of(row)
+                                                    .isIssue,
+                                          )
+                                          ? AttendanceTone.issue
+                                          : AttendanceTone.neutral,
+                                    ),
+                                  ],
+                                ),
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final toggle = Semantics(
+                                      expanded: !_collapsedApplicationIds
+                                          .contains(applicationId),
+                                      child: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: TextButton.icon(
+                                          onPressed: () => setState(() {
+                                            if (!_collapsedApplicationIds.add(
+                                              applicationId,
+                                            )) {
+                                              _collapsedApplicationIds.remove(
+                                                applicationId,
+                                              );
+                                            }
+                                          }),
+                                          icon: Icon(
+                                            _collapsedApplicationIds.contains(
+                                                  applicationId,
+                                                )
+                                                ? Icons.expand_more
+                                                : Icons.expand_less,
+                                          ),
+                                          label: Text(
+                                            _collapsedApplicationIds.contains(
+                                                  applicationId,
+                                                )
+                                                ? 'Show application shifts'
+                                                : 'Hide application shifts',
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                    final addShift = Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: OutlinedButton.icon(
+                                        onPressed:
+                                            _dialogOpen ||
+                                                statusUnavailable ||
+                                                closed ||
+                                                _closureGateway == null
+                                            ? null
+                                            : () => _createAssignment(
+                                                applicationId: applicationId,
+                                              ),
+                                        icon: const Icon(Icons.add),
+                                        label: const Text('Add shift'),
+                                      ),
+                                    );
+                                    return constraints.maxWidth >= 520
+                                        ? Row(
+                                            children: [
+                                              Expanded(child: toggle),
+                                              const SizedBox(width: 12),
+                                              addShift,
+                                            ],
+                                          )
+                                        : Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [toggle, addShift],
+                                          );
+                                  },
                                 ),
                                 const SizedBox(height: 8),
                                 if (_closureGateway != null)
-                                  EngagementClosureControls(
-                                    key: ValueKey((
-                                      'closure-${shifts.first.applicationId}',
-                                      widget.repository.source.userId,
-                                    )),
-                                    applicationId: applicationId,
-                                    worker: false,
-                                    gateway: _closureGateway,
-                                    refreshToken: _closureRefreshToken,
-                                    onStatusChanged: (snapshot) {
-                                      if (!mounted) return;
-                                      setState(() {
-                                        _closureStates[applicationId] =
-                                            snapshot;
-                                      });
-                                    },
-                                    onClosed: () => context.go(
-                                      '${AppRoutes.employerSoftSkillEvaluations}/$applicationId/rate',
+                                  Visibility(
+                                    visible: !_collapsedApplicationIds.contains(
+                                      applicationId,
                                     ),
+                                    maintainState: true,
+                                    child: EngagementClosureControls(
+                                      key: ValueKey((
+                                        'closure-${shifts.first.applicationId}',
+                                        widget.repository.source.userId,
+                                      )),
+                                      applicationId: applicationId,
+                                      worker: false,
+                                      gateway: _closureGateway,
+                                      refreshToken: _closureRefreshToken,
+                                      onStatusChanged: (snapshot) {
+                                        if (!mounted) return;
+                                        setState(() {
+                                          _closureStates[applicationId] =
+                                              snapshot;
+                                        });
+                                      },
+                                      onClosed: () => context.go(
+                                        '${AppRoutes.employerSoftSkillEvaluations}/$applicationId/rate',
+                                      ),
+                                    ),
+                                  ),
+                                if (_collapsedApplicationIds.contains(
+                                      applicationId,
+                                    ) &&
+                                    closureState?.status != null)
+                                  Text(
+                                    'Engagement: ${closureState!.status!['closure_status']}${closureState.status!['eligibility_reason'] == null ? '' : ' - ${closureState.status!['eligibility_reason']}'}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall,
                                   ),
                                 if (_closureGateway == null)
                                   const Text(
@@ -600,22 +790,6 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                                     'This job engagement has been closed. New shifts cannot be scheduled.',
                                   ),
                                 const SizedBox(height: 8),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: OutlinedButton.icon(
-                                    onPressed:
-                                        _dialogOpen ||
-                                            statusUnavailable ||
-                                            closed ||
-                                            _closureGateway == null
-                                        ? null
-                                        : () => _createAssignment(
-                                            applicationId: applicationId,
-                                          ),
-                                    icon: const Icon(Icons.add),
-                                    label: const Text('Add shift'),
-                                  ),
-                                ),
                                 if (closureState?.error != null)
                                   Text(
                                     'Unable to check engagement status. Retry before scheduling a shift.',
@@ -628,11 +802,29 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                                 const SizedBox(height: 8),
                                 for (final row in shifts)
                                   ExcludeFocus(
-                                    excluding: !_matches(row),
+                                    excluding:
+                                        !_matches(row) ||
+                                        _collapsedApplicationIds.contains(
+                                          applicationId,
+                                        ),
                                     child: Offstage(
-                                      offstage: !_matches(row),
+                                      offstage:
+                                          !_matches(row) ||
+                                          _collapsedApplicationIds.contains(
+                                            applicationId,
+                                          ),
                                       child: _CompanyAssignmentCard(
                                         row,
+                                        reviewAttendance:
+                                            !_dialogOpen &&
+                                                row.resolution?.canReview ==
+                                                    true &&
+                                                (widget.resolutionSource !=
+                                                        null ||
+                                                    widget.repository.source
+                                                        is SupabaseWorkAttendanceSource)
+                                            ? () => _reviewAttendance(row)
+                                            : null,
                                         expanded: _expandedShiftIds.contains(
                                           row.assignmentId,
                                         ),
@@ -693,101 +885,387 @@ class _CompanyAssignmentCard extends StatelessWidget {
   const _CompanyAssignmentCard(
     this.row, {
     this.viewGps,
+    this.reviewAttendance,
     required this.expanded,
     required this.onToggleDetails,
   });
   final bool expanded;
   final VoidCallback onToggleDetails;
   final CompanyWorkAssignment row;
-  final VoidCallback? viewGps;
+  final VoidCallback? viewGps, reviewAttendance;
 
   @override
-  Widget build(BuildContext context) => Card.outlined(
-    key: ValueKey(row.assignmentId),
-    color: Theme.of(context).colorScheme.surface,
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget build(BuildContext context) {
+    final state = AttendanceLifecycle.of(row);
+    final stage = WorkStage.fromAssignment(row);
+    final corrected = row.resolution?.decision == 'corrected';
+    final timing = workCheckInTimingLabel(
+      row.scheduledStart,
+      row.effectiveCheckInAt,
+    );
+    final evidenceLabel = workVerificationStatusLabel(row.verificationStatus);
+    final fullRecordOnly =
+        {
+          AttendanceLifecycle.missed,
+          AttendanceLifecycle.confirmedAbsent,
+        }.contains(state) &&
+        row.verificationStatus == WorkVerificationStatus.notSubmitted;
+    final hasDeviceRecords =
+        row.checkInAt != null ||
+        row.checkOutAt != null ||
+        row.resolution?.originalCheckInLocationStatus != null ||
+        row.resolution?.originalCheckOutLocationStatus != null;
+    final evidencePrimary =
+        reviewAttendance == null &&
+        state != AttendanceLifecycle.missed &&
+        state != AttendanceLifecycle.confirmedAbsent;
+    void evidence() => context.push(
+      '${AppRoutes.workVerification}/${row.assignmentId}/evidence',
+    );
+    Widget evidenceAction({bool primary = false}) => primary
+        ? FilledButton.icon(
+            onPressed: evidence,
+            icon: const Icon(Icons.description_outlined),
+            label: Text(
+              fullRecordOnly ? 'View Full Record' : stage.evidenceAction(true),
+            ),
+          )
+        : OutlinedButton.icon(
+            onPressed: evidence,
+            icon: const Icon(Icons.description_outlined),
+            label: Text(
+              fullRecordOnly ? 'View Full Record' : stage.evidenceAction(true),
+            ),
+          );
+    final guidance =
+        state == AttendanceLifecycle.unavailable ||
+            row.verificationStatus == WorkVerificationStatus.pendingReview ||
+            row.verificationStatus ==
+                WorkVerificationStatus.moreEvidenceRequired
+        ? stage.heading(true)
+        : state.guidanceFor(
+            employer: true,
+            recoveryEnforced: row.resolution?.recoveryEnforced == true,
+          );
+    String time(DateTime? value) => value == null
+        ? 'Not recorded'
+        : '${shiftDateLabel(value)}\n${shiftTimeLabel(value)} MYT';
+    final details = <Widget>[
+      ShiftDetailPanel(
+        title: 'Scheduled',
+        icon: Icons.calendar_today_outlined,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              _AssignmentTag(label: WorkStage.fromAssignment(row).label),
-              _AssignmentTag(
-                label:
-                    'Verification: ${_verificationLabel(row.verificationStatus)}',
-              ),
-            ],
-          ),
           Text(
-            WorkStage.fromAssignment(row).heading(true),
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _shiftSummary(row),
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          if (row.workplaceLocation.trim().isNotEmpty)
-            Text('Workplace: ${row.workplaceLocation}'),
-          WorkCheckInTiming(assignment: row),
-          Semantics(
-            expanded: expanded,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: onToggleDetails,
-                icon: Icon(expanded ? Icons.expand_less : Icons.expand_more),
-                label: Text(
-                  expanded ? 'Hide shift details' : 'Show shift details',
-                ),
-              ),
-            ),
-          ),
-          if (expanded)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(WorkStage.fromAssignment(row).detail(true)),
-                  EvidenceDeadlineSummary(assignment: row),
-                  const SizedBox(height: 8),
-                  Text('Scheduled start: ${_malaysiaTime(row.scheduledStart)}'),
-                  Text('Scheduled end: ${_malaysiaTime(row.scheduledEnd)}'),
-                  if (row.checkInAt != null)
-                    Text('Checked in: ${_malaysiaTime(row.checkInAt!)}'),
-                  if (row.checkOutAt != null)
-                    Text('Checked out: ${_malaysiaTime(row.checkOutAt!)}'),
-                  if (row.verifiedAt != null)
-                    Text('Verified at: ${_malaysiaTime(row.verifiedAt!)}'),
-                ],
-              ),
-            ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: viewGps,
-                icon: const Icon(Icons.location_on_outlined),
-                label: const Text('View attendance GPS'),
-              ),
-              FilledButton.icon(
-                onPressed: () => context.push(
-                  '${AppRoutes.workVerification}/${row.assignmentId}/evidence',
-                ),
-                icon: const Icon(Icons.description_outlined),
-                label: Text(WorkStage.fromAssignment(row).evidenceAction(true)),
-              ),
-            ],
+            '${shiftDateLabel(row.scheduledStart)}\n${shiftTimeRange(row.scheduledStart, row.scheduledEnd)}',
           ),
         ],
       ),
-    ),
-  );
+      ShiftDetailPanel(
+        title: 'Check-in',
+        icon: Icons.login,
+        children: [
+          Text(
+            '${corrected ? 'Corrected: ' : ''}${time(row.effectiveCheckInAt)}',
+          ),
+          if (corrected)
+            Text(
+              'Original: ${time(row.checkInAt)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+        ],
+      ),
+      ShiftDetailPanel(
+        title: 'Check-out',
+        icon: Icons.logout,
+        children: [
+          Text(
+            '${corrected ? 'Corrected: ' : ''}${time(row.effectiveCheckOutAt)}',
+          ),
+          if (corrected)
+            Text(
+              'Original: ${time(row.checkOutAt)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+        ],
+      ),
+      ShiftDetailPanel(
+        title: 'Evidence',
+        icon: Icons.description_outlined,
+        children: [
+          Text(evidenceLabel),
+          Text(
+            row.verificationStatus == WorkVerificationStatus.notSubmitted
+                ? 'No evidence submitted.'
+                : 'Open evidence details for files and review history.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    ];
+    return Card.outlined(
+      key: ValueKey(row.assignmentId),
+      color: Theme.of(context).colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.calendar_month_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${shiftDateLabel(row.scheduledStart)}\n${shiftTimeRange(row.scheduledStart, row.scheduledEnd)}',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                Semantics(
+                  expanded: expanded,
+                  child: IconButton(
+                    tooltip: expanded
+                        ? 'Hide shift details'
+                        : 'Show shift details',
+                    onPressed: onToggleDetails,
+                    icon: Icon(
+                      expanded ? Icons.expand_less : Icons.expand_more,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                AttendanceStatusBadge(
+                  label: state == AttendanceLifecycle.unavailable
+                      ? stage.label
+                      : state.label,
+                  tone: attendanceTone(state),
+                ),
+                if (row.verificationStatus != WorkVerificationStatus.verified)
+                  AttendanceStatusBadge(
+                    label: 'Verification: $evidenceLabel',
+                    tone:
+                        row.verificationStatus ==
+                            WorkVerificationStatus.verified
+                        ? AttendanceTone.positive
+                        : {
+                            WorkVerificationStatus.pendingReview,
+                            WorkVerificationStatus.moreEvidenceRequired,
+                          }.contains(row.verificationStatus)
+                        ? AttendanceTone.pending
+                        : AttendanceTone.neutral,
+                  ),
+                if (timing != null)
+                  Tooltip(
+                    message:
+                        '${corrected ? 'Corrected check-in timing' : 'Check-in timing'}: $timing (15-minute grace period)',
+                    child: AttendanceStatusBadge(
+                      label: corrected ? 'Corrected · $timing' : timing,
+                      tone: timing == 'Late'
+                          ? AttendanceTone.pending
+                          : AttendanceTone.positive,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Semantics(
+              liveRegion: state.isIssue,
+              child: Container(
+                padding: state.isIssue
+                    ? const EdgeInsets.all(8)
+                    : EdgeInsets.zero,
+                decoration: state.isIssue
+                    ? BoxDecoration(
+                        color: Theme.of(context).colorScheme.errorContainer
+                            .withValues(alpha: .35),
+                        borderRadius: BorderRadius.circular(8),
+                      )
+                    : null,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (state.isIssue) ...[
+                      Icon(
+                        Icons.info_outline,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: Text(
+                        guidance,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (!expanded && row.workplaceLocation.trim().isNotEmpty)
+              Text('Workplace: ${row.workplaceLocation}'),
+            if (expanded) ...[
+              const SizedBox(height: 12),
+              _ShiftResponsiveGrid(columns: 4, children: details),
+              const SizedBox(height: 12),
+              _ShiftResponsiveGrid(
+                columns: 2,
+                children: [
+                  ShiftDetailPanel(
+                    title: 'Workplace & GPS',
+                    icon: Icons.location_on_outlined,
+                    children: [
+                      Text('Workplace: ${row.workplaceLocation}'),
+                      const SizedBox(height: 6),
+                      Text(
+                        row.checkInAt == null && row.checkOutAt == null
+                            ? 'No device attendance recorded.'
+                            : 'View original recorded GPS and location permission details separately.',
+                      ),
+                      if (row.resolution?.originalCheckInLocationStatus != null)
+                        Text(
+                          'Check-in location: ${row.resolution!.originalCheckInLocationStatus}',
+                        ),
+                      if (row.resolution?.originalCheckOutLocationStatus !=
+                          null)
+                        Text(
+                          'Checkout location: ${row.resolution!.originalCheckOutLocationStatus}',
+                        ),
+                      if (hasDeviceRecords)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            onPressed: viewGps,
+                            icon: const Icon(Icons.location_on_outlined),
+                            label: const Text('View attendance GPS'),
+                          ),
+                        ),
+                    ],
+                  ),
+                  ShiftDetailPanel(
+                    title: 'Work Evidence',
+                    icon: Icons.folder_outlined,
+                    children: [
+                      Text(evidenceLabel),
+                      const SizedBox(height: 6),
+                      Text(
+                        row.verificationStatus ==
+                                WorkVerificationStatus.notSubmitted
+                            ? 'No evidence has been submitted for this shift.'
+                            : 'Files, descriptions and review actions are available in the authorized evidence view.',
+                      ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: evidenceAction(primary: evidencePrimary),
+                      ),
+                      EvidenceDeadlineSummary(assignment: row),
+                    ],
+                  ),
+                ],
+              ),
+              if (row.resolution?.decision != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: ShiftDetailPanel(
+                    title: 'Employer attendance resolution',
+                    icon: Icons.fact_check_outlined,
+                    children: [
+                      Text('Resolution reason: ${row.resolution!.reason}'),
+                      Text(
+                        'Resolved: ${attendanceMyt(row.resolution!.resolvedAt!)}',
+                      ),
+                      if (corrected)
+                        Text(
+                          'Corrected duration: ${row.effectiveCheckOutAt!.difference(row.effectiveCheckInAt!).inHours}h ${row.effectiveCheckOutAt!.difference(row.effectiveCheckInAt!).inMinutes.remainder(60)}m (not approved payable time)',
+                        ),
+                      const Text(
+                        'Original attendance and GPS remain preserved.',
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 10),
+              DefaultTextStyle.merge(
+                style: Theme.of(context).textTheme.bodySmall,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Scheduled start: ${_malaysiaTime(row.scheduledStart)}',
+                    ),
+                    Text('Scheduled end: ${_malaysiaTime(row.scheduledEnd)}'),
+                    if (row.checkInAt != null)
+                      Text('Checked in: ${attendanceMyt(row.checkInAt!)}'),
+                    if (row.checkOutAt != null)
+                      Text('Checked out: ${attendanceMyt(row.checkOutAt!)}'),
+                    if (row.verifiedAt != null)
+                      Text('Verified at: ${attendanceMyt(row.verifiedAt!)}'),
+                    if (recordedAttendanceDuration(row) case final duration?)
+                      Text(
+                        'Recorded duration: $duration (not approved payable time)',
+                      ),
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text('Technical details'),
+                      children: [
+                        if (row.attendanceAsOf case final snapshot?)
+                          Text(
+                            'As of ${attendanceMyt(snapshot)} (server snapshot; refresh to update)',
+                          ),
+                        Text(
+                          'Saved assignment state: ${_shiftStatusLabel(row.assignmentStatus)}',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (reviewAttendance != null)
+                  FilledButton.icon(
+                    onPressed: reviewAttendance,
+                    icon: const Icon(Icons.fact_check_outlined),
+                    label: const Text('Review Attendance'),
+                  ),
+                if (!expanded) ...[
+                  if (hasDeviceRecords)
+                    OutlinedButton.icon(
+                      onPressed: viewGps,
+                      icon: const Icon(Icons.location_on_outlined),
+                      label: const Text('View attendance GPS'),
+                    ),
+                  evidenceAction(primary: evidencePrimary),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShiftResponsiveGrid extends StatelessWidget {
+  const _ShiftResponsiveGrid({required this.columns, required this.children});
+  final int columns;
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) =>
+      ShiftEqualHeightGrid(columns: columns, children: children);
 }
 
 String _malaysiaTime(DateTime timestamp) {
@@ -814,8 +1292,9 @@ String _verificationLabel(WorkVerificationStatus status) => switch (status) {
 };
 
 class _AssignmentOverview extends StatelessWidget {
-  const _AssignmentOverview({required this.rows});
+  const _AssignmentOverview({required this.rows, required this.onIssues});
   final List<CompanyWorkAssignment> rows;
+  final VoidCallback onIssues;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -828,9 +1307,12 @@ class _AssignmentOverview extends StatelessWidget {
       const SizedBox(height: 8),
       LayoutBuilder(
         builder: (context, constraints) {
-          final width = constraints.maxWidth < 600
-              ? constraints.maxWidth
-              : (constraints.maxWidth - 24) / 3;
+          final columns = constraints.maxWidth >= 950
+              ? 4
+              : constraints.maxWidth >= 600
+              ? 2
+              : 1;
+          final width = (constraints.maxWidth - 12 * (columns - 1)) / columns;
           final metrics = [
             ('Total shifts', rows.length, Icons.calendar_month_outlined),
             (
@@ -854,6 +1336,15 @@ class _AssignmentOverview extends StatelessWidget {
                   .length,
               Icons.verified_outlined,
             ),
+            (
+              'Attendance issues',
+              rows.any((row) => row.attendanceAsOf == null)
+                  ? null
+                  : rows
+                        .where((row) => AttendanceLifecycle.of(row).isIssue)
+                        .length,
+              Icons.report_outlined,
+            ),
           ];
           return Wrap(
             spacing: 12,
@@ -862,39 +1353,58 @@ class _AssignmentOverview extends StatelessWidget {
               for (final metric in metrics)
                 SizedBox(
                   width: width,
-                  child: Container(
-                    key: ValueKey('overview-${metric.$1}'),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant,
+                  child: InkWell(
+                    onTap: metric.$1 == 'Attendance issues' && metric.$2 != null
+                        ? onIssues
+                        : null,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      key: ValueKey('overview-${metric.$1}'),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          metric.$3,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${metric.$2}',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineSmall,
-                              ),
-                              Text(metric.$1),
-                            ],
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            metric.$3,
+                            color: metric.$1 == 'Attendance issues'
+                                ? Theme.of(context).colorScheme.error
+                                : metric.$1 == 'Verified'
+                                ? Theme.of(context).colorScheme.primary
+                                : metric.$1 == 'Awaiting verification'
+                                ? attendanceToneColors(
+                                    context,
+                                    AttendanceTone.pending,
+                                  ).$2
+                                : Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  metric.$2?.toString() ?? '\u2014',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall,
+                                ),
+                                Text(metric.$1),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -904,36 +1414,4 @@ class _AssignmentOverview extends StatelessWidget {
       ),
     ],
   );
-}
-
-class _AssignmentTag extends StatelessWidget {
-  const _AssignmentTag({required this.label});
-  final String label;
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.secondaryContainer,
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Text(
-      label,
-      style: Theme.of(context).textTheme.labelLarge
-          ?.copyWith(color: Theme.of(context).colorScheme.onSecondaryContainer),
-    ),
-  );
-}
-
-String _shiftSummary(CompanyWorkAssignment row) {
-  final start = row.scheduledStart.toUtc().add(const Duration(hours: 8));
-  final end = row.scheduledEnd.toUtc().add(const Duration(hours: 8));
-  String two(int n) => n.toString().padLeft(2, '0');
-  String date(DateTime d) => '${two(d.day)}/${two(d.month)}/${d.year}';
-  String time(DateTime d) =>
-      '${d.hour % 12 == 0 ? 12 : d.hour % 12}:${two(d.minute)} ${d.hour < 12 ? 'AM' : 'PM'}';
-  final sameDate =
-      start.year == end.year &&
-      start.month == end.month &&
-      start.day == end.day;
-  return '${date(start)} | ${time(start)} - ${sameDate ? '' : '${date(end)} '}${time(end)} MYT';
 }

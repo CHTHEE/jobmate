@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import 'work_shift_ui.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../applications/resume_pdf_opener.dart';
@@ -277,10 +280,16 @@ class _WorkEvidencePreviewDialogState extends State<WorkEvidencePreviewDialog> {
                   if (repo.error != null) Text(repo.error!),
                   if (_openError != null) Text(_openError!),
                   if (uri != null && repo.file != null) ...[
-                    Text(repo.file!.fileName),
+                    Text(
+                      safeEvidenceDisplayName(repo.file!.fileName) ??
+                          (repo.file!.mimeType == 'application/pdf'
+                              ? 'Evidence PDF'
+                              : 'Evidence Image'),
+                    ),
                     if (repo.file!.mimeType.startsWith('image/'))
                       widget.imageBuilder?.call(uri) ??
                           Image.network(
+                            height: MediaQuery.sizeOf(context).height * .4,
                             uri.toString(),
                             fit: BoxFit.contain,
                             errorBuilder: (_, _, _) => const Text(

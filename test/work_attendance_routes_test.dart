@@ -11,9 +11,51 @@ import 'package:jobmate/shared/widgets/app_workspace.dart';
 
 import 'support/workspace_navigation_test_helper.dart';
 import 'work_attendance_repository_test.dart'
-    show FakeSource, assignment, other;
+    show FakeSource, assignment, other, id;
 
 void main() {
+  for (final fromHistory in [false, true]) {
+    testWidgets('direct evidence entry returns to origin history=$fromHistory', (
+      tester,
+    ) async {
+      final source = FakeSource();
+      final router = GoRouter(
+        initialLocation:
+            '/work-attendance/$id/evidence${fromHistory ? '?from=history' : ''}',
+        routes: [
+          workAttendanceRoute(
+            source: source,
+            evidence: true,
+            checkAccess: () async => true,
+          ),
+          GoRoute(
+            path: AppRoutes.workAttendance,
+            builder: (_, _) => const Scaffold(body: Text('Shifts destination')),
+          ),
+          GoRoute(
+            path: AppRoutes.attendanceHistory,
+            builder: (_, _) =>
+                const Scaffold(body: Text('History destination')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      addTearDown(source.changes.close);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      final back = find.text(
+        fromHistory ? 'Back to Attendance History' : 'Back to My Work Shifts',
+      );
+      await tester.ensureVisible(back);
+      await tester.tap(back);
+      await tester.pumpAndSettle();
+      expect(
+        find.text(fromHistory ? 'History destination' : 'Shifts destination'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
   test(
     'production destination is seeker-only and demo paths remain distinct',
     () {

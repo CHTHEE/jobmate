@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jobmate/features/work_attendance/work_evidence_workflow.dart';
 import 'package:jobmate/features/work_attendance/work_evidence_workflow_panel.dart';
+import 'package:jobmate/features/work_attendance/work_attendance_lifecycle.dart';
 import 'package:jobmate/features/work_attendance/work_evidence_draft_controller.dart';
 import 'package:jobmate/features/work_attendance/work_evidence_upload_repository.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_repository.dart';
@@ -835,18 +836,19 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Review submitted evidence'));
         await tester.pumpAndSettle();
-        await tester.tap(
-          find.widgetWithText(OutlinedButton, 'Request more evidence'),
-        );
-        await tester.pumpAndSettle();
         expect(
-          find.text('Enter a reason of 1–1,000 characters.'),
-          findsOneWidget,
+          tester
+              .widget<OutlinedButton>(
+                find.widgetWithText(OutlinedButton, 'Request more evidence'),
+              )
+              .onPressed,
+          isNull,
         );
         await tester.enterText(
           find.byType(TextField),
           'Please add the closing PDF page.',
         );
+        await tester.pumpAndSettle();
         await tester.ensureVisible(
           find.widgetWithText(OutlinedButton, 'Request more evidence'),
         );
@@ -855,7 +857,26 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(server.status, 'pending_review');
-        await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+        expect(find.byType(AlertDialog), findsOneWidget);
+        final confirmationColumn = tester.widget<Column>(
+          find
+              .ancestor(
+                of: find.text('Submission round: 1'),
+                matching: find.byType(Column),
+              )
+              .first,
+        );
+        expect(confirmationColumn.crossAxisAlignment, CrossAxisAlignment.start);
+        await tester.tap(find.text('Edit'));
+        await tester.pumpAndSettle();
+        expect(find.text('Please add the closing PDF page.'), findsOneWidget);
+        await tester.tap(
+          find.widgetWithText(OutlinedButton, 'Request more evidence'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.widgetWithText(FilledButton, 'Request more evidence'),
+        );
         await tester.pumpAndSettle();
         expect(server.status, 'more_evidence_required');
         expect(find.byType(AlertDialog), findsNothing);
@@ -913,7 +934,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.widgetWithText(FilledButton, 'Verify work'));
         await tester.pumpAndSettle();
-        await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+        await tester.tap(find.widgetWithText(FilledButton, 'Verify work'));
         await tester.pumpAndSettle();
         expect(server.status, 'verified');
         expect(
@@ -983,7 +1004,9 @@ void main() {
       expect(find.text('Private employer reason'), findsNothing);
       expect(
         tester
-            .widget<FilledButton>(find.widgetWithText(FilledButton, 'Confirm'))
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Verify work'),
+            )
             .onPressed,
         isNull,
       );
@@ -1031,9 +1054,26 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Add closing tasks'), findsOneWidget);
+      final resubmit = find.widgetWithText(
+        FilledButton,
+        'Resubmit work evidence',
+      );
+      expect(
+        tester
+            .widget<FilledButton>(resubmit)
+            .style!
+            .backgroundColor!
+            .resolve({}),
+        attendanceToneColors(
+          tester.element(resubmit),
+          AttendanceTone.pending,
+        ).$1,
+      );
       await tester.tap(find.text('Resubmit work evidence'));
       await tester.pumpAndSettle();
-      expect(find.text('Submit work evidence'), findsOneWidget);
+      expect(find.text('Resubmit work evidence'), findsWidgets);
+      expect(find.text('Submission round: 2'), findsOneWidget);
+      expect(find.text('Employer feedback: Add closing tasks'), findsOneWidget);
       expect(find.text('Choose evidence files'), findsOneWidget);
       expect(find.text('Submission is not enabled yet.'), findsNothing);
       await tester.enterText(

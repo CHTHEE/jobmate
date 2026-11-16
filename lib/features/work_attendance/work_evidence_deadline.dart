@@ -35,11 +35,14 @@ class EvidenceDeadline {
         verification == WorkVerificationStatus.disputed) {
       return const EvidenceDeadline(EvidenceDeadlineState.notApplicable);
     }
-    final checkout = row.checkOutAt;
+    if (row.resolution?.decision == 'confirmed_absent') {
+      return const EvidenceDeadline(EvidenceDeadlineState.notApplicable);
+    }
+    final checkout = row.effectiveCheckOutAt;
     final validAttendance =
         checkout != null &&
-        row.checkInAt != null &&
-        !checkout.isBefore(row.checkInAt!);
+        row.effectiveCheckInAt != null &&
+        !checkout.isBefore(row.effectiveCheckInAt!);
     final due = validAttendance
         ? checkout.toUtc().add(const Duration(hours: 24))
         : null;
@@ -150,7 +153,8 @@ class _EvidenceDeadlineSummaryState extends State<EvidenceDeadlineSummary>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(timing.label, style: Theme.of(context).textTheme.titleSmall),
-          if (timing.dueAt != null)
+          if (timing.dueAt != null &&
+              timing.state != EvidenceDeadlineState.verified)
             Text(
               'Suggested initial evidence due: ${_malaysiaTime(timing.dueAt!)}',
             ),

@@ -43,6 +43,9 @@ void main() {
       ];
       await showPage(tester);
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Attendance summary'));
+      await tester.tap(find.text('Attendance summary'));
+      await tester.pumpAndSettle();
       expect(
         find.textContaining('Check-in timing:'),
         expected == null ? findsNothing : findsOneWidget,
@@ -90,7 +93,8 @@ void main() {
         find.descendant(of: separate, matching: find.byType(Card)),
         findsOneWidget,
       );
-      expect(find.text('Attendance details'), findsNWidgets(3));
+      expect(find.text('Attendance summary'), findsNWidgets(3));
+      expect(find.text('Attendance details'), findsNothing);
       // Presentation sorting must not mutate repository/server order.
       expect(repository.worker.rows.map((row) => row.assignmentId), [
         id,
@@ -172,6 +176,9 @@ void main() {
     (tester) async {
       await showPage(tester);
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Attendance summary'));
+      await tester.tap(find.text('Attendance summary'));
+      await tester.pumpAndSettle();
       expect(find.text('Attendance details'), findsOneWidget);
       expect(find.text('Workplace: Server location'), findsOneWidget);
       expect(find.text('Check-in not recorded'), findsOneWidget);
@@ -219,19 +226,29 @@ void main() {
       ];
       await showPage(tester);
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Attendance summary'));
+      await tester.tap(find.text('Attendance summary'));
+      await tester.pumpAndSettle();
       for (final text in [
         'Server job',
         'Server company',
-        'Scheduled start: 06/11/2026 04:30 MYT',
-        'Scheduled end: 06/11/2026 13:00 MYT',
-        'Completed / Verified',
-        'Work verified successfully',
-        'Checked in: 06/11/2026 04:31 MYT',
-        'Checked out: 06/11/2026 13:01 MYT',
-        'Verified at: 06/11/2026 14:00 MYT',
+        'Scheduled start: Fri, 6 Nov 2026 4:30 AM MYT',
+        'Scheduled end: Fri, 6 Nov 2026 1:00 PM MYT',
+        'Work Verified',
+        'Checked in: Fri, 6 Nov 2026 4:31 AM MYT',
+        'Checked out: Fri, 6 Nov 2026 1:01 PM MYT',
+        'Verified at: Fri, 6 Nov 2026 2:00 PM MYT',
       ]) {
         expect(find.text(text), findsOneWidget);
       }
+      expect(
+        find.textContaining('Suggested initial evidence due:'),
+        findsNothing,
+      );
+      expect(
+        find.text('Evidence has been verified; no submission is due.'),
+        findsOneWidget,
+      );
       expect(find.text('View details'), findsNothing);
       expect(find.text('Check In'), findsNothing);
       expect(
@@ -348,7 +365,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('More Evidence Required'), findsOneWidget);
+      expect(find.text('Verification: More evidence required'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.drag(
         find.byType(SingleChildScrollView).first,

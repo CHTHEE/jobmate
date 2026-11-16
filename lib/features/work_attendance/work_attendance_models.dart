@@ -85,11 +85,29 @@ sealed class WorkAssignment {
       ),
       checkInAt = _nullableTime(row, 'check_in_at'),
       checkOutAt = _nullableTime(row, 'check_out_at'),
+      attendanceAsOf = _nullableTime(row, 'attendance_as_of'),
+      resolution = row['attendance_resolution'] == null
+          ? null
+          : WorkAttendanceResolution.fromJson(
+              row['attendance_resolution'],
+              workUuid(row['assignment_id']),
+            ),
       verifiedAt = _nullableTime(row, 'verified_at');
 
   final String assignmentId, applicationId, jobId, jobTitle, workplaceLocation;
   final DateTime scheduledStart, scheduledEnd;
   final DateTime? checkInAt, checkOutAt, verifiedAt;
+
+  /// Server statement time from the additive lifecycle read contract. Never
+  /// substitute the device clock when the contract is not deployed.
+  final DateTime? attendanceAsOf;
+  final WorkAttendanceResolution? resolution;
+  DateTime? get effectiveCheckInAt => resolution?.decision == 'corrected'
+      ? resolution!.correctedCheckInAt
+      : checkInAt;
+  DateTime? get effectiveCheckOutAt => resolution?.decision == 'corrected'
+      ? resolution!.correctedCheckOutAt
+      : checkOutAt;
   final WorkAssignmentStatus assignmentStatus;
   final WorkVerificationStatus verificationStatus;
   WorkAttendanceState get attendanceState => checkOutAt != null
@@ -97,6 +115,79 @@ sealed class WorkAssignment {
       : checkInAt != null
       ? WorkAttendanceState.checkedIn
       : WorkAttendanceState.notStarted;
+}
+
+/// Optional Batch 2 metadata. Absent on the deployed Batch 1 read contract.
+@immutable
+class WorkAttendanceResolution {
+  WorkAttendanceResolution.fromJson(Object? raw, String assignmentId) {
+    if (raw is! Map) {
+      throw const FormatException('Invalid attendance resolution.');
+    }
+    final row = Map<String, dynamic>.from(raw);
+    if (row['contract_version'] != 2 ||
+        workUuid(row['assignment_id']) != assignmentId ||
+        row['version'] is! String ||
+        !RegExp(r'^[a-f0-9]{32}$').hasMatch(row['version'] as String) ||
+        row['can_confirm_absence'] is! bool ||
+        row['can_correct'] is! bool ||
+        row['checkout_recovery_enforced'] is! bool) {
+      throw const FormatException('Invalid resolution scope or contract.');
+    }
+    version = row['version'] as String;
+    canConfirmAbsence = row['can_confirm_absence'] as bool;
+    canCorrect = row['can_correct'] as bool;
+    recoveryEnforced = row['checkout_recovery_enforced'] as bool;
+    recoveryCutoff = _time(row, 'recovery_cutoff');
+    final location = row['original_location'];
+    originalCheckInLocationStatus = location is Map
+        ? location['check_in_status'] as String?
+        : null;
+    originalCheckOutLocationStatus = location is Map
+        ? location['check_out_status'] as String?
+        : null;
+    if ([originalCheckInLocationStatus, originalCheckOutLocationStatus].any(
+      (s) => s != null && !{'granted', 'denied', 'unavailable'}.contains(s),
+    )) {
+      throw const FormatException('Invalid original GPS status.');
+    }
+    final value = row['resolution'];
+    if (value != null) {
+      if (value is! Map) {
+        throw const FormatException('Invalid resolution audit.');
+      }
+      final audit = Map<String, dynamic>.from(value);
+      requestId = workUuid(audit['request_id']);
+      actorId = workUuid(audit['resolved_by']);
+      decision = _text(audit, 'decision');
+      reason = _text(audit, 'reason');
+      resolvedAt = _time(audit, 'resolved_at');
+      correctedCheckInAt = _nullableTime(audit, 'corrected_check_in_at');
+      correctedCheckOutAt = _nullableTime(audit, 'corrected_check_out_at');
+      if (!{'confirmed_absent', 'corrected'}.contains(decision) ||
+          reason!.trim().isEmpty ||
+          (decision == 'corrected' &&
+              (correctedCheckInAt == null ||
+                  correctedCheckOutAt == null ||
+                  correctedCheckOutAt!.isBefore(correctedCheckInAt!) ||
+                  correctedCheckOutAt!.isAfter(resolvedAt!))) ||
+          (decision == 'confirmed_absent' &&
+              (correctedCheckInAt != null || correctedCheckOutAt != null))) {
+        throw const FormatException('Invalid resolution decision.');
+      }
+    } else {
+      requestId = actorId = decision = reason = null;
+      resolvedAt = correctedCheckInAt = correctedCheckOutAt = null;
+    }
+  }
+  late final String version;
+  late final bool canConfirmAbsence, canCorrect, recoveryEnforced;
+  late final DateTime recoveryCutoff;
+  late final String? originalCheckInLocationStatus,
+      originalCheckOutLocationStatus;
+  late final String? requestId, actorId, decision, reason;
+  late final DateTime? resolvedAt, correctedCheckInAt, correctedCheckOutAt;
+  bool get canReview => decision == null && (canConfirmAbsence || canCorrect);
 }
 
 /// Exactly the worker RPC projection, including company identity.

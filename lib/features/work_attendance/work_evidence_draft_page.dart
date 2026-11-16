@@ -6,8 +6,55 @@ import '../../shared/widgets/mobile_back_action.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../applications/module2_widgets.dart';
 import 'work_evidence_draft_controller.dart';
+import 'work_shift_ui.dart';
 import 'work_evidence_draft_upload_controller.dart';
 import 'work_evidence_upload_repository.dart';
+
+class _EvidenceModalBody extends StatelessWidget {
+  const _EvidenceModalBody({
+    required this.title,
+    required this.children,
+    required this.actions,
+    required this.pinned,
+  });
+  final String title;
+  final List<Widget> children, actions;
+  final bool pinned;
+  @override
+  Widget build(BuildContext context) {
+    if (!pinned) {
+      return ModalBody(title: title, actions: actions, children: children);
+    }
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+            child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: actions,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 /// Explicitly injected mock mode only. This final, in-memory implementation has
 /// no client, network callbacks, persistence or Storage operations. It retains
@@ -99,6 +146,8 @@ class WorkEvidenceDraftPage extends StatefulWidget {
     this.workflowLocked = false,
     this.workflowBusy = false,
     this.workflowCompleted = false,
+    this.workflowTitle = 'Submit work evidence',
+    this.workflowContext,
   });
   final WorkEvidenceDraftController controller;
   final VoidCallback? onClose;
@@ -114,6 +163,8 @@ class WorkEvidenceDraftPage extends StatefulWidget {
 
   /// Set only after a validated committed server response.
   final bool workflowCompleted;
+  final String workflowTitle;
+  final Widget? workflowContext;
 
   @override
   State<WorkEvidenceDraftPage> createState() => _WorkEvidenceDraftPageState();
@@ -123,7 +174,7 @@ class _WorkEvidenceDraftPageState extends State<WorkEvidenceDraftPage> {
   late final description = TextEditingController(
     text: widget.controller.description,
   );
-  bool _leaving = false, _confirming = false;
+  bool _leaving = false, _confirming = false, _descriptionTouched = false;
   WorkEvidenceUploadRepository? _mockUploads;
   WorkEvidenceDraftUploadController? _mockCoordinator;
 
@@ -261,11 +312,13 @@ class _WorkEvidenceDraftPageState extends State<WorkEvidenceDraftPage> {
         onPopInvokedWithResult: (didPop, _) {
           if (!didPop) _close();
         },
-        child: ModalBody(
+        child: _EvidenceModalBody(
+          pinned: widget.workflowControls != null,
           title: widget.workflowControls == null
               ? 'Local work evidence draft'
-              : 'Submit work evidence',
+              : widget.workflowTitle,
           actions: [
+            if (widget.workflowControls != null) widget.workflowControls!,
             OutlinedButton(
               onPressed:
                   _confirming || widget.supervisedQaBusy || widget.workflowBusy
@@ -282,7 +335,7 @@ class _WorkEvidenceDraftPageState extends State<WorkEvidenceDraftPage> {
           children: [
             Text(
               widget.workflowControls != null
-                  ? 'Confirming submission uploads selected files privately and submits them for employer review. An uncertain response must be reconciled before any further action.'
+                  ? 'Confirming submission uploads selected files privately and submits them for employer review. If the connection is interrupted, check whether the submission was saved before trying again.'
                   : widget.supervisedQaControls == null
                   ? 'Nothing has been uploaded or submitted. This draft is kept only while this form is open.'
                   : 'Supervised QA only. Confirmed actions below write to real private Storage and the deployed evidence RPC. Normal production submission remains disabled.',
@@ -296,8 +349,13 @@ class _WorkEvidenceDraftPageState extends State<WorkEvidenceDraftPage> {
               ),
             if (widget.supervisedQaControls != null)
               widget.supervisedQaControls!,
-            if (widget.workflowControls != null) widget.workflowControls!,
+            if (widget.workflowContext != null) widget.workflowContext!,
             const SizedBox(height: 20),
+            Text(
+              'Private work evidence',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
             if (!active) ...[
               const Text(
                 'Draft cleared. Reopen this form from an authorized work assignment.',
@@ -311,17 +369,23 @@ class _WorkEvidenceDraftPageState extends State<WorkEvidenceDraftPage> {
               minLines: 4,
               maxLines: 8,
               keyboardType: TextInputType.multiline,
-              onChanged: draft.setDescription,
+              onChanged: (value) {
+                setState(() => _descriptionTouched = true);
+                draft.setDescription(value);
+              },
               decoration: InputDecoration(
-                labelText: 'Work description (required)',
+                label: const RequiredFieldLabel('Work description'),
                 alignLabelWithHint: true,
                 helperText: 'Up to 2,000 characters after trimming surrounding whitespace.',
                 helperMaxLines: 3,
-                errorText: active ? draft.descriptionError : null,
+                errorText: active && _descriptionTouched
+                    ? draft.descriptionError
+                    : null,
                 errorMaxLines: 3,
               ),
             ),
             const SizedBox(height: 20),
+            const RequiredFieldLabel('Evidence files'),
             const Text(
               'Choose 1–5 JPEG, PNG, WebP or PDF files. Each file must be non-empty and at most 10 MiB.',
             ),
@@ -341,10 +405,18 @@ class _WorkEvidenceDraftPageState extends State<WorkEvidenceDraftPage> {
                 semanticsLabel: 'Reading selected files',
               ),
             ],
-            if (draft.filesError != null) ...[
+            if (draft.filesError != null && _descriptionTouched) ...[
               const SizedBox(height: 8),
               Text(draft.filesError!),
             ],
+            if (draft.files.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  '${draft.files.length} selected file(s) - ready for validation and private upload',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
             for (final file in draft.files)
               Padding(
                 key: ValueKey(file.id),

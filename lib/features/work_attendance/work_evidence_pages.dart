@@ -19,7 +19,11 @@ import 'work_assignment_creation_repository.dart';
 import 'work_evidence_workflow.dart';
 import 'work_evidence_workflow_panel.dart';
 import 'work_evidence_deadline.dart';
+import 'work_attendance_lifecycle.dart';
 import 'work_evidence_upload_repository.dart';
+import 'employer_work_evidence_summary.dart';
+import 'work_attendance_gps.dart';
+import 'work_shift_ui.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -38,8 +42,10 @@ class WorkEvidencePage extends StatefulWidget {
     this.loadWorkerName,
     this.workflowSource,
     this.createWorkflowUploads,
+    this.returnToHistory = false,
   });
   final WorkEvidenceRepository repository;
+  final bool returnToHistory;
   final Future<List<XFile>> Function()? pickDraftFiles;
   final MockWorkEvidenceReviewOperations? mockReviewOperations;
   final WorkEvidenceQaDependencies Function(WorkEvidenceDraftController)?
@@ -61,6 +67,35 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
   bool _qaOpening = false;
   bool _reviewOpen = false;
   bool _previewOpen = false;
+  bool _gpsOpen = false;
+  Future<void> _viewGps() async {
+    final viewer = widget.repository;
+    final source = viewer.attendance.source;
+    if (_gpsOpen ||
+        !viewer.employer ||
+        viewer.loading ||
+        viewer.error != null ||
+        viewer.assignment == null ||
+        source is! SupabaseWorkAttendanceSource) {
+      return;
+    }
+    final repository = WorkAttendanceGpsRepository(
+      SupabaseWorkAttendanceGpsSource(source.client),
+      viewer.companyId!,
+      viewer.assignmentId,
+    );
+    setState(() => _gpsOpen = true);
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => WorkAttendanceGpsDialog(repository: repository),
+      );
+    } finally {
+      repository.dispose();
+      if (mounted) setState(() => _gpsOpen = false);
+    }
+  }
+
   Object? _nameScope;
   String? _workerName;
   void _resolveName(CompanyWorkAssignment row) {
@@ -275,9 +310,18 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
       }
       final fallback = repo.employer
           ? AppRoutes.workVerification
+          : widget.returnToHistory
+          ? AppRoutes.attendanceHistory
           : AppRoutes.workAttendance;
+      final employerTitle =
+          repo.assignment?.verificationStatus == WorkVerificationStatus.verified
+          ? 'Work Verification Details'
+          : repo.assignment?.verificationStatus ==
+                WorkVerificationStatus.pendingReview
+          ? 'Review Work Evidence'
+          : 'Work Evidence';
       return AppWorkspace(
-        title: 'Work Evidence',
+        title: repo.employer ? employerTitle : 'Work Evidence',
         path: fallback,
         role: repo.employer ? 'employer' : 'job_seeker',
         focused: true,
@@ -301,17 +345,21 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                   child: Text(
                     repo.employer
                         ? 'Back to Work Verification'
+                        : widget.returnToHistory
+                        ? 'Back to Attendance History'
                         : 'Back to My Work Shifts',
                   ),
                 ),
               ),
               Text(
-                'Work evidence',
+                repo.employer ? employerTitle : 'Work evidence',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Open submitted PDFs and images through authorized private previews.',
+              Text(
+                repo.employer
+                    ? 'Review attendance, private evidence and recorded verification results.'
+                    : 'Open submitted PDFs and images through authorized private previews.',
               ),
               const Text('All times are Malaysia time (MYT, UTC+08:00).'),
               const SizedBox(height: 24),
@@ -337,7 +385,18 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                   ),
                 )
               else ...[
-                if (repo.assignment != null)
+                if (repo.employer && repo.assignment != null)
+                  EmployerWorkEvidenceSummary(
+                    assignment: repo.assignment!,
+                    workerName: _workerName,
+                    onGps:
+                        !_gpsOpen &&
+                            repo.attendance.source
+                                is SupabaseWorkAttendanceSource
+                        ? _viewGps
+                        : null,
+                  )
+                else if (repo.assignment != null)
                   WorkspaceCard(
                     title: repo.assignment!.jobTitle,
                     child: Column(
@@ -348,9 +407,26 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                           '${repo.assignment!.checkInAt == null ? '' : '\nChecked in: ${_malaysiaTime(repo.assignment!.checkInAt!)}'}'
                           '${repo.assignment!.checkOutAt == null ? '' : '\nChecked out: ${_malaysiaTime(repo.assignment!.checkOutAt!)}'}',
                         ),
-                        if (workflow == null ||
-                            repo.assignmentId ==
-                                supervisedWorkEvidenceQaAssignment)
+                        AttendanceLifecycleNotice(
+                          assignment: repo.assignment!,
+                          employer: repo.employer,
+                        ),
+                        Text(
+                          'Scheduled: ${_malaysiaTime(repo.assignment!.scheduledStart)} to ${_malaysiaTime(repo.assignment!.scheduledEnd)}',
+                        ),
+                        Text(
+                          'Workplace: ${repo.assignment!.workplaceLocation}',
+                        ),
+                        if (repo.assignment!.verificationStatus ==
+                                WorkVerificationStatus.verified &&
+                            workflow == null)
+                          const Text(
+                            'No submission required. Work verification does not confirm payment.',
+                          )
+                        else if ((workflow == null ||
+                                repo.assignmentId ==
+                                    supervisedWorkEvidenceQaAssignment) &&
+                            repo.assignment!.effectiveCheckOutAt != null)
                           EvidenceDeadlineSummary(assignment: repo.assignment!),
                       ],
                     ),
@@ -362,6 +438,7 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                   WorkEvidenceWorkflowPanel(
                     key: ValueKey((repo, repo.attendance.source.userId)),
                     viewer: repo,
+                    workerName: _workerName,
                     source: workflow,
                     pickFiles: widget.pickDraftFiles,
                     createUploads: widget.createWorkflowUploads,
@@ -417,6 +494,7 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                         .where((f) => f.submissionRound == rounds.first)
                         .toList(),
                     latest: true,
+                    employer: repo.employer,
                     workerName: repo.employer ? _workerName : null,
                     onPreview: _previewOpen ? null : _preview,
                   ),
@@ -434,6 +512,7 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                                 .where((f) => f.submissionRound == round)
                                 .toList(),
                             latest: false,
+                            employer: repo.employer,
                             workerName: repo.employer ? _workerName : null,
                             onPreview: _previewOpen ? null : _preview,
                           ),
@@ -459,16 +538,22 @@ class _WorkerDraftSession implements EvidenceDraftSession {
 }
 
 class _EvidenceCard extends StatelessWidget {
-  const _EvidenceCard(this.file, {required this.label, this.onPreview});
+  const _EvidenceCard(
+    this.file, {
+    required this.label,
+    this.onPreview,
+    this.employer = false,
+  });
   final WorkEvidence file;
   final String label;
   final VoidCallback? onPreview;
+  final bool employer;
 
   @override
   Widget build(BuildContext context) => Card.outlined(
     key: ValueKey(file.evidenceId),
     child: Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -489,11 +574,18 @@ class _EvidenceCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: onPreview,
-            icon: const Icon(Icons.visibility_outlined),
-            label: Text(
-              file.mimeType == 'application/pdf' ? 'View PDF' : 'View image',
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SizedBox(
+              child: OutlinedButton.icon(
+                onPressed: onPreview,
+                icon: const Icon(Icons.visibility_outlined),
+                label: Text(
+                  file.mimeType == 'application/pdf'
+                      ? 'View PDF'
+                      : 'View image',
+                ),
+              ),
             ),
           ),
         ],
@@ -503,9 +595,7 @@ class _EvidenceCard extends StatelessWidget {
 }
 
 String _malaysiaTime(DateTime timestamp) {
-  final time = timestamp.toUtc().add(const Duration(hours: 8));
-  String two(int value) => value.toString().padLeft(2, '0');
-  return '${two(time.day)}/${two(time.month)}/${time.year} ${two(time.hour)}:${two(time.minute)} MYT';
+  return '${shiftDateLabel(timestamp)} ${shiftTimeLabel(timestamp)} MYT';
 }
 
 class _EvidenceRound extends StatelessWidget {
@@ -515,16 +605,18 @@ class _EvidenceRound extends StatelessWidget {
     required this.latest,
     this.workerName,
     this.onPreview,
+    this.employer = false,
   });
   final int round;
   final List<WorkEvidence> files;
   final bool latest;
   final String? workerName;
   final ValueChanged<WorkEvidence>? onPreview;
+  final bool employer;
   @override
   Widget build(BuildContext context) {
     var pdf = 0, image = 0;
-    return Padding(
+    final content = Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -537,27 +629,73 @@ class _EvidenceRound extends StatelessWidget {
           ),
           if (files.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(files.first.description),
+            if (employer && files.first.description.trim().isNotEmpty)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: ColorScheme.fromSeed(
+                    seedColor: Colors.lightBlue,
+                    brightness: Theme.of(context).brightness,
+                  ).primaryContainer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Worker note',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    Text(
+                      files.first.description,
+                      style: TextStyle(
+                        color: ColorScheme.fromSeed(
+                          seedColor: Colors.lightBlue,
+                          brightness: Theme.of(context).brightness,
+                        ).onPrimaryContainer,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (!employer)
+              Text(files.first.description),
             const SizedBox(height: 8),
             Text(
-              '${workerName == null ? 'Submitted by the assigned worker' : 'Submitted by: $workerName'} - ${_malaysiaTime(files.first.submittedAt)}',
+              '${workerName == null ? 'Submitted by the assigned worker' : 'Submitted by: $workerName'} - ${employer ? '${shiftDateLabel(files.first.submittedAt)} ${shiftTimeLabel(files.first.submittedAt)} MYT' : _malaysiaTime(files.first.submittedAt)}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
           const SizedBox(height: 12),
+          if (employer && workerName == null && files.isNotEmpty)
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              title: const Text('Submission audit identity'),
+              children: [SelectableText(files.first.submittedBy)],
+            ),
+          if (employer)
+            Text('${files.length} ${files.length == 1 ? 'file' : 'files'}'),
           for (final file in files)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: _EvidenceCard(
                 file,
-                label: file.mimeType == 'application/pdf'
-                    ? 'Evidence PDF ${++pdf}'
-                    : 'Evidence image ${++image}',
+                employer: employer,
+                label:
+                    safeEvidenceDisplayName(file.fileName) ??
+                    (file.mimeType == 'application/pdf'
+                        ? 'Evidence PDF ${++pdf}'
+                        : 'Evidence Image ${++image}'),
                 onPreview: onPreview == null ? null : () => onPreview!(file),
               ),
             ),
         ],
       ),
     );
+    return employer
+        ? Card.outlined(
+            child: Padding(padding: const EdgeInsets.all(12), child: content),
+          )
+        : content;
   }
 }

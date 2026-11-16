@@ -96,6 +96,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
           'My Work Shifts',
           Icons.calendar_month_outlined,
         ),
+        (AppRoutes.attendanceHistory, 'Attendance History', Icons.history),
         (
           AppRoutes.softSkillEvaluations,
           'Evaluations',

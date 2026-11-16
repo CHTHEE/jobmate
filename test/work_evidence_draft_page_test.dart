@@ -68,10 +68,10 @@ void main() {
       'required description, file rules and disabled submission are explicit',
       (tester) async {
         await show(tester);
-        expect(find.text('Enter a work description.'), findsOneWidget);
+        expect(find.text('Enter a work description.'), findsNothing);
         expect(
           find.text('Choose between 1 and 5 evidence files.'),
-          findsOneWidget,
+          findsNothing,
         );
         expect(find.text('Draft not ready'), findsOneWidget);
         expect(find.text('Submission is not enabled yet.'), findsOneWidget);
@@ -348,7 +348,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.text('Evidence PDF 1'), findsOneWidget);
+        expect(find.text('file.pdf'), findsOneWidget);
         final reads = source.calls;
         await tester.ensureVisible(find.text('Prepare local evidence draft'));
         await tester.tap(find.text('Prepare local evidence draft'));
@@ -367,7 +367,7 @@ void main() {
         await tester.tap(find.text('Leave page'));
         await tester.pumpAndSettle();
         expect(find.byType(WorkEvidenceDraftPage), findsNothing);
-        expect(find.text('Evidence PDF 1'), findsOneWidget);
+        expect(find.text('file.pdf'), findsOneWidget);
         await tester.pumpWidget(const SizedBox());
       },
     );

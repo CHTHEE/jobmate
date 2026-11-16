@@ -379,8 +379,8 @@ class WorkEvidenceSubmissionRepository {
             ) ||
             (attempt.round != null && attempt.round != round) ||
             after.verificationStatus == WorkVerificationStatus.notSubmitted ||
-            after.checkInAt == null ||
-            after.checkOutAt == null) {
+            after.effectiveCheckInAt == null ||
+            after.effectiveCheckOutAt == null) {
           return uncertain();
         }
         attempt.round = round;
@@ -393,8 +393,8 @@ class WorkEvidenceSubmissionRepository {
             WorkVerificationStatus.notSubmitted,
             WorkVerificationStatus.moreEvidenceRequired,
           ].contains(after.verificationStatus) &&
-          after.checkInAt != null &&
-          after.checkOutAt != null;
+          after.effectiveCheckInAt != null &&
+          after.effectiveCheckOutAt != null;
       return result(
         eligible
             ? WorkEvidenceReconciliationStatus.uncertain

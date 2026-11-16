@@ -459,7 +459,12 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Check-in GPS: Captured'), findsOneWidget);
-      expect(find.text('Recorded: 06/11/2026 09:00 MYT'), findsOneWidget);
+      expect(
+        find.text('Recorded: Fri, 6 Nov 2026 · 9:00 AM MYT'),
+        findsOneWidget,
+      );
+      expect(find.text('GPS Available'), findsNothing);
+      expect(find.text('GPS Unavailable'), findsNothing);
       await tester.tap(find.text('Open Check-in in Google Maps'));
       await tester.pumpAndSettle();
       expect(opened!.host, 'www.google.com');

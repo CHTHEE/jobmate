@@ -388,6 +388,7 @@ void main() {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final requests = <(String, String, dynamic)>[];
       Object result = [];
+      String? lifecycleError;
       server.listen((request) async {
         final body = await utf8.decoder.bind(request).join();
         requests.add((
@@ -396,7 +397,16 @@ void main() {
           body.isEmpty ? {} : jsonDecode(body),
         ));
         request.response.headers.contentType = ContentType.json;
-        request.response.write(jsonEncode(result));
+        final rejected =
+            lifecycleError != null && request.uri.path.endsWith('_lifecycle');
+        if (rejected) request.response.statusCode = 404;
+        request.response.write(
+          jsonEncode(
+            rejected
+                ? {'code': lifecycleError, 'message': 'Read unavailable'}
+                : result,
+          ),
+        );
         await request.response.close();
       });
       final client = SupabaseClient(
@@ -426,8 +436,8 @@ void main() {
       await source.listEvidence(id);
       expect(requests.map((request) => request.$1), ['POST', 'POST', 'POST']);
       expect(requests.map((request) => request.$2), [
-        '/rest/v1/rpc/list_my_work_assignments',
-        '/rest/v1/rpc/list_company_work_assignments',
+        '/rest/v1/rpc/list_my_work_assignments_lifecycle',
+        '/rest/v1/rpc/list_company_work_assignments_lifecycle',
         '/rest/v1/rpc/list_work_evidence',
       ]);
       expect(requests[0].$3, isNull);
@@ -437,6 +447,31 @@ void main() {
       await expectLater(source.listMyAssignments(), throwsFormatException);
       result = [1];
       await expectLater(source.listEvidence(id), throwsFormatException);
+      result = [assignment()..['attendance_as_of'] = '2026-11-05T10:00:00Z'];
+      final snapshot = await source.listMyAssignments();
+      expect(
+        WorkerWorkAssignment.fromJson(snapshot.single).attendanceAsOf,
+        DateTime.utc(2026, 11, 5, 10),
+      );
+      result = [assignment()];
+      await expectLater(source.listMyAssignments(), throwsFormatException);
+      lifecycleError = 'PGRST202';
+      requests.clear();
+      expect(
+        (await source.listMyAssignments()).single['attendance_as_of'],
+        isNull,
+      );
+      expect(requests.map((r) => r.$2), [
+        '/rest/v1/rpc/list_my_work_assignments_lifecycle',
+        '/rest/v1/rpc/list_my_work_assignments',
+      ]);
+      lifecycleError = '42501';
+      requests.clear();
+      await expectLater(
+        source.listCompanyAssignments(other),
+        throwsA(isA<PostgrestException>()),
+      );
+      expect(requests, hasLength(1));
     },
   );
 }

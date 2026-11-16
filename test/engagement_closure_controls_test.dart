@@ -32,6 +32,48 @@ Widget controls(
 );
 
 void main() {
+  testWidgets(
+    'closure eligibility is separate from the open engagement status',
+    (tester) async {
+      final gateway = FakeEngagementClosureGateway();
+      await tester.pumpWidget(controls(gateway));
+      await tester.pumpAndSettle();
+      expect(find.text('Engagement status: Open'), findsOneWidget);
+      expect(find.text('Eligible for closure'), findsOneWidget);
+      expect(find.text('Engagement status: Closed'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets('ineligible worker closure action only explains requirements', (
+    tester,
+  ) async {
+    final gateway = FakeEngagementClosureGateway()
+      ..statusHandler = (_) async => {
+        'closure_status': 'ineligible',
+        'eligible': false,
+        'eligibility_reason': 'At least one verified Shift is required.',
+      };
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: EngagementClosureControls(
+            applicationId: 'fixture-application',
+            worker: true,
+            gateway: gateway,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Request closure'), findsNothing);
+    expect(find.text('Engagement status: Open'), findsOneWidget);
+    expect(find.text('Eligible for closure'), findsNothing);
+    await tester.tap(find.text('View closure requirements'));
+    await tester.pumpAndSettle();
+    expect(find.text('Closure requirements'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('context change while reason dialog is open prevents closure', (
     tester,
   ) async {

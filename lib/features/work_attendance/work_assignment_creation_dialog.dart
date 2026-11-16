@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../shared/widgets/mobile_back_action.dart';
 import 'engagement_closure_controls.dart';
 import 'work_assignment_creation_repository.dart';
+import 'work_shift_ui.dart';
 
 /// Caller owns the repository. This dialog never creates on opening or retrying
 /// reads; only the final, explicit confirmation dispatches a creation request.
@@ -203,7 +204,14 @@ class _WorkAssignmentCreationDialogState
           textScaler: MediaQuery.textScalerOf(context)
               .clamp(maxScaleFactor: 1.3),
         ),
-        child: child!,
+        child: TimePickerTheme(
+          data: Theme.of(context).timePickerTheme.copyWith(
+            padding: MediaQuery.sizeOf(context).width < 360
+                ? const EdgeInsets.symmetric(horizontal: 4, vertical: 16)
+                : null,
+          ),
+          child: child!,
+        ),
       ),
     );
     if (!mounted ||
@@ -370,8 +378,12 @@ class _WorkAssignmentCreationDialogState
         textInputAction: TextInputAction.next,
         decoration: InputDecoration(
           labelText: label,
+          floatingLabelBehavior: FloatingLabelBehavior.always,
           border: const OutlineInputBorder(),
           errorMaxLines: 3,
+          prefixIcon: controller == _location
+              ? const Icon(Icons.location_on_outlined)
+              : null,
           suffixIcon: controller == _startDate
               ? IconButton(
                   tooltip: 'Choose $label',
@@ -424,18 +436,34 @@ class _WorkAssignmentCreationDialogState
         if (!didPop) _close();
       },
       child: AlertDialog(
-        title: Text(
-          _confirm
-              ? 'Confirm new assignment'
-              : scoped
-              ? 'Add shift'
-              : 'Create Assignment',
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(scoped ? 'Add shift' : 'Create Assignment'),
+                ),
+                IconButton(
+                  tooltip: 'Close assignment dialog',
+                  onPressed: _busy ? null : _close,
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            Text(
+              'Malaysia time · MYT · UTC+8',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+          ],
         ),
         content: SizedBox(
-          width: 520,
+          width: 760,
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * .60,
+              maxHeight: MediaQuery.sizeOf(context).height * .70,
             ),
             child: SingleChildScrollView(
               child: accountChanged
@@ -475,23 +503,47 @@ class _WorkAssignmentCreationDialogState
                           ),
                         if (_result?.scheduleConflict == true)
                           const Text(
-                            'Creation is blocked for this schedule. Choose Edit to change the dates or times, then review again, or Close.',
+                            'Creation is blocked for this schedule. Choose Back to change the dates or times, then review again, or close this dialog.',
                           ),
                         if (locked && !_confirm)
                           const Text(
                             'An earlier creation is unresolved. Check its existing request before scheduling another shift for this application. This check does not create a shift.',
                           ),
                         if (_confirm && _candidate != null) ...[
-                          Text('Company: ${_candidate!.companyName}'),
-                          Text('Job: ${_candidate!.jobTitle}'),
-                          Text('Worker: ${_candidate!.applicantName}'),
-                          Text(
-                            'Start (MYT): ${_startDate.text} ${_startTime.text}',
+                          Icon(
+                            Icons.calendar_month_outlined,
+                            size: 36,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
+                          const SizedBox(height: 12),
                           Text(
-                            'End (MYT): ${_startDate.text} ${_endTime.text}',
+                            'Review shift before saving',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.titleLarge,
                           ),
-                          Text('Workplace: ${_location.text.trim()}'),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Confirm the Malaysia date, time and worker assignment below.',
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 20),
+                          ShiftReviewTable(
+                            rows: [
+                              ('Company', _candidate!.companyName),
+                              ('Worker', _candidate!.applicantName),
+                              ('Hired job', _candidate!.jobTitle),
+                              ('Date', shiftDateLabel(_start!, full: true)),
+                              (
+                                'Scheduled time',
+                                shiftTimeRange(_start!, _end!),
+                              ),
+                              (
+                                'Scheduled duration',
+                                '${_end!.difference(_start!).inHours}h ${_end!.difference(_start!).inMinutes.remainder(60)}m',
+                              ),
+                              ('Workplace', _location.text.trim()),
+                            ],
+                          ),
                           const SizedBox(height: 12),
                           const Text(
                             'Confirming creates a real assignment. Existing assignments are not edited. If the result is uncertain, check assignments before taking any further action.',
@@ -522,9 +574,7 @@ class _WorkAssignmentCreationDialogState
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                const _BeforeSchedulingNotice(),
-                                const SizedBox(height: 16),
-                                if (_candidate != null) ...[
+                                if (scoped && _candidate != null) ...[
                                   Text(
                                     'Job: ${_candidate!.jobTitle}',
                                     style: Theme.of(context)
@@ -541,6 +591,8 @@ class _WorkAssignmentCreationDialogState
                                     isExpanded: true,
                                     decoration: const InputDecoration(
                                       labelText: 'Company job',
+                                      floatingLabelBehavior:
+                                          FloatingLabelBehavior.always,
                                     ),
                                     items: jobs.entries
                                         .map(
@@ -570,6 +622,8 @@ class _WorkAssignmentCreationDialogState
                                     isExpanded: true,
                                     decoration: const InputDecoration(
                                       labelText: 'Hired application',
+                                      floatingLabelBehavior:
+                                          FloatingLabelBehavior.always,
                                     ),
                                     items: state.candidates
                                         .where((c) => c.jobId == _job)
@@ -607,12 +661,35 @@ class _WorkAssignmentCreationDialogState
                                 const SizedBox(height: 16),
 
                                 input(_startDate, 'Shift date (MYT)', date),
-                                input(
-                                  _startTime,
-                                  'Start time (MYT)',
-                                  startTime,
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final start = input(
+                                      _startTime,
+                                      'Start time (MYT)',
+                                      startTime,
+                                    );
+                                    final end = input(
+                                      _endTime,
+                                      'End time (MYT)',
+                                      endTime,
+                                    );
+                                    return constraints.maxWidth >= 540
+                                        ? Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Expanded(child: start),
+                                              const SizedBox(width: 12),
+                                              Expanded(child: end),
+                                            ],
+                                          )
+                                        : Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [start, end],
+                                          );
+                                  },
                                 ),
-                                input(_endTime, 'End time (MYT)', endTime),
                                 input(
                                   _location,
                                   'Workplace location',
@@ -622,6 +699,17 @@ class _WorkAssignmentCreationDialogState
                                       ? 'Use no more than 500 characters.'
                                       : null,
                                 ),
+                                if (_start != null &&
+                                    _end != null &&
+                                    _end!.isAfter(_start!))
+                                  Text(
+                                    'Scheduled duration: ${_end!.difference(_start!).inHours}h ${_end!.difference(_start!).inMinutes.remainder(60)}m',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall,
+                                  ),
+                                const SizedBox(height: 12),
+                                const _BeforeSchedulingNotice(),
                               ],
                             ),
                           ),
@@ -631,69 +719,100 @@ class _WorkAssignmentCreationDialogState
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: _busy ? null : () => _close(),
-            child: const Text('Close'),
+          _AssignmentFooter(
+            children: [
+              if (!_confirm || locked || accountChanged)
+                OutlinedButton(
+                  onPressed: _busy ? null : () => _close(),
+                  child: const Text('Cancel'),
+                ),
+              if (!accountChanged && _confirm && !locked)
+                OutlinedButton(
+                  onPressed: _busy
+                      ? null
+                      : () {
+                          _confirm = false;
+                          _result = null;
+                          _changed();
+                        },
+                  child: const Text('Back'),
+                ),
+              if (!accountChanged && locked)
+                OutlinedButton(
+                  onPressed: _busy ? null : () => _submit(reconcile: true),
+                  child: const Text('Check current assignment'),
+                ),
+              if (!accountChanged &&
+                  !locked &&
+                  !_engagementClosed &&
+                  _engagementError == null &&
+                  !_engagementLoading &&
+                  state.error == null &&
+                  !state.loading &&
+                  !unavailable &&
+                  !(_confirm && _result?.scheduleConflict == true) &&
+                  (_confirm || state.candidates.isNotEmpty))
+                FilledButton(
+                  onPressed: _busy
+                      ? null
+                      : () {
+                          if (_confirm) {
+                            _submit();
+                            return;
+                          }
+                          setState(() => _validationRequested = true);
+                          if (!_form.currentState!.validate()) return;
+                          if (!_engagementReady) return;
+                          if (_start == null || _end == null) return;
+                          final scheduleError = widget.repository
+                              .validateSchedule(_start!, _end!);
+                          if (scheduleError != null) {
+                            setState(
+                              () => _result = WorkAssignmentCreateResult(
+                                WorkAssignmentCreateStatus.rejected,
+                                scheduleError,
+                              ),
+                            );
+                            return;
+                          }
+                          setState(() => _confirm = true);
+                        },
+                  child: Text(_confirm ? 'Confirm & Save' : 'Review Shift'),
+                ),
+            ],
           ),
-          if (!accountChanged && _confirm && !locked)
-            TextButton(
-              onPressed: _busy
-                  ? null
-                  : () {
-                      _confirm = false;
-                      _result = null;
-                      _changed();
-                    },
-              child: const Text('Edit'),
-            ),
-          if (!accountChanged && locked)
-            OutlinedButton(
-              onPressed: _busy ? null : () => _submit(reconcile: true),
-              child: const Text('Check current assignment'),
-            ),
-          if (!accountChanged &&
-              !locked &&
-              !_engagementClosed &&
-              _engagementError == null &&
-              !_engagementLoading &&
-              state.error == null &&
-              !state.loading &&
-              !unavailable &&
-              !(_confirm && _result?.scheduleConflict == true) &&
-              (_confirm || state.candidates.isNotEmpty))
-            FilledButton(
-              onPressed: _busy
-                  ? null
-                  : () {
-                      if (_confirm) {
-                        _submit();
-                        return;
-                      }
-                      setState(() => _validationRequested = true);
-                      if (!_form.currentState!.validate()) return;
-                      if (!_engagementReady) return;
-                      if (_start == null || _end == null) return;
-                      final scheduleError = widget.repository.validateSchedule(
-                        _start!,
-                        _end!,
-                      );
-                      if (scheduleError != null) {
-                        setState(
-                          () => _result = WorkAssignmentCreateResult(
-                            WorkAssignmentCreateStatus.rejected,
-                            scheduleError,
-                          ),
-                        );
-                        return;
-                      }
-                      setState(() => _confirm = true);
-                    },
-              child: Text(_confirm ? 'Confirm creation' : 'Review assignment'),
-            ),
         ],
       ),
     );
   }
+}
+
+class _AssignmentFooter extends StatelessWidget {
+  const _AssignmentFooter({required this.children});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 760,
+    child: MediaQuery.sizeOf(context).width < 600
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                if (i > 0) const SizedBox(height: 8),
+                children[i],
+              ],
+            ],
+          )
+        : Row(
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                if (i > 0) const SizedBox(width: 12),
+                Expanded(child: children[i]),
+              ],
+            ],
+          ),
+  );
 }
 
 class _BeforeSchedulingNotice extends StatelessWidget {
@@ -702,9 +821,9 @@ class _BeforeSchedulingNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Use Material amber tones matched to theme brightness, not fixed light colors.
+    // Theme-aware informational blue; validation still uses error colors.
     final amber = ColorScheme.fromSeed(
-      seedColor: Colors.amber,
+      seedColor: Colors.lightBlue,
       brightness: theme.brightness,
     );
     return Semantics(

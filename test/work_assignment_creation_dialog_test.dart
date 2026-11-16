@@ -109,17 +109,17 @@ void main() {
   }
 
   Future<void> select(WidgetTester tester) async {
-    await tester.ensureVisible(
-      find.byType(DropdownButtonFormField<String>).first,
+    final dropdowns = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(DropdownButtonFormField<String>),
     );
-    await tester.tap(find.byType(DropdownButtonFormField<String>).first);
+    await tester.ensureVisible(dropdowns.first);
+    await tester.tap(dropdowns.first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('QA Assistant').last);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(
-      find.byType(DropdownButtonFormField<String>).last,
-    );
-    await tester.tap(find.byType(DropdownButtonFormField<String>).last);
+    await tester.ensureVisible(dropdowns.last);
+    await tester.tap(dropdowns.last);
     await tester.pumpAndSettle();
     await tester.tap(find.textContaining('Synthetic worker').last);
     await tester.pumpAndSettle();
@@ -167,9 +167,68 @@ void main() {
   }
 
   Future<void> review(WidgetTester tester) async {
-    await tester.tap(find.text('Review assignment'));
+    await tester.tap(find.text('Review Shift'));
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'desktop time fields share a row and workplace stays in the form viewport',
+    (tester) async {
+      await show(tester, width: 1200);
+      await select(tester);
+      final start = find.widgetWithText(TextFormField, 'Start time (MYT)');
+      final end = find.widgetWithText(TextFormField, 'End time (MYT)');
+      final location = find.widgetWithText(TextFormField, 'Workplace location');
+      final viewport = find
+          .descendant(
+            of: find.byType(AlertDialog),
+            matching: find.byType(SingleChildScrollView),
+          )
+          .first;
+      expect(tester.getTopLeft(start).dy, tester.getTopLeft(end).dy);
+      expect(
+        tester.getTopLeft(end).dx,
+        greaterThan(tester.getTopLeft(start).dx),
+      );
+      expect(
+        tester.getBottomRight(location).dy,
+        lessThanOrEqualTo(tester.getBottomRight(viewport).dy),
+      );
+      expect(tester.takeException(), isNull);
+      expect(source.creates, 0);
+    },
+  );
+
+  testWidgets(
+    'structured review uses actual references and Back preserves all form values',
+    (tester) async {
+      await show(tester, width: 1200);
+      await fill(tester);
+      await review(tester);
+      expect(find.text('Review shift before saving'), findsOneWidget);
+      expect(find.text('Saturday, 7 November 2026'), findsOneWidget);
+      expect(find.text(uid(4)), findsNothing);
+      expect(find.text('8h 0m'), findsOneWidget);
+      expect(find.text('QA workplace'), findsOneWidget);
+      expect(find.byTooltip('Close assignment dialog'), findsOneWidget);
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+      for (final (label, value) in [
+        ('Start time (MYT)', '9:00 AM'),
+        ('End time (MYT)', '5:00 PM'),
+        ('Workplace location', 'QA workplace'),
+      ]) {
+        expect(
+          tester
+              .widget<TextFormField>(find.widgetWithText(TextFormField, label))
+              .controller!
+              .text,
+          value,
+        );
+      }
+      expect(source.creates, 0);
+    },
+  );
 
   testWidgets(
     'one scheduling notice and contextual workplace error clear on edit',
@@ -213,8 +272,9 @@ void main() {
       expect(find.byType(TimePickerDialog), findsNothing);
       await field(tester, 'Start time (MYT)', '09:05');
       await review(tester);
-      expect(find.text('Start (MYT): 2026-11-07 9:05 AM'), findsOneWidget);
-      expect(find.textContaining(uid(4)), findsNothing);
+      expect(find.text('9:05 AM – 5:00 PM MYT'), findsOneWidget);
+      expect(find.text('Application reference'), findsNothing);
+      expect(find.text(uid(4)), findsNothing);
       expect(source.creates, 0);
     },
   );
@@ -240,9 +300,9 @@ void main() {
         await review(tester);
         expect(find.text('Use a valid date: YYYY-MM-DD.'), findsNothing);
         expect(find.text('Use 24-hour time: HH:mm.'), findsNothing);
-        expect(find.text('Confirm creation'), findsOneWidget);
+        expect(find.text('Confirm & Save'), findsOneWidget);
         expect(source.creates, 0);
-        await tester.tap(find.text('Confirm creation'));
+        await tester.tap(find.text('Confirm & Save'));
         await tester.pumpAndSettle();
         expect(
           source.parameters!['p_scheduled_start'],
@@ -270,7 +330,7 @@ void main() {
         find.text('End time must be later than start time.'),
         findsOneWidget,
       );
-      expect(find.text('Confirm creation'), findsNothing);
+      expect(find.text('Confirm & Save'), findsNothing);
       expect(source.creates, 0);
     }
   });
@@ -288,7 +348,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('Confirm creation'), findsNothing);
+      expect(find.text('Confirm & Save'), findsNothing);
       expect(source.creates, 0);
     },
   );
@@ -305,12 +365,12 @@ void main() {
       find.text('End time must be later than start time.'),
       findsOneWidget,
     );
-    expect(find.text('Confirm creation'), findsNothing);
+    expect(find.text('Confirm & Save'), findsNothing);
     expect(source.creates, 0);
     await field(tester, 'End time (MYT)', '23:07');
     expect(find.text('End time must be later than start time.'), findsNothing);
     await review(tester);
-    expect(find.text('Confirm creation'), findsOneWidget);
+    expect(find.text('Confirm & Save'), findsOneWidget);
   });
 
   testWidgets(
@@ -361,7 +421,7 @@ void main() {
         await show(tester);
         await fill(tester);
         await review(tester);
-        await tester.tap(find.text('Confirm creation'));
+        await tester.tap(find.text('Confirm & Save'));
         await tester.pumpAndSettle();
         expect(
           find.text(
@@ -369,17 +429,17 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(find.text('Confirm creation'), findsNothing);
-        expect(find.text('Edit'), findsOneWidget);
-        expect(find.text('Close'), findsOneWidget);
+        expect(find.text('Confirm & Save'), findsNothing);
+        expect(find.text('Back'), findsOneWidget);
+        expect(find.byTooltip('Close assignment dialog'), findsOneWidget);
         expect(find.textContaining('private overlap detail'), findsNothing);
         expect(source.creates, backendConflict ? 1 : 0);
-        await tester.tap(find.text('Edit'));
+        await tester.tap(find.text('Back'));
         await tester.pumpAndSettle();
         await field(tester, 'Shift date (MYT)', '2026-11-09');
         source.create = (_) async => uid(90);
         await review(tester);
-        await tester.tap(find.text('Confirm creation'));
+        await tester.tap(find.text('Confirm & Save'));
         await tester.pumpAndSettle();
         expect(source.creates, backendConflict ? 2 : 1);
         expect(find.text('Confirmed ${uid(90)}'), findsOneWidget);
@@ -395,14 +455,14 @@ void main() {
       await fill(tester);
       await review(tester);
       for (final text in [
-        'Company: Authorized company',
-        'Job: QA Assistant',
-        'Worker: Synthetic worker',
+        'Authorized company',
+        'QA Assistant',
+        'Synthetic worker',
       ]) {
         expect(find.text(text), findsOneWidget);
       }
       expect(source.creates, 0);
-      await tester.tap(find.text('Confirm creation'));
+      await tester.tap(find.text('Confirm & Save'));
       await tester.pumpAndSettle();
       expect(source.creates, 1);
       expect(
@@ -459,7 +519,7 @@ void main() {
     pending.completeError(Exception('offline private details'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Check your connection'), findsOneWidget);
-    expect(find.text('Review assignment'), findsNothing);
+    expect(find.text('Review Shift'), findsNothing);
     source.jobs = (_) async => complete([]);
     await tester.tap(find.text('Retry loading applications'));
     await tester.pumpAndSettle();
@@ -477,7 +537,7 @@ void main() {
           complete([assignment(company: true)..['application_id'] = uid(4)]);
       await show(tester);
       await fill(tester);
-      expect(find.text('Review assignment'), findsOneWidget);
+      expect(find.text('Review Shift'), findsOneWidget);
       expect(
         find.textContaining('Applications with any existing assignment'),
         findsNothing,
@@ -502,8 +562,8 @@ void main() {
         expect(source.creates, 1);
         await show(tester, applicationId: scoped ? uid(4) : null);
         if (!scoped) await select(tester);
-        expect(find.text('Review assignment'), findsNothing);
-        expect(find.text('Confirm creation'), findsNothing);
+        expect(find.text('Review Shift'), findsNothing);
+        expect(find.text('Confirm & Save'), findsNothing);
         expect(find.text('Check current assignment'), findsOneWidget);
         await tester.tap(find.text('Check current assignment'));
         await tester.pumpAndSettle();
@@ -531,12 +591,12 @@ void main() {
     await show(tester);
     await fill(tester);
     await review(tester);
-    await tester.tap(find.text('Confirm creation'));
+    await tester.tap(find.text('Confirm & Save'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(source.creates, 1);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
-    expect(find.text('Confirm creation'), findsNothing);
+    expect(find.text('Confirm & Save'), findsNothing);
     final button = tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, 'Check current assignment'),
     );
@@ -555,7 +615,7 @@ void main() {
       await show(tester);
       await fill(tester);
       await review(tester);
-      await tester.tap(find.text('Confirm creation'));
+      await tester.tap(find.text('Confirm & Save'));
       await tester.pumpAndSettle();
       expect(
         find.textContaining('Assignment was not created.'),
@@ -564,7 +624,7 @@ void main() {
       expect(find.textContaining('private backend details'), findsNothing);
       expect(source.creates, 1);
       source.create = (_) async => uid(90);
-      await tester.tap(find.text('Confirm creation'));
+      await tester.tap(find.text('Confirm & Save'));
       await tester.pumpAndSettle();
       expect(source.creates, 2);
     },
@@ -577,13 +637,13 @@ void main() {
       await show(tester);
       await fill(tester);
       await review(tester);
-      await tester.tap(find.text('Confirm creation'));
+      await tester.tap(find.text('Confirm & Save'));
       await tester.pumpAndSettle();
       expect(
         find.textContaining('Creation outcome is uncertain.'),
         findsOneWidget,
       );
-      expect(find.text('Confirm creation'), findsNothing);
+      expect(find.text('Confirm & Save'), findsNothing);
       await tester.tap(find.text('Check current assignment'));
       await tester.pumpAndSettle();
       expect(source.creates, 1);
@@ -602,7 +662,7 @@ void main() {
       await show(tester);
       await fill(tester);
       await review(tester);
-      await tester.tap(find.text('Confirm creation'));
+      await tester.tap(find.text('Confirm & Save'));
       await tester.pump();
       source.account(null);
       await tester.pump();
@@ -611,7 +671,7 @@ void main() {
       pending.complete(uid(90));
       await tester.pumpAndSettle();
       expect(find.text('Confirmed ${uid(90)}'), findsNothing);
-      expect(find.text('Confirm creation'), findsNothing);
+      expect(find.text('Confirm & Save'), findsNothing);
     },
   );
 
@@ -624,7 +684,7 @@ void main() {
       await fill(tester);
       await review(tester);
       gateway.statusHandler = (_) => pending.future;
-      await tester.tap(find.text('Confirm creation'));
+      await tester.tap(find.text('Confirm & Save'));
       await tester.pump();
       source.account(null);
       await tester.pump();
@@ -632,7 +692,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(source.reservations, 0);
       expect(source.creates, 0);
-      expect(find.text('Confirm creation'), findsNothing);
+      expect(find.text('Confirm & Save'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -640,7 +700,7 @@ void main() {
   testWidgets('dirty close requires confirmation', (tester) async {
     await show(tester);
     await select(tester);
-    await tester.tap(find.text('Close'));
+    await tester.tap(find.byTooltip('Close assignment dialog'));
     await tester.pumpAndSettle();
     expect(find.text('Your unsaved input will be lost.'), findsOneWidget);
     await tester.tap(find.text('Stay'));
@@ -649,12 +709,17 @@ void main() {
     expect(source.creates, 0);
   });
 
-  for (final (width, scale) in [(360.0, 1.0), (360.0, 2.0), (1200.0, 1.0)]) {
+  for (final (width, scale) in [
+    (320.0, 1.6),
+    (360.0, 1.0),
+    (360.0, 2.0),
+    (1200.0, 1.0),
+  ]) {
     testWidgets('responsive form ${width}px text $scale', (tester) async {
       await show(tester, width: width, scale: scale);
       await fill(tester);
       await review(tester);
-      expect(find.text('Confirm creation'), findsOneWidget);
+      expect(find.text('Confirm & Save'), findsOneWidget);
       expect(tester.takeException(), isNull);
       expect(source.creates, 0);
     });
@@ -700,7 +765,7 @@ void main() {
       await tester.pumpAndSettle();
       await fill(tester);
       await review(tester);
-      await tester.tap(find.text('Confirm creation'));
+      await tester.tap(find.text('Confirm & Save'));
       await tester.pumpAndSettle();
       expect(find.text('New QA shift'), findsOneWidget);
       expect(find.byKey(ValueKey(uid(90))), findsOneWidget);

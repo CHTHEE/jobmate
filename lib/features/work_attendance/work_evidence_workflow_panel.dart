@@ -11,7 +11,8 @@ import 'work_evidence_repository.dart';
 import 'work_evidence_upload_repository.dart';
 import 'work_evidence_workflow.dart';
 import 'work_evidence_deadline.dart';
-import 'work_status_presentation.dart';
+import 'work_attendance_lifecycle.dart';
+import 'work_shift_ui.dart';
 
 class WorkEvidenceWorkflowPanel extends StatefulWidget {
   const WorkEvidenceWorkflowPanel({
@@ -21,6 +22,7 @@ class WorkEvidenceWorkflowPanel extends StatefulWidget {
     this.pickFiles,
     this.createUploads,
     this.ledger,
+    this.workerName,
   });
   final WorkEvidenceRepository viewer;
   final WorkEvidenceWorkflowSource source;
@@ -28,6 +30,7 @@ class WorkEvidenceWorkflowPanel extends StatefulWidget {
   final WorkEvidenceUploadRepository Function(WorkEvidenceDraftController)?
   createUploads;
   final WorkEvidenceWorkflowLedger? ledger;
+  final String? workerName;
   @override
   State<WorkEvidenceWorkflowPanel> createState() =>
       _WorkEvidenceWorkflowPanelState();
@@ -96,6 +99,25 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
               listenable: Listenable.merge([controller, draft, completed]),
               builder: (context, _) => WorkEvidenceDraftPage(
                 controller: draft,
+                workflowTitle: additional
+                    ? 'Resubmit work evidence'
+                    : 'Submit work evidence',
+                workflowContext: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Submission round: ${initialRound + 1}'),
+                    if (additional)
+                      if (controller.snapshot?.history
+                              .where(
+                                (e) => e.action == 'more_evidence_requested',
+                              )
+                              .lastOrNull
+                          case final feedback?)
+                        Text(
+                          'Employer feedback: ${feedback.note ?? 'Review the requested changes.'}',
+                        ),
+                  ],
+                ),
                 workflowLocked:
                     controller.newWriteBlocked ||
                     controller.snapshot?.canSubmit != true ||
@@ -182,7 +204,12 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
       final decision = await showDialog<String>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => _ReviewDialog(controller: controller),
+        builder: (_) => _ReviewDialog(
+          controller: controller,
+          summary: widget.viewer.assignment == null
+              ? ''
+              : '${widget.workerName ?? 'Assigned worker'} · ${widget.viewer.assignment!.jobTitle} · ${shiftDateLabel(widget.viewer.assignment!.scheduledStart)} · ${shiftTimeRange(widget.viewer.assignment!.scheduledStart, widget.viewer.assignment!.scheduledEnd)}',
+        ),
       );
       if (mounted && decision != null && controller.current) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -243,26 +270,52 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (state != null)
-                WorkStatusBanner(
-                  stage: WorkStage.fromStatuses(
-                    state.assignmentStatus,
-                    state.verificationStatus,
-                    checkedOut: state.attendanceComplete,
-                  ),
-                  employer: widget.viewer.employer,
-                )
-              else
-                Text(
-                  'Evidence and verification',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+              // Assignment lifecycle (including server attendance_as_of) is
+              // presented by the page summary. Workflow status controls evidence
+              // eligibility only; a raw scheduled row is not a future-shift label.
+              Text(
+                'Evidence and verification',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               if (state != null && widget.viewer.assignment != null)
-                EvidenceDeadlineSummary(
-                  assignment: widget.viewer.assignment!,
-                  assignmentStatus: state.assignmentStatus,
-                  verificationStatus: state.verificationStatus,
-                ),
+                if (state.verificationStatus == WorkVerificationStatus.verified)
+                  const Text(
+                    'No submission required. Evidence has been verified; work verification does not confirm payment.',
+                  )
+                else if (widget.viewer.assignment!.effectiveCheckOutAt == null)
+                  Text(
+                    AttendanceLifecycle.of(widget.viewer.assignment!) ==
+                            AttendanceLifecycle.missed
+                        ? 'Attendance resolution is required. No evidence submission is due without completed attendance.'
+                        : widget.viewer.assignment!.resolution?.decision ==
+                              'confirmed_absent'
+                        ? 'Absence is confirmed. No evidence submission is required.'
+                        : 'Evidence submission follows completed attendance. No submission is due yet.',
+                  )
+                else if (widget.viewer.employer)
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    title: const Text('Advisory evidence timing'),
+                    children: [
+                      EvidenceDeadlineSummary(
+                        assignment: widget.viewer.assignment!,
+                        assignmentStatus: state.assignmentStatus,
+                        verificationStatus: state.verificationStatus,
+                      ),
+                    ],
+                  )
+                else
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    title: const Text('Advisory evidence timing'),
+                    children: [
+                      EvidenceDeadlineSummary(
+                        assignment: widget.viewer.assignment!,
+                        assignmentStatus: state.assignmentStatus,
+                        verificationStatus: state.verificationStatus,
+                      ),
+                    ],
+                  ),
               if (controller.loading) const LinearProgressIndicator(),
               if (controller.message != null &&
                   ![
@@ -281,6 +334,20 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                     'An earlier action is unresolved. Refresh to check its status. Do not submit a replacement; contact support if it remains unresolved.',
                   ),
                 const SizedBox(height: 12),
+                if (state.verificationStatus != WorkVerificationStatus.verified)
+                  AttendanceStatusBadge(
+                    label:
+                        state.verificationStatus ==
+                            WorkVerificationStatus.moreEvidenceRequired
+                        ? 'More evidence required — action needed'
+                        : state.verificationStatus ==
+                              WorkVerificationStatus.pendingReview
+                        ? (widget.viewer.employer
+                              ? 'Pending review — evidence needs review'
+                              : 'Pending review — waiting for employer')
+                        : 'Verification: ${state.verificationStatus == WorkVerificationStatus.verified ? 'Verified' : 'Not submitted'}',
+                    tone: verificationTone(state.verificationStatus),
+                  ),
                 Text('Latest submission round: ${state.round}'),
                 if (state.verificationStatus.name == 'verified') ...[
                   Text(
@@ -290,7 +357,17 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                           .where((e) => e.action == 'verified')
                           .lastOrNull
                       case final event?)
-                    Text('Verified at: ${_time(event.at)}'),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Verified at: ${_time(event.at)}'),
+                        if (widget.viewer.employer)
+                          ExpansionTile(
+                            title: const Text('Reviewer audit identity'),
+                            children: [SelectableText(event.actorId)],
+                          ),
+                      ],
+                    ),
                 ],
                 if (state.verificationStatus.name == 'moreEvidenceRequired')
                   if (state.history
@@ -301,7 +378,10 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                       margin: const EdgeInsets.symmetric(vertical: 12),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer,
+                        color: attendanceToneColors(
+                          context,
+                          AttendanceTone.pending,
+                        ).$1,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
@@ -311,9 +391,10 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                             'Employer feedback',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onPrimaryContainer,
+                              color: attendanceToneColors(
+                                context,
+                                AttendanceTone.pending,
+                              ).$2,
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -321,9 +402,10 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                             feedback.note ??
                                 'Review the requested changes below.',
                             style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onPrimaryContainer,
+                              color: attendanceToneColors(
+                                context,
+                                AttendanceTone.pending,
+                              ).$2,
                             ),
                           ),
                         ],
@@ -337,6 +419,20 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                     state.canSubmit &&
                     state.pendingAttempt == null)
                   FilledButton(
+                    style:
+                        state.verificationStatus ==
+                            WorkVerificationStatus.moreEvidenceRequired
+                        ? FilledButton.styleFrom(
+                            backgroundColor: attendanceToneColors(
+                              context,
+                              AttendanceTone.pending,
+                            ).$1,
+                            foregroundColor: attendanceToneColors(
+                              context,
+                              AttendanceTone.pending,
+                            ).$2,
+                          )
+                        : null,
                     onPressed: _opening || controller.newWriteBlocked
                         ? null
                         : _submit,
@@ -470,7 +566,8 @@ Future<bool> _confirm(
     true;
 
 class _ReviewDialog extends StatefulWidget {
-  const _ReviewDialog({required this.controller});
+  const _ReviewDialog({required this.controller, required this.summary});
+  final String summary;
   final WorkEvidenceWorkflowController controller;
   @override
   State<_ReviewDialog> createState() => _ReviewDialogState();
@@ -481,6 +578,7 @@ class _ReviewDialogState extends State<_ReviewDialog> {
   late final round = widget.controller.snapshot?.round;
   bool confirming = false, started = false, leaving = false;
   String? error;
+  bool? decision;
   late final StreamSubscription<String?> _account;
   @override
   void initState() {
@@ -518,20 +616,21 @@ class _ReviewDialogState extends State<_ReviewDialog> {
       setState(() => error = 'Enter a reason of 1–1,000 characters.');
       return;
     }
-    setState(() => confirming = true);
-    final yes = await _confirm(
-      context,
-      verify ? 'Verify work?' : 'Request more evidence?',
-      verify
-          ? 'Confirm you reviewed the files for submission round $round and approve this work.'
-          : reason.text.trim(),
-      controller: widget.controller,
-    );
-    if (!mounted) return;
-    setState(() => confirming = false);
-    if (!yes ||
-        !widget.controller.current ||
+    if (!widget.controller.current ||
         widget.controller.snapshot?.round != round) {
+      return;
+    }
+    setState(() => decision = verify);
+  }
+
+  Future<void> _commitDecision() async {
+    final verify = decision;
+    if (verify == null ||
+        started ||
+        widget.controller.busy ||
+        !widget.controller.current ||
+        widget.controller.snapshot?.round != round ||
+        widget.controller.snapshot?.canReview != true) {
       return;
     }
     setState(() => started = true);
@@ -567,26 +666,58 @@ class _ReviewDialogState extends State<_ReviewDialog> {
           if (!didPop) _close();
         },
         child: AlertDialog(
-          title: Text('Review submission round $round'),
+          title: Text(
+            decision == null
+                ? 'Review submission round $round'
+                : decision!
+                ? 'Confirm work verification'
+                : 'Confirm evidence request',
+          ),
           content: SizedBox(
             width: 480,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Open and review the latest submitted PDF/files before making a decision.',
+                  Text(
+                    c.current
+                        ? widget.summary
+                        : 'Your account changed. Close this review.',
                   ),
-                  TextField(
-                    controller: reason,
-                    enabled: enabled,
-                    minLines: 3,
-                    maxLines: 6,
-                    decoration: InputDecoration(
-                      labelText: 'Reason for requesting more evidence',
-                      errorText: error,
+                  if (decision != null) ...[
+                    Text('Submission round: $round'),
+                    Text(
+                      decision!
+                          ? 'Action: Verify work'
+                          : 'Action: Request more evidence',
                     ),
-                  ),
+                    if (!decision!) Text('Reason: ${reason.text.trim()}'),
+                    const Text(
+                      'Confirm the reviewed submission. Work verification does not approve payment.',
+                    ),
+                  ] else ...[
+                    const Text(
+                      'Open and review the latest submitted evidence files before making a decision',
+                    ),
+                    TextField(
+                      controller: reason,
+                      onChanged: (_) => setState(
+                        () => error = reason.text.trim().runes.length > 1000
+                            ? 'Use at most 1,000 characters.'
+                            : null,
+                      ),
+                      enabled: enabled,
+                      minLines: 3,
+                      maxLines: 6,
+                      decoration: InputDecoration(
+                        label: const RequiredFieldLabel(
+                          'Reason for requesting more evidence',
+                        ),
+                        errorText: error,
+                      ),
+                    ),
+                  ],
                   if (c.message != null) Text(c.message!),
                   if (c.busy) const LinearProgressIndicator(),
                 ],
@@ -598,13 +729,30 @@ class _ReviewDialogState extends State<_ReviewDialog> {
               onPressed: c.busy || confirming ? null : _close,
               child: const Text('Close'),
             ),
-            OutlinedButton(
-              onPressed: enabled ? () => _decide(false) : null,
-              child: const Text('Request more evidence'),
-            ),
+            if (decision != null)
+              TextButton(
+                onPressed: enabled
+                    ? () => setState(() => decision = null)
+                    : null,
+                child: const Text('Edit'),
+              ),
+            if (decision == null)
+              OutlinedButton(
+                onPressed:
+                    enabled &&
+                        reason.text.trim().isNotEmpty &&
+                        reason.text.trim().runes.length <= 1000
+                    ? () => _decide(false)
+                    : null,
+                child: const Text('Request more evidence'),
+              ),
             FilledButton(
-              onPressed: enabled ? () => _decide(true) : null,
-              child: const Text('Verify work'),
+              onPressed: enabled
+                  ? (decision == null ? () => _decide(true) : _commitDecision)
+                  : null,
+              child: Text(
+                decision == false ? 'Request more evidence' : 'Verify work',
+              ),
             ),
           ],
         ),
@@ -621,9 +769,7 @@ String _action(String value) => switch (value) {
   _ => 'Work disputed',
 };
 String _time(DateTime value) {
-  final t = value.toUtc().add(const Duration(hours: 8));
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${two(t.day)}/${two(t.month)}/${t.year} ${two(t.hour)}:${two(t.minute)} MYT';
+  return '${shiftDateLabel(value)} ${shiftTimeLabel(value)} MYT';
 }
 
 class _HistoryTile extends StatelessWidget {

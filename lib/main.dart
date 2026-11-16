@@ -329,11 +329,7 @@ GoRouter _createRouter() {
         (_, _) =>
             const Module2Gate(role: 'job_seeker', child: RecommendationsPage()),
       ),
-      _appRoute(
-        AppRoutes.attendanceHistory,
-        (_, _) =>
-            const Module2Gate(role: 'job_seeker', child: AttendanceListPage()),
-      ),
+      workAttendanceRoute(history: true),
       workAttendanceRoute(),
       workVerificationRoute(),
       workAttendanceRoute(evidence: true),

@@ -10,6 +10,16 @@ import 'package:jobmate/shared/widgets/app_workspace.dart';
 import 'support/workspace_navigation_test_helper.dart';
 
 void main() {
+  test('employer keeps real verification and hides only attendance demo navigation', () {
+    final paths = workspaceDestinations('employer').values
+        .expand((items) => items)
+        .map((item) => item.$1);
+    expect(paths, contains(AppRoutes.workVerification));
+    expect(paths, isNot(contains(AppRoutes.attendanceReview)));
+    expect(paths, contains(AppRoutes.workers));
+    expect(paths, contains(AppRoutes.employerPayments));
+  });
+
   test(
     'Admin destinations follow assigned permissions and hide unavailable modules',
     () {

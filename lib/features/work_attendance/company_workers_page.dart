@@ -111,6 +111,24 @@ class _CompanyWorkersPageState extends State<CompanyWorkersPage> {
               ),
               const SizedBox(height: 8),
               const Text('Your hired team, their jobs and verified work.'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  const Chip(label: Text('Workers')),
+                  TextButton.icon(
+                    onPressed: () => context.go(AppRoutes.workVerification),
+                    icon: const Icon(Icons.fact_check_outlined),
+                    label: const Text('Attendance & verification'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => context.go(AppRoutes.employerPayments),
+                    icon: const Icon(Icons.receipt_long_outlined),
+                    label: const Text('Payment Handling (sandbox)'),
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
               if (_repository.loading)
                 const Center(
@@ -532,6 +550,7 @@ class _WorkerProfileCardState extends State<_WorkerProfileCard> {
                     _WorkerStat(
                       label: 'Verified Shifts',
                       count: worker.verifiedShifts!,
+                      verified: true,
                     ),
                   ],
                 ),
@@ -551,9 +570,14 @@ class _WorkerProfileCardState extends State<_WorkerProfileCard> {
 }
 
 class _WorkerStat extends StatelessWidget {
-  const _WorkerStat({required this.label, required this.count});
+  const _WorkerStat({
+    required this.label,
+    required this.count,
+    this.verified = false,
+  });
   final String label;
   final int count;
+  final bool verified;
   @override
   Widget build(BuildContext context) => Semantics(
     label: '$label: $count',
@@ -561,7 +585,12 @@ class _WorkerStat extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('$count', style: Theme.of(context).textTheme.titleLarge),
+        Text(
+          '$count',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: verified ? Theme.of(context).colorScheme.secondary : null,
+          ),
+        ),
         Text(label, style: Theme.of(context).textTheme.labelSmall),
       ],
     ),

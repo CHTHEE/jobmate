@@ -50,14 +50,33 @@ class SupabaseWorkAttendanceSource implements WorkAttendanceSource {
 
   @override
   Future<List<Map<String, dynamic>>> listMyAssignments() =>
-      _read('list_my_work_assignments');
+      _assignmentRead('list_my_work_assignments');
 
   @override
   Future<List<Map<String, dynamic>>> listCompanyAssignments(String companyId) =>
-      _read(
+      _assignmentRead(
         'list_company_work_assignments',
         params: {'p_company_id': workUuid(companyId)},
       );
+
+  Future<List<Map<String, dynamic>>> _assignmentRead(
+    String name, {
+    Map<String, dynamic>? params,
+  }) async {
+    final actor = userId;
+    try {
+      final rows = await _read('${name}_lifecycle', params: params);
+      if (rows.any((row) => row['attendance_as_of'] == null)) {
+        throw const FormatException('Missing server attendance time.');
+      }
+      return rows;
+    } on PostgrestException catch (error) {
+      // Backward-compatible rollout only for an absent additive RPC. Never
+      // fall back on a permission error, malformed response or network failure.
+      if (error.code != 'PGRST202' || userId != actor) rethrow;
+      return _read(name, params: params);
+    }
+  }
 
   @override
   Future<List<Map<String, dynamic>>> listEvidence(String assignmentId) => _read(
@@ -354,6 +373,7 @@ String attendanceActionError(Object failure) {
       'You must check in before checking out.',
       'You have already checked out.',
       'Check-out cannot precede check-in.',
+      'Checkout recovery window ended. Ask your employer to review attendance.',
     };
     if (serverMessages.contains(failure.message)) return failure.message;
     if (failure.code == '42501') {
