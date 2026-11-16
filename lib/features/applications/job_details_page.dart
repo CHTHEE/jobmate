@@ -4,10 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
-import '../../shared/widgets/design_primitives.dart';
 import '../jobs/job_display.dart';
 import 'module2_repository.dart';
 import 'module2_widgets.dart';
+import 'job_details_presentation.dart';
+import 'job_marketplace_format.dart';
 import 'published_company_logo.dart';
 import 'job_application_form.dart';
 import 'my_applications_repository.dart';
@@ -197,6 +198,7 @@ class _JobDetailsPageState extends State<JobDetailsPage>
             ),
           ],
           child: WorkspaceContent(
+            maxWidth: 880,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -204,7 +206,7 @@ class _JobDetailsPageState extends State<JobDetailsPage>
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     onPressed: () => moduleBack(context, AppRoutes.browseJobs),
-                    icon: kIsWeb ? null : const Icon(Icons.arrow_back),
+                    icon: const Icon(Icons.arrow_back),
                     label: const Text('Back to Browse Jobs'),
                   ),
                 ),
@@ -223,37 +225,60 @@ class _JobDetailsPageState extends State<JobDetailsPage>
                     message: 'This job is unavailable or no longer published.',
                   )
                 else ...[
-                  PageHeading(title: job.title, description: job.company),
-                  WorkspaceCard(
-                    leading: PublishedCompanyLogo(
-                      job: job,
-                      repository: repo,
-                      size: 24,
-                      fallback: const Icon(Icons.business_outlined),
-                    ),
-                    title: job.title,
-                    subtitle: job.company,
+                  JobDetailCard(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (job.text('company_id').isNotEmpty)
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: PublicCompanyProfileButton(
-                              companyId: job.text('company_id'),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            PublishedCompanyLogo(
+                              job: job,
+                              repository: repo,
+                              size: 40,
                             ),
-                          ),
-                        JobFacts(job),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    job.title,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineSmall
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(job.company),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: repo.saved(job.id)
+                                  ? 'Unsave Job (this session)'
+                                  : 'Save Job (this session)',
+                              isSelected: repo.saved(job.id),
+                              onPressed: () => repo.toggleSave(job.id),
+                              icon: const Icon(Icons.bookmark_border),
+                              selectedIcon: const Icon(Icons.bookmark),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        JobInformationGrid(job),
                         const SizedBox(height: 16),
                         if (job.unavailable() case final String reason)
-                          Text(reason),
+                          Text(
+                            reason,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
                         const SizedBox(height: 12),
                         if (applicationId != null) ...[
-                          Text(
-                            existing == null
-                                ? 'Application submitted'
-                                : 'Application status: ${existing.status.label}',
-                          ),
+                          JobApplicationBanner(existing?.status),
+                          const SizedBox(height: 10),
                           Align(
                             alignment: Alignment.centerLeft,
                             child: FilledButton(
@@ -296,67 +321,73 @@ class _JobDetailsPageState extends State<JobDetailsPage>
                               ),
                             ),
                           ),
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: OutlinedButton.icon(
-                            onPressed: () => repo.toggleSave(job.id),
-                            icon: Icon(
-                              repo.saved(job.id)
-                                  ? Icons.bookmark
-                                  : Icons.bookmark_border,
+                      ],
+                    ),
+                  ),
+                  for (final entry in [
+                    ('role_overview', 'Role Overview'),
+                    ('original_description', 'Job Description'),
+                    ('responsibilities', 'Responsibilities'),
+                    ('requirements', 'Requirements'),
+                    ('benefits', 'Benefits'),
+                  ])
+                    if (JobContent.hasContent(job.fields[entry.$1]))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 14),
+                        child: JobDetailCard(
+                          title: entry.$2,
+                          child: JobContent(job.fields[entry.$1]),
+                        ),
+                      ),
+                  if (job.text('department').isNotEmpty ||
+                      job.text('published_at').isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    JobDetailCard(
+                      title: 'Additional information',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (job.text('department').isNotEmpty)
+                            Text('Department: ${job.text('department')}'),
+                          if (job.text('published_at').isNotEmpty)
+                            Text(
+                              'Published: ${marketplaceDate(job.fields['published_at'])}',
                             ),
-                            label: Text(
-                              repo.saved(job.id) ? 'Unsave Job' : 'Save Job',
-                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  JobDetailCard(
+                    title: 'About the Company',
+                    child: Row(
+                      children: [
+                        PublishedCompanyLogo(
+                          job: job,
+                          repository: repo,
+                          size: 36,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                job.company,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (job.text('company_id').isNotEmpty)
+                                PublicCompanyProfileButton(
+                                  companyId: job.text('company_id'),
+                                ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  WorkspaceCard(
-                    title: 'Role Overview',
-                    child: Text(
-                      job.text('role_overview').isEmpty
-                          ? (job.text('original_description').isEmpty
-                                ? 'Not provided'
-                                : job.text('original_description'))
-                          : job.text('role_overview'),
-                    ),
-                  ),
-                  if (job.text('original_description').isNotEmpty &&
-                      job.text('role_overview').isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 20),
-                      child: WorkspaceCard(
-                        title: 'Job Description',
-                        child: Text(job.text('original_description')),
-                      ),
-                    ),
-                  for (final key in [
-                    'responsibilities',
-                    'requirements',
-                    'benefits',
-                  ])
-                    Padding(
-                      padding: const EdgeInsets.only(top: 20),
-                      child: WorkspaceCard(
-                        title: jobLabel(key),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (job.bullets(key).isEmpty)
-                              const Text('Not provided'),
-                            for (final bullet in job.bullets(key))
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Text('• $bullet'),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
                 ],
               ],
             ),

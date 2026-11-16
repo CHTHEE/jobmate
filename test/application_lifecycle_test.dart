@@ -239,7 +239,10 @@ void main() {
           );
           await tester.pumpAndSettle();
           expect(find.text(status.label), findsWidgets);
-          expect(find.text(status.lifecycleExplanation!), findsOneWidget);
+          expect(
+            find.text(status.lifecycleExplanation!),
+            employerView ? findsNothing : findsOneWidget,
+          );
           expect(find.text('Cancel hired arrangement'), findsNothing);
           if (status != MyApplicationStatus.offered || employerView) {
             for (final action in ApplicationResponseAction.values) {

@@ -211,6 +211,7 @@ void main() {
       final pending = Completer<void>();
       source.sendUpdate = () => pending.future;
       await tester.ensureVisible(find.text('Confirm Shortlist'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Confirm Shortlist'));
       await tester.pump();
       expect(find.text('Application shortlisted'), findsNothing);
@@ -248,6 +249,8 @@ void main() {
       source.fetchApplicants = (_) async => [
         applicantRow('mock-application', status: 'offered'),
       ];
+      await tester.ensureVisible(find.text('Confirm Shortlist'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Confirm Shortlist'));
       await tester.pumpAndSettle();
       expect(find.text('Concurrent transition rejected'), findsOneWidget);
@@ -271,6 +274,8 @@ void main() {
   ) async {
     await open(tester);
     await tester.enterText(find.byType(TextField).last, 'Private note');
+    await tester.ensureVisible(find.text('Cancel'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(find.text('Discard status note?'), findsOneWidget);

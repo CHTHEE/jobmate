@@ -13,10 +13,14 @@ class ChatApplicationButton extends StatefulWidget {
     this.employer = false,
     this.enabled = true,
     this.createRepository,
+    this.navigate,
   });
   final String applicationId;
   final bool employer, enabled;
   final ChatRepository Function()? createRepository;
+
+  /// Allows a modal host to dismiss its overlay before opening the same route.
+  final Future<void> Function(String path)? navigate;
   @override
   State<ChatApplicationButton> createState() => _ChatApplicationButtonState();
 }
@@ -41,7 +45,11 @@ class _ChatApplicationButtonState extends State<ChatApplicationButton> {
       final root = widget.employer
           ? AppRoutes.employerMessages
           : AppRoutes.messages;
-      await context.push<void>('$root/$id');
+      if (widget.navigate case final navigate?) {
+        await navigate('$root/$id');
+      } else {
+        await context.push<void>('$root/$id');
+      }
     } catch (error) {
       if (mounted) {
         setState(() {

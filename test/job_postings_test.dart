@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:jobmate/features/jobs/job_ai_formatter.dart';
 
 import 'package:jobmate/features/jobs/job_validation.dart';
+import 'package:jobmate/features/jobs/job_display.dart';
 
 import 'dart:convert';
 
@@ -106,7 +107,7 @@ GoRouter testRouter(TestJobs repo, {bool dashboard = false, String? initial}) {
         path: AppRoutes.jobPostings,
         builder: (_, state) => JobPostingsPage(
           repository: repo,
-          initialStatus: state.uri.queryParameters['status'] ?? 'draft',
+          initialStatus: state.uri.queryParameters['status'] ?? 'all',
         ),
       ),
       jobFormRoute(AppRoutes.createJob, repository: repo),
@@ -126,7 +127,11 @@ String? inputLabel(TextField field) =>
             ' *',
             '',
           ))
-        : null);
+        : null) ??
+    jobExamples.entries
+        .where((entry) => entry.value == field.decoration?.hintText)
+        .map((entry) => jobLabel(entry.key))
+        .firstOrNull;
 
 Map<String, dynamic> completeJob() => {
   'title': 'Complete role',
@@ -668,7 +673,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: JobFormPage(repository: repo)));
       await tester.pumpAndSettle();
       expect(find.text('Enter department.'), findsNothing);
-      final publish = find.widgetWithText(FilledButton, 'Publish');
+      final publish = find.widgetWithText(FilledButton, 'Publish Job');
       await tester.ensureVisible(publish);
       await tester.tap(publish);
       await tester.pumpAndSettle();
@@ -684,10 +689,7 @@ void main() {
       expect(find.text('Enter department.'), findsOneWidget);
       final titleInput = tester.widget<TextField>(title);
       expect(titleInput.decoration!.errorText, isNull);
-      expect(
-        (titleInput.decoration!.label as Text).textSpan!.toPlainText(),
-        'Job title *',
-      );
+      expect(find.text('Job title *', findRichText: true), findsOneWidget);
       await tester.enterText(title, '   ');
       await tester.pumpAndSettle();
       expect(find.text('Enter job title.'), findsOneWidget);
@@ -816,12 +818,12 @@ void main() {
       addTearDown(router.dispose);
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await tester.pumpAndSettle();
-      final edit = find.widgetWithText(FilledButton, 'Edit');
+      final edit = find.widgetWithText(TextButton, 'Edit');
       await tester.ensureVisible(edit);
       await tester.tap(edit);
       await tester.pumpAndSettle();
       expect(find.text('Save Draft'), findsNothing);
-      expect(find.text('Publish'), findsNothing);
+      expect(find.text('Publish Job'), findsNothing);
       expect(
         tester.widget<TextFormField>(find.byType(TextFormField).first).enabled,
         true,
@@ -846,7 +848,7 @@ void main() {
       expect(
         tester
             .widget<ChoiceChip>(
-              find.widgetWithText(ChoiceChip, 'published (1)'),
+              find.widgetWithText(ChoiceChip, 'Published (1)'),
             )
             .selected,
         true,
@@ -877,6 +879,7 @@ void main() {
         expect(widget.textInputAction, TextInputAction.newline);
         expect(widget.maxLines, greaterThan(1));
         await tester.ensureVisible(input);
+        await tester.pumpAndSettle();
         await tester.tap(input);
         await tester.pump();
         final focus = FocusManager.instance.primaryFocus;
@@ -908,7 +911,7 @@ void main() {
       ]) {
         expect(field(tester, label).text, 'First line\nSecond line');
       }
-      final preview = find.widgetWithText(OutlinedButton, 'Preview');
+      final preview = find.widgetWithText(TextButton, 'Preview');
       await tester.ensureVisible(preview);
       await tester.tap(preview);
       await tester.pumpAndSettle();
@@ -924,7 +927,7 @@ void main() {
     },
   );
   testWidgets(
-    'Company logo appears on cards and preview and disappears on refresh when removed',
+    'Company logo appears at page level and in preview and updates on refresh',
     (tester) async {
       final bytes = base64Decode(
         'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jBz0AAAAASUVORK5CYII=',
@@ -949,7 +952,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(CompanyIdentity), findsOneWidget);
       expect(find.byType(Image), findsOneWidget);
-      final preview = find.widgetWithText(OutlinedButton, 'Preview');
+      final preview = find.widgetWithText(TextButton, 'Preview');
       await tester.ensureVisible(preview);
       await tester.tap(preview);
       await tester.pumpAndSettle();
@@ -971,7 +974,7 @@ void main() {
       await tester.tap(refresh);
       await tester.pumpAndSettle();
       expect(find.byType(Image), findsNothing);
-      expect(find.text('New company name'), findsNWidgets(2));
+      expect(find.text('New company name'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -999,7 +1002,7 @@ void main() {
           await tester.pumpAndSettle();
           await tester.enterText(find.byType(TextFormField).first, 'Engineer');
           final action = publish
-              ? find.widgetWithText(FilledButton, 'Publish')
+              ? find.widgetWithText(FilledButton, 'Publish Job')
               : find.widgetWithText(OutlinedButton, 'Save Draft');
           if (publish) {
             await tester.ensureVisible(action);
@@ -1035,7 +1038,7 @@ void main() {
                 .widget<ChoiceChip>(
                   find.widgetWithText(
                     ChoiceChip,
-                    '${publish ? 'published' : 'draft'} (1)',
+                    '${publish ? 'Published' : 'Draft'} (1)',
                   ),
                 )
                 .selected,
@@ -1163,7 +1166,7 @@ void main() {
     expect(find.text('Communication'), findsOneWidget);
     expect(find.text('Flexible hours'), findsOneWidget);
     expect(find.text('Part-time'), findsOneWidget);
-    expect(find.text('2026-11-01'), findsOneWidget);
+    expect(find.text('Published date: 1 Nov 2026'), findsOneWidget);
     expect(find.textContaining('12'), findsOneWidget);
     await tester.pumpWidget(
       MaterialApp(
@@ -1201,19 +1204,19 @@ void main() {
       MaterialApp(home: JobPostingsPage(repository: repo)),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Work arrangement: Remote'), findsOneWidget);
+    expect(find.text('Remote'), findsOneWidget);
     expect(find.text('Vacancies: 2'), findsOneWidget);
-    expect(find.text('Created: 2026-11-01'), findsOneWidget);
+    expect(find.text('Created: 1 Nov 2026'), findsOneWidget);
     expect(find.textContaining('12345'), findsNothing);
-    await tester.ensureVisible(find.widgetWithText(OutlinedButton, 'Publish'));
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Publish'));
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Publish'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish'));
     await tester.pumpAndSettle();
     expect(repo.saves, 1);
     expect(repo.records.single['status'], 'published');
     expect(find.text('Ready role'), findsOneWidget);
     expect(
       tester
-          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'published (1)'))
+          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Published (1)'))
           .selected,
       true,
     );
@@ -1230,8 +1233,8 @@ void main() {
       MaterialApp(home: JobPostingsPage(repository: repo)),
     );
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.widgetWithText(OutlinedButton, 'Publish'));
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Publish'));
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Publish'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Publish'));
     await tester.pumpAndSettle();
     expect(repo.saves, 0);
     expect(find.textContaining('Use Edit Draft'), findsOneWidget);
@@ -1265,8 +1268,8 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Edit Draft'), findsOneWidget);
-    await tester.ensureVisible(find.text('published (1)'));
-    await tester.tap(find.text('published (1)'));
+    await tester.ensureVisible(find.text('Published (1)'));
+    await tester.tap(find.text('Published (1)'));
     await tester.pumpAndSettle();
     expect(find.text('Live role'), findsOneWidget);
     await tester.ensureVisible(find.text('Close Job'));
@@ -1274,8 +1277,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Close Job'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('closed (2)'));
-    await tester.tap(find.text('closed (2)'));
+    await tester.ensureVisible(find.text('Closed (2)'));
+    await tester.tap(find.text('Closed (2)'));
     await tester.pumpAndSettle();
     expect(find.text('Live role'), findsOneWidget);
     expect(find.text('Edit Draft'), findsNothing);

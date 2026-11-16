@@ -8,7 +8,7 @@ import '../../shared/widgets/responsive_layout.dart';
 import '../jobs/job_display.dart';
 import 'module2_repository.dart';
 import 'module2_widgets.dart';
-import 'job_details_page.dart';
+import 'browse_job_card.dart';
 import 'published_company_logo.dart';
 
 class BrowseJobsPage extends StatefulWidget {
@@ -24,6 +24,7 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
   final location = TextEditingController();
   String type = '', arrangement = '', sort = 'Newest';
   bool savedOnly = false;
+  bool filtersExpanded = false;
   @override
   void initState() {
     super.initState();
@@ -71,6 +72,7 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
           ),
         ],
         child: WorkspaceContent(
+          maxWidth: 880,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -78,62 +80,72 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                 title: 'Find your next opportunity',
                 description: 'Explore published jobs and find your next role.',
               ),
-              TextField(
-                controller: search,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  labelText: 'Search title, company or keywords',
-                  prefixIcon: Icon(Icons.search),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 16,
+              Row(
                 children: [
-                  ModuleSelect(
-                    label: 'Employment type',
-                    value: type,
-                    options: {
-                      '': 'All types',
-                      for (final v in [
-                        'full_time',
-                        'part_time',
-                        'contract',
-                        'internship',
-                        'temporary',
-                      ])
-                        v: jobLabel(v),
-                    },
-                    onChanged: (v) => setState(() => type = v),
-                  ),
-                  ModuleSelect(
-                    label: 'Work arrangement',
-                    value: arrangement,
-                    options: {
-                      '': 'All arrangements',
-                      for (final v in ['on_site', 'hybrid', 'remote'])
-                        v: jobLabel(v),
-                    },
-                    onChanged: (v) => setState(() => arrangement = v),
-                  ),
-                  ResponsiveFilter(
+                  Expanded(
                     child: TextField(
-                      controller: location,
+                      controller: search,
                       onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(labelText: 'Location'),
+                      decoration: const InputDecoration(
+                        labelText: 'Search title, company or keywords',
+                        prefixIcon: Icon(Icons.search),
+                      ),
                     ),
                   ),
-                  ModuleSelect(
-                    label: 'Sort',
-                    value: sort,
-                    options: {
-                      for (final v in ['Newest', 'Title', 'Deadline']) v: v,
-                    },
-                    onChanged: (v) => setState(() => sort = v),
+                  const SizedBox(width: 12),
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        setState(() => filtersExpanded = !filtersExpanded),
+                    icon: Icon(
+                      filtersExpanded ? Icons.expand_less : Icons.tune,
+                    ),
+                    label: const Text('Filters'),
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
+              if (filtersExpanded)
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 16,
+                  children: [
+                    ModuleSelect(
+                      label: 'Employment type',
+                      value: type,
+                      options: {
+                        '': 'All types',
+                        for (final v in [
+                          'full_time',
+                          'part_time',
+                          'contract',
+                          'internship',
+                          'temporary',
+                        ])
+                          v: jobLabel(v),
+                      },
+                      onChanged: (v) => setState(() => type = v),
+                    ),
+                    ModuleSelect(
+                      label: 'Work arrangement',
+                      value: arrangement,
+                      options: {
+                        '': 'All arrangements',
+                        for (final v in ['on_site', 'hybrid', 'remote'])
+                          v: jobLabel(v),
+                      },
+                      onChanged: (v) => setState(() => arrangement = v),
+                    ),
+                    ResponsiveFilter(
+                      child: TextField(
+                        controller: location,
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(
+                          labelText: 'Location',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               Wrap(
                 spacing: 12,
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -143,13 +155,34 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                     selected: savedOnly,
                     onSelected: (v) => setState(() => savedOnly = v),
                   ),
-                  TextButton(
-                    onPressed: clear,
-                    child: const Text('Clear filters'),
-                  ),
+                  if (type.isNotEmpty)
+                    InputChip(
+                      label: Text(jobLabel(type)),
+                      onDeleted: () => setState(() => type = ''),
+                    ),
+                  if (arrangement.isNotEmpty)
+                    InputChip(
+                      label: Text(jobLabel(arrangement)),
+                      onDeleted: () => setState(() => arrangement = ''),
+                    ),
+                  if (location.text.isNotEmpty)
+                    InputChip(
+                      label: Text(location.text),
+                      onDeleted: () => setState(location.clear),
+                    ),
+                  if (search.text.isNotEmpty ||
+                      location.text.isNotEmpty ||
+                      type.isNotEmpty ||
+                      arrangement.isNotEmpty ||
+                      savedOnly ||
+                      sort != 'Newest')
+                    TextButton(
+                      onPressed: clear,
+                      child: const Text('Clear filters'),
+                    ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               if (repo.loading || (!repo.loaded && repo.error == null))
                 const Center(child: CircularProgressIndicator())
               else if (repo.error != null)
@@ -160,8 +193,31 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                   actionLabel: 'Retry',
                 )
               else
-                Text('${jobs.length} results'),
-              const SizedBox(height: 16),
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 16,
+                  runSpacing: 12,
+                  children: [
+                    Text('${jobs.length} results'),
+                    Semantics(
+                      label: 'Sort jobs',
+                      child: DropdownButton<String>(
+                        value: sort,
+                        underline: const SizedBox.shrink(),
+                        items: [
+                          for (final value in ['Newest', 'Title', 'Deadline'])
+                            DropdownMenuItem(value: value, child: Text(value)),
+                        ],
+                        onChanged: (value) {
+                          if (value != null) setState(() => sort = value);
+                        },
+                        hint: const Text('Sort'),
+                      ),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 8),
               if (repo.loaded && jobs.isEmpty)
                 ModuleState(
                   title: repo.jobs.isEmpty
@@ -175,54 +231,18 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                 ),
               for (final job in jobs)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: WorkspaceCard(
-                    title: job.title,
-                    leading: PublishedCompanyLogo(job: job, repository: repo),
-                    subtitle: job.company,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        JobFacts(job),
-                        const SizedBox(height: 12),
-                        Text(
-                          job.text('role_overview').isEmpty
-                              ? job.text('original_description')
-                              : job.text('role_overview'),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (job.unavailable() case final String reason)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 12),
-                            child: Text(reason),
-                          ),
-                        const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: [
-                            FilledButton(
-                              onPressed: () => context.push(
-                                '${AppRoutes.browseJobs}/${job.id}',
-                              ),
-                              child: const Text('View Details'),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () => repo.toggleSave(job.id),
-                              icon: Icon(
-                                repo.saved(job.id)
-                                    ? Icons.bookmark
-                                    : Icons.bookmark_border,
-                              ),
-                              label: Text(
-                                repo.saved(job.id) ? 'Unsave' : 'Save',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: BrowseJobCard(
+                    job: job,
+                    logo: PublishedCompanyLogo(
+                      job: job,
+                      repository: repo,
+                      size: 32,
                     ),
+                    saved: repo.saved(job.id),
+                    onSave: () => repo.toggleSave(job.id),
+                    onDetails: () =>
+                        context.push('${AppRoutes.browseJobs}/${job.id}'),
                   ),
                 ),
             ],

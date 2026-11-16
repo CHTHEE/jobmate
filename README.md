@@ -1791,6 +1791,87 @@ Storage permissions and physical Android behavior require manual verification.
 
 ## 6. Testing Checklist
 
+Browse Jobs uses compact, description-free listing cards with session-only
+bookmark controls, semantic employment badges and existing salary disclosure.
+Employment type, arrangement and location filters expand through **Filters**;
+active filters remain visible when collapsed. Result counts and the existing
+Newest / Title / Deadline sorting remain available below search. Browse and
+production Job Details now use centered content up to 880 logical pixels. Cards
+combine secondary metadata and View Details on desktop and wrap at narrow widths
+without fixed heights. Salary uses thousands separators and stored pay periods,
+without assuming a currency; readable dates retain the existing parsing semantics.
+Job Details has one hero, a responsive two-column information grid, independent
+application-status and deadline messages, populated content sections and the
+existing public Company profile action. Application eligibility, session saves,
+demo recommendations and Location presentation remain unchanged.
+Focused validation includes `test/browse_job_card_test.dart` and
+`test/job_marketplace_refinement_test.dart`, together with existing published-jobs
+and application-status tests; browser and Android device acceptance are separate.
+
+Employer My Job Postings uses the same 880-pixel content limit, with one company
+identity, four company-scoped summary counts, search before All / Published /
+Draft / Closed filters, compact metadata and a separate action footer. Fresh
+visits default to All; explicit status URLs and form-return statuses retain their
+selection. Counts cover the loaded company catalogue, independent of search.
+An expired deadline remains a warning on a Published posting and does not close it.
+Existing authorization, Publish validation, Close confirmation, Preview and
+View Applicants routes are unchanged; View Applicants remains available for all
+three persisted statuses. No currency or applicant totals are inferred.
+Focused checks: `test/employer_job_postings_refinement_test.dart` and
+`test/job_postings_test.dart`. Create/Edit and Preview presentation are outside
+this Phase 2A refinement.
+
+Phase 2B refines the shared Create/Edit form with the same 880-pixel content
+limit, tinted section headers, external required-field labels and employment
+type chips (including Internship). Compensation contains salary range/period,
+Vacancies, disclosure and a live display preview. Company identity stays locked
+to the existing membership; the verified badge requires the actual verified
+company state. Published edits use Save Changes instructions; drafts retain
+Save Draft and Publish Job. Existing validation, AI replacement/review and route
+exit guards are unchanged. The read-only Preview shows current unsaved values,
+compact metadata, a visible scrollbar, Close/Back controls and the separate
+Employer Original description; it has no Apply action. Posting footers use a
+soft-teal Applicants action, icon secondary actions and desktop-right Close Job.
+Focused coverage adds `test/employer_job_form_refinement_test.dart`. Browser and
+physical Android acceptance, including keyboard and route history, remain manual.
+
+Phase 3A refines the Employer View Applicants overview at the same 880-pixel
+content width. A single posting remains mandatory; the authorized source does
+not provide all-job aggregation. Compact All / Active / Completed cards also
+serve as filters; their counts and the status-selector counts use the complete
+loaded list for the selected job, independent of search. Active and Completed
+retain `MyApplicationStatus.completed` semantics. Applicant cards show existing
+identity, local applied time, resume availability and cover note,
+with the existing Profile, Resume, Message and permitted recruitment actions in
+a tinted footer. Internal application IDs and generic lifecycle explanations are
+omitted from overview cards; existing lifecycle restrictions and explanations in
+other views remain unchanged. Hired does not imply completed shifts or a supported
+termination action. Matching-result text uses singular for one application. No overview
+skills, ratings or reputation source is introduced. Profile and recruitment
+dialog internals, repositories and backend contracts remain unchanged.
+Focused coverage adds `test/employer_applicant_overview_refinement_test.dart`.
+
+Phase 3B presents Applicant Profile in a responsive 640-pixel modal with a stable
+header/footer, visible scrollbar, application identity/status and local applied
+time from the authorized overview row. The existing application-scoped profile
+RPC remains unchanged. About, Skills (including proficiency), Education, Work
+experience, Languages, Weekly availability and Certifications use compact
+sections; empty data is distinguished from failed or unavailable reads. The real
+cover note appears separately as Application note. No IDs, reputation scores,
+ratings or review counts are displayed. The modal binds to the overview account,
+company and job context and discards stale profile results after context changes.
+Its Resume action reuses `EmployerResumeButton` and the existing browser-tab
+signing flow. Message Applicant reuses the existing lazy chat handler with an
+optional navigation callback that dismisses the modal before opening the same
+conversation route; ordinary overview/worker chat buttons keep their navigation.
+Recruitment dialogs retain Shortlist, Move to Interview, Make Offer and Reject,
+with the original confirmations, optional 2,000-character note, dirty-note guard,
+session checks and authoritative refresh. Make Offer still requires worker
+acceptance before Hired; no employer Hire action is added. The Phase 3A overview
+remains free of IDs and generic lifecycle paragraphs. Focused coverage adds
+`test/employer_profile_recruitment_dialog_test.dart`. Browser/new-tab and physical
+Android acceptance remain separate manual checks; no backend changes are needed.
+
 Run checks appropriate to the change from the project root:
 
 ```sh

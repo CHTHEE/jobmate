@@ -8,7 +8,7 @@ import '../../shared/widgets/design_primitives.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import 'job_postings_repository.dart';
 import 'job_preview.dart';
-import 'job_display.dart';
+import 'employer_job_card.dart';
 import 'job_validation.dart';
 import '../company/company_logo.dart';
 
@@ -16,7 +16,7 @@ class JobPostingsPage extends StatefulWidget {
   const JobPostingsPage({
     super.key,
     this.repository,
-    this.initialStatus = 'draft',
+    this.initialStatus = 'all',
   });
   final JobPostingsRepository? repository;
   final String initialStatus;
@@ -29,16 +29,17 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
       widget.repository ?? JobPostingsRepository(Supabase.instance.client);
   JobAccess? access;
   List<Map<String, dynamic>> jobs = [];
-  String filter = 'draft';
+  String filter = 'all';
   String query = '';
   String? error;
   bool loading = true, busy = false;
   @override
   void initState() {
     super.initState();
-    filter = ['draft', 'published', 'closed'].contains(widget.initialStatus)
+    filter =
+        ['all', 'draft', 'published', 'closed'].contains(widget.initialStatus)
         ? widget.initialStatus
-        : 'draft';
+        : 'all';
     load();
   }
 
@@ -144,10 +145,15 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final counts = {
+      'all': jobs.length,
+      for (final status in ['published', 'draft', 'closed'])
+        status: jobs.where((job) => job['status'] == status).length,
+    };
     final visible = jobs
         .where(
           (job) =>
-              job['status'] == filter &&
+              (filter == 'all' || job['status'] == filter) &&
               '${job['title'] ?? ''} ${job['department'] ?? ''} ${job['location'] ?? ''}'
                   .toLowerCase()
                   .contains(query.trim().toLowerCase()),
@@ -159,16 +165,19 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
       role: 'employer',
       navigationLocked: busy,
       child: loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(
+                semanticsLabel: 'Loading job postings',
+              ),
+            )
           : WorkspaceContent(
-              maxWidth: 768,
+              maxWidth: 880,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   PageHeading(
                     title: 'My Job Postings',
-
-                    description: 'Manage your opportunities, from the first draft to the final hire.',
+                    description: 'Manage job opportunities for your company.',
                     actions: [
                       OutlinedButton(
                         onPressed: busy ? null : load,
@@ -185,12 +194,25 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                   ),
                   if (error != null)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 20),
+                      padding: const EdgeInsets.only(bottom: 16),
                       child: WorkspaceCard(
                         title: 'Unable to complete this request',
-                        child: Text(
-                          error!,
-                          style: const TextStyle(color: JobMateTheme.error),
+                        leading: const Icon(
+                          Icons.error_outline,
+                          color: JobMateTheme.error,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              error!,
+                              style: const TextStyle(color: JobMateTheme.error),
+                            ),
+                            TextButton(
+                              onPressed: busy ? null : load,
+                              child: const Text('Retry'),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -209,64 +231,35 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                       ),
                     ),
                   if (access?.allowed == true) ...[
-                    StatGrid(
-                      children: [
-                        StatTile(
-                          valueSize: 20,
-                          label: 'Total Jobs',
-                          value: '${jobs.length}',
-                          icon: Icons.work_outline,
-                          note: 'Your company postings',
-                        ),
-                        for (final item in <(String, String, IconData, Color)>[
-                          (
-                            'published',
-                            'Published',
-                            Icons.public_outlined,
-                            JobMateTheme.darkTeal,
-                          ),
-                          (
-                            'draft',
-                            'Draft',
-                            Icons.edit_note_outlined,
-                            Color(0xFF92400E),
-                          ),
-                          (
-                            'closed',
-                            'Closed',
-                            Icons.task_alt_outlined,
-                            JobMateTheme.body,
-                          ),
-                        ])
-                          StatTile(
-                            valueSize: 20,
-                            label: item.$2,
-                            value:
-                                '${jobs.where((j) => j['status'] == item.$1).length}',
-                            icon: item.$3,
-                            color: item.$4,
-                            note: item.$1 == 'published'
-                                ? 'Published postings'
-                                : item.$1 == 'draft'
-                                ? 'Ready when you are'
-                                : 'No longer accepting applications',
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      access!.company!['company_name'] as String,
-                      style: Theme.of(context).textTheme.titleLarge,
+                    CompanyIdentity(
+                      name: access!.company!['company_name'] as String,
+                      logo: access!.logo,
                     ),
                     const SizedBox(height: 16),
+                    PostingSummary(counts),
+                    const SizedBox(height: 16),
+                    TextField(
+                      onChanged: (value) => setState(() => query = value),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: 'Search job title, department or location',
+                        labelText: 'Search your postings',
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        for (final value in ['draft', 'published', 'closed'])
+                        for (final value in [
+                          'all',
+                          'published',
+                          'draft',
+                          'closed',
+                        ])
                           ChoiceChip(
                             label: Text(
-                              '${workspaceLabel(value)} (${jobs.where((j) => j['status'] == value).length})',
+                              '${postingStatusLabel(value)} (${counts[value]})',
                             ),
                             selected: filter == value,
                             onSelected: busy
@@ -275,190 +268,66 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                           ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      onChanged: (v) => setState(() => query = v),
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
-                        hintText: 'Search job title, department or location',
-                        labelText: 'Search your postings',
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    if (visible.isEmpty)
+                    const SizedBox(height: 14),
+                    if (visible.isEmpty && error == null)
                       WorkspaceCard(
-                        title: query.isEmpty
-                            ? 'No $filter jobs'
-                            : 'No matching jobs',
+                        title: jobs.isEmpty
+                            ? 'No job postings yet'
+                            : query.trim().isNotEmpty
+                            ? 'No matching jobs'
+                            : 'No ${filter == 'all' ? '' : '$filter '}jobs',
+                        leading: const Icon(
+                          Icons.work_outline,
+                          color: JobMateTheme.darkTeal,
+                        ),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Align(
-                              alignment: Alignment.centerLeft,
-                              child: Icon(
-                                Icons.work_outline,
-                                color: JobMateTheme.darkTeal,
-                                size: 40,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
                             Text(
-                              query.isNotEmpty
+                              jobs.isEmpty
+                                  ? 'Post a job to start your first draft.'
+                                  : query.trim().isNotEmpty
                                   ? 'Try a different search or status.'
-                                  : filter == 'draft'
-                                  ? 'Create a job to save your first draft.'
                                   : 'Your $filter jobs will appear here.',
                             ),
+                            if (jobs.isEmpty)
+                              TextButton(
+                                onPressed: busy
+                                    ? null
+                                    : () => open(AppRoutes.createJob),
+                                child: const Text('Post your first job'),
+                              ),
                           ],
                         ),
                       ),
                     for (final job in visible)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 20),
-                        child: WorkspaceCard(
-                          title: job['title'] as String? ?? 'Untitled job',
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Wrap(
-                                spacing: 20,
-                                runSpacing: 12,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  CompanyIdentity(
-                                    name:
-                                        access!.company!['company_name']
-                                            as String,
-                                    logo: access!.logo,
-                                  ),
-                                  WorkspaceStatus(job['status'] as String),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              Wrap(
-                                spacing: 16,
-                                runSpacing: 10,
-                                children: [
-                                  for (final key in [
-                                    'department',
-                                    'employment_type',
-                                    'work_arrangement',
-                                    'location',
-                                  ])
-                                    if ('${job[key] ?? ''}'.isNotEmpty)
-                                      Chip(
-                                        label: Text(
-                                          '${jobLabel(key)}: ${jobLabel('${job[key]}')}',
-                                        ),
-                                      ),
-                                ],
-                              ),
-                              if ('${job['role_overview'] ?? ''}'
-                                  .trim()
-                                  .isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: Text(
-                                    '${job['role_overview']}',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: JobMateTheme.body,
-                                      height: 1.6,
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(height: 16),
-                              Wrap(
-                                spacing: 24,
-                                runSpacing: 8,
-                                children: [
-                                  if (job['salary_visible'] == true)
-                                    Text('Salary: ${jobSalary(job)}'),
-                                  Text(
-                                    'Vacancies: ${job['vacancies'] ?? 'Not set'}',
-                                  ),
-                                  if (job['application_deadline'] != null)
-                                    Text(
-                                      'Application deadline: ${jobDate(job['application_deadline'])}',
-                                    ),
-                                  if (job['published_at'] != null)
-                                    Text(
-                                      'Published: ${jobDate(job['published_at'])}',
-                                    )
-                                  else if (job['created_at'] != null)
-                                    Text(
-                                      'Created: ${jobDate(job['created_at'])}',
-                                    ),
-                                ],
-                              ),
-                              const Divider(height: 32),
-                              Wrap(
-                                spacing: 12,
-                                runSpacing: 10,
-                                children: [
-                                  if (job['status'] == 'draft' ||
-                                      job['status'] == 'published')
-                                    FilledButton(
-                                      onPressed: busy
-                                          ? null
-                                          : () => open(
-                                              '${AppRoutes.jobPostings}/${job['job_id']}/edit',
-                                            ),
-                                      child: Text(
-                                        job['status'] == 'draft'
-                                            ? 'Edit Draft'
-                                            : 'Edit',
-                                      ),
-                                    ),
-                                  OutlinedButton(
-                                    onPressed: busy
-                                        ? null
-                                        : () => showDialog<void>(
-                                            context: context,
-                                            builder: (_) => JobPreview(
-                                              logo: access!.logo,
-                                              job: job,
-                                              company:
-                                                  access!.company!['company_name']
-                                                      as String,
-                                            ),
-                                          ),
-                                    child: const Text('Preview'),
-                                  ),
-                                  if (job['status'] == 'draft')
-                                    OutlinedButton(
-                                      onPressed: busy
-                                          ? null
-                                          : () => publish(job),
-                                      child: const Text('Publish'),
-                                    ),
-                                  if (job['status'] == 'published')
-                                    OutlinedButton(
-                                      onPressed: busy ? null : () => close(job),
-                                      child: const Text('Close Job'),
-                                    ),
-                                  OutlinedButton.icon(
-                                    onPressed: busy
-                                        ? null
-                                        : () => context.push<void>(
-                                            Uri(
-                                              path: AppRoutes.applicants,
-                                              queryParameters: {
-                                                'posting': job['job_id']
-                                                    .toString(),
-                                              },
-                                            ).toString(),
-                                          ),
-                                    icon: const Icon(
-                                      Icons.people_outline,
-                                      size: 18,
-                                    ),
-                                    label: const Text('View Applicants'),
-                                  ),
-                                ],
-                              ),
-                            ],
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: EmployerJobCard(
+                          key: ValueKey('employer-job-${job['job_id']}'),
+                          job: job,
+                          busy: busy,
+                          onEdit: () => open(
+                            '${AppRoutes.jobPostings}/${job['job_id']}/edit',
+                          ),
+                          onPreview: () => showDialog<void>(
+                            context: context,
+                            builder: (_) => JobPreview(
+                              logo: access!.logo,
+                              job: job,
+                              company:
+                                  access!.company!['company_name'] as String,
+                            ),
+                          ),
+                          onPublish: () => publish(job),
+                          onClose: () => close(job),
+                          onApplicants: () => context.push<void>(
+                            Uri(
+                              path: AppRoutes.applicants,
+                              queryParameters: {
+                                'posting': job['job_id'].toString(),
+                              },
+                            ).toString(),
                           ),
                         ),
                       ),

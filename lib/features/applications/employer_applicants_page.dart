@@ -4,7 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
-import '../jobs/job_display.dart';
+import '../../shared/theme/jobmate_theme.dart';
+import 'employer_applicant_card.dart';
 import '../jobs/job_preview.dart';
 import '../chat/chat_application_button.dart';
 import 'employer_applicants_repository.dart';
@@ -69,7 +70,13 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
     if (mounted) await repo.load();
   }
 
-  String statusLabel(MyApplicationStatus s) => s.label;
+  void clear() => setState(() {
+    search.clear();
+    status = '';
+    tab = 'All';
+    sort = 'Newest';
+  });
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: repo,
@@ -81,8 +88,17 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
         status: status,
         sort: sort,
       );
+      final counts = {
+        'All': repo.applicants.length,
+        'Active': repo.applicants
+            .where((applicant) => !applicant.status.completed)
+            .length,
+        'Completed': repo.applicants
+            .where((applicant) => applicant.status.completed)
+            .length,
+      };
       return AppWorkspace(
-        title: 'Employer Applications',
+        title: 'View Applicants',
         path: AppRoutes.applicants,
         role: 'employer',
         onNavigate: navigate,
@@ -95,20 +111,28 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
           ),
         ],
         child: WorkspaceContent(
-          maxWidth: 768,
+          maxWidth: 880,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextButton(
-                onPressed: () => moduleBack(context, AppRoutes.jobPostings),
-                child: const Text('Back to My Job Postings'),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => moduleBack(context, AppRoutes.jobPostings),
+                  icon: const Icon(Icons.arrow_back, size: 18),
+                  label: const Text('Back to My Job Postings'),
+                ),
               ),
               const PageHeading(
                 title: 'View Applicants',
                 description: 'Review applications for your job postings.',
               ),
               if (repo.loading)
-                const Center(child: CircularProgressIndicator())
+                const Center(
+                  child: CircularProgressIndicator(
+                    semanticsLabel: 'Loading applicants',
+                  ),
+                )
               else if (repo.error != null)
                 ModuleState(
                   title: 'Unable to load applicants',
@@ -117,24 +141,38 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
                   actionLabel: 'Retry',
                 )
               else ...[
-                ModuleSelect(
-                  label: 'Job posting',
-                  value: job == null ? '' : widget.jobId!,
-                  options: {
-                    '': 'Select a job',
+                DropdownButtonFormField<String>(
+                  key: ValueKey('applicant-job-${widget.jobId}'),
+                  initialValue: job == null ? '' : widget.jobId!,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Job posting'),
+                  items: [
+                    const DropdownMenuItem(
+                      value: '',
+                      child: Text('Select a job'),
+                    ),
                     for (final post
                         in repo.context?.jobs ?? <Map<String, dynamic>>[])
-                      post['job_id'] as String:
-                          '${post['title']} (${jobLabel('${post['status']}')})',
+                      DropdownMenuItem(
+                        value: post['job_id'] as String,
+                        child: Text(
+                          '${post['title']} (${workspaceLabel(post['status'] as String)})',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (id) {
+                    if (id != null) {
+                      context.go(
+                        Uri(
+                          path: AppRoutes.applicants,
+                          queryParameters: id.isEmpty ? null : {'posting': id},
+                        ).toString(),
+                      );
+                    }
                   },
-                  onChanged: (id) => context.go(
-                    Uri(
-                      path: AppRoutes.applicants,
-                      queryParameters: id.isEmpty ? null : {'posting': id},
-                    ).toString(),
-                  ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 if (widget.jobId == null)
                   const ModuleState(
                     title: 'Select a job to view applicants',
@@ -146,132 +184,136 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
                     message: 'This job is unavailable or you no longer have company access.',
                   )
                 else ...[
-                  WorkspaceCard(
-                    title: job['title'] as String,
-                    subtitle: company?['company_name'] as String?,
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: JobMateTheme.divider),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        WorkspaceStatus(job['status'] as String),
-                        OutlinedButton(
-                          onPressed: () => showDialog<void>(
-                            context: context,
-                            builder: (_) => JobPreview(
-                              job: job,
-                              company: company!['company_name'] as String,
-                              logo: repo.context!.access.logo,
-                            ),
-                          ),
-                          child: const Text('View Job'),
+                        Text(
+                          job['title'] as String,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
-                        if (['draft', 'published'].contains(job['status']))
-                          OutlinedButton(
-                            onPressed: () => navigate(
-                              '${AppRoutes.jobPostings}/${widget.jobId}/edit',
-                            ),
-                            child: const Text('Edit Job'),
+                        if (company?['company_name'] != null)
+                          Text(
+                            company!['company_name'] as String,
+                            style: const TextStyle(color: JobMateTheme.body),
                           ),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            WorkspaceStatus(job['status'] as String),
+                            TextButton.icon(
+                              onPressed: () => showDialog<void>(
+                                context: context,
+                                builder: (_) => JobPreview(
+                                  job: job,
+                                  company: company!['company_name'] as String,
+                                  logo: repo.context!.access.logo,
+                                ),
+                              ),
+                              icon: const Icon(
+                                Icons.visibility_outlined,
+                                size: 17,
+                              ),
+                              label: const Text('View Job'),
+                            ),
+                            if (['draft', 'published'].contains(job['status']))
+                              TextButton.icon(
+                                onPressed: () => navigate(
+                                  '${AppRoutes.jobPostings}/${widget.jobId}/edit',
+                                ),
+                                icon: const Icon(Icons.edit_outlined, size: 17),
+                                label: const Text('Edit Job'),
+                              ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  StatGrid(
-                    children: [
-                      for (final value in <(String, int)>[
-                        ('All', repo.applicants.length),
-                        (
-                          'Active',
-                          repo.applicants
-                              .where((a) => !a.status.completed)
-                              .length,
-                        ),
-                        (
-                          'Completed',
-                          repo.applicants
-                              .where((a) => a.status.completed)
-                              .length,
-                        ),
-                      ])
-                        StatTile(
-                          label: value.$1,
-                          value: '${value.$2}',
-                          icon: Icons.people_outline,
-                          note: 'This job',
-                        ),
-                    ],
+                  const SizedBox(height: 14),
+                  ApplicantSummaryFilters(
+                    counts: counts,
+                    selected: tab,
+                    onSelected: (value) => setState(() => tab = value),
                   ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final s in MyApplicationStatus.values)
-                        Chip(
-                          label: Text(
-                            '${statusLabel(s)}: ${repo.applicants.where((a) => a.status == s).length}',
-                          ),
+                  const SizedBox(height: 14),
+                  LayoutBuilder(
+                    builder: (context, box) {
+                      final searchField = TextField(
+                        controller: search,
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(
+                          labelText: 'Search applicant name',
+                          prefixIcon: Icon(Icons.search),
                         ),
-                    ],
+                      );
+                      final sortField = ModuleSelect(
+                        label: 'Sort',
+                        value: sort,
+                        options: {
+                          for (final value in ['Newest', 'Oldest', 'Name'])
+                            value: value,
+                        },
+                        onChanged: (value) => setState(() => sort = value),
+                      );
+                      if (box.maxWidth <
+                          520 *
+                              MediaQuery.textScalerOf(context).scale(14) /
+                              14) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            searchField,
+                            const SizedBox(height: 10),
+                            sortField,
+                          ],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          Expanded(child: searchField),
+                          const SizedBox(width: 12),
+                          SizedBox(width: 180, child: sortField),
+                        ],
+                      );
+                    },
                   ),
-                  const SizedBox(height: 20),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      for (final value in ['All', 'Active', 'Completed'])
-                        ChoiceChip(
-                          label: Text(value),
-                          selected: tab == value,
-                          onSelected: (_) => setState(() => tab = value),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: search,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Search applicant name',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
                   Wrap(
                     spacing: 12,
-                    runSpacing: 16,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       ModuleSelect(
                         label: 'Application status',
                         value: status,
                         options: {
                           '': 'All statuses',
-                          for (final s in MyApplicationStatus.values)
-                            s.name: statusLabel(s),
+                          for (final state in MyApplicationStatus.values)
+                            state.name:
+                                '${state.label}: ${repo.applicants.where((applicant) => applicant.status == state).length}',
                         },
-                        onChanged: (v) => setState(() => status = v),
-                      ),
-                      ModuleSelect(
-                        label: 'Sort',
-                        value: sort,
-                        options: {
-                          for (final v in ['Newest', 'Oldest', 'Name']) v: v,
-                        },
-                        onChanged: (v) => setState(() => sort = v),
+                        onChanged: (value) => setState(() => status = value),
                       ),
                       TextButton(
-                        onPressed: () => setState(() {
-                          search.clear();
-                          status = '';
-                          tab = 'All';
-                          sort = 'Newest';
-                        }),
+                        onPressed: clear,
                         child: const Text('Clear filters'),
+                      ),
+                      Text(
+                        '${rows.length} matching ${rows.length == 1 ? 'application' : 'applications'}',
+                        style: const TextStyle(color: JobMateTheme.body),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  Text('${rows.length} matching applications'),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   if (rows.isEmpty)
                     ModuleState(
                       title: repo.applicants.isEmpty
@@ -283,89 +325,40 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
                     ),
                   for (final applicant in rows)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: WorkspaceCard(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: EmployerApplicantCard(
                         key: ValueKey(applicant.id),
-                        leading: const CircleAvatar(
-                          radius: 20,
-                          child: Icon(Icons.person_outline, size: 20),
+                        applicant: applicant,
+                        jobTitle: job['title'] as String,
+                        updating: repo.updating,
+                        profileAction: ApplicantProfileButton(
+                          applicationId: applicant.id,
+                          applicant: applicant,
+                          jobTitle: job['title'] as String,
+                          applicantsRepository: repo,
                         ),
-                        title: applicant.name,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: MyApplicationStatusBadge(
-                                applicant.status,
-                                label: statusLabel(applicant.status),
-                              ),
-                            ),
-                            if (applicant.status.lifecycleExplanation
-                                case final explanation?) ...[
-                              Text(explanation),
-                              const SizedBox(height: 12),
-                            ],
-                            Text(
-                              'Applied: ${jobDate(applicant.appliedAt.toLocal())} • ${TimeOfDay.fromDateTime(applicant.appliedAt.toLocal()).format(context)}',
-                            ),
-                            Text(
-                              applicant.resumeId != null
-                                  ? 'Resume attached'
-                                  : 'No resume attached',
-                            ),
-                            if (applicant.resumeId != null)
-                              EmployerResumeButton(
+                        resumeAction: applicant.resumeId == null
+                            ? null
+                            : EmployerResumeButton(
                                 key: ValueKey(
                                   'resume:${applicant.id}:${applicant.resumeId}',
                                 ),
                                 repository: repo,
                                 applicant: applicant,
                               ),
-                            ApplicantProfileButton(applicationId: applicant.id),
-                            if (applicant.coverNote?.trim().isNotEmpty ==
-                                true) ...[
-                              const SizedBox(height: 12),
-                              Text(
-                                'Cover note',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                              Text(applicant.coverNote!),
-                            ],
-                            const SizedBox(height: 12),
-                            SelectableText('Application ID: ${applicant.id}'),
-                            ChatApplicationButton(
-                              key: ValueKey('chat:${applicant.id}'),
-                              applicationId: applicant.id,
-                              employer: true,
-                              enabled: !repo.updating,
-                            ),
-                            if (applicant.employerNext.isNotEmpty) ...[
-                              const SizedBox(height: 16),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  for (final next in applicant.employerNext)
-                                    OutlinedButton(
-                                      onPressed: repo.updating
-                                          ? null
-                                          : () => moduleModal<void>(
-                                              context,
-                                              EmployerStatusChangeForm(
-                                                repository: repo,
-                                                applicant: applicant,
-                                                next: next,
-                                              ),
-                                            ),
-                                      child: Text(
-                                        employerTransitionLabel(next),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ],
+                        messageAction: ChatApplicationButton(
+                          key: ValueKey('chat:${applicant.id}'),
+                          applicationId: applicant.id,
+                          employer: true,
+                          enabled: !repo.updating,
+                        ),
+                        onTransition: (next) => moduleModal<void>(
+                          context,
+                          EmployerStatusChangeForm(
+                            repository: repo,
+                            applicant: applicant,
+                            next: next,
+                          ),
                         ),
                       ),
                     ),

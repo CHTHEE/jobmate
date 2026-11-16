@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/theme/jobmate_theme.dart';
+
 import 'employer_applicants_repository.dart';
 import 'module2_widgets.dart';
 import 'my_applications_repository.dart';
@@ -140,7 +142,9 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
     onPopInvokedWithResult: (didPop, _) {
       if (!didPop) close();
     },
-    child: ModalBody(
+    child: _RecruitmentDialogBody(
+      onClose: busy ? null : close,
+      rejected: widget.next == MyApplicationStatus.rejected,
       title: invalid
           ? 'Session changed'
           : success
@@ -159,6 +163,11 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
         ),
         if (!success && !invalid)
           FilledButton(
+            style: widget.next == MyApplicationStatus.rejected
+                ? FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                  )
+                : null,
             onPressed: busy || !transitionAvailable ? null : confirm,
             child: Text(
               busy
@@ -169,7 +178,45 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
       ],
       children: [
         if (!invalid) ...[
-          Text(widget.applicant.name),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: JobMateTheme.background,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  widget.applicant.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                if (widget.repository.job?['title'] case final String title)
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: JobMateTheme.body,
+                      fontSize: 13,
+                    ),
+                  ),
+                if (!success)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      MyApplicationStatusBadge(widget.applicant.status),
+                      const Icon(
+                        Icons.arrow_forward,
+                        size: 16,
+                        color: JobMateTheme.body,
+                      ),
+                      MyApplicationStatusBadge(widget.next),
+                    ],
+                  ),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
           if (success)
             Text(
@@ -185,6 +232,15 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
             Text(
               'Change ${widget.applicant.status.label} to ${widget.next.label}?',
             ),
+            const SizedBox(height: 8),
+            Text(switch (widget.next) {
+              MyApplicationStatus.shortlisted =>
+                'Add this applicant to the shortlist for further review.',
+              MyApplicationStatus.interview => 'Move this application to the interview stage. This action does not schedule an interview.',
+              MyApplicationStatus.offered => 'Send an offer for this job. Hiring requires the worker to accept it.',
+              MyApplicationStatus.rejected => 'Mark this application as Rejected. Review the applicant and job before confirming.',
+              _ => 'Review this status change before confirming.',
+            }, style: const TextStyle(color: JobMateTheme.body, height: 1.4)),
             if (widget.next == MyApplicationStatus.offered) ...[
               const SizedBox(height: 12),
               const Text(
@@ -199,15 +255,22 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
               minLines: 3,
               maxLines: 7,
               onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Note (optional)',
                 alignLabelWithHint: true,
+                helperText:
+                    'Optional recruitment note. Maximum 2,000 characters.',
+                helperMaxLines: 3,
+                errorMaxLines: 4,
+                errorText: error == 'Keep the note within 2,000 characters.'
+                    ? error
+                    : null,
               ),
             ),
             if (busy) const LinearProgressIndicator(),
           ],
         ],
-        if (error != null)
+        if (error != null && error != 'Keep the note within 2,000 characters.')
           Semantics(
             liveRegion: true,
             child: Text(
@@ -216,6 +279,71 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
             ),
           ),
       ],
+    ),
+  );
+}
+
+/// Keeps the existing modal and bottom-sheet routes and PopScope behavior.
+class _RecruitmentDialogBody extends StatelessWidget {
+  const _RecruitmentDialogBody({
+    required this.title,
+    required this.children,
+    required this.actions,
+    required this.onClose,
+    required this.rejected,
+  });
+  final String title;
+  final List<Widget> children, actions;
+  final VoidCallback? onClose;
+  final bool rejected;
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    child: Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  rejected
+                      ? Icons.person_off_outlined
+                      : Icons.assignment_ind_outlined,
+                  size: 22,
+                  color: rejected
+                      ? Theme.of(context).colorScheme.error
+                      : JobMateTheme.darkTeal,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Close recruitment dialog',
+                  onPressed: onClose,
+                  icon: const Icon(Icons.close, size: 20),
+                ),
+              ],
+            ),
+            const Divider(height: 20),
+            ...children,
+            const SizedBox(height: 16),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 12,
+              runSpacing: 10,
+              children: actions,
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }

@@ -151,7 +151,11 @@ void main() {
       expect(find.text('Alex Thee'), findsOneWidget);
       expect(find.text('Resume attached'), findsOneWidget);
       expect(find.text('I would like to join the cafe.'), findsOneWidget);
-      expect(find.textContaining('Application ID: bc697799'), findsOneWidget);
+      expect(find.textContaining('Application ID:'), findsNothing);
+      expect(
+        find.textContaining('bc697799-463f-4251-b6be-8888551c3712'),
+        findsNothing,
+      );
       expect(find.text('DEMO / PREVIEW'), findsNothing);
       expect(find.text('Shortlist'), findsOneWidget);
       expect(find.text('Reject'), findsOneWidget);
@@ -202,11 +206,15 @@ void main() {
     await tester.ensureVisible(find.text('Clear filters'));
     await tester.tap(find.text('Clear filters'));
     await tester.pumpAndSettle();
-    final filter = find.byType(DropdownButtonFormField<String>).at(1);
+    final filter = find.byWidgetPredicate(
+      (widget) =>
+          widget is DropdownButtonFormField<String> &&
+          widget.decoration.labelText == 'Application status',
+    );
     await tester.ensureVisible(filter);
     await tester.tap(filter);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Declined').last);
+    await tester.tap(find.text('Declined: 1').last);
     await tester.pumpAndSettle();
     expect(find.text('Other applicant'), findsOneWidget);
     expect(find.text('Alex Thee'), findsNothing);
@@ -275,9 +283,9 @@ void main() {
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await tester.pumpAndSettle();
     await tester.ensureVisible(
-      find.widgetWithText(OutlinedButton, 'View Applicants'),
+      find.widgetWithText(FilledButton, 'View Applicants'),
     );
-    await tester.tap(find.widgetWithText(OutlinedButton, 'View Applicants'));
+    await tester.tap(find.widgetWithText(FilledButton, 'View Applicants'));
     await tester.pumpAndSettle();
     expect(source.requests, ['real-job-id']);
     await tester.ensureVisible(find.text('View Job'));

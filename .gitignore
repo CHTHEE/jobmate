@@ -71,6 +71,12 @@ supabase/patches/*
 *_test.dart
 *test*
 !test/
+!test/browse_job_card_test.dart
+!test/job_marketplace_refinement_test.dart
+!test/employer_job_postings_refinement_test.dart
+!test/employer_job_form_refinement_test.dart
+!test/employer_applicant_overview_refinement_test.dart
+!test/employer_profile_recruitment_dialog_test.dart
 !test/job_seeker_profile_sections_test.dart
 !test/employer_profile_sections_test.dart
 !test/employer_profile_repository_test.dart

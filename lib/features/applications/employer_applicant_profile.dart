@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../shared/widgets/app_workspace.dart';
+import '../../shared/theme/jobmate_theme.dart';
+import '../jobs/job_display.dart';
+import '../chat/chat_application_button.dart';
+import '../chat/chat_repository.dart';
+import 'employer_applicants_repository.dart';
+import 'employer_resume_button.dart';
+import 'resume_pdf_opener.dart';
+import 'module2_widgets.dart';
 
 abstract interface class ApplicantProfileRepository {
   Future<Map<String, dynamic>> load(String applicationId);
@@ -36,11 +44,21 @@ class ApplicantProfileButton extends StatelessWidget {
   const ApplicantProfileButton({
     required this.applicationId,
     this.repository,
+    this.applicant,
+    this.jobTitle,
+    this.applicantsRepository,
+    this.resumeOpener,
+    this.createChatRepository,
     super.key,
   });
 
   final String applicationId;
   final ApplicantProfileRepository? repository;
+  final JobApplicant? applicant;
+  final String? jobTitle;
+  final EmployerApplicantsRepository? applicantsRepository;
+  final ResumePdfOpener? resumeOpener;
+  final ChatRepository Function()? createChatRepository;
 
   @override
   Widget build(BuildContext context) => OutlinedButton.icon(
@@ -50,6 +68,11 @@ class ApplicantProfileButton extends StatelessWidget {
       builder: (_) => _ApplicantProfileDialog(
         applicationId: applicationId,
         repository: repository,
+        applicant: applicant,
+        jobTitle: jobTitle,
+        applicantsRepository: applicantsRepository,
+        resumeOpener: resumeOpener,
+        createChatRepository: createChatRepository,
       ),
     ),
     icon: const Icon(Icons.account_circle_outlined),
@@ -58,10 +81,23 @@ class ApplicantProfileButton extends StatelessWidget {
 }
 
 class _ApplicantProfileDialog extends StatefulWidget {
-  const _ApplicantProfileDialog({required this.applicationId, this.repository});
+  const _ApplicantProfileDialog({
+    required this.applicationId,
+    this.repository,
+    this.applicant,
+    this.jobTitle,
+    this.applicantsRepository,
+    this.resumeOpener,
+    this.createChatRepository,
+  });
 
   final String applicationId;
   final ApplicantProfileRepository? repository;
+  final JobApplicant? applicant;
+  final String? jobTitle;
+  final EmployerApplicantsRepository? applicantsRepository;
+  final ResumePdfOpener? resumeOpener;
+  final ChatRepository Function()? createChatRepository;
 
   @override
   State<_ApplicantProfileDialog> createState() =>
@@ -75,24 +111,70 @@ class _ApplicantProfileDialogState extends State<_ApplicantProfileDialog> {
   Map<String, dynamic>? _response;
   String? _error;
   bool _loading = true;
+  final _scroll = ScrollController();
+  late final String? _actor;
+  late final Object? _company;
+  late final String? _jobId;
+  JobApplicant? get _applicant => widget.applicantsRepository?.applicants
+      .where((row) => row.id == widget.applicationId)
+      .firstOrNull;
+  bool get _valid {
+    final repo = widget.applicantsRepository;
+    if (repo == null) return true;
+    return repo.active &&
+        repo.source.userId == _actor &&
+        repo.jobId == _jobId &&
+        repo.job != null &&
+        repo.context?.access.company?['company_id'] == _company &&
+        widget.applicant?.id == widget.applicationId &&
+        _applicant?.applicantId == widget.applicant?.applicantId;
+  }
+
+  void _contextChanged() {
+    if (!mounted) return;
+    setState(() {
+      if (!_valid) {
+        _response = null;
+        _loading = false;
+        _error = 'Applicant profile unavailable or your application context changed. Close and reopen this profile.';
+      }
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    // Bind the authorized overview context before starting any asynchronous read.
+    _actor = widget.applicantsRepository?.source.userId;
+    _company =
+        widget.applicantsRepository?.context?.access.company?['company_id'];
+    _jobId = widget.applicantsRepository?.jobId;
+    widget.applicantsRepository?.addListener(_contextChanged);
     _load();
   }
 
+  @override
+  void dispose() {
+    widget.applicantsRepository?.removeListener(_contextChanged);
+    _scroll.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
+    if (!_valid) {
+      _contextChanged();
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final response = await _repository.load(widget.applicationId);
-      if (!mounted) return;
+      if (!mounted || !_valid) return;
       setState(() => _response = response);
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_valid) return;
       setState(() {
         _response = null;
         _error = error is PostgrestException && error.code == '42501'
@@ -123,14 +205,26 @@ class _ApplicantProfileDialogState extends State<_ApplicantProfileDialog> {
   }
 
   Widget _section(String title, List<Widget> children, String emptyMessage) =>
-      WorkspaceCard(
-        title: title,
-        child: children.isEmpty
-            ? Text(emptyMessage)
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: children,
-              ),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              color: JobMateTheme.darkTeal,
+            ),
+          ),
+          const SizedBox(height: 5),
+          if (children.isEmpty)
+            Text(
+              emptyMessage,
+              style: const TextStyle(color: JobMateTheme.body, fontSize: 13),
+            )
+          else
+            ...children,
+          const Divider(height: 16),
+        ],
       );
 
   Widget _entry(String title, Iterable<String> details) => Padding(
@@ -180,10 +274,23 @@ class _ApplicantProfileDialogState extends State<_ApplicantProfileDialog> {
         ], 'No profile introduction provided.'),
         const SizedBox(height: 12),
         _section('Skills', [
-          for (final row in skills)
-            _entry(_text(row['skill_name']).ifEmpty('Skill'), [
-              _text(row['proficiency']),
-            ]),
+          if (skills.isNotEmpty)
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final row in skills)
+                  Chip(
+                    label: Text(
+                      [
+                        _text(row['skill_name']).ifEmpty('Skill'),
+                        _text(row['proficiency']),
+                      ].where((value) => value.isNotEmpty).join(' - '),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
         ], 'No skills provided.'),
         const SizedBox(height: 12),
         _section('Education', [
@@ -252,53 +359,215 @@ class _ApplicantProfileDialogState extends State<_ApplicantProfileDialog> {
     return parts.length >= 2 ? '${parts[0]}:${parts[1]}' : text;
   }
 
+  Widget _identity(JobApplicant applicant) {
+    final initials = applicant.name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part.characters.first)
+        .join()
+        .toUpperCase();
+    final applied = applicant.appliedAt.toLocal();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: JobMateTheme.teal50,
+                foregroundColor: JobMateTheme.darkTeal,
+                child: initials.isEmpty
+                    ? const Icon(Icons.person_outline)
+                    : Text(initials, style: const TextStyle(fontSize: 15)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      applicant.name,
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    if (widget.jobTitle?.isNotEmpty == true)
+                      Text(
+                        'Applied for: ${widget.jobTitle}',
+                        style: const TextStyle(
+                          color: JobMateTheme.body,
+                          fontSize: 13,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              MyApplicationStatusBadge(applicant.status),
+              Text(
+                'Applied: ${jobDate(applied)} - ${TimeOfDay.fromDateTime(applied).format(context)}',
+                style: const TextStyle(color: JobMateTheme.body, fontSize: 12),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _message(String path) async {
+    if (!mounted || !_valid || widget.applicantsRepository?.updating == true) {
+      return;
+    }
+    final router = GoRouter.of(context);
+    Navigator.of(context).pop();
+    await router.push<void>(path);
+  }
+
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Applicant profile'),
-    content: SizedBox(
-      width: 620,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 600),
-        child: _loading && _response == null
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-            ? Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_error!),
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    onPressed: _loading ? null : _load,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
-                  ),
-                ],
-              )
-            : Stack(
-                children: [
-                  SingleChildScrollView(child: _content()),
-                  if (_loading)
-                    const Positioned(
-                      right: 4,
-                      top: 4,
-                      child: SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+  Widget build(BuildContext context) {
+    final applicant = _valid && _error == null ? _applicant : null;
+    final available =
+        !_loading && _error == null && _response != null && _valid;
+    return AlertDialog(
+      constraints: BoxConstraints(
+        maxWidth: 640,
+        maxHeight: MediaQuery.sizeOf(context).height * .88,
+      ),
+      insetPadding: const EdgeInsets.all(16),
+      titlePadding: const EdgeInsets.fromLTRB(20, 10, 10, 8),
+      contentPadding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Applicant Profile',
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Close applicant profile',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close, size: 20),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 600,
+        child: Scrollbar(
+          controller: _scroll,
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            controller: _scroll,
+            padding: const EdgeInsets.only(right: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (applicant != null) _identity(applicant),
+                if (_loading)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        semanticsLabel: 'Loading applicant profile',
                       ),
                     ),
+                  )
+                else if (_error != null) ...[
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: _valid ? _load : null,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ),
+                ] else if (available) ...[
+                  if (_text(_profile['headline']).isEmpty &&
+                      _text(_profile['bio']).isEmpty &&
+                      [
+                        'skills',
+                        'education',
+                        'work_experiences',
+                        'languages',
+                        'availability',
+                        'certifications',
+                      ].every((key) => _records(key).isEmpty))
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        'No profile details have been provided yet.',
+                        style: TextStyle(color: JobMateTheme.body),
+                      ),
+                    ),
+                  if (applicant?.coverNote?.trim().isNotEmpty == true) ...[
+                    _section('Application note', [
+                      SelectableText(applicant!.coverNote!),
+                    ], ''),
+                    const SizedBox(height: 8),
+                  ],
+                  _content(),
+                  if (applicant?.resumeId != null) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Resume',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: JobMateTheme.darkTeal,
+                      ),
+                    ),
+                    EmployerResumeButton(
+                      key: ValueKey(
+                        'profile-resume:${applicant!.id}:${applicant.resumeId}',
+                      ),
+                      repository: widget.applicantsRepository!,
+                      applicant: applicant,
+                      opener: widget.resumeOpener,
+                    ),
+                  ],
                 ],
-              ),
+              ],
+            ),
+          ),
+        ),
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Close'),
-      ),
-    ],
-  );
+      actions: [
+        if (available &&
+            applicant != null &&
+            widget.applicantsRepository != null)
+          ChatApplicationButton(
+            applicationId: applicant.id,
+            employer: true,
+            enabled: !widget.applicantsRepository!.updating,
+            createRepository: widget.createChatRepository,
+            navigate: _message,
+          ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
 }
 
 extension on String {

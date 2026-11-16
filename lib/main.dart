@@ -509,7 +509,7 @@ GoRouter _createRouter() {
       _appRoute(
         AppRoutes.jobPostings,
         (context, state) => JobPostingsPage(
-          initialStatus: state.uri.queryParameters['status'] ?? 'draft',
+          initialStatus: state.uri.queryParameters['status'] ?? 'all',
         ),
       ),
       jobFormRoute(AppRoutes.createJob),
