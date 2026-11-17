@@ -43,8 +43,8 @@ void main() {
       ];
       await showPage(tester);
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Attendance summary'));
-      await tester.tap(find.text('Attendance summary'));
+      await tester.ensureVisible(find.text('View original attendance & audit'));
+      await tester.tap(find.text('View original attendance & audit'));
       await tester.pumpAndSettle();
       expect(
         find.textContaining('Check-in timing:'),
@@ -176,13 +176,13 @@ void main() {
     (tester) async {
       await showPage(tester);
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Attendance summary'));
-      await tester.tap(find.text('Attendance summary'));
+      await tester.ensureVisible(find.text('View original attendance & audit'));
+      await tester.tap(find.text('View original attendance & audit'));
       await tester.pumpAndSettle();
-      expect(find.text('Attendance details'), findsOneWidget);
+      expect(find.text('View original attendance & audit'), findsOneWidget);
       expect(find.text('Workplace: Server location'), findsOneWidget);
-      expect(find.text('Check-in not recorded'), findsOneWidget);
-      expect(find.text('Check-out not recorded'), findsOneWidget);
+      expect(find.text('Check-in: Not recorded'), findsOneWidget);
+      expect(find.text('Checkout: Not recorded'), findsOneWidget);
       expect(
         find.text('GPS status: Not included in shift summary'),
         findsOneWidget,
@@ -226,17 +226,17 @@ void main() {
       ];
       await showPage(tester);
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Attendance summary'));
-      await tester.tap(find.text('Attendance summary'));
+      await tester.ensureVisible(find.text('View original attendance & audit'));
+      await tester.tap(find.text('View original attendance & audit'));
       await tester.pumpAndSettle();
       for (final text in [
         'Server job',
         'Server company',
-        'Scheduled start: Fri, 6 Nov 2026 4:30 AM MYT',
-        'Scheduled end: Fri, 6 Nov 2026 1:00 PM MYT',
+        'Scheduled start: 06/11/2026 04:30:00 MYT',
+        'Scheduled end: 06/11/2026 13:00:00 MYT',
         'Work Verified',
-        'Checked in: Fri, 6 Nov 2026 4:31 AM MYT',
-        'Checked out: Fri, 6 Nov 2026 1:01 PM MYT',
+        'Check-in: 06/11/2026 04:31:00 MYT',
+        'Checkout: 06/11/2026 13:01:00 MYT',
         'Verified at: Fri, 6 Nov 2026 2:00 PM MYT',
       ]) {
         expect(find.text(text), findsOneWidget);

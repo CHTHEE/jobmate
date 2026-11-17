@@ -77,6 +77,7 @@ supabase/patches/*
 !test/employer_job_form_refinement_test.dart
 !test/employer_applicant_overview_refinement_test.dart
 !test/employer_profile_recruitment_dialog_test.dart
+!test/module4_ui_polish_test.dart
 !test/job_seeker_profile_sections_test.dart
 !test/employer_profile_sections_test.dart
 !test/employer_profile_repository_test.dart

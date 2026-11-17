@@ -37,6 +37,7 @@ class AppWorkspace extends StatelessWidget {
     this.accountAvatarUrl,
     this.onSignOut,
     this.showAccountMenu = true,
+    this.navigationActionCounts = const {},
   });
   final String title;
   final Widget? titleWidget;
@@ -57,6 +58,9 @@ class AppWorkspace extends StatelessWidget {
   final String? accountAvatarUrl;
   final Future<void> Function()? onSignOut;
   final bool showAccountMenu;
+
+  /// Optional counts supplied by the current authorized page, not fetched here.
+  final Map<String, int> navigationActionCounts;
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +148,7 @@ class AppWorkspace extends StatelessWidget {
           Widget? accountActions,
           bool moreSheet = false,
         }) => _WorkspaceMenu(
+          actionCounts: navigationActionCounts,
           groups: moreSheet ? moreGroups : groups,
           selected: selected,
           locked: navigationLocked,
@@ -553,6 +558,7 @@ class _WorkspaceMenu extends StatefulWidget {
     this.accountActions,
     this.showMoreHeading = false,
     this.collapsible = true,
+    this.actionCounts = const {},
   });
   final Map<String, List<WorkspaceDestination>> groups;
   final String? selected;
@@ -561,6 +567,7 @@ class _WorkspaceMenu extends StatefulWidget {
   final Widget? accountActions;
   final bool showMoreHeading;
   final bool collapsible;
+  final Map<String, int> actionCounts;
 
   @override
   State<_WorkspaceMenu> createState() => _WorkspaceMenuState();
@@ -591,6 +598,29 @@ class _WorkspaceMenuState extends State<_WorkspaceMenu> {
         ? ChatUnreadIcon(icon: item.$3)
         : Icon(item.$3, size: 20),
     title: Text(item.$2),
+    trailing: (widget.actionCounts[item.$1] ?? 0) > 0
+        ? Tooltip(
+            message: '${widget.actionCounts[item.$1]} actions in loaded shifts',
+            child: Semantics(
+              label: '${widget.actionCounts[item.$1]} actions in loaded shifts',
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: JobMateTheme.teal100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${widget.actionCounts[item.$1]}',
+                  style: const TextStyle(
+                    color: JobMateTheme.teal900,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          )
+        : null,
     enabled: !widget.locked,
     onTap: () => widget.onSelected(item.$1),
   );

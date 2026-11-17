@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'work_attendance_models.dart';
+import 'work_attendance_lifecycle.dart';
 
 String workVerificationStatusLabel(WorkVerificationStatus status) =>
     switch (status) {
@@ -175,30 +176,27 @@ class WorkStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final urgent =
         stage == WorkStage.moreEvidence ||
         (employer && stage == WorkStage.pendingReview);
-    final (background, foreground) = switch (stage) {
-      WorkStage.cancelled ||
-      WorkStage.disputed => (scheme.errorContainer, scheme.onErrorContainer),
-      WorkStage.verified || WorkStage.completed => (
-        scheme.tertiaryContainer,
-        scheme.onTertiaryContainer,
-      ),
-      _ when urgent => (scheme.primaryContainer, scheme.onPrimaryContainer),
-      WorkStage.checkedIn => (
-        scheme.secondaryContainer,
-        scheme.onSecondaryContainer,
-      ),
-      _ => (scheme.surfaceContainerHighest, scheme.onSurface),
-    };
+    final (background, foreground) = attendanceToneColors(
+      context,
+      switch (stage) {
+        WorkStage.verified || WorkStage.completed => AttendanceTone.positive,
+        WorkStage.pendingReview ||
+        WorkStage.moreEvidence => AttendanceTone.pending,
+        WorkStage.disputed => AttendanceTone.issue,
+        WorkStage.checkedIn ||
+        WorkStage.awaitingEvidence => AttendanceTone.information,
+        _ => AttendanceTone.neutral,
+      },
+    );
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(12),
-        border: urgent ? Border.all(color: scheme.primary, width: 2) : null,
+        border: urgent ? Border.all(color: foreground) : null,
       ),
       child: DefaultTextStyle.merge(
         style: TextStyle(color: foreground),

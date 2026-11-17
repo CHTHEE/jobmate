@@ -5,6 +5,7 @@ import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/mobile_back_action.dart';
 import '../applications/module2_widgets.dart';
+import '../applications/resume_pdf_opener.dart';
 import 'work_attendance_models.dart';
 import 'work_attendance_repository.dart';
 import 'work_evidence_repository.dart';
@@ -24,6 +25,7 @@ import 'work_evidence_upload_repository.dart';
 import 'employer_work_evidence_summary.dart';
 import 'work_attendance_gps.dart';
 import 'work_shift_ui.dart';
+import 'work_status_presentation.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -39,6 +41,7 @@ class WorkEvidencePage extends StatefulWidget {
     this.createQaReviewSource,
     this.qaReviewSession,
     this.createPreviewRepository,
+    this.previewOpener,
     this.loadWorkerName,
     this.workflowSource,
     this.createWorkflowUploads,
@@ -53,6 +56,7 @@ class WorkEvidencePage extends StatefulWidget {
   final WorkEvidenceQaReviewSource Function()? createQaReviewSource;
   final WorkEvidenceQaReviewSession? qaReviewSession;
   final WorkEvidencePreviewRepository Function()? createPreviewRepository;
+  final ResumePdfOpener? previewOpener;
   final WorkAssignmentNameLoader? loadWorkerName;
   final WorkEvidenceWorkflowSource? workflowSource;
   final WorkEvidenceUploadRepository Function(WorkEvidenceDraftController)?
@@ -134,6 +138,11 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
         WorkEvidencePreviewRepository(
           SupabaseWorkEvidencePreviewSource(Supabase.instance.client),
         );
+    final opener = widget.previewOpener ?? createResumePdfOpener();
+    // Reserve during the click, before any authorized metadata/signing awaits.
+    final reserved = file.mimeType == 'application/pdf' && opener.isWeb
+        ? opener.reserve()
+        : null;
     try {
       await showDialog<void>(
         context: context,
@@ -141,6 +150,9 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
           viewer: widget.repository,
           evidenceId: file.evidenceId,
           repository: repo,
+          opener: opener,
+          autoOpen: file.mimeType == 'application/pdf',
+          reservedWindow: reserved,
         ),
       );
     } finally {
@@ -402,10 +414,13 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          '${repo.employer ? (_workerName == null ? 'Assigned worker' : 'Worker: $_workerName') : 'Your work assignment'}'
-                          '${repo.assignment!.checkInAt == null ? '' : '\nChecked in: ${_malaysiaTime(repo.assignment!.checkInAt!)}'}'
-                          '${repo.assignment!.checkOutAt == null ? '' : '\nChecked out: ${_malaysiaTime(repo.assignment!.checkOutAt!)}'}',
+                        const Text('Your work assignment'),
+                        AttendanceStatusBadge(
+                          label:
+                              'Verification: ${workVerificationStatusLabel(repo.assignment!.verificationStatus)}',
+                          tone: verificationTone(
+                            repo.assignment!.verificationStatus,
+                          ),
                         ),
                         AttendanceLifecycleNotice(
                           assignment: repo.assignment!,

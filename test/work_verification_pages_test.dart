@@ -86,11 +86,14 @@ void main() {
       await tester.ensureVisible(details);
       await tester.tap(details);
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('View original attendance & audit'));
+      await tester.tap(find.text('View original attendance & audit'));
+      await tester.pumpAndSettle();
       for (final text in [
         'Server job',
         'Assigned worker',
-        'Scheduled start: 06/11/2026 04:30 MYT',
-        'Scheduled end: 06/11/2026 13:00 MYT',
+        'Scheduled start: 06/11/2026 04:30:00 MYT',
+        'Scheduled end: 06/11/2026 13:00:00 MYT',
         'Workplace: Server location',
         'Verification: Pending review',
         'Action needed: review evidence',

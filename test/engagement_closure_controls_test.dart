@@ -85,7 +85,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Fixture reason');
     await tester.pumpWidget(controls(gateway, application: 'new'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Close engagement'));
     await tester.pumpAndSettle();
     expect(gateway.closes, 0);
     expect(tester.takeException(), isNull);

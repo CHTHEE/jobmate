@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'work_attendance_models.dart';
+import '../../shared/widgets/responsive_layout.dart';
 
 enum AttendanceLifecycle {
   unavailable,
@@ -173,7 +174,7 @@ bool isAttendanceHistoryRow(WorkAssignment row) => row.attendanceAsOf != null
     ? row.attendanceAsOf!.isAfter(row.scheduledEnd)
     : row.checkInAt != null && row.checkOutAt != null;
 
-enum AttendanceTone { neutral, positive, pending, issue }
+enum AttendanceTone { neutral, positive, pending, issue, information }
 
 AttendanceTone verificationTone(WorkVerificationStatus status) =>
     switch (status) {
@@ -185,13 +186,13 @@ AttendanceTone verificationTone(WorkVerificationStatus status) =>
     };
 
 AttendanceTone attendanceTone(AttendanceLifecycle state) => switch (state) {
-  AttendanceLifecycle.verified ||
+  AttendanceLifecycle.verified => AttendanceTone.positive,
   AttendanceLifecycle.recorded ||
-  AttendanceLifecycle.corrected => AttendanceTone.positive,
-  AttendanceLifecycle.overdue ||
+  AttendanceLifecycle.corrected ||
   AttendanceLifecycle.onShift ||
-  AttendanceLifecycle.ready ||
-  AttendanceLifecycle.lateCheckout => AttendanceTone.pending,
+  AttendanceLifecycle.ready => AttendanceTone.information,
+  AttendanceLifecycle.overdue ||
+  AttendanceLifecycle.lateCheckout => AttendanceTone.issue,
   AttendanceLifecycle.missed ||
   AttendanceLifecycle.incomplete ||
   AttendanceLifecycle.inconsistent ||
@@ -211,10 +212,14 @@ AttendanceTone attendanceTone(AttendanceLifecycle state) => switch (state) {
       colors.surfaceContainerHighest,
       colors.onSurface,
     ),
-    AttendanceTone.positive => (
-      colors.secondaryContainer,
-      colors.onSecondaryContainer,
-    ),
+    AttendanceTone.positive =>
+      theme.brightness == Brightness.dark
+          ? (const Color(0xFF14532D), const Color(0xFFDCFCE7))
+          : (const Color(0xFFDCFCE7), const Color(0xFF166534)),
+    AttendanceTone.information =>
+      theme.brightness == Brightness.dark
+          ? (const Color(0xFF134E4A), const Color(0xFFCCFBF1))
+          : (const Color(0xFFF0FDFA), const Color(0xFF0F766E)),
     AttendanceTone.pending => (
       amber.primaryContainer,
       amber.onPrimaryContainer,
@@ -280,17 +285,16 @@ class AttendanceLifecycleNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AttendanceLifecycle.of(assignment);
-    final (background, foreground) = attendanceToneColors(
-      context,
-      attendanceTone(state),
-    );
+    final foreground = Theme.of(context).colorScheme.onSurface;
     return Semantics(
       container: true,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: background,
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
           borderRadius: BorderRadius.circular(12),
         ),
         child: DefaultTextStyle.merge(
@@ -307,56 +311,122 @@ class AttendanceLifecycleNotice extends StatelessWidget {
                   ),
                 ),
               const SizedBox(height: 4),
-              if (showGuidance)
+              ResponsiveGrid(
+                minItemWidth: 220,
+                maxColumns: 2,
+                spacing: 8,
+                children: [
+                  Text(
+                    '${assignment.resolution?.decision == 'corrected' ? 'Corrected effective check-in' : 'Check-in'}: ${assignment.effectiveCheckInAt == null ? 'Not recorded' : attendanceMyt(assignment.effectiveCheckInAt!)}',
+                  ),
+                  Text(
+                    '${assignment.resolution?.decision == 'corrected' ? 'Corrected effective checkout' : 'Checkout'}: ${assignment.effectiveCheckOutAt == null ? 'Not recorded' : attendanceMyt(assignment.effectiveCheckOutAt!)}',
+                  ),
+                ],
+              ),
+              if (assignment.resolution?.decision == 'corrected')
+                const Text(
+                  'Employer-corrected times; not worker-recorded checkout. Work verification is separate.',
+                ),
+              if (assignment.effectiveCheckInAt != null &&
+                  assignment.effectiveCheckOutAt != null)
+                Text(
+                  '${assignment.resolution?.decision == 'corrected' ? 'Corrected duration' : 'Effective duration'}: ${assignment.effectiveCheckOutAt!.difference(assignment.effectiveCheckInAt!).inHours}h ${assignment.effectiveCheckOutAt!.difference(assignment.effectiveCheckInAt!).inMinutes.remainder(60)}m (not approved payable time)',
+                ),
+              if (showGuidance) ...[
+                const SizedBox(height: 4),
                 Text(
                   state.guidanceFor(
                     employer: employer,
                     recoveryEnforced:
                         assignment.resolution?.recoveryEnforced == true,
                   ),
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
-              if (assignment.resolution?.decision != null) ...[
-                const Text('Original attendance and GPS remain preserved.'),
-                Text('Resolution reason: ${assignment.resolution!.reason}'),
-                Text(
-                  'Resolved: ${attendanceMyt(assignment.resolution!.resolvedAt!)}',
-                ),
-                if (assignment.resolution!.decision == 'corrected') ...[
-                  Text(
-                    'Corrected check-in: ${attendanceMyt(assignment.effectiveCheckInAt!)}',
-                  ),
-                  Text(
-                    'Corrected checkout: ${attendanceMyt(assignment.effectiveCheckOutAt!)}',
-                  ),
-                  Text(
-                    'Corrected duration: ${assignment.effectiveCheckOutAt!.difference(assignment.effectiveCheckInAt!).inHours}h ${assignment.effectiveCheckOutAt!.difference(assignment.effectiveCheckInAt!).inMinutes.remainder(60)}m (not approved payable time)',
-                  ),
-                  const Text(
-                    'Manually corrected attendance; GPS refers only to the original device records.',
-                  ),
-                ],
               ],
-              if (assignment.attendanceAsOf case final snapshot?)
-                Material(
-                  color: background,
-                  child: ExpansionTile(
-                    tilePadding: EdgeInsets.zero,
-                    title: const Text('Technical details'),
-                    children: [
-                      Text(
-                        'As of ${attendanceMyt(snapshot)} (server snapshot; refresh to update)',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              if (recordedAttendanceDuration(assignment) case final duration?)
-                Text(
-                  'Recorded duration: $duration (not approved payable time)',
-                ),
+              WorkAttendanceAudit(assignment: assignment),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Authorized original records stay discoverable without repeating correction reasons.
+class WorkAttendanceAudit extends StatelessWidget {
+  const WorkAttendanceAudit({
+    super.key,
+    required this.assignment,
+    this.children = const [],
+    this.showEffectiveDuration = false,
+  });
+  final WorkAssignment assignment;
+  final List<Widget> children;
+  final bool showEffectiveDuration;
+  @override
+  Widget build(BuildContext context) {
+    final row = assignment;
+    return Material(
+      type: MaterialType.transparency,
+      child: ExpansionTile(
+        key: PageStorageKey('attendance-audit-${row.assignmentId}'),
+        tilePadding: EdgeInsets.zero,
+        title: const Text('View original attendance & audit'),
+        expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Original device-recorded attendance'),
+          Text('Scheduled start: ${attendanceMyt(row.scheduledStart)}'),
+          Text('Scheduled end: ${attendanceMyt(row.scheduledEnd)}'),
+          if (AttendanceLifecycle.of(row) == AttendanceLifecycle.missed &&
+              row.resolution?.decision == null)
+            const Text('Attendance resolution: Pending employer review'),
+          if (row.resolution == null)
+            const Text('GPS status: Not included in shift summary'),
+          Text(
+            'Original check-in: ${row.checkInAt == null ? 'Not recorded' : attendanceMyt(row.checkInAt!)}',
+          ),
+          Text(
+            'Original checkout: ${row.checkOutAt == null ? 'Not recorded' : attendanceMyt(row.checkOutAt!)}',
+          ),
+          if (row.resolution?.decision != null) ...[
+            Text('Resolution reason: ${row.resolution!.reason}'),
+            Text('Resolved: ${attendanceMyt(row.resolution!.resolvedAt!)}'),
+            Text(
+              'Original GPS capture: check-in ${row.resolution!.originalCheckInLocationStatus ?? 'not recorded'}; checkout ${row.resolution!.originalCheckOutLocationStatus ?? 'not recorded'}',
+            ),
+            const Text(
+              'Original attendance and GPS remain preserved. Corrected duration is not approved payable time.',
+            ),
+            if (showEffectiveDuration &&
+                row.resolution?.decision == 'corrected')
+              Text(
+                'Corrected duration: ${row.effectiveCheckOutAt!.difference(row.effectiveCheckInAt!).inHours}h ${row.effectiveCheckOutAt!.difference(row.effectiveCheckInAt!).inMinutes.remainder(60)}m (not approved payable time)',
+              ),
+          ],
+          if (recordedAttendanceDuration(row) case final duration?)
+            Text('Recorded duration: $duration (not approved payable time)'),
+          ...children,
+          Material(
+            type: MaterialType.transparency,
+            child: ExpansionTile(
+              key: PageStorageKey('attendance-technical-${row.assignmentId}'),
+              title: const Text('Technical details'),
+              tilePadding: EdgeInsets.zero,
+              children: [
+                Text('Assignment: ${row.assignmentId}'),
+                if (row.attendanceAsOf case final snapshot?)
+                  Text(
+                    'As of ${attendanceMyt(snapshot)} (server snapshot; refresh to update)',
+                  ),
+                if (row.resolution?.actorId case final actor?)
+                  Text('Resolution actor: $actor'),
+                if (row.resolution?.requestId case final request?)
+                  Text('Resolution request: $request'),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

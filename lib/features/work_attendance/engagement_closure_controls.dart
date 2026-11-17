@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'work_attendance_lifecycle.dart';
+
 /// The Phase A RPCs are the authorization and eligibility boundary.
 abstract interface class EngagementClosureGateway {
   Future<Map<String, dynamic>> status(String applicationId);
@@ -226,7 +228,11 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
   Future<String?> _reason(String title, String prompt) async {
     return showDialog<String>(
       context: context,
-      builder: (_) => _ClosureReasonDialog(title: title, prompt: prompt),
+      builder: (_) => _ClosureReasonDialog(
+        title: title,
+        prompt: prompt,
+        confirmLabel: widget.worker ? 'Submit request' : 'Close engagement',
+      ),
     );
   }
 
@@ -264,7 +270,7 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
         await gateway.close(applicationId, reason);
         if (current()) {
           setState(
-            () => _message = 'Engagement closed. Evaluation is now available.',
+            () => _message = 'Engagement closed. New shifts cannot be scheduled. This does not approve or process payment.',
           );
           widget.onClosed?.call();
         }
@@ -319,12 +325,19 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
           label: const Text('Refresh engagement status'),
         )
       else ...[
-        Text(switch (_status!['closure_status']) {
-          'closed' => 'Engagement status: Closed',
-          'closure_requested' => 'Engagement status: Closure requested',
-          'ineligible' => 'Engagement status: Open',
-          _ => 'Engagement status: Open',
-        }),
+        AttendanceStatusBadge(
+          tone: _status!['closure_status'] == 'closed'
+              ? AttendanceTone.positive
+              : _status!['closure_status'] == 'closure_requested'
+              ? AttendanceTone.pending
+              : AttendanceTone.neutral,
+          label: switch (_status!['closure_status']) {
+            'closed' => 'Engagement status: Closed',
+            'closure_requested' => 'Engagement status: Closure requested',
+            'ineligible' => 'Engagement status: Open',
+            _ => 'Engagement status: Open',
+          },
+        ),
         if (_status!['eligible'] == true &&
             _status!['closure_status'] != 'closed' &&
             _status!['closure_status'] != 'closure_requested') ...[
@@ -608,14 +621,36 @@ class _ClosureReasonDialogState extends State<_ClosureReasonDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    constraints: BoxConstraints(
+      maxWidth: 560,
+      maxHeight: MediaQuery.sizeOf(context).height * .88,
+    ),
+    insetPadding: const EdgeInsets.all(16),
     title: Text(widget.title),
-    content: TextField(
-      controller: _controller,
-      autofocus: true,
-      inputFormatters: [LengthLimitingTextInputFormatter(2000)],
-      minLines: 2,
-      maxLines: 5,
-      decoration: InputDecoration(labelText: widget.prompt),
+    content: SizedBox(
+      width: 500,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.title == 'Close engagement'
+                  ? 'All required shift outcomes have been resolved. Closing this engagement prevents scheduling new shifts. This does not approve or process payment.'
+                  : 'Record the reason for this engagement request. This does not approve or process payment.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              inputFormatters: [LengthLimitingTextInputFormatter(2000)],
+              minLines: 2,
+              maxLines: 5,
+              decoration: InputDecoration(labelText: widget.prompt),
+            ),
+          ],
+        ),
+      ),
     ),
     actions: [
       TextButton(

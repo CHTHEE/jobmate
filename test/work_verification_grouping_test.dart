@@ -360,6 +360,13 @@ void main() {
       await tap(tester, toggle(10, 'Show shift details'));
       expect(toggle(10, 'Hide shift details'), findsOneWidget);
       expect(toggle(11, 'Show shift details'), findsOneWidget);
+      await tap(
+        tester,
+        find.descendant(
+          of: card(10),
+          matching: find.text('View original attendance & audit'),
+        ),
+      );
       expect(
         find.descendant(
           of: card(10),

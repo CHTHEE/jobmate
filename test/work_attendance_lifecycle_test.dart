@@ -44,7 +44,7 @@ void main() {
       attendanceTone(AttendanceLifecycle.incomplete),
       AttendanceTone.issue,
     );
-    expect(attendanceTone(AttendanceLifecycle.overdue), AttendanceTone.pending);
+    expect(attendanceTone(AttendanceLifecycle.overdue), AttendanceTone.issue);
   });
   for (final (now, expected) in [
     ('2026-11-05T00:00:00Z', AttendanceLifecycle.ready),

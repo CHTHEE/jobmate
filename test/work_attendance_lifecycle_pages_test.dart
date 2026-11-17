@@ -43,9 +43,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tap(tester, find.text('Attendance details'));
+      await tap(tester, find.text('View original attendance & audit'));
       expect(find.text('Check-in: Not recorded'), findsOneWidget);
-      expect(find.text('Check-out: Not recorded'), findsOneWidget);
+      expect(find.text('Checkout: Not recorded'), findsOneWidget);
       expect(
         find.text('Attendance resolution: Pending employer review'),
         status == 'scheduled' ? findsOneWidget : findsNothing,
@@ -78,7 +78,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tap(tester, find.text('Attendance details'));
+        await tap(tester, find.text('View original attendance & audit'));
         expect(
           find.text('Attendance resolution: Pending employer review'),
           findsNothing,
@@ -468,6 +468,7 @@ void main() {
           find.text(corrected ? 'Corrected Attendance' : 'Confirmed Absent'),
           findsOneWidget,
         );
+        await tap(tester, find.text('View original attendance & audit'));
         expect(
           find.text('Resolution reason: Actual employer resolution reason'),
           findsOneWidget,
@@ -475,10 +476,10 @@ void main() {
         expect(find.text('Review Attendance'), findsNothing);
         if (corrected) {
           expect(
-            find.textContaining('Original: Thu, 5 Nov 2026'),
+            find.text('Original check-in: 05/11/2026 09:00:00 MYT'),
             findsOneWidget,
           );
-          expect(find.textContaining('Original: Not recorded'), findsOneWidget);
+          expect(find.text('Original checkout: Not recorded'), findsOneWidget);
           expect(find.textContaining('Corrected duration:'), findsOneWidget);
         }
         if (corrected) {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/widgets/responsive_layout.dart';
+
 import 'work_attendance_models.dart';
 import 'work_attendance_resolution.dart';
 import 'work_attendance_lifecycle.dart';
@@ -146,6 +148,21 @@ class _ResolutionDialogState extends State<WorkAttendanceResolutionDialog> {
     });
   }
 
+  Widget _timeButton(bool checkingIn) {
+    final value = checkingIn ? _input : _output;
+    return OutlinedButton.icon(
+      onPressed: controller.busy ? null : () => _pick(checkingIn),
+      icon: const Icon(Icons.access_time),
+      label: Text(
+        value == null
+            ? (checkingIn
+                  ? 'Choose corrected check-in (MYT)'
+                  : 'Choose corrected checkout (MYT)')
+            : '${checkingIn ? 'Check-in' : 'Checkout'}: ${_resolutionTime(value)}',
+      ),
+    );
+  }
+
   String? _timeError() {
     if (_decision != 'corrected') return null;
     if (_input == null || _output == null) {
@@ -188,6 +205,11 @@ class _ResolutionDialogState extends State<WorkAttendanceResolutionDialog> {
             widget.assignment.resolution != null &&
             snapshot.version != widget.assignment.resolution!.version;
         return AlertDialog(
+          constraints: BoxConstraints(
+            maxWidth: 640,
+            maxHeight: MediaQuery.sizeOf(context).height * .9,
+          ),
+          insetPadding: const EdgeInsets.all(16),
           title: Text(
             controller.resolved
                 ? 'Attendance resolved'
@@ -365,28 +387,13 @@ class _ResolutionDialogState extends State<WorkAttendanceResolutionDialog> {
                                     ),
                                     const SizedBox(height: 12),
                                     if (_decision == 'corrected') ...[
-                                      OutlinedButton.icon(
-                                        onPressed: controller.busy
-                                            ? null
-                                            : () => _pick(true),
-                                        icon: const Icon(Icons.access_time),
-                                        label: Text(
-                                          _input == null
-                                              ? 'Choose corrected check-in (MYT)'
-                                              : 'Check-in: ${_resolutionTime(_input!)}',
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      OutlinedButton.icon(
-                                        onPressed: controller.busy
-                                            ? null
-                                            : () => _pick(false),
-                                        icon: const Icon(Icons.access_time),
-                                        label: Text(
-                                          _output == null
-                                              ? 'Choose corrected checkout (MYT)'
-                                              : 'Checkout: ${_resolutionTime(_output!)}',
-                                        ),
+                                      ResponsiveGrid(
+                                        minItemWidth: 240,
+                                        maxColumns: 2,
+                                        children: [
+                                          _timeButton(true),
+                                          _timeButton(false),
+                                        ],
                                       ),
                                       const SizedBox(height: 12),
                                       CheckboxListTile(

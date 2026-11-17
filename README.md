@@ -354,15 +354,25 @@ clear attendance-resolution success, conditional empty-record actions and
 separate engagement/closure eligibility labels. See the
 [consolidated UI report and Git preparation](docs/module4_final_consolidated_ui_report.md)
 for validation, remaining manual correction/cutoff QA and the proposed staging scope.
-Current owner-supplied QA: normal late checkout, evidence round 1 and employer
-verification passed on 16 November, with stored timestamps/GPS shape confirmed
-read-only. The engagement now has five shifts (three verified, one confirmed
-absent, one unresolved), and closure blocking passed. Shift B must remain untouched
-until after **17 November 2026, 2:35 PM MYT** for expired-checkout/rejection,
-correction/evidence/verification and successful-closure QA. Those live tests have
-not passed yet. A has no pre-checkout fingerprint proof; B's baseline is saved for
-tomorrow. See the [current QA record](docs/module4_final_qa_2026-11-16.md) and
-[final pre-commit review](docs/module4_precommit_review_2026-11-16.md).
+Current owner-supplied QA (17 November): the functional workflow is complete,
+including expired recovery, employer correction, preservation of originals/GPS,
+PDF evidence, private employer review and verification. The engagement has five
+shifts: four verified and one confirmed absent. Successful closure displayed Closed
+and disabled Add Shift. This is owner-reported live acceptance of the existing
+workflow, not a browser/device review of the latest presentation changes.
+The separate authenticated late-checkout RPC rejection probe was **not performed**;
+only the worker UI cutoff and deployed server-side cutoff function were inspected.
+The earlier [QA record](docs/module4_final_qa_2026-11-16.md) is historical.
+
+The November 17 polish consolidates effective attendance and collapsed original/
+audit records, applies semantic status colors, bounds correction/closure dialogs,
+and opens private PDFs from one click with blocked-popup retry. Web PDF preview
+dialogs dismiss after successful launch; mobile and image previews retain their
+existing behavior. Attendance summaries use neutral responsive time columns with
+original device records and nested technical details collapsed initially. Sidebar action
+indicators use only the active page's loaded authorized snapshot; they are not
+global counts and add no queries. New Chrome and physical Android acceptance is
+pending. See the [implementation and regression report](docs/module4_ui_polish_2026-11-17.md).
 
 CH reports Batch 2 **deployed to the existing live Supabase database on
 14 November 2026**, using

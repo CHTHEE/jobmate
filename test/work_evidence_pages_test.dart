@@ -178,14 +178,22 @@ void main() {
           find.text(corrected ? 'Corrected Attendance' : 'Confirmed Absent'),
           findsOneWidget,
         );
+        await tester.ensureVisible(
+          find.text('View original attendance & audit'),
+        );
+        await tester.tap(find.text('View original attendance & audit'));
+        await tester.pumpAndSettle();
         expect(
           find.text('Resolution reason: Actual reviewed resolution'),
           findsOneWidget,
         );
         expect(find.textContaining('Resolved:'), findsOneWidget);
         if (corrected) {
-          expect(find.textContaining('Corrected check-in:'), findsOneWidget);
-          expect(find.textContaining('Checked in:'), findsOneWidget);
+          expect(
+            find.textContaining('Corrected effective check-in:'),
+            findsOneWidget,
+          );
+          expect(find.textContaining('Original check-in:'), findsOneWidget);
         }
         expect(source.checkIns, 0);
         expect(source.checkOuts, 0);
@@ -231,23 +239,22 @@ void main() {
       await tester.pumpAndSettle();
       for (final label in [
         'Worker: Actual worker',
-        'Scheduled time',
-        'Check-in',
-        'Check-out',
-        'Recorded attendance duration',
-        'Workplace & GPS',
-        'Attendance resolution audit',
+        'View original attendance & audit',
+        'Verification: Pending review',
         'Worker note',
         'file.pdf',
         'Server evidence',
       ]) {
         expect(find.text(label), findsOneWidget);
       }
+      await tester.ensureVisible(find.text('View original attendance & audit'));
+      await tester.tap(find.text('View original attendance & audit'));
+      await tester.pumpAndSettle();
       expect(
         find.text('Resolution reason: Actual reviewed correction'),
         findsOneWidget,
       );
-      expect(find.text('Original: Not recorded'), findsOneWidget);
+      expect(find.text('Original checkout: Not recorded'), findsOneWidget);
       expect(find.textContaining('Corrected duration:'), findsOneWidget);
       expect(find.text('Verify Work'), findsNothing);
       expect(tester.takeException(), isNull);
@@ -295,7 +302,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Work Verification Details'), findsWidgets);
-        expect(find.text('Work Verified'), findsNWidgets(2));
+        expect(find.text('Work Verified'), findsOneWidget);
         expect(
           find.textContaining('No further evidence submission is due.'),
           findsOneWidget,

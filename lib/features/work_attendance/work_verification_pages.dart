@@ -19,6 +19,7 @@ import 'work_attendance_lifecycle.dart';
 import 'work_attendance_resolution.dart';
 import 'work_attendance_resolution_dialog.dart';
 import 'work_shift_ui.dart';
+import 'work_action_indicators.dart';
 
 /// The caller supplies the selected company and owns the repository.
 /// Access is checked against existing employer membership/verification rules;
@@ -382,6 +383,13 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
         title: 'Work Assignments & Verification',
         path: AppRoutes.workVerification,
         role: 'employer',
+        navigationActionCounts: authorized && !loading && error == null
+            ? {
+                AppRoutes.workVerification: state.rows
+                    .where(employerShiftNeedsAction)
+                    .length,
+              }
+            : const {},
         actions: [
           IconButton(
             tooltip: 'Refresh company assignments',
@@ -967,11 +975,6 @@ class _CompanyAssignmentCard extends StatelessWidget {
           Text(
             '${corrected ? 'Corrected: ' : ''}${time(row.effectiveCheckInAt)}',
           ),
-          if (corrected)
-            Text(
-              'Original: ${time(row.checkInAt)}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
         ],
       ),
       ShiftDetailPanel(
@@ -981,11 +984,6 @@ class _CompanyAssignmentCard extends StatelessWidget {
           Text(
             '${corrected ? 'Corrected: ' : ''}${time(row.effectiveCheckOutAt)}',
           ),
-          if (corrected)
-            Text(
-              'Original: ${time(row.checkOutAt)}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
         ],
       ),
       ShiftDetailPanel(
@@ -1172,63 +1170,18 @@ class _CompanyAssignmentCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (row.resolution?.decision != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: ShiftDetailPanel(
-                    title: 'Employer attendance resolution',
-                    icon: Icons.fact_check_outlined,
-                    children: [
-                      Text('Resolution reason: ${row.resolution!.reason}'),
-                      Text(
-                        'Resolved: ${attendanceMyt(row.resolution!.resolvedAt!)}',
-                      ),
-                      if (corrected)
-                        Text(
-                          'Corrected duration: ${row.effectiveCheckOutAt!.difference(row.effectiveCheckInAt!).inHours}h ${row.effectiveCheckOutAt!.difference(row.effectiveCheckInAt!).inMinutes.remainder(60)}m (not approved payable time)',
-                        ),
-                      const Text(
-                        'Original attendance and GPS remain preserved.',
-                      ),
-                    ],
-                  ),
+              if (row.effectiveCheckInAt != null &&
+                  row.effectiveCheckOutAt != null)
+                Text(
+                  '${corrected ? "Corrected" : "Recorded"} duration: ${row.effectiveCheckOutAt!.difference(row.effectiveCheckInAt!).inHours}h ${row.effectiveCheckOutAt!.difference(row.effectiveCheckInAt!).inMinutes.remainder(60)}m (not approved payable time)',
                 ),
-              const SizedBox(height: 10),
-              DefaultTextStyle.merge(
-                style: Theme.of(context).textTheme.bodySmall,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Scheduled start: ${_malaysiaTime(row.scheduledStart)}',
-                    ),
-                    Text('Scheduled end: ${_malaysiaTime(row.scheduledEnd)}'),
-                    if (row.checkInAt != null)
-                      Text('Checked in: ${attendanceMyt(row.checkInAt!)}'),
-                    if (row.checkOutAt != null)
-                      Text('Checked out: ${attendanceMyt(row.checkOutAt!)}'),
-                    if (row.verifiedAt != null)
-                      Text('Verified at: ${attendanceMyt(row.verifiedAt!)}'),
-                    if (recordedAttendanceDuration(row) case final duration?)
-                      Text(
-                        'Recorded duration: $duration (not approved payable time)',
-                      ),
-                    ExpansionTile(
-                      tilePadding: EdgeInsets.zero,
-                      title: const Text('Technical details'),
-                      children: [
-                        if (row.attendanceAsOf case final snapshot?)
-                          Text(
-                            'As of ${attendanceMyt(snapshot)} (server snapshot; refresh to update)',
-                          ),
-                        Text(
-                          'Saved assignment state: ${_shiftStatusLabel(row.assignmentStatus)}',
-                        ),
-                      ],
-                    ),
-                  ],
+              if (corrected)
+                const Text(
+                  'Employer-corrected effective times; original device records are in the audit below. Work verification is separate.',
                 ),
-              ),
+              WorkAttendanceAudit(assignment: row),
+              if (row.verifiedAt != null)
+                Text('Verified at: ${_malaysiaTime(row.verifiedAt!)}'),
             ],
             const SizedBox(height: 8),
             Wrap(

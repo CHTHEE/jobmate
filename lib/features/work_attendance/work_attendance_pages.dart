@@ -15,6 +15,7 @@ import 'work_evidence_deadline.dart';
 import 'engagement_closure_controls.dart';
 import 'work_attendance_lifecycle.dart';
 import 'work_shift_ui.dart';
+import 'work_action_indicators.dart';
 
 /// Worker attendance. The caller owns the repository and route access gate.
 class WorkAttendancePage extends StatefulWidget {
@@ -281,6 +282,13 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
             ? AppRoutes.attendanceHistory
             : AppRoutes.workAttendance,
         role: 'job_seeker',
+        navigationActionCounts: !state.loading && state.error == null
+            ? {
+                AppRoutes.workAttendance: state.rows
+                    .where(workerShiftNeedsAction)
+                    .length,
+              }
+            : const {},
         actions: [
           IconButton(
             tooltip: 'Refresh assignments',
@@ -512,10 +520,27 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
                                 AttendanceStatusBadge(
                                   label:
                                       '${shifts.where((r) => r.verificationStatus == WorkVerificationStatus.verified).length} verified',
+                                  tone:
+                                      shifts.any(
+                                        (row) =>
+                                            row.verificationStatus ==
+                                            WorkVerificationStatus.verified,
+                                      )
+                                      ? AttendanceTone.positive
+                                      : AttendanceTone.neutral,
                                 ),
                                 AttendanceStatusBadge(
                                   label:
                                       '${shifts.where((r) => r.verificationStatus == WorkVerificationStatus.pendingReview).length} pending review',
+                                  tone:
+                                      shifts.any(
+                                        (row) =>
+                                            row.verificationStatus ==
+                                            WorkVerificationStatus
+                                                .pendingReview,
+                                      )
+                                      ? AttendanceTone.pending
+                                      : AttendanceTone.neutral,
                                 ),
                                 if (shifts.every(
                                   (r) => r.attendanceAsOf != null,
@@ -523,6 +548,14 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
                                   AttendanceStatusBadge(
                                     label:
                                         '${shifts.where((r) => AttendanceLifecycle.of(r).isIssue).length} attendance issues',
+                                    tone:
+                                        shifts.any(
+                                          (row) =>
+                                              AttendanceLifecycle.of(row)
+                                                  .isIssue,
+                                        )
+                                        ? AttendanceTone.issue
+                                        : AttendanceTone.neutral,
                                   ),
                               ],
                             ),
@@ -702,25 +735,20 @@ class _AssignmentCard extends StatelessWidget {
               ),
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            ExpansionTile(
-              key: PageStorageKey('worker-details-${row.assignmentId}'),
-              tilePadding: EdgeInsets.zero,
-              title: const Text('Attendance summary'),
-              children: [
-                Text('Scheduled start: ${_malaysiaTime(row.scheduledStart)}'),
-                Text('Scheduled end: ${_malaysiaTime(row.scheduledEnd)}'),
-                _AttendanceDetails(row),
-                AttendanceLifecycleNotice(
-                  assignment: row,
-                  showHeading: false,
-                  showGuidance: false,
-                ),
-                if (row.verifiedAt != null)
-                  Text('Verified at: ${_malaysiaTime(row.verifiedAt!)}'),
-                if (row.effectiveCheckOutAt != null)
-                  EvidenceDeadlineSummary(assignment: row),
-              ],
+            const Text(
+              'Attendance summary',
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
+            AttendanceLifecycleNotice(
+              assignment: row,
+              showHeading: false,
+              showGuidance: false,
+            ),
+            WorkCheckInTiming(assignment: row),
+            if (row.verifiedAt != null)
+              Text('Verified at: ${_malaysiaTime(row.verifiedAt!)}'),
+            if (row.effectiveCheckOutAt != null)
+              EvidenceDeadlineSummary(assignment: row),
             OutlinedButton(
               style:
                   row.verificationStatus ==
@@ -836,46 +864,12 @@ class _HistoryAssignmentCard extends StatelessWidget {
               ],
             ),
             Text('Workplace: ${row.workplaceLocation}'),
-            if (row.checkInAt != null)
-              Text('Original check-in: ${_malaysiaTime(row.checkInAt!)}'),
-            if (row.checkOutAt != null)
-              Text('Original checkout: ${_malaysiaTime(row.checkOutAt!)}'),
+            AttendanceLifecycleNotice(assignment: row, showHeading: false),
             WorkCheckInTiming(assignment: row),
-            if (row.resolution?.decision != null)
-              Text('Resolution: ${row.resolution!.reason}'),
-            if (row.resolution?.decision == 'corrected') ...[
-              Text(
-                'Corrected check-in: ${_malaysiaTime(row.effectiveCheckInAt!)}',
-              ),
-              Text(
-                'Corrected checkout: ${_malaysiaTime(row.effectiveCheckOutAt!)}',
-              ),
-            ],
-            ExpansionTile(
-              key: PageStorageKey('history-${row.assignmentId}'),
-              tilePadding: EdgeInsets.zero,
-              title: const Text('Attendance details'),
-              children: [
-                Text(
-                  'Check-in: ${row.checkInAt == null ? 'Not recorded' : _malaysiaTime(row.checkInAt!)}',
-                ),
-                Text(
-                  'Check-out: ${row.checkOutAt == null ? 'Not recorded' : _malaysiaTime(row.checkOutAt!)}',
-                ),
-                if (state == AttendanceLifecycle.missed &&
-                    row.resolution?.decision == null)
-                  const Text('Attendance resolution: Pending employer review'),
-                AttendanceLifecycleNotice(
-                  assignment: row,
-                  showGuidance: false,
-                  showHeading: false,
-                ),
-                if (row.effectiveCheckOutAt != null)
-                  EvidenceDeadlineSummary(assignment: row),
-                if (row.verifiedAt != null)
-                  Text('Verified: ${_malaysiaTime(row.verifiedAt!)}'),
-              ],
-            ),
+            if (row.effectiveCheckOutAt != null)
+              EvidenceDeadlineSummary(assignment: row),
+            if (row.verifiedAt != null)
+              Text('Verified: ${_malaysiaTime(row.verifiedAt!)}'),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
@@ -939,67 +933,6 @@ class _AttendanceClockState extends State<_AttendanceClock> {
             color: Theme.of(context).colorScheme.onSecondaryContainer,
           ),
         ),
-      ],
-    ),
-  );
-}
-
-/// Uses only the worker RPC projection; never infers a GPS outcome.
-class _AttendanceDetails extends StatelessWidget {
-  const _AttendanceDetails(this.row);
-  final WorkerWorkAssignment row;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Attendance details',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 12),
-        _detail(
-          Icons.login_outlined,
-          row.checkInAt == null
-              ? 'Check-in not recorded'
-              : 'Checked in: ${_malaysiaTime(row.checkInAt!)}',
-        ),
-        _detail(
-          Icons.logout_outlined,
-          row.checkOutAt == null
-              ? 'Check-out not recorded'
-              : 'Checked out: ${_malaysiaTime(row.checkOutAt!)}',
-        ),
-        WorkCheckInTiming(assignment: row),
-        const Divider(),
-        _detail(
-          Icons.location_on_outlined,
-          row.resolution == null
-              ? 'GPS status: Not included in shift summary'
-              : 'Original GPS capture: check-in ${row.resolution!.originalCheckInLocationStatus ?? 'not recorded'}; checkout ${row.resolution!.originalCheckOutLocationStatus ?? 'not recorded'}',
-        ),
-        Text(
-          'Location is requested separately at check-in and check-out. Capture may be granted, denied or unavailable.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
-    ),
-  );
-
-  Widget _detail(IconData icon, String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 20),
-        const SizedBox(width: 10),
-        Expanded(child: Text(text)),
       ],
     ),
   );

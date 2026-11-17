@@ -184,12 +184,16 @@ class WorkEvidencePreviewDialog extends StatefulWidget {
     required this.repository,
     this.opener,
     this.imageBuilder,
+    this.autoOpen = false,
+    this.reservedWindow,
   });
   final WorkEvidenceRepository viewer;
   final String evidenceId;
   final WorkEvidencePreviewRepository repository;
   final ResumePdfOpener? opener;
   final Widget Function(Uri)? imageBuilder;
+  final bool autoOpen;
+  final ResumePdfWindow? reservedWindow;
   @override
   State<WorkEvidencePreviewDialog> createState() =>
       _WorkEvidencePreviewDialogState();
@@ -198,6 +202,8 @@ class WorkEvidencePreviewDialog extends StatefulWidget {
 class _WorkEvidencePreviewDialogState extends State<WorkEvidencePreviewDialog> {
   late final _opener = widget.opener ?? createResumePdfOpener();
   bool _opening = false;
+  bool _opened = false;
+  late ResumePdfWindow? _reserved = widget.reservedWindow;
   String? _openError;
   Uri? _imageUri;
   void _evictImage() {
@@ -215,23 +221,74 @@ class _WorkEvidencePreviewDialogState extends State<WorkEvidencePreviewDialog> {
   @override
   void initState() {
     super.initState();
-    widget.repository.load(widget.viewer, widget.evidenceId);
+    widget.repository.addListener(_accessChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await widget.repository.load(widget.viewer, widget.evidenceId);
+      if (mounted &&
+          widget.autoOpen &&
+          widget.repository.file?.mimeType == 'application/pdf') {
+        _open(automatic: true);
+      }
+    });
   }
 
-  Future<void> _open() async {
+  void _accessChanged() {
+    if (!widget.repository.loading && widget.repository.link == null) {
+      _reserved?.close();
+      _reserved = null;
+    }
+  }
+
+  Future<void> _retry() async {
+    _reserved?.close();
+    _reserved = widget.autoOpen && _opener.isWeb ? _opener.reserve() : null;
+    await widget.repository.load(widget.viewer, widget.evidenceId);
+    if (mounted &&
+        widget.autoOpen &&
+        widget.repository.file?.mimeType == 'application/pdf') {
+      await _open(automatic: true);
+    }
+  }
+
+  Future<void> _open({bool automatic = false}) async {
     final uri = widget.repository.link;
     if (uri == null || _opening) return;
+    final window =
+        _reserved ?? (!automatic && _opener.isWeb ? _opener.reserve() : null);
     setState(() {
       _opening = true;
       _openError = null;
     });
     try {
-      if (!await _opener.open(uri) && mounted) {
+      final opened = _opener.isWeb
+          ? (window?.navigate(uri) ?? false)
+          : await _opener.open(uri);
+      if (!mounted || widget.repository.link != uri) {
+        window?.close();
+        return;
+      }
+      if (opened) {
+        _reserved = null;
+        if (_opener.isWeb &&
+            widget.repository.file?.mimeType == 'application/pdf' &&
+            ModalRoute.of(context) is DialogRoute) {
+          Navigator.of(context).pop();
+          return;
+        }
+        if (mounted) setState(() => _opened = true);
+      } else if (mounted) {
+        window?.close();
+        _reserved = null;
         setState(
-          () => _openError = 'Your device could not open this file. Allow a new tab or try again.',
+          () => _openError = _opener.isWeb
+              ? 'Your browser blocked opening the private file. Use Open PDF to retry.'
+              : 'Your device could not open this file. Try again with a PDF app or browser.',
         );
       }
     } catch (_) {
+      window?.close();
+      _reserved = null;
       if (mounted) {
         setState(() => _openError = 'Unable to open the private file.');
       }
@@ -242,6 +299,8 @@ class _WorkEvidencePreviewDialogState extends State<WorkEvidencePreviewDialog> {
 
   @override
   void dispose() {
+    widget.repository.removeListener(_accessChanged);
+    _reserved?.close();
     _evictImage();
     super.dispose();
   }
@@ -279,6 +338,10 @@ class _WorkEvidencePreviewDialogState extends State<WorkEvidencePreviewDialog> {
                     ),
                   if (repo.error != null) Text(repo.error!),
                   if (_openError != null) Text(_openError!),
+                  if (_opened)
+                    const Text(
+                      'Private file opened. Access remains temporary.',
+                    ),
                   if (uri != null && repo.file != null) ...[
                     Text(
                       safeEvidenceDisplayName(repo.file!.fileName) ??
@@ -317,7 +380,7 @@ class _WorkEvidencePreviewDialogState extends State<WorkEvidencePreviewDialog> {
           ),
           if (!repo.loading && uri == null)
             TextButton(
-              onPressed: () => repo.load(widget.viewer, widget.evidenceId),
+              onPressed: _retry,
               child: const Text('Check access again'),
             ),
         ],
