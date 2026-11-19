@@ -522,7 +522,9 @@ void main() {
       await source.changes.close();
       await gps.changes.close();
     });
-    source.companyRead = (_) async => [assignment(company: true)];
+    source.companyRead = (_) async => [
+      assignment(company: true)..['check_in_at'] = '2026-11-05T01:00:00Z',
+    ];
     Future<void> page(JobAccess access) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -542,6 +544,10 @@ void main() {
     expect(find.text('View attendance GPS'), findsNothing);
     expect(gps.calls, 0);
     await page(const JobAccess({'company_id': other}, null));
+    final show = find.text('Show application shifts');
+    await tester.ensureVisible(show);
+    await tester.tap(show);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('View attendance GPS'));
     await tester.tap(find.text('View attendance GPS'));
     await tester.pumpAndSettle();

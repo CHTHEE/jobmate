@@ -14,8 +14,9 @@ import 'work_attendance_repository_test.dart'
 import 'work_attendance_resolution_test.dart' show resolutionContext, auditFor;
 
 class _ReadOnlyMissedWorkflow implements WorkEvidenceWorkflowSource {
-  _ReadOnlyMissedWorkflow(this.source);
+  _ReadOnlyMissedWorkflow(this.source, {this.employer = false});
   final FakeSource source;
+  final bool employer;
   final calls = <String>[];
   @override
   String? get userId => source.userId;
@@ -30,7 +31,7 @@ class _ReadOnlyMissedWorkflow implements WorkEvidenceWorkflowSource {
     return {
       'contract_version': 1,
       'assignment_id': id,
-      'viewer_role': 'worker',
+      'viewer_role': employer ? 'employer' : 'worker',
       'latest_round': 0,
       'assignment_status': 'scheduled',
       'verification_status': 'not_submitted',
@@ -59,6 +60,73 @@ void main() {
   Future<void> show(WidgetTester tester) => tester.pumpWidget(
     MaterialApp(home: WorkEvidencePage(repository: viewer)),
   );
+
+  for (final width in [320.0, 1200.0]) {
+    testWidgets('upcoming worker details disclose history at width $width', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      source.workerRead = () async => [
+        assignment()
+          ..['attendance_as_of'] = '2026-11-04T22:00:00Z'
+          ..['workplace_latitude'] = 3.117
+          ..['workplace_longitude'] = 101.677,
+      ];
+      source.evidenceRead = (_) async => [];
+      final workflow = _ReadOnlyMissedWorkflow(source);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WorkEvidencePage(repository: viewer, workflowSource: workflow),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Shift details'), findsWidgets);
+      for (final label in [
+        'Server job',
+        'Server company',
+        'Upcoming / Scheduled',
+        'Date: Thursday, 5 November 2026',
+        'Time: 9:00 AM – 5:00 PM MYT',
+        'Workplace: Server location',
+        'View workplace on map',
+        'Check-in is not available yet.',
+      ]) {
+        expect(find.text(label), findsOneWidget);
+      }
+      expect(find.textContaining('No submission is due yet'), findsOneWidget);
+      for (final label in [
+        'Check-in: Not recorded',
+        'Checkout: Not recorded',
+        'View original attendance & audit',
+        'Technical details',
+        'Latest submission round: 0',
+        'No verification events recorded yet.',
+        'No work evidence',
+        'Submit work evidence',
+      ]) {
+        expect(find.text(label), findsNothing);
+      }
+      Future<void> expand(String label) async {
+        final tile = find.text(label);
+        await tester.ensureVisible(tile);
+        await tester.tap(tile);
+        await tester.pumpAndSettle();
+      }
+
+      await expand('Attendance & verification history');
+      expect(find.text('No verification events recorded yet.'), findsOneWidget);
+      expect(find.text('No attendance events recorded yet.'), findsOneWidget);
+      expect(find.text('Technical details'), findsNothing);
+      expect(find.text('View original attendance & audit'), findsNothing);
+      expect(find.textContaining(id), findsNothing);
+      expect(find.textContaining('server snapshot'), findsNothing);
+      expect(workflow.calls, ['work_evidence_workflow_context']);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   for (final employer in [false, true]) {
     testWidgets(
@@ -136,6 +204,77 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  for (final width in [320.0, 1200.0]) {
+    testWidgets(
+      'employer upcoming details show one evidence message at $width',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        viewer.dispose();
+        viewer = WorkEvidenceRepository.employer(
+          attendance,
+          assignmentId: id,
+          companyId: other,
+          loadCompanyAccess: () async =>
+              const JobAccess({'company_id': other}, null),
+        );
+        source.companyRead = (_) async => [
+          assignment(company: true)
+            ..['attendance_as_of'] = '2026-11-04T22:00:00Z'
+            ..['workplace_latitude'] = width == 320 ? 3.117 : null
+            ..['workplace_longitude'] = width == 320 ? 101.677 : null,
+        ];
+        source.evidenceRead = (_) async =>
+            throw StateError('Evidence requires submission');
+        final workflow = _ReadOnlyMissedWorkflow(source, employer: true);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: WorkEvidencePage(
+              repository: viewer,
+              loadWorkerName: (_, _) async => 'Actual worker',
+              workflowSource: workflow,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        for (final label in [
+          'Server job',
+          'Worker: Actual worker',
+          'Upcoming / Scheduled',
+          'Date: Thursday, 5 November 2026',
+          'Time: 9:00 AM – 5:00 PM MYT',
+          'Workplace: Server location',
+          'Awaiting scheduled shift.',
+          'Evidence and verification',
+          'Evidence submission follows completed attendance. No submission is due yet.',
+        ]) {
+          expect(find.text(label), findsOneWidget);
+        }
+        expect(find.text('Shift details'), findsWidgets);
+        expect(
+          find.text('View workplace on map'),
+          width == 320 ? findsOneWidget : findsNothing,
+        );
+        for (final label in [
+          'Check-in: Not recorded',
+          'Checkout: Not recorded',
+          'Verification: Not submitted',
+          'Latest submission round: 0',
+          'No verification events recorded yet.',
+          'No evidence submitted yet',
+          'View attendance GPS',
+          'Technical details',
+        ]) {
+          expect(find.text(label), findsNothing);
+        }
+        expect(workflow.calls, ['work_evidence_workflow_context']);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'unsafe filename metadata uses friendly fallback without path or token',
     (tester) async {
@@ -178,19 +317,21 @@ void main() {
           find.text(corrected ? 'Corrected Attendance' : 'Confirmed Absent'),
           findsOneWidget,
         );
-        await tester.ensureVisible(
-          find.text('View original attendance & audit'),
-        );
-        await tester.tap(find.text('View original attendance & audit'));
+        expect(find.text('View original attendance & audit'), findsNothing);
+        final history = find.text('Attendance & verification history');
+        await tester.ensureVisible(history);
+        await tester.tap(history);
         await tester.pumpAndSettle();
-        expect(
-          find.text('Resolution reason: Actual reviewed resolution'),
-          findsOneWidget,
-        );
-        expect(find.textContaining('Resolved:'), findsOneWidget);
+        expect(find.text('Actual reviewed resolution'), findsOneWidget);
+        expect(find.textContaining('Resolved by employer:'), findsOneWidget);
+        expect(find.textContaining(other), findsNothing);
         if (corrected) {
+          expect(find.text('9:10 AM'), findsOneWidget);
+          expect(find.text('4:00 PM'), findsOneWidget);
+          expect(find.text('Employer-corrected'), findsNWidgets(2));
+          expect(find.text('Corrected · On Time'), findsOneWidget);
           expect(
-            find.textContaining('Corrected effective check-in:'),
+            find.text('Corrected duration: 6 hours 50 minutes'),
             findsOneWidget,
           );
           expect(find.textContaining('Original check-in:'), findsOneWidget);
@@ -239,28 +380,35 @@ void main() {
       await tester.pumpAndSettle();
       for (final label in [
         'Worker: Actual worker',
-        'View original attendance & audit',
+        'Attendance correction',
         'Verification: Pending review',
-        'Worker note',
+        "Worker's submission note",
         'file.pdf',
         'Server evidence',
       ]) {
         expect(find.text(label), findsOneWidget);
       }
-      await tester.ensureVisible(find.text('View original attendance & audit'));
-      await tester.tap(find.text('View original attendance & audit'));
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Resolution reason: Actual reviewed correction'),
-        findsOneWidget,
-      );
+      expect(find.text('Technical details'), findsNothing);
+      expect(find.textContaining(other), findsNothing);
+      expect(find.text('Actual reviewed correction'), findsOneWidget);
       expect(find.text('Original checkout: Not recorded'), findsOneWidget);
       expect(find.textContaining('Corrected duration:'), findsOneWidget);
+      expect(find.text('Corrected check-in'), findsOneWidget);
+      expect(find.text('Corrected checkout'), findsOneWidget);
+      expect(find.text('9:10 AM'), findsOneWidget);
+      expect(find.text('4:00 PM'), findsOneWidget);
       expect(find.text('Verify Work'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
 
+  final longNote = [
+    List.filled(10, 'The worker completed the assigned event setup.').join(' '),
+    List.filled(
+      8,
+      'This second paragraph describes the final checks.',
+    ).join(' '),
+  ].join('\n\n');
   for (final width in [320.0, 1200.0]) {
     testWidgets(
       'verified employer details fit $width with enlarged text and retain compact preview',
@@ -288,7 +436,11 @@ void main() {
         source.evidenceRead = (_) async => [
           evidenceRow()
             ..['file_name'] = List.filled(8, 'Long actual filename').join('-')
-            ..['description'] = 'Actual worker note',
+            ..['description'] = longNote,
+          evidenceRow()
+            ..['evidence_id'] = other
+            ..['file_name'] = 'Work photo.png'
+            ..['mime_type'] = 'image/png',
         ];
         await tester.pumpWidget(
           MaterialApp(
@@ -308,11 +460,41 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('Verify Work'), findsNothing);
+        expect(find.text('Device-recorded'), findsNWidgets(2));
+        expect(find.text('Employer-corrected'), findsNothing);
+        expect(
+          find.text('Work verification does not confirm payment approval.'),
+          findsOneWidget,
+        );
+        expect(find.text("Worker's submission note"), findsOneWidget);
+        final note = tester.widget<Text>(find.text(longNote));
+        expect(note.data, longNote);
+        expect(note.maxLines, isNull);
+        expect(find.text('Submitted by the assigned worker'), findsOneWidget);
+        expect(
+          find.textContaining('Submitted: Thu, 5 Nov 2026'),
+          findsOneWidget,
+        );
+        expect(find.text('Attachments'), findsOneWidget);
+        expect(find.text('Work photo.png'), findsOneWidget);
+        expect(find.text('View image'), findsOneWidget);
         await tester.ensureVisible(find.text('View PDF'));
         expect(tester.takeException(), isNull);
       },
     );
   }
+
+  testWidgets('worker evidence with an empty note still shows the attachment', (
+    tester,
+  ) async {
+    source.evidenceRead = (_) async => [evidenceRow()..['description'] = ''];
+    await show(tester);
+    await tester.pumpAndSettle();
+    expect(find.text("Worker's submission note"), findsNothing);
+    expect(find.text('Attachments'), findsOneWidget);
+    expect(find.text('file.pdf'), findsOneWidget);
+    expect(find.text('View PDF'), findsOneWidget);
+  });
 
   testWidgets(
     'loading, metadata fields, rounds and no file/mutation controls',
@@ -332,14 +514,14 @@ void main() {
           ..['mime_type'] = 'image/png',
       ]);
       await tester.pumpAndSettle();
-      expect(find.text('Latest submission - Round 2'), findsOneWidget);
+      expect(find.text('Latest submission — Round 2'), findsOneWidget);
       expect(find.text('Earlier description'), findsNothing);
       await tester.ensureVisible(find.text('Earlier submissions (1)'));
       await tester.tap(find.text('Earlier submissions (1)'));
       await tester.pumpAndSettle();
       for (final text in [
         'Server job',
-        'Latest submission - Round 2',
+        'Latest submission — Round 2',
         'Submission round 1',
         'Server evidence',
         'Earlier description',
@@ -542,7 +724,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Latest submission - Round 2'), findsOneWidget);
+      expect(find.text('Latest submission — Round 2'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.drag(
         find.byType(SingleChildScrollView).first,

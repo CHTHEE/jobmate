@@ -306,6 +306,8 @@ void main() {
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await tester.pumpAndSettle();
       expect(find.text('Clear filters'), findsNothing);
+      expect(find.text('Saved this session'), findsNothing);
+      expect(find.text('Bookmarked jobs only'), findsNothing);
       expect(find.text('2 results'), findsOneWidget);
       await tester.enterText(find.byType(TextField).first, 'Accountant');
       await tester.pump();
@@ -314,6 +316,8 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('Filters'));
       await tester.pump();
+      expect(find.text('Saved this session'), findsNothing);
+      expect(find.text('Bookmarked jobs only'), findsOneWidget);
       await tester.tap(find.byType(DropdownButtonFormField<String>).first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Part-time').last);
@@ -324,8 +328,17 @@ void main() {
       expect(find.text('Part-time'), findsWidgets);
       await tester.tap(find.byTooltip('Save job (this session)'));
       await tester.pump();
-      await tester.tap(find.text('Saved this session'));
+      await tester.tap(find.text('Clear filters'));
       await tester.pump();
+      expect(find.text('2 results'), findsOneWidget);
+      await tester.tap(find.text('Filters'));
+      await tester.pump();
+      await tester.tap(find.text('Bookmarked jobs only'));
+      await tester.pump();
+      expect(find.text('1 results'), findsOneWidget);
+      await tester.tap(find.text('Filters'));
+      await tester.pump();
+      expect(find.text('Bookmarked jobs only'), findsNothing);
       expect(find.text('1 results'), findsOneWidget);
       await tester.tap(find.text('Clear filters'));
       await tester.pump();

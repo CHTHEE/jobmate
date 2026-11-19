@@ -55,7 +55,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
   String? _actor, _authorizedActor, _company;
   final _search = TextEditingController();
   final Set<String> _expandedShiftIds = {};
-  final Set<String> _collapsedApplicationIds = {};
+  final Set<String> _expandedApplicationIds = {};
   String _jobFilter = '', _shiftFilter = '', _verificationFilter = '';
   final Map<String, String> _workerNames = {};
   final Map<String, Future<String?>> _workerNameReads = {};
@@ -259,7 +259,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
     if (actor == _actor) return;
     _actor = actor;
     _expandedShiftIds.clear();
-    _collapsedApplicationIds.clear();
+    _expandedApplicationIds.clear();
     _clearFilters();
     _workerNames.clear();
     _workerNameReads.clear();
@@ -350,7 +350,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
       if (!identical(oldWidget.repository, widget.repository) ||
           oldWidget.companyId != widget.companyId) {
         _expandedShiftIds.clear();
-        _collapsedApplicationIds.clear();
+        _expandedApplicationIds.clear();
       }
       _clearFilters();
       _people = null;
@@ -585,7 +585,13 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                   Builder(
                     builder: (context) {
                       final applicationId = shifts.first.applicationId;
+                      final applicationExpanded = _expandedApplicationIds
+                          .contains(applicationId);
+                      final nextShift = applicationExpanded
+                          ? null
+                          : nextUpcomingShift(shifts.where(_matches));
                       final closureState = _closureStates[applicationId];
+                      final engagement = closureState?.status;
                       final closed = closureState?.isClosed == true;
                       final statusUnavailable =
                           closureState == null ||
@@ -686,36 +692,41 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                                     ),
                                   ],
                                 ),
+                                if (nextShift != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: 10,
+                                      bottom: 14,
+                                    ),
+                                    child: UpcomingShiftPreview(
+                                      shift: nextShift,
+                                    ),
+                                  ),
                                 LayoutBuilder(
                                   builder: (context, constraints) {
                                     final toggle = Semantics(
-                                      expanded: !_collapsedApplicationIds
-                                          .contains(applicationId),
+                                      expanded: applicationExpanded,
                                       child: Align(
                                         alignment: Alignment.centerLeft,
                                         child: TextButton.icon(
                                           onPressed: () => setState(() {
-                                            if (!_collapsedApplicationIds.add(
+                                            if (!_expandedApplicationIds.add(
                                               applicationId,
                                             )) {
-                                              _collapsedApplicationIds.remove(
+                                              _expandedApplicationIds.remove(
                                                 applicationId,
                                               );
                                             }
                                           }),
                                           icon: Icon(
-                                            _collapsedApplicationIds.contains(
-                                                  applicationId,
-                                                )
-                                                ? Icons.expand_more
-                                                : Icons.expand_less,
+                                            applicationExpanded
+                                                ? Icons.expand_less
+                                                : Icons.expand_more,
                                           ),
                                           label: Text(
-                                            _collapsedApplicationIds.contains(
-                                                  applicationId,
-                                                )
-                                                ? 'Show application shifts'
-                                                : 'Hide application shifts',
+                                            applicationExpanded
+                                                ? 'Hide application shifts'
+                                                : 'Show application shifts',
                                           ),
                                         ),
                                       ),
@@ -754,9 +765,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                                 const SizedBox(height: 8),
                                 if (_closureGateway != null)
                                   Visibility(
-                                    visible: !_collapsedApplicationIds.contains(
-                                      applicationId,
-                                    ),
+                                    visible: applicationExpanded,
                                     maintainState: true,
                                     child: EngagementClosureControls(
                                       key: ValueKey((
@@ -779,16 +788,32 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                                       ),
                                     ),
                                   ),
-                                if (_collapsedApplicationIds.contains(
-                                      applicationId,
-                                    ) &&
-                                    closureState?.status != null)
+                                if (!applicationExpanded &&
+                                    engagement != null) ...[
                                   Text(
-                                    'Engagement: ${closureState!.status!['closure_status']}${closureState.status!['eligibility_reason'] == null ? '' : ' - ${closureState.status!['eligibility_reason']}'}',
+                                    'Engagement: ${switch (engagement['closure_status']) {
+                                      'closed' => 'Closed',
+                                      'closure_requested' => 'Closure requested',
+                                      _ => 'Open',
+                                    }}',
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodySmall,
                                   ),
+                                  if ((engagement['closure_status'] == 'open' ||
+                                          engagement['closure_status'] ==
+                                              'ineligible') &&
+                                      engagement['eligible'] == false)
+                                    Text(
+                                      engagement['eligibility_reason'] ==
+                                              unresolvedEngagementShiftsReason
+                                          ? 'Closure available once all shifts are resolved.'
+                                          : 'Closure is not yet available.',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall,
+                                    ),
+                                ],
                                 if (_closureGateway == null)
                                   const Text(
                                     'Unable to check engagement status. Retry before scheduling a shift.',
@@ -797,7 +822,6 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                                   const Text(
                                     'This job engagement has been closed. New shifts cannot be scheduled.',
                                   ),
-                                const SizedBox(height: 8),
                                 if (closureState?.error != null)
                                   Text(
                                     'Unable to check engagement status. Retry before scheduling a shift.',
@@ -807,20 +831,16 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                                           .error,
                                     ),
                                   ),
-                                const SizedBox(height: 8),
+                                if (applicationExpanded)
+                                  const SizedBox(height: 8),
                                 for (final row in shifts)
                                   ExcludeFocus(
                                     excluding:
-                                        !_matches(row) ||
-                                        _collapsedApplicationIds.contains(
-                                          applicationId,
-                                        ),
+                                        !_matches(row) || !applicationExpanded,
                                     child: Offstage(
                                       offstage:
                                           !_matches(row) ||
-                                          _collapsedApplicationIds.contains(
-                                            applicationId,
-                                          ),
+                                          !applicationExpanded,
                                       child: _CompanyAssignmentCard(
                                         row,
                                         reviewAttendance:
@@ -879,12 +899,14 @@ List<List<CompanyWorkAssignment>> _applicationGroups(
     (groups[row.applicationId] ??= []).add(row);
   }
   for (final shifts in groups.values) {
-    shifts.sort((a, b) {
-      final start = a.scheduledStart.compareTo(b.scheduledStart);
-      if (start != 0) return start;
-      final end = a.scheduledEnd.compareTo(b.scheduledEnd);
-      return end != 0 ? end : a.assignmentId.compareTo(b.assignmentId);
-    });
+    shifts.sort(
+      (a, b) => compareShiftDisplayOrder(
+        a,
+        b,
+        aNeedsAction: employerShiftNeedsAction(a),
+        bNeedsAction: employerShiftNeedsAction(b),
+      ),
+    );
   }
   return groups.values.toList();
 }
@@ -906,6 +928,13 @@ class _CompanyAssignmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = AttendanceLifecycle.of(row);
     final stage = WorkStage.fromAssignment(row);
+    final futureWithoutRecords =
+        state == AttendanceLifecycle.scheduled &&
+        row.checkInAt == null &&
+        row.checkOutAt == null &&
+        row.resolution?.decision == null &&
+        row.verificationStatus == WorkVerificationStatus.notSubmitted;
+    final showDetails = expanded && !futureWithoutRecords;
     final corrected = row.resolution?.decision == 'corrected';
     final timing = workCheckInTimingLabel(
       row.scheduledStart,
@@ -930,20 +959,34 @@ class _CompanyAssignmentCard extends StatelessWidget {
     void evidence() => context.push(
       '${AppRoutes.workVerification}/${row.assignmentId}/evidence',
     );
+    final detailsLabel = futureWithoutRecords
+        ? 'Shift details'
+        : fullRecordOnly
+        ? 'View Full Record'
+        : stage.evidenceAction(true);
     Widget evidenceAction({bool primary = false}) => primary
         ? FilledButton.icon(
             onPressed: evidence,
             icon: const Icon(Icons.description_outlined),
-            label: Text(
-              fullRecordOnly ? 'View Full Record' : stage.evidenceAction(true),
-            ),
+            label: Text(detailsLabel),
           )
         : OutlinedButton.icon(
+            style:
+                row.verificationStatus == WorkVerificationStatus.pendingReview
+                ? OutlinedButton.styleFrom(
+                    backgroundColor: attendanceToneColors(
+                      context,
+                      AttendanceTone.pending,
+                    ).$1,
+                    foregroundColor: attendanceToneColors(
+                      context,
+                      AttendanceTone.pending,
+                    ).$2,
+                  )
+                : null,
             onPressed: evidence,
             icon: const Icon(Icons.description_outlined),
-            label: Text(
-              fullRecordOnly ? 'View Full Record' : stage.evidenceAction(true),
-            ),
+            label: Text(detailsLabel),
           );
     final guidance =
         state == AttendanceLifecycle.unavailable ||
@@ -986,19 +1029,6 @@ class _CompanyAssignmentCard extends StatelessWidget {
           ),
         ],
       ),
-      ShiftDetailPanel(
-        title: 'Evidence',
-        icon: Icons.description_outlined,
-        children: [
-          Text(evidenceLabel),
-          Text(
-            row.verificationStatus == WorkVerificationStatus.notSubmitted
-                ? 'No evidence submitted.'
-                : 'Open evidence details for files and review history.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      ),
     ];
     return Card.outlined(
       key: ValueKey(row.assignmentId),
@@ -1022,18 +1052,19 @@ class _CompanyAssignmentCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
-                Semantics(
-                  expanded: expanded,
-                  child: IconButton(
-                    tooltip: expanded
-                        ? 'Hide shift details'
-                        : 'Show shift details',
-                    onPressed: onToggleDetails,
-                    icon: Icon(
-                      expanded ? Icons.expand_less : Icons.expand_more,
+                if (!futureWithoutRecords)
+                  Semantics(
+                    expanded: expanded,
+                    child: IconButton(
+                      tooltip: expanded
+                          ? 'Hide shift details'
+                          : 'Show shift details',
+                      onPressed: onToggleDetails,
+                      icon: Icon(
+                        expanded ? Icons.expand_less : Icons.expand_more,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -1109,11 +1140,12 @@ class _CompanyAssignmentCard extends StatelessWidget {
                 ),
               ),
             ),
-            if (!expanded && row.workplaceLocation.trim().isNotEmpty)
+            if (!showDetails && row.workplaceLocation.trim().isNotEmpty)
               Text('Workplace: ${row.workplaceLocation}'),
-            if (expanded) ...[
+            if (!showDetails) WorkplaceMapAction(uri: row.workplaceMapLink),
+            if (showDetails) ...[
               const SizedBox(height: 12),
-              _ShiftResponsiveGrid(columns: 4, children: details),
+              _ShiftResponsiveGrid(columns: 3, children: details),
               const SizedBox(height: 12),
               _ShiftResponsiveGrid(
                 columns: 2,
@@ -1123,6 +1155,7 @@ class _CompanyAssignmentCard extends StatelessWidget {
                     icon: Icons.location_on_outlined,
                     children: [
                       Text('Workplace: ${row.workplaceLocation}'),
+                      WorkplaceMapAction(uri: row.workplaceMapLink),
                       const SizedBox(height: 6),
                       Text(
                         row.checkInAt == null && row.checkOutAt == null
@@ -1153,7 +1186,7 @@ class _CompanyAssignmentCard extends StatelessWidget {
                     title: 'Work Evidence',
                     icon: Icons.folder_outlined,
                     children: [
-                      Text(evidenceLabel),
+                      Text('Status: $evidenceLabel'),
                       const SizedBox(height: 6),
                       Text(
                         row.verificationStatus ==
@@ -1179,7 +1212,7 @@ class _CompanyAssignmentCard extends StatelessWidget {
                 const Text(
                   'Employer-corrected effective times; original device records are in the audit below. Work verification is separate.',
                 ),
-              WorkAttendanceAudit(assignment: row),
+              AttendanceRecordDetails(assignment: row),
               if (row.verifiedAt != null)
                 Text('Verified at: ${_malaysiaTime(row.verifiedAt!)}'),
             ],
@@ -1194,7 +1227,7 @@ class _CompanyAssignmentCard extends StatelessWidget {
                     icon: const Icon(Icons.fact_check_outlined),
                     label: const Text('Review Attendance'),
                   ),
-                if (!expanded) ...[
+                if (!showDetails) ...[
                   if (hasDeviceRecords)
                     OutlinedButton.icon(
                       onPressed: viewGps,

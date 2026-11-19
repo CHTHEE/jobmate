@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../applications/my_applications_repository.dart';
 import '../jobs/job_postings_repository.dart';
+import '../jobs/workplace_coordinates.dart';
 import 'work_attendance_models.dart';
 
 /// Rows plus a required completeness signal; null/mismatched totals fail closed.
@@ -87,7 +88,12 @@ class SupabaseWorkAssignmentCreationSource
   Future<Object?> reserveAssignment(Map<String, dynamic> parameters) async {
     if (userId == null) throw const AuthException('Authentication required');
     return await client
-        .rpc('reserve_work_assignment_request', params: parameters)
+        .rpc(
+          parameters.containsKey('p_workplace_latitude')
+              ? 'reserve_work_assignment_request_v2'
+              : 'reserve_work_assignment_request',
+          params: parameters,
+        )
         .retry(enabled: false, requestTimeout: const Duration(seconds: 30));
   }
 
@@ -104,7 +110,12 @@ class SupabaseWorkAssignmentCreationSource
   Future<Object?> createAssignment(Map<String, dynamic> parameters) async {
     if (userId == null) throw const AuthException('Authentication required');
     return await client
-        .rpc('create_work_assignment_request', params: parameters)
+        .rpc(
+          parameters.containsKey('p_workplace_latitude')
+              ? 'create_work_assignment_request_v2'
+              : 'create_work_assignment_request',
+          params: parameters,
+        )
         .retry(enabled: false, requestTimeout: const Duration(seconds: 30));
   }
 }
@@ -128,9 +139,10 @@ class WorkAssignmentCreationLedger {
 final _creationLedger = WorkAssignmentCreationLedger();
 
 class _CreationAttempt {
-  _CreationAttempt(this.start, this.end, this.location);
+  _CreationAttempt(this.start, this.end, this.location, this.pin);
   final DateTime start, end;
   final String location;
+  final WorkplaceCoordinates? pin;
   WorkAssignmentCreateStatus status = WorkAssignmentCreateStatus.submitting;
   String? assignmentId;
   String? requestId;
@@ -145,6 +157,7 @@ class WorkAssignmentCreateResult {
     this.scheduleConflict = false,
     this.engagementClosed = false,
     this.retryableContention = false,
+    this.legacyTextOnlyAvailable = false,
   });
   final WorkAssignmentCreateStatus status;
   final String message;
@@ -152,6 +165,7 @@ class WorkAssignmentCreateResult {
   final bool scheduleConflict;
   final bool engagementClosed;
   final bool retryableContention;
+  final bool legacyTextOnlyAvailable;
 }
 
 /// Parse wall-clock Malaysia input independently of the device timezone.
@@ -187,6 +201,8 @@ class WorkAssignmentCandidate {
     required this.companyName,
     required this.jobId,
     required this.jobTitle,
+    required this.workplaceLocation,
+    required this.workplacePin,
     required this.applicationId,
     required this.workerId,
     required this.applicantName,
@@ -199,6 +215,8 @@ class WorkAssignmentCandidate {
       applicationId,
       workerId,
       applicantName;
+  final String? workplaceLocation;
+  final WorkplaceCoordinates? workplacePin;
 }
 
 enum WorkAssignmentCreationError {
@@ -294,11 +312,16 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
       WorkAssignmentCreateStatus.idle;
 
   /// No automatic retry. The caller must obtain explicit user confirmation.
+  ((String, String, String), DateTime, DateTime, String)? _legacyTextOnlyOffer;
+
   Future<WorkAssignmentCreateResult> create({
     required WorkAssignmentCandidate candidate,
     required DateTime start,
     required DateTime end,
     required String location,
+    double? workplaceLatitude,
+    double? workplaceLongitude,
+    bool useLegacyTextOnly = false,
   }) async {
     WorkAssignmentCreateResult rejected(String message) =>
         WorkAssignmentCreateResult(
@@ -330,8 +353,24 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
         'Enter a valid MYT schedule and workplace location of up to 500 characters.',
       );
     }
+    final pin = workplaceCoordinates(workplaceLatitude, workplaceLongitude);
+    if ((workplaceLatitude != null || workplaceLongitude != null) &&
+        pin == null) {
+      return rejected(
+        'Enter a valid workplace coordinate pair or clear the pin.',
+      );
+    }
+    final reviewedLocation = location.trim();
+    final legacyPayload = (key, start, end, reviewedLocation);
+    if (useLegacyTextOnly &&
+        (pin != null || _legacyTextOnlyOffer != legacyPayload)) {
+      return rejected(
+        'Legacy creation is available only for the reviewed text-only shift after an unavailable v2 reservation.',
+      );
+    }
+    _legacyTextOnlyOffer = null;
     // Reserve before asynchronous preflight; concurrent repositories share it.
-    final attempt = _CreationAttempt(start, end, location.trim());
+    final attempt = _CreationAttempt(start, end, reviewedLocation, pin);
     ledger._attempts[key] = attempt;
     _creating = true;
     var dispatched = false;
@@ -381,12 +420,16 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
         ledger._attempts.remove(key);
         return rejected(latestScheduleError);
       }
-      final parameters = <String, dynamic>{
+      final parameters = Map<String, dynamic>.unmodifiable({
         'p_application_id': candidate.applicationId,
         'p_scheduled_start': start.toIso8601String(),
         'p_scheduled_end': end.toIso8601String(),
         'p_workplace_location': attempt.location,
-      };
+        if (!useLegacyTextOnly) ...{
+          'p_workplace_latitude': attempt.pin?.latitude,
+          'p_workplace_longitude': attempt.pin?.longitude,
+        },
+      });
       dispatched = true;
       attempt.requestId = workUuid(await source.reserveAssignment(parameters));
       if (!current()) {
@@ -415,6 +458,28 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
         assignmentId: attempt.assignmentId,
       );
     } catch (error) {
+      // PGRST202 on the reservation itself means PostgREST could not dispatch
+      // it. After a request ID exists, the reservation must be reconciled.
+      if (!useLegacyTextOnly &&
+          dispatched &&
+          attempt.requestId == null &&
+          error is PostgrestException &&
+          error.code == 'PGRST202') {
+        ledger._attempts.remove(key);
+        final canOfferLegacy =
+            attempt.pin == null &&
+            !_disposed &&
+            source.userId == actor &&
+            generation == _request;
+        if (canOfferLegacy) _legacyTextOnlyOffer = legacyPayload;
+        return WorkAssignmentCreateResult(
+          WorkAssignmentCreateStatus.rejected,
+          canOfferLegacy
+              ? 'Coordinate-aware creation is unavailable. You can explicitly save this shift using text-only compatibility.'
+              : 'Coordinate-aware creation is unavailable. No shift was created. Reload before trying again.',
+          legacyTextOnlyAvailable: canOfferLegacy,
+        );
+      }
       if (error is PostgrestException && error.code == '55P03') {
         // PostgreSQL rejected this transaction; this is not a lost response.
         // A reservation committed by an earlier RPC can remain and will be
@@ -603,6 +668,10 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
       final candidates = <WorkAssignmentCandidate>[];
       for (final job in jobs) {
         final jobId = workUuid(job['job_id']);
+        final rawLocation = job['location'];
+        final location = rawLocation is String ? rawLocation.trim() : '';
+        final usableLocation =
+            location.isNotEmpty && location.runes.length <= 500;
         final rows = _complete(await source.listApplicants(jobId));
         if (!current()) return;
         for (final row in rows) {
@@ -631,6 +700,10 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
                 companyName: name,
                 jobId: jobId,
                 jobTitle: _text(job, 'title'),
+                workplaceLocation: usableLocation ? location : null,
+                workplacePin: usableLocation
+                    ? workplaceCoordinates(job['latitude'], job['longitude'])
+                    : null,
                 applicationId: application,
                 workerId: worker,
                 applicantName: applicantName,

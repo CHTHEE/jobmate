@@ -11,6 +11,8 @@ import 'package:jobmate/features/phase4/admin_preview_pages.dart';
 import 'package:jobmate/features/phase4/account_settings_page.dart';
 import 'package:jobmate/shared/theme/jobmate_theme.dart';
 
+import 'fixtures/fake_reputation_gateway.dart';
+
 Future<Map<String, dynamic>> accountFixture() async => {
   'name': 'Account under test',
   'email': 'test@example.com',
@@ -273,8 +275,15 @@ void main() {
             assignmentId: 'sample-assignment-2',
             store: store,
           ),
-          'Worker Reputation' => ReputationPage(store: store),
-          'Company Reputation' => ReputationPage(employer: true, store: store),
+          'Worker Reputation' => ReputationPage(
+            store: store,
+            gateway: FakeReputationGateway(),
+          ),
+          'Company Reputation' => ReputationPage(
+            employer: true,
+            store: store,
+            gateway: FakeReputationGateway(),
+          ),
           'Record Payment' => PaymentRecordPage(store: store),
           'Worker Payments' => PaymentHistoryPage(store: store),
           'Employer Payments' => PaymentHistoryPage(
@@ -333,14 +342,15 @@ void main() {
         if (screen.endsWith('Settings')) {
           expect(find.text('Your real account'), findsOneWidget);
           expect(find.text('Profile completion: 50%'), findsOneWidget);
+        } else if (screen == 'Worker Reputation') {
+          expect(find.text('My Reputation'), findsWidgets);
+          expect(find.text('Working Performance'), findsOneWidget);
+          expect(find.text('4.50 / 5'), findsOneWidget);
+        } else if (screen == 'Company Reputation') {
+          expect(find.text('Fixture Company'), findsOneWidget);
+          expect(find.text('4.50 / 5'), findsOneWidget);
         } else {
           expect(find.text('DEMO / PREVIEW'), findsOneWidget);
-        }
-        expect(tester.takeException(), isNull);
-        if (screen == 'Worker Reputation') {
-          await tester.tap(find.byType(SwitchListTile));
-          await tester.pumpAndSettle();
-          expect(find.text('Not enough verified data'), findsOneWidget);
         }
         if (screen == 'Worker Payments') {
           await tester.enterText(find.byType(TextField).first, 'no match');
@@ -352,7 +362,7 @@ void main() {
     }
   }
   testWidgets(
-    'Embedded Job Seeker reputation stays a demo and locks during profile edits',
+    'Embedded Job Seeker reputation shows verified data without edit controls',
     (tester) async {
       tester.view.physicalSize = const Size(360, 900);
       tester.view.devicePixelRatio = 1;
@@ -364,16 +374,23 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: SingleChildScrollView(
-              child: ReputationContent(store: store, interactive: false),
+              child: ReputationContent(
+                store: store,
+                interactive: false,
+                gateway: FakeReputationGateway(),
+              ),
             ),
           ),
         ),
       );
-      expect(find.textContaining('illustrative fixture'), findsOneWidget);
-      expect(
-        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).onChanged,
-        isNull,
-      );
+      await tester.pumpAndSettle();
+      expect(find.text('Evaluation'), findsOneWidget);
+      expect(find.text('Working Performance'), findsOneWidget);
+      expect(find.text('4.50 / 5'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('completed and verified Shifts'), findsOneWidget);
+      expect(find.text('Refresh reputation'), findsNothing);
+      expect(find.byType(SwitchListTile), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

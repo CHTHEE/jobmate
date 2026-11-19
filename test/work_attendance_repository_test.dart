@@ -388,7 +388,7 @@ void main() {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final requests = <(String, String, dynamic)>[];
       Object result = [];
-      String? lifecycleError;
+      String? v2Error, lifecycleError;
       server.listen((request) async {
         final body = await utf8.decoder.bind(request).join();
         requests.add((
@@ -397,13 +397,24 @@ void main() {
           body.isEmpty ? {} : jsonDecode(body),
         ));
         request.response.headers.contentType = ContentType.json;
-        final rejected =
-            lifecycleError != null && request.uri.path.endsWith('_lifecycle');
-        if (rejected) request.response.statusCode = 404;
+        final path = request.uri.path;
+        final error = path.endsWith('_lifecycle_v2')
+            ? v2Error
+            : path.endsWith('_lifecycle')
+            ? lifecycleError
+            : null;
+        if (error != null) {
+          request.response.statusCode = switch (error) {
+            '42501' => 403,
+            '57014' => 504,
+            'PGRST202' => 404,
+            _ => 500,
+          };
+        }
         request.response.write(
           jsonEncode(
-            rejected
-                ? {'code': lifecycleError, 'message': 'Read unavailable'}
+            error != null
+                ? {'code': error, 'message': 'Read unavailable'}
                 : result,
           ),
         );
@@ -436,15 +447,17 @@ void main() {
       await source.listEvidence(id);
       expect(requests.map((request) => request.$1), ['POST', 'POST', 'POST']);
       expect(requests.map((request) => request.$2), [
-        '/rest/v1/rpc/list_my_work_assignments_lifecycle',
-        '/rest/v1/rpc/list_company_work_assignments_lifecycle',
+        '/rest/v1/rpc/list_my_work_assignments_lifecycle_v2',
+        '/rest/v1/rpc/list_company_work_assignments_lifecycle_v2',
         '/rest/v1/rpc/list_work_evidence',
       ]);
       expect(requests[0].$3, isNull);
       expect(requests[1].$3, {'p_company_id': other});
       expect(requests[2].$3, {'p_assignment_id': id});
       result = {'invalid': true};
+      requests.clear();
       await expectLater(source.listMyAssignments(), throwsFormatException);
+      expect(requests, hasLength(1));
       result = [1];
       await expectLater(source.listEvidence(id), throwsFormatException);
       result = [assignment()..['attendance_as_of'] = '2026-11-05T10:00:00Z'];
@@ -453,8 +466,21 @@ void main() {
         WorkerWorkAssignment.fromJson(snapshot.single).attendanceAsOf,
         DateTime.utc(2026, 11, 5, 10),
       );
+      v2Error = 'PGRST202';
+      requests.clear();
+      await source.listCompanyAssignments(other);
+      expect(requests.map((r) => r.$2), [
+        '/rest/v1/rpc/list_company_work_assignments_lifecycle_v2',
+        '/rest/v1/rpc/list_company_work_assignments_lifecycle',
+      ]);
+      expect(requests.map((r) => r.$3), [
+        {'p_company_id': other},
+        {'p_company_id': other},
+      ]);
       result = [assignment()];
+      requests.clear();
       await expectLater(source.listMyAssignments(), throwsFormatException);
+      expect(requests, hasLength(2));
       lifecycleError = 'PGRST202';
       requests.clear();
       expect(
@@ -462,16 +488,60 @@ void main() {
         isNull,
       );
       expect(requests.map((r) => r.$2), [
+        '/rest/v1/rpc/list_my_work_assignments_lifecycle_v2',
         '/rest/v1/rpc/list_my_work_assignments_lifecycle',
         '/rest/v1/rpc/list_my_work_assignments',
       ]);
-      lifecycleError = '42501';
-      requests.clear();
-      await expectLater(
-        source.listCompanyAssignments(other),
-        throwsA(isA<PostgrestException>()),
-      );
-      expect(requests, hasLength(1));
+      for (final code in ['42501', '57014', 'XX000']) {
+        v2Error = code;
+        requests.clear();
+        await expectLater(
+          source.listCompanyAssignments(other),
+          throwsA(
+            isA<PostgrestException>().having((e) => e.code, 'code', code),
+          ),
+        );
+        expect(requests, hasLength(1));
+      }
     },
   );
+
+  test('workplace links use only a complete finite saved shift pair', () {
+    final row = assignment()
+      ..['latitude'] = 5
+      ..['longitude'] = 100
+      ..['workplace_latitude'] = 3.117777
+      ..['workplace_longitude'] = 101.677777;
+    final shift = WorkerWorkAssignment.fromJson(row);
+    expect(shift.workplaceLocation, 'Server location');
+    final url = shift.workplaceMapLink!;
+    expect(url.scheme, 'https');
+    expect(url.host, 'www.google.com');
+    expect(url.path, '/maps/search/');
+    expect(url.queryParameters, {'api': '1', 'query': '3.117777,101.677777'});
+    final company = CompanyWorkAssignment.fromJson(
+      assignment(company: true)
+        ..['workplace_latitude'] = -90
+        ..['workplace_longitude'] = 180,
+    );
+    expect(company.workplaceMapLink?.queryParameters['query'], '-90.0,180.0');
+    for (final (lat, lng) in [
+      (null, null),
+      (null, 0),
+      (0, null),
+      ('invalid', 0),
+      (double.nan, 0),
+      (0, double.infinity),
+      (90.0000001, 0),
+      (0, -180.0000001),
+    ]) {
+      row['workplace_latitude'] = lat;
+      row['workplace_longitude'] = lng;
+      expect(WorkerWorkAssignment.fromJson(row).workplaceMapLink, isNull);
+    }
+    expect(
+      WorkerWorkAssignment.fromJson(assignment()).workplaceMapLink,
+      isNull,
+    );
+  });
 }

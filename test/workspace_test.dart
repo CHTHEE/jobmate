@@ -10,6 +10,15 @@ import 'package:jobmate/shared/widgets/app_workspace.dart';
 import 'support/workspace_navigation_test_helper.dart';
 
 void main() {
+  test('Job Seekers have one primary browse destination', () {
+    final paths = workspaceDestinations('job_seeker').values
+        .expand((items) => items)
+        .map((item) => item.$1);
+    expect(paths.where((path) => path == AppRoutes.browseJobs), hasLength(1));
+    expect(paths, isNot(contains(AppRoutes.search)));
+    expect(paths, containsAll([AppRoutes.recommendations, AppRoutes.applications]));
+  });
+
   test('employer keeps real verification and hides only attendance demo navigation', () {
     final paths = workspaceDestinations('employer').values
         .expand((items) => items)
@@ -261,7 +270,7 @@ void main() {
                 : find.text('Account'),
           );
           await tester.pumpAndSettle();
-          await tester.tap(find.text('Reputation (demo)'));
+          await tester.tap(find.text('Company Reputation'));
           await tester.pumpAndSettle();
           expect(destination, AppRoutes.employerReputation);
         }

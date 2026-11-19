@@ -299,7 +299,7 @@ void main() {
         );
         await tester.pump();
         expect(source.checkIns, 1);
-        expect(find.textContaining(RegExp(r'^Check-in: [0-9]')), findsNothing);
+        expect(find.text('Device-recorded · MYT'), findsNothing);
         final button = tester.widget<FilledButton>(
           find.widgetWithText(FilledButton, 'Check in'),
         );
@@ -311,7 +311,7 @@ void main() {
         ];
         pending.complete(DateTime.utc(2026, 11, 5, 1));
         await tester.pumpAndSettle();
-        expect(find.text('Check-in: 05/11/2026 10:10:00 MYT'), findsOneWidget);
+        expect(find.text('10:10 AM'), findsOneWidget);
         expect(find.text('Checked in successfully!'), findsOneWidget);
         await tapAction(tester, 'Check out');
         await tapAction(tester, 'Confirm Check-Out');
@@ -326,7 +326,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(source.checkOuts, 1);
-        expect(find.text('Checkout: 05/11/2026 17:00:00 MYT'), findsOneWidget);
+        expect(find.text('5:00 PM'), findsOneWidget);
       },
     );
 
@@ -353,15 +353,16 @@ void main() {
           find.text('Check-in is outside the allowed shift window.'),
           findsOneWidget,
         );
-        expect(find.textContaining(RegExp(r'^Check-in: [0-9]')), findsNothing);
+        expect(find.text('Device-recorded · MYT'), findsNothing);
         expect(find.text('Check-in unavailable'), findsOneWidget);
         expect(find.textContaining('not available yet'), findsNothing);
         expect(find.byType(AlertDialog), findsOneWidget);
         await tapAction(tester, 'Close');
         expect(find.byType(AlertDialog), findsNothing);
-        await tester.tap(find.text('View original attendance & audit'));
-        await tester.pumpAndSettle();
-        expect(find.textContaining('01/01/2099 08:00:00 MYT'), findsWidgets);
+        expect(
+          find.textContaining('Thu, 1 Jan 2099 · 8:00 AM'),
+          findsOneWidget,
+        );
       },
     );
 
@@ -423,9 +424,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Check-in unavailable'), findsOneWidget);
         await tapAction(tester, 'Close');
-        await tester.tap(find.text('View original attendance & audit'));
-        await tester.pumpAndSettle();
-        expect(find.textContaining('05/11/2026 09:00:00 MYT'), findsWidgets);
+        expect(
+          find.textContaining('Thu, 5 Nov 2026 · 9:00 AM'),
+          findsOneWidget,
+        );
         expect(find.text('Checked in successfully!'), findsNothing);
         expect(source.checkIns, 1);
       },

@@ -93,7 +93,6 @@ class AppWorkspace extends StatelessWidget {
               .where(
                 (item) =>
                     item.$1 != AppRoutes.home &&
-                    item.$1 != AppRoutes.search &&
                     item.$1 != AppRoutes.browseJobs,
               )
               .toList();
@@ -294,9 +293,6 @@ class AppWorkspace extends StatelessWidget {
         }
 
         final primaryIndex = primary.indexWhere((item) => item.$1 == selected);
-        final jobsIndex = primary.indexWhere(
-          (item) => item.$1 == AppRoutes.browseJobs,
-        );
         final accountSelected =
             selected == AppRoutes.profile ||
             selected == settingsPath ||
@@ -319,8 +315,6 @@ class AppWorkspace extends StatelessWidget {
                   height: 80 + 32 * (textScale - 1).clamp(0.0, 2.0),
                   selectedIndex: primaryIndex >= 0
                       ? primaryIndex
-                      : selected == AppRoutes.search && jobsIndex >= 0
-                      ? jobsIndex
                       : showAccountMenu && accountSelected
                       ? primary.length
                       : primary.length + (showAccountMenu ? 1 : 0),
@@ -539,7 +533,6 @@ class _AdminNavigationPermissionsState
 
 String _primaryLabel(String path) => switch (path) {
   AppRoutes.home => 'Home',
-  AppRoutes.search => 'Jobs',
   AppRoutes.browseJobs => 'Jobs',
   AppRoutes.jobPostings => 'Posts',
   AppRoutes.applications || AppRoutes.applicants => 'Applications',

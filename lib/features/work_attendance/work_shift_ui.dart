@@ -1,4 +1,143 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'work_attendance_lifecycle.dart';
+import 'work_attendance_models.dart';
+import 'work_status_presentation.dart';
+
+bool isUpcomingShift(WorkAssignment row) {
+  final asOf = row.attendanceAsOf;
+  return asOf != null &&
+      row.scheduledStart.isAfter(asOf) &&
+      {
+        AttendanceLifecycle.scheduled,
+        AttendanceLifecycle.ready,
+      }.contains(AttendanceLifecycle.of(row));
+}
+
+int compareShiftDisplayOrder(
+  WorkAssignment a,
+  WorkAssignment b, {
+  required bool aNeedsAction,
+  required bool bNeedsAction,
+}) {
+  if (aNeedsAction != bNeedsAction) return aNeedsAction ? -1 : 1;
+  final aUpcoming = isUpcomingShift(a);
+  final bUpcoming = isUpcomingShift(b);
+  if (aUpcoming != bUpcoming) return aUpcoming ? -1 : 1;
+  // Keep legacy rows chronological when the server snapshot is unavailable.
+  final aUnknown = a.attendanceAsOf == null;
+  final bUnknown = b.attendanceAsOf == null;
+  if (aUnknown != bUnknown) return aUnknown ? 1 : -1;
+  final start = a.scheduledStart.compareTo(b.scheduledStart);
+  if (start != 0) return aUpcoming || aUnknown ? start : -start;
+  return a.assignmentId.compareTo(b.assignmentId);
+}
+
+WorkAssignment? nextUpcomingShift(Iterable<WorkAssignment> shifts) {
+  WorkAssignment? next;
+  for (final row in shifts.where(isUpcomingShift)) {
+    if (next == null || row.scheduledStart.isBefore(next.scheduledStart)) {
+      next = row;
+    }
+  }
+  return next;
+}
+
+class UpcomingShiftPreview extends StatelessWidget {
+  const UpcomingShiftPreview({super.key, required this.shift});
+
+  final WorkAssignment shift;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(
+          colors.primary.withValues(alpha: .06),
+          colors.surface,
+        ),
+        border: Border.all(color: colors.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Icon(
+                Icons.calendar_today_outlined,
+                size: 18,
+                color: colors.primary,
+              ),
+              Text('Next upcoming shift', style: theme.textTheme.titleSmall),
+              const AttendanceStatusBadge(
+                label: 'Upcoming',
+                tone: AttendanceTone.information,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            shiftDateLabel(shift.scheduledStart),
+            style: theme.textTheme.titleSmall,
+          ),
+          Text(
+            shiftTimeRange(shift.scheduledStart, shift.scheduledEnd),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          if (shift.workplaceLocation.trim().isNotEmpty)
+            Text(
+              shift.workplaceLocation,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class WorkplaceMapAction extends StatelessWidget {
+  const WorkplaceMapAction({super.key, required this.uri});
+
+  final Uri? uri;
+
+  @override
+  Widget build(BuildContext context) {
+    final map = uri;
+    if (map == null) return const SizedBox.shrink();
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: TextButton.icon(
+        onPressed: () async {
+          try {
+            if (await launchUrl(map, mode: LaunchMode.externalApplication)) {
+              return;
+            }
+          } catch (_) {
+            // Treat a platform launch error the same as an unavailable app.
+          }
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Unable to open Google Maps.')),
+          );
+        },
+        icon: const Icon(Icons.map_outlined),
+        label: const Text('View workplace on map'),
+      ),
+    );
+  }
+}
 
 class RequiredFieldLabel extends StatelessWidget {
   const RequiredFieldLabel(this.text, {super.key});
@@ -79,6 +218,152 @@ String shiftTimeRange(DateTime start, DateTime end) {
 }
 
 /// Presentation only: all values are supplied by existing authorized models.
+class ShiftAttendanceSummary extends StatelessWidget {
+  const ShiftAttendanceSummary({
+    super.key,
+    required this.assignment,
+    this.employer = false,
+    this.inShiftCard = false,
+  });
+
+  final WorkAssignment assignment;
+  final bool employer;
+  final bool inShiftCard;
+
+  @override
+  Widget build(BuildContext context) {
+    final row = assignment;
+    final checkIn = row.effectiveCheckInAt;
+    final checkout = row.effectiveCheckOutAt;
+    final corrected = row.resolution?.decision == 'corrected';
+    final state = AttendanceLifecycle.of(row);
+    final timing = employer ? null : attendanceTimingBadge(row);
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              employer || inShiftCard
+                  ? 'Attendance summary'
+                  : 'Attendance status',
+              style: theme.textTheme.titleSmall,
+            ),
+            ?timing,
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (checkIn != null || checkout != null) ...[
+          ShiftEqualHeightGrid(
+            columns: 2,
+            children: [
+              for (final (label, icon, value) in [
+                ('Check-in', Icons.login, checkIn),
+                ('Checkout', Icons.logout, checkout),
+              ])
+                ShiftDetailPanel(
+                  title: employer && corrected
+                      ? 'Corrected ${label.toLowerCase()}'
+                      : label,
+                  icon: icon,
+                  children: [
+                    Text(
+                      value == null ? 'Not recorded' : shiftTimeLabel(value),
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    if (value != null) ...[
+                      Text(
+                        inShiftCard
+                            ? '${corrected ? 'Employer-corrected' : 'Device-recorded'} · MYT'
+                            : '${shiftDateLabel(value)} · MYT',
+                        style: inShiftCard ? null : theme.textTheme.bodySmall,
+                      ),
+                      if (!inShiftCard)
+                        Text(
+                          corrected ? 'Employer-corrected' : 'Device-recorded',
+                        )
+                      else if (!DateUtils.isSameDay(
+                        _myt(value),
+                        _myt(row.scheduledStart),
+                      ))
+                        Text(
+                          shiftDateLabel(value),
+                          style: theme.textTheme.bodySmall,
+                        ),
+                    ],
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (checkIn != null &&
+              checkout != null &&
+              !checkout.isBefore(checkIn)) ...[
+            Text(
+              '${inShiftCard
+                  ? 'Duration'
+                  : corrected
+                  ? 'Corrected duration'
+                  : 'Effective duration'}: ${_attendanceDuration(checkout.difference(checkIn))}',
+              style: theme.textTheme.titleSmall,
+            ),
+            if (!inShiftCard || !corrected)
+              const Text(
+                'Attendance duration does not establish approved payable time.',
+              ),
+          ],
+        ],
+        if (inShiftCard && corrected)
+          const Text(
+            'These times were corrected by the employer. Duration does not confirm approved payable time.',
+          )
+        else if (corrected)
+          Text(
+            row.checkInAt == null && row.checkOutAt == null
+                ? 'Original device attendance was not recorded. These times were corrected by the employer.'
+                : 'The employer corrected these times. Original device records remain separate.',
+          )
+        else if (!inShiftCard)
+          Text(
+            state.guidanceFor(
+              employer: employer,
+              recoveryEnforced: row.resolution?.recoveryEnforced == true,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+Widget? attendanceTimingBadge(WorkAssignment row) {
+  final timing = workCheckInTimingLabel(
+    row.scheduledStart,
+    row.effectiveCheckInAt,
+  );
+  if (timing == null) return null;
+  final corrected = row.resolution?.decision == 'corrected';
+  return AttendanceStatusBadge(
+    label: corrected ? 'Corrected · $timing' : timing,
+    tone: timing == 'Late' ? AttendanceTone.pending : AttendanceTone.positive,
+  );
+}
+
+String _attendanceDuration(Duration duration) {
+  if (duration.inMinutes == 0 && duration.inSeconds > 0) {
+    return '${duration.inSeconds} ${duration.inSeconds == 1 ? 'second' : 'seconds'}';
+  }
+  final hours = duration.inHours;
+  final minutes = duration.inMinutes.remainder(60);
+  final minuteLabel = '$minutes ${minutes == 1 ? 'minute' : 'minutes'}';
+  if (hours == 0) return minuteLabel;
+  final hourLabel = '$hours ${hours == 1 ? 'hour' : 'hours'}';
+  return minutes == 0 ? hourLabel : '$hourLabel $minuteLabel';
+}
+
 class ShiftReviewTable extends StatelessWidget {
   const ShiftReviewTable({super.key, required this.rows});
   final List<(String, String)> rows;

@@ -371,6 +371,12 @@ void main() {
           find.text(employer ? '2 total shifts' : '2 shifts'),
           findsOneWidget,
         );
+        if (employer) {
+          final show = find.text('Show application shifts');
+          await tester.ensureVisible(show);
+          await tester.tap(show);
+          await tester.pumpAndSettle();
+        }
         final late = find.byKey(const ValueKey(id));
         final recent = find.byKey(const ValueKey(other));
         {

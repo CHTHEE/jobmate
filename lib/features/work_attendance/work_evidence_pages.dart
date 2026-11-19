@@ -317,6 +317,21 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
       final rounds =
           repo.evidence.map((file) => file.submissionRound).toSet().toList()
             ..sort((a, b) => b.compareTo(a));
+      final worker = switch (repo.assignment) {
+        final WorkerWorkAssignment row => row,
+        _ => null,
+      };
+      final upcoming =
+          repo.assignment != null &&
+          AttendanceLifecycle.of(repo.assignment!) ==
+              AttendanceLifecycle.scheduled &&
+          repo.assignment!.verificationStatus ==
+              WorkVerificationStatus.notSubmitted &&
+          repo.evidence.isEmpty;
+      final showWorkflow =
+          workflow != null &&
+          repo.assignment != null &&
+          repo.assignmentId != supervisedWorkEvidenceQaAssignment;
       if (repo.assignment case final CompanyWorkAssignment row) {
         _resolveName(row);
       }
@@ -332,8 +347,13 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                 WorkVerificationStatus.pendingReview
           ? 'Review Work Evidence'
           : 'Work Evidence';
+      final shiftDetails = upcoming;
       return AppWorkspace(
-        title: repo.employer ? employerTitle : 'Work Evidence',
+        title: shiftDetails
+            ? 'Shift details'
+            : repo.employer
+            ? employerTitle
+            : 'Work Evidence',
         path: fallback,
         role: repo.employer ? 'employer' : 'job_seeker',
         focused: true,
@@ -364,15 +384,20 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                 ),
               ),
               Text(
-                repo.employer ? employerTitle : 'Work evidence',
+                shiftDetails
+                    ? 'Shift details'
+                    : repo.employer
+                    ? employerTitle
+                    : 'Work evidence',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 8),
-              Text(
-                repo.employer
-                    ? 'Review attendance, private evidence and recorded verification results.'
-                    : 'Open submitted PDFs and images through authorized private previews.',
-              ),
+              if (!upcoming)
+                Text(
+                  repo.employer
+                      ? 'Review attendance, private evidence and recorded verification results.'
+                      : 'Open submitted PDFs and images through authorized private previews.',
+                ),
               const Text('All times are Malaysia time (MYT, UTC+08:00).'),
               const SizedBox(height: 24),
               if (repo.loading)
@@ -401,6 +426,8 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                   EmployerWorkEvidenceSummary(
                     assignment: repo.assignment!,
                     workerName: _workerName,
+                    upcoming: upcoming,
+                    hasWorkflow: showWorkflow,
                     onGps:
                         !_gpsOpen &&
                             repo.attendance.source
@@ -408,30 +435,55 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                         ? _viewGps
                         : null,
                   )
-                else if (repo.assignment != null)
+                else if (worker != null)
                   WorkspaceCard(
-                    title: repo.assignment!.jobTitle,
+                    title: worker.jobTitle,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text('Your work assignment'),
-                        AttendanceStatusBadge(
-                          label:
-                              'Verification: ${workVerificationStatusLabel(repo.assignment!.verificationStatus)}',
-                          tone: verificationTone(
-                            repo.assignment!.verificationStatus,
+                        Text(worker.companyName),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: AttendanceStatusBadge(
+                            label: AttendanceLifecycle.of(worker).label,
+                            tone: attendanceTone(
+                              AttendanceLifecycle.of(worker),
+                            ),
                           ),
                         ),
-                        AttendanceLifecycleNotice(
-                          assignment: repo.assignment!,
-                          employer: repo.employer,
+                        const SizedBox(height: 12),
+                        Text(
+                          'Shift information',
+                          style: Theme.of(context).textTheme.titleSmall,
                         ),
                         Text(
-                          'Scheduled: ${_malaysiaTime(repo.assignment!.scheduledStart)} to ${_malaysiaTime(repo.assignment!.scheduledEnd)}',
+                          'Date: ${shiftDateLabel(worker.scheduledStart, full: true)}',
                         ),
                         Text(
-                          'Workplace: ${repo.assignment!.workplaceLocation}',
+                          'Time: ${shiftTimeRange(worker.scheduledStart, worker.scheduledEnd)}',
                         ),
+                        if (worker.workplaceLocation.trim().isNotEmpty)
+                          Text('Workplace: ${worker.workplaceLocation}'),
+                        WorkplaceMapAction(uri: worker.workplaceMapLink),
+                        const SizedBox(height: 12),
+                        if (upcoming) ...[
+                          Text(
+                            'Attendance status',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const Text('Check-in is not available yet.'),
+                          Text(AttendanceLifecycle.scheduled.guidance),
+                        ] else
+                          ShiftAttendanceSummary(assignment: worker),
+                        if (!upcoming && !showWorkflow)
+                          AttendanceStatusBadge(
+                            label:
+                                'Verification: ${workVerificationStatusLabel(repo.assignment!.verificationStatus)}',
+                            tone: verificationTone(
+                              repo.assignment!.verificationStatus,
+                            ),
+                          ),
                         if (repo.assignment!.verificationStatus ==
                                 WorkVerificationStatus.verified &&
                             workflow == null)
@@ -443,17 +495,19 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                                     supervisedWorkEvidenceQaAssignment) &&
                             repo.assignment!.effectiveCheckOutAt != null)
                           EvidenceDeadlineSummary(assignment: repo.assignment!),
+                        if (!showWorkflow)
+                          WorkerAttendanceHistory(assignment: worker),
                       ],
                     ),
                   ),
                 const SizedBox(height: 16),
-                if (workflow != null &&
-                    repo.assignment != null &&
-                    repo.assignmentId != supervisedWorkEvidenceQaAssignment)
+                if (showWorkflow)
                   WorkEvidenceWorkflowPanel(
                     key: ValueKey((repo, repo.attendance.source.userId)),
                     viewer: repo,
                     workerName: _workerName,
+                    workerAttendance: worker,
+                    upcoming: upcoming,
                     source: workflow,
                     pickFiles: widget.pickDraftFiles,
                     createUploads: widget.createWorkflowUploads,
@@ -492,7 +546,15 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                     const SizedBox(height: 16),
                   ],
                 ],
-                if (repo.awaitingFirstSubmission)
+                if (upcoming) ...[
+                  if (!showWorkflow)
+                    WorkspaceCard(
+                      title: 'Evidence and verification',
+                      child: const Text(
+                        'Evidence submission follows completed attendance. No submission is due yet.',
+                      ),
+                    ),
+                ] else if (repo.awaitingFirstSubmission)
                   const ModuleState(
                     title: 'No evidence submitted yet',
                     message: 'The worker has not formally submitted evidence for this assignment. Refresh after the worker submits evidence.',
@@ -609,10 +671,6 @@ class _EvidenceCard extends StatelessWidget {
   );
 }
 
-String _malaysiaTime(DateTime timestamp) {
-  return '${shiftDateLabel(timestamp)} ${shiftTimeLabel(timestamp)} MYT';
-}
-
 class _EvidenceRound extends StatelessWidget {
   const _EvidenceRound({
     required this.round,
@@ -638,58 +696,45 @@ class _EvidenceRound extends StatelessWidget {
         children: [
           Text(
             latest
-                ? 'Latest submission - Round $round'
+                ? 'Latest submission — Round $round'
                 : 'Submission round $round',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           if (files.isNotEmpty) ...[
             const SizedBox(height: 8),
-            if (employer && files.first.description.trim().isNotEmpty)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: ColorScheme.fromSeed(
-                    seedColor: Colors.lightBlue,
-                    brightness: Theme.of(context).brightness,
-                  ).primaryContainer,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Worker note',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    Text(
-                      files.first.description,
-                      style: TextStyle(
-                        color: ColorScheme.fromSeed(
-                          seedColor: Colors.lightBlue,
-                          brightness: Theme.of(context).brightness,
-                        ).onPrimaryContainer,
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else if (!employer)
-              Text(files.first.description),
-            const SizedBox(height: 8),
             Text(
-              '${workerName == null ? 'Submitted by the assigned worker' : 'Submitted by: $workerName'} - ${employer ? '${shiftDateLabel(files.first.submittedAt)} ${shiftTimeLabel(files.first.submittedAt)} MYT' : _malaysiaTime(files.first.submittedAt)}',
+              workerName == null
+                  ? 'Submitted by the assigned worker'
+                  : 'Submitted by: $workerName',
               style: Theme.of(context).textTheme.bodySmall,
             ),
-          ],
-          const SizedBox(height: 12),
-          if (employer && workerName == null && files.isNotEmpty)
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: const Text('Submission audit identity'),
-              children: [SelectableText(files.first.submittedBy)],
+            Text(
+              'Submitted: ${shiftDateLabel(files.first.submittedAt)} · ${shiftTimeLabel(files.first.submittedAt)} MYT',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
-          if (employer)
-            Text('${files.length} ${files.length == 1 ? 'file' : 'files'}'),
+            if (files.first.description.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                "Worker's submission note",
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  files.first.description,
+                  style: const TextStyle(height: 1.5),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text('Attachments', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
+          ],
           for (final file in files)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -707,7 +752,7 @@ class _EvidenceRound extends StatelessWidget {
         ],
       ),
     );
-    return employer
+    return latest || employer
         ? Card.outlined(
             child: Padding(padding: const EdgeInsets.all(12), child: content),
           )

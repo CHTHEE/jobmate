@@ -82,18 +82,18 @@ void main() {
       await showPage(tester);
       await tester.pumpAndSettle();
       expect(find.textContaining('Scheduled start:'), findsNothing);
+      final show = find.text('Show application shifts');
+      await tester.ensureVisible(show);
+      await tester.tap(show);
+      await tester.pumpAndSettle();
       final details = find.byTooltip('Show shift details');
       await tester.ensureVisible(details);
       await tester.tap(details);
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('View original attendance & audit'));
-      await tester.tap(find.text('View original attendance & audit'));
       await tester.pumpAndSettle();
       for (final text in [
         'Server job',
         'Assigned worker',
-        'Scheduled start: 06/11/2026 04:30:00 MYT',
-        'Scheduled end: 06/11/2026 13:00:00 MYT',
         'Workplace: Server location',
         'Verification: Pending review',
         'Action needed: review evidence',
@@ -304,6 +304,10 @@ void main() {
           ),
         ),
       );
+      await tester.pumpAndSettle();
+      final show = find.text('Show application shifts');
+      await tester.ensureVisible(show);
+      await tester.tap(show);
       await tester.pumpAndSettle();
       expect(find.text('More Evidence Required'), findsOneWidget);
       expect(tester.takeException(), isNull);

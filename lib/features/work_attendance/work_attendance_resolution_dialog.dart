@@ -252,9 +252,6 @@ class _ResolutionDialogState extends State<WorkAttendanceResolutionDialog> {
                                   CrossAxisAlignment.stretch,
                               expandedAlignment: Alignment.centerLeft,
                               children: [
-                                SelectableText(
-                                  'Assignment: ${widget.assignment.assignmentId}',
-                                ),
                                 Text(
                                   'Scheduled: ${_resolutionTime(widget.assignment.scheduledStart)} - ${_resolutionTime(widget.assignment.scheduledEnd)}',
                                 ),

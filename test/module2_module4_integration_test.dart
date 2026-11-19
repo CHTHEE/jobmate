@@ -107,6 +107,7 @@ void main() {
     creation = WorkAssignmentCreationRepository(
       candidates,
       ledger: WorkAssignmentCreationLedger(),
+      now: () => DateTime.utc(2026, 11, 1),
     );
   });
 
@@ -171,25 +172,40 @@ void main() {
     await creation.load(companyId: candidates.company);
     expect(creation.state.candidates.single.applicationId, uid(4));
 
-    for (final (startDate, startTime, endDate, endTime) in [
-      ('2026-11-10', '22:30', '2026-11-11', '02:15'),
-      ('2026-11-09', '09:00', '2026-11-09', '17:00'),
+    final overnight = await creation.create(
+      candidate: creation.state.candidates.single,
+      start: workAssignmentMalaysiaUtc('2026-11-10', '22:30')!,
+      end: workAssignmentMalaysiaUtc('2026-11-11', '02:15')!,
+      location: 'Agreed workplace',
+    );
+    expect(overnight.status, WorkAssignmentCreateStatus.rejected);
+    expect(overnight.message, contains('same Malaysia date'));
+    expect(candidates.reservations, 0);
+    expect(candidates.creates, 0);
+
+    for (final (date, startTime, endTime) in [
+      ('2026-11-10', '14:30', '18:15'),
+      ('2026-11-09', '09:00', '17:00'),
     ]) {
       final result = await creation.create(
         candidate: creation.state.candidates.single,
-        start: workAssignmentMalaysiaUtc(startDate, startTime)!,
-        end: workAssignmentMalaysiaUtc(endDate, endTime)!,
+        start: workAssignmentMalaysiaUtc(date, startTime)!,
+        end: workAssignmentMalaysiaUtc(date, endTime)!,
         location: 'Agreed workplace',
       );
-      expect(result.status, WorkAssignmentCreateStatus.success);
+      expect(
+        result.status,
+        WorkAssignmentCreateStatus.success,
+        reason: result.message,
+      );
     }
     expect(shifts.map((row) => row['application_id']), [uid(4), uid(4)]);
-    expect(shifts.first['scheduled_start'], '2026-11-10T14:30:00.000Z');
-    expect(shifts.first['scheduled_end'], '2026-11-10T18:15:00.000Z');
+    expect(shifts.first['scheduled_start'], '2026-11-10T06:30:00.000Z');
+    expect(shifts.first['scheduled_end'], '2026-11-10T10:15:00.000Z');
     final overlap = await creation.create(
       candidate: creation.state.candidates.single,
-      start: DateTime.utc(2026, 11, 10, 15),
-      end: DateTime.utc(2026, 11, 10, 16),
+      start: DateTime.utc(2026, 11, 10, 7),
+      end: DateTime.utc(2026, 11, 10, 8),
       location: 'Agreed workplace',
     );
     expect(overlap.status, WorkAssignmentCreateStatus.rejected);
@@ -200,14 +216,14 @@ void main() {
     attendanceSource.onCheckIn = (shiftId) async {
       expect(shiftId, id);
       shifts.first['assignment_status'] = 'active';
-      shifts.first['check_in_at'] = '2026-11-10T14:35:00Z';
-      return DateTime.utc(2026, 11, 10, 14, 35);
+      shifts.first['check_in_at'] = '2026-11-10T06:35:00Z';
+      return DateTime.utc(2026, 11, 10, 6, 35);
     };
     attendanceSource.onCheckOut = (shiftId) async {
       expect(shiftId, id);
       shifts.first['assignment_status'] = 'awaiting_verification';
-      shifts.first['check_out_at'] = '2026-11-10T18:20:00Z';
-      return DateTime.utc(2026, 11, 10, 18, 20);
+      shifts.first['check_out_at'] = '2026-11-10T10:20:00Z';
+      return DateTime.utc(2026, 11, 10, 10, 20);
     };
     final attendance = WorkAttendanceRepository(attendanceSource);
     addTearDown(() async {
@@ -408,17 +424,53 @@ void main() {
           );
           await tester.pumpAndSettle();
           final group = find.byKey(ValueKey('application-${uid(4)}'));
+          final otherGroup = find.byKey(ValueKey('application-${uid(6)}'));
+          Finder within(Finder parent, Finder child) =>
+              find.descendant(of: parent, matching: child);
           expect(find.text('Server job'), findsNWidgets(2));
-          expect(find.text('2 shifts'), findsOneWidget);
-          expect(find.text('1 shift'), findsOneWidget);
-          expect(find.byKey(ValueKey('application-${uid(6)}')), findsOneWidget);
+          expect(
+            within(
+              group,
+              find.text(employerView ? '2 total shifts' : '2 shifts'),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            within(
+              otherGroup,
+              find.text(employerView ? '1 total shift' : '1 shift'),
+            ),
+            findsOneWidget,
+          );
+          if (employerView) {
+            final show = find.text('Show application shifts');
+            expect(within(otherGroup, show), findsOneWidget);
+            final expand = within(group, show);
+            await tester.ensureVisible(expand);
+            await tester.tap(expand);
+            await tester.pumpAndSettle();
+            expect(within(otherGroup, show), findsOneWidget);
+            expect(within(otherGroup, find.byType(Card)), findsNothing);
+          } else {
+            final expand = within(group, find.text('Show application shifts'));
+            await tester.ensureVisible(expand);
+            await tester.tap(expand);
+            await tester.pumpAndSettle();
+            expect(
+              within(otherGroup, find.text('Show application shifts')),
+              findsOneWidget,
+            );
+          }
           final cards = find.descendant(of: group, matching: find.byType(Card));
           expect(tester.widgetList<Card>(cards).map((card) => card.key), [
             const ValueKey(other),
             const ValueKey(id),
           ]);
           expect(
-            find.text('Scheduled end: 07/11/2026 02:15 MYT'),
+            within(
+              within(group, find.byKey(const ValueKey(id))),
+              find.textContaining('10:30 PM – Sat, 7 Nov 2026 2:15 AM MYT'),
+            ),
             findsOneWidget,
           );
           expect(tester.takeException(), isNull);

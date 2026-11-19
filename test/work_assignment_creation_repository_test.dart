@@ -611,6 +611,11 @@ void main() {
       'exact RPC parameters and authoritative UUID; repeat remains blocked',
       () async {
         final row = await candidate();
+        Map<String, dynamic>? reserved;
+        source.reserve = (payload) async {
+          reserved = Map.of(payload);
+          return uid(80);
+        };
         final result = await create(row, location: ' QA workplace ');
         expect(result.status, WorkAssignmentCreateStatus.success);
         expect(result.assignmentId, uid(90));
@@ -620,7 +625,10 @@ void main() {
           'p_scheduled_start': start.toIso8601String(),
           'p_scheduled_end': end.toIso8601String(),
           'p_workplace_location': 'QA workplace',
+          'p_workplace_latitude': null,
+          'p_workplace_longitude': null,
         });
+        expect(reserved, Map.of(source.parameters!)..remove('p_request_id'));
         await create(row);
         expect(source.creates, 1);
       },
@@ -697,21 +705,108 @@ void main() {
         WorkAssignmentCreateStatus.success,
       );
     });
+    test('missing v2 reservation offers an explicit text-only compatibility action', () async {
+      final row = await candidate();
+      source.reserve = (_) async =>
+          throw const PostgrestException(message: 'missing', code: 'PGRST202');
+      final first = await create(row);
+      expect(first.status, WorkAssignmentCreateStatus.rejected);
+      expect(first.legacyTextOnlyAvailable, isTrue);
+      expect(source.creates, 0);
+      expect(source.reservations, 1);
+      source.reserve = (payload) async {
+        expect(payload.keys, isNot(contains('p_workplace_latitude')));
+        return uid(80);
+      };
+      final legacy = await repo.create(
+        candidate: row,
+        start: start,
+        end: end,
+        location: 'QA workplace',
+        useLegacyTextOnly: true,
+      );
+      expect(legacy.status, WorkAssignmentCreateStatus.success);
+      expect(source.parameters!.keys, isNot(contains('p_workplace_longitude')));
+    });
     test(
-      'missing reservation contract never falls back to legacy creation',
+      'pinned snapshot is validated and sent identically to both RPCs',
       () async {
         final row = await candidate();
-        source.reserve = (_) async => throw const PostgrestException(
+        for (final (lat, lon) in [
+          (null, 10.0),
+          (90.00000001, 10.0),
+          (1.0, double.nan),
+        ]) {
+          final invalid = await repo.create(
+            candidate: row,
+            start: start,
+            end: end,
+            location: 'QA',
+            workplaceLatitude: lat,
+            workplaceLongitude: lon,
+          );
+          expect(invalid.status, WorkAssignmentCreateStatus.rejected);
+        }
+        expect(source.reservations, 0);
+        final pending = Completer<Object?>();
+        Map<String, dynamic>? reserved;
+        source.reserve = (payload) {
+          reserved = payload;
+          expect(
+            () => payload['p_workplace_latitude'] = 0,
+            throwsUnsupportedError,
+          );
+          return pending.future;
+        };
+        final action = repo.create(
+          candidate: row,
+          start: start,
+          end: end,
+          location: ' QA ',
+          workplaceLatitude: 3.1180006,
+          workplaceLongitude: 101.677,
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(reserved?['p_workplace_latitude'], 3.118001);
+        pending.complete(uid(80));
+        expect((await action).status, WorkAssignmentCreateStatus.success);
+        expect(Map.of(source.parameters!)..remove('p_request_id'), reserved);
+      },
+    );
+    test(
+      'pinned drafts and missing finalizer cannot use compatibility',
+      () async {
+        final row = await candidate();
+        const missing = PostgrestException(
           message: 'missing',
           code: 'PGRST202',
         );
-        expect(
-          (await create(row)).status,
-          WorkAssignmentCreateStatus.uncertain,
+        source.reserve = (_) async => throw missing;
+        final pinned = await repo.create(
+          candidate: row,
+          start: start,
+          end: end,
+          location: 'QA',
+          workplaceLatitude: 3.1,
+          workplaceLongitude: 101.7,
         );
+        expect(pinned.legacyTextOnlyAvailable, isFalse);
         expect(source.creates, 0);
-        await create(row);
-        expect(source.reservations, 1);
+        source.reserve = (_) async => uid(80);
+        source.create = (_) async => throw missing;
+        final uncertain = await create(row);
+        expect(uncertain.status, WorkAssignmentCreateStatus.uncertain);
+        expect(uncertain.legacyTextOnlyAvailable, isFalse);
+        expect(source.lookedUpRequest, uid(80));
+        await repo.create(
+          candidate: row,
+          start: start,
+          end: end,
+          location: 'QA workplace',
+          useLegacyTextOnly: true,
+        );
+        expect(source.reservations, 2);
+        expect(source.creates, 1);
       },
     );
     test('uncertain reservation blocks without creation', () async {
@@ -1007,7 +1102,11 @@ void main() {
       );
       final adapter = SupabaseWorkAssignmentCreationSource(client);
       expect(
-        await adapter.reserveAssignment({'p_application_id': uid(4)}),
+        await adapter.reserveAssignment({
+          'p_application_id': uid(4),
+          'p_workplace_latitude': null,
+          'p_workplace_longitude': null,
+        }),
         uid(80),
       );
       expect(await adapter.lookupAssignmentRequest(uid(80)), uid(80));
@@ -1017,7 +1116,7 @@ void main() {
         throwsA(isA<PostgrestException>()),
       );
       expect(paths, [
-        '/rest/v1/rpc/reserve_work_assignment_request',
+        '/rest/v1/rpc/reserve_work_assignment_request_v2',
         '/rest/v1/rpc/lookup_work_assignment_request',
         '/rest/v1/rpc/reserve_work_assignment_request',
       ]);
@@ -1034,11 +1133,16 @@ void main() {
       'p_scheduled_start': '2026-11-07T01:00:00.000Z',
       'p_scheduled_end': '2026-11-07T09:00:00.000Z',
       'p_workplace_location': 'QA',
+      'p_workplace_latitude': 3.118,
+      'p_workplace_longitude': 101.677,
     };
     server.listen((request) async {
       requests++;
       expect(request.method, 'POST');
-      expect(request.uri.path, '/rest/v1/rpc/create_work_assignment_request');
+      expect(
+        request.uri.path,
+        '/rest/v1/rpc/create_work_assignment_request_v2',
+      );
       expect(jsonDecode(await utf8.decoder.bind(request).join()), parameters);
       request.response.headers.contentType = ContentType.json;
       request.response.statusCode = fail ? 503 : 200;

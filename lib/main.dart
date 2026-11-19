@@ -24,7 +24,6 @@ import 'features/jobs/job_form_route.dart';
 import 'features/applications/module2_repository.dart';
 import 'features/applications/module2_widgets.dart';
 import 'features/applications/browse_jobs_page.dart';
-import 'features/search/universal_search_page.dart';
 import 'features/applications/job_details_page.dart';
 import 'features/applications/applications_page.dart';
 import 'features/demo_work/phase3_store.dart';
@@ -37,6 +36,7 @@ import 'features/chat/chat_routes.dart';
 import 'features/chat/debug/chat_runtime_controller.dart';
 import 'features/chat/debug/chat_runtime_page.dart';
 import 'features/location/location_pages.dart';
+import 'features/location/nearby_jobs_page.dart';
 import 'features/phase4/phase4_store.dart';
 import 'features/phase4/evaluation_pages.dart';
 import 'features/phase4/reputation_page.dart';
@@ -402,32 +402,23 @@ GoRouter _createRouter() {
         '${AppRoutes.employerMessages}/:conversationId',
         employer: true,
       ),
-      _appRoute(
-        AppRoutes.nearbyJobs,
-        (_, _) =>
-            const Module2Gate(role: 'job_seeker', child: NearbyJobsPage()),
-      ),
-      _appRoute(
-        '${AppRoutes.nearbyJobs}/:jobId',
-        (_, state) => Module2Gate(
-          role: 'job_seeker',
-          child: NearbyDetailPage(jobId: state.pathParameters['jobId']!),
-        ),
-      ),
+      ...nearbyJobsRoutes(),
       _appRoute(
         AppRoutes.jobLocationDemo,
         (_, _) =>
             const Module2Gate(role: 'employer', child: JobLocationDemoPage()),
       ),
-      _appRoute(
-        AppRoutes.search,
-        (_, _) =>
-            const Module2Gate(role: 'job_seeker', child: UniversalSearchPage()),
-      ),
+      legacyJobSearchRoute(),
       _appRoute(
         AppRoutes.browseJobs,
-        (_, _) =>
-            const Module2Gate(role: 'job_seeker', child: BrowseJobsPage()),
+        (_, state) => Module2Gate(
+          role: 'job_seeker',
+          child: BrowseJobsPage(
+            initialKeyword:
+                state.uri.queryParameters[AppRoutes.jobKeywordParameter] ?? '',
+            keywordRequest: state.extra,
+          ),
+        ),
       ),
       _appRoute(
         '${AppRoutes.browseJobs}/:jobId',

@@ -13,6 +13,16 @@ abstract final class AppRoutes {
   static const jobPostings = '/job-postings';
   static const search = '/search';
   static const browseJobs = '/jobs';
+  static const jobKeywordParameter = 'q';
+
+  static String browseJobsLocation([String? keyword]) {
+    final query = keyword?.trim() ?? '';
+    return Uri(
+      path: browseJobs,
+      queryParameters: query.isEmpty ? null : {jobKeywordParameter: query},
+    ).toString();
+  }
+
   static const applications = '/applications';
   static const applicants = '/applicants';
   static const recommendations = '/recommendations';

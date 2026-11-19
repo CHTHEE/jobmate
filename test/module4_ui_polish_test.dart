@@ -266,7 +266,7 @@ void main() {
   );
 
   testWidgets(
-    'corrected effective summary keeps original timestamps, GPS and reason in collapsed audit',
+    'corrected summary distinguishes original timestamps, GPS and reason without technical identifiers',
     (tester) async {
       final data = correctedRow(),
           row = WorkerWorkAssignment.fromJson(correctedRow());
@@ -283,25 +283,19 @@ void main() {
         find.textContaining('Corrected effective checkout:'),
         findsOneWidget,
       );
-      expect(find.textContaining('Resolution reason:'), findsNothing);
-      expect(find.textContaining('Original check-in:'), findsNothing);
+      expect(find.text('Attendance correction'), findsOneWidget);
+      expect(find.textContaining('Original check-in:'), findsOneWidget);
       expect(find.textContaining('not approved payable time'), findsOneWidget);
-      await tester.tap(find.text('View original attendance & audit'));
-      await tester.pumpAndSettle();
       expect(find.text('Original checkout: Not recorded'), findsOneWidget);
-      expect(
-        find.text('Resolution reason: Authorized actual-time correction'),
-        findsOneWidget,
-      );
+      expect(find.text('Authorized actual-time correction'), findsOneWidget);
       expect(
         find.textContaining('check-in denied; checkout not recorded'),
         findsOneWidget,
       );
       expect(find.textContaining('Assignment:'), findsNothing);
-      await tester.ensureVisible(find.text('Technical details'));
-      await tester.tap(find.text('Technical details'));
-      await tester.pumpAndSettle();
-      expect(find.text('Assignment: $id'), findsOneWidget);
+      expect(find.text('Technical details'), findsNothing);
+      expect(find.textContaining(id), findsNothing);
+      expect(find.textContaining('Resolved by employer:'), findsOneWidget);
       expect(row.checkOutAt, isNull);
       expect(data['check_out_at'], isNull);
       expect(tester.takeException(), isNull);
@@ -309,7 +303,7 @@ void main() {
   );
 
   testWidgets(
-    'worker and employer summaries wrap at narrow widths and keep audits collapsed',
+    'worker and employer correction summaries wrap at narrow widths',
     (tester) async {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -342,14 +336,13 @@ void main() {
           );
           await tester.pumpAndSettle();
           expect(
-            find.textContaining('Corrected effective check-in:'),
+            employer
+                ? find.text('Corrected check-in')
+                : find.textContaining('Corrected effective check-in:'),
             findsOneWidget,
           );
-          expect(
-            find.textContaining('not approved payable time'),
-            findsOneWidget,
-          );
-          expect(find.textContaining('Original checkout:'), findsNothing);
+          expect(find.textContaining('approved payable time'), findsOneWidget);
+          expect(find.textContaining('Original checkout:'), findsOneWidget);
           expect(find.textContaining('Assignment:'), findsNothing);
           expect(tester.takeException(), isNull);
         }

@@ -11,6 +11,7 @@ class TestPublishedJobsSource implements PublishedJobsSource {
   Future<List<Map<String, dynamic>>> Function()? fetch;
   List<Map<String, dynamic>> rows = [];
   int calls = 0;
+  int? reportedTotal;
   int signs = 0;
   Future<String> Function(String)? sign;
   @override
@@ -24,9 +25,10 @@ class TestPublishedJobsSource implements PublishedJobsSource {
   @override
   Stream<String?> get accountChanges => changes.stream;
   @override
-  Future<List<Map<String, dynamic>>> list() {
+  Future<PublishedJobsResult> list() async {
     calls++;
-    return fetch?.call() ?? Future.value(rows);
+    final result = await (fetch?.call() ?? Future.value(rows));
+    return (rows: result, total: reportedTotal ?? result.length);
   }
 
   void switchAccount(String? id) {

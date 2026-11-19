@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../shared/navigation/app_routes.dart';
+import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/responsive_layout.dart';
@@ -11,26 +12,51 @@ import 'module2_widgets.dart';
 import 'browse_job_card.dart';
 import 'published_company_logo.dart';
 
+GoRoute legacyJobSearchRoute() => GoRoute(
+  path: AppRoutes.search,
+  redirect: (_, state) => AppRoutes.browseJobsLocation(
+    state.uri.queryParameters[AppRoutes.jobKeywordParameter],
+  ),
+);
+
 class BrowseJobsPage extends StatefulWidget {
-  const BrowseJobsPage({super.key, this.repository});
+  const BrowseJobsPage({
+    super.key,
+    this.repository,
+    this.initialKeyword = '',
+    this.keywordRequest,
+  });
   final Module2Repository? repository;
+  final String initialKeyword;
+  final Object? keywordRequest;
   @override
   State<BrowseJobsPage> createState() => _BrowseJobsPageState();
 }
 
 class _BrowseJobsPageState extends State<BrowseJobsPage> {
   late final repo = (widget.repository ?? Module2Repository.session).browse;
-  final search = TextEditingController();
+  late final search = TextEditingController(text: widget.initialKeyword.trim());
   final location = TextEditingController();
   String type = '', arrangement = '', sort = 'Newest';
   bool savedOnly = false;
   bool filtersExpanded = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) repo.load();
     });
+  }
+
+  @override
+  void didUpdateWidget(BrowseJobsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A fresh panel submission can reapply the same URL keyword after a local edit.
+    if (widget.initialKeyword != oldWidget.initialKeyword ||
+        !identical(widget.keywordRequest, oldWidget.keywordRequest)) {
+      search.text = widget.initialKeyword.trim();
+    }
   }
 
   @override
@@ -60,6 +86,13 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
         sort: sort,
         savedOnly: savedOnly,
       );
+      final hasFilters =
+          search.text.isNotEmpty ||
+          location.text.isNotEmpty ||
+          type.isNotEmpty ||
+          arrangement.isNotEmpty ||
+          savedOnly ||
+          sort != 'Newest';
       return AppWorkspace(
         title: 'Browse Jobs',
         path: AppRoutes.browseJobs,
@@ -80,34 +113,51 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                 title: 'Find your next opportunity',
                 description: 'Explore published jobs and find your next role.',
               ),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: search,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        labelText: 'Search title, company or keywords',
-                        prefixIcon: Icon(Icons.search),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final keyword = TextField(
+                    controller: search,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Search title, company or keywords',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                  );
+                  final toggle = Semantics(
+                    expanded: filtersExpanded,
+                    child: OutlinedButton.icon(
+                      onPressed: () =>
+                          setState(() => filtersExpanded = !filtersExpanded),
+                      icon: Icon(
+                        filtersExpanded ? Icons.expand_less : Icons.tune,
                       ),
+                      label: const Text('Filters'),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    onPressed: () =>
-                        setState(() => filtersExpanded = !filtersExpanded),
-                    icon: Icon(
-                      filtersExpanded ? Icons.expand_less : Icons.tune,
-                    ),
-                    label: const Text('Filters'),
-                  ),
-                ],
+                  );
+                  if (ResponsiveLayout.isCompactWidth(constraints.maxWidth)) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        keyword,
+                        const SizedBox(height: JobMateTheme.space8),
+                        Align(alignment: Alignment.centerRight, child: toggle),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: keyword),
+                      const SizedBox(width: JobMateTheme.space12),
+                      toggle,
+                    ],
+                  );
+                },
               ),
-              const SizedBox(height: 8),
-              if (filtersExpanded)
+              if (filtersExpanded) ...[
+                const SizedBox(height: JobMateTheme.space12),
                 Wrap(
-                  spacing: 12,
-                  runSpacing: 16,
+                  spacing: JobMateTheme.space12,
+                  runSpacing: JobMateTheme.space12,
                   children: [
                     ModuleSelect(
                       label: 'Employment type',
@@ -140,49 +190,54 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                         controller: location,
                         onChanged: (_) => setState(() {}),
                         decoration: const InputDecoration(
-                          labelText: 'Location',
+                          labelText: 'City or state',
+                          hintText: 'City or state',
                         ),
+                      ),
+                    ),
+                    ResponsiveFilter(
+                      child: CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        title: const Text('Bookmarked jobs only'),
+                        value: savedOnly,
+                        onChanged: (value) =>
+                            setState(() => savedOnly = value ?? false),
                       ),
                     ),
                   ],
                 ),
-              Wrap(
-                spacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  FilterChip(
-                    label: const Text('Saved this session'),
-                    selected: savedOnly,
-                    onSelected: (v) => setState(() => savedOnly = v),
-                  ),
-                  if (type.isNotEmpty)
-                    InputChip(
-                      label: Text(jobLabel(type)),
-                      onDeleted: () => setState(() => type = ''),
-                    ),
-                  if (arrangement.isNotEmpty)
-                    InputChip(
-                      label: Text(jobLabel(arrangement)),
-                      onDeleted: () => setState(() => arrangement = ''),
-                    ),
-                  if (location.text.isNotEmpty)
-                    InputChip(
-                      label: Text(location.text),
-                      onDeleted: () => setState(location.clear),
-                    ),
-                  if (search.text.isNotEmpty ||
-                      location.text.isNotEmpty ||
-                      type.isNotEmpty ||
-                      arrangement.isNotEmpty ||
-                      savedOnly ||
-                      sort != 'Newest')
+              ],
+              if (hasFilters) ...[
+                const SizedBox(height: JobMateTheme.space8),
+                Wrap(
+                  spacing: JobMateTheme.space12,
+                  runSpacing: JobMateTheme.space4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (type.isNotEmpty)
+                      InputChip(
+                        label: Text(jobLabel(type)),
+                        onDeleted: () => setState(() => type = ''),
+                      ),
+                    if (arrangement.isNotEmpty)
+                      InputChip(
+                        label: Text(jobLabel(arrangement)),
+                        onDeleted: () => setState(() => arrangement = ''),
+                      ),
+                    if (location.text.isNotEmpty)
+                      InputChip(
+                        label: Text(location.text),
+                        onDeleted: () => setState(location.clear),
+                      ),
                     TextButton(
                       onPressed: clear,
                       child: const Text('Clear filters'),
                     ),
-                ],
-              ),
-              const SizedBox(height: 8),
+                  ],
+                ),
+              ],
+              const SizedBox(height: JobMateTheme.space8),
               if (repo.loading || (!repo.loaded && repo.error == null))
                 const Center(child: CircularProgressIndicator())
               else if (repo.error != null)

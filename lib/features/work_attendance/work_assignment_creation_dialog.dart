@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../shared/widgets/mobile_back_action.dart';
+import '../jobs/workplace_coordinates.dart';
+import '../jobs/workplace_map_picker.dart';
 import 'engagement_closure_controls.dart';
 import 'work_assignment_creation_repository.dart';
 import 'work_shift_ui.dart';
@@ -14,10 +16,12 @@ class WorkAssignmentCreationDialog extends StatefulWidget {
     required this.companyId,
     required this.closureGateway,
     this.applicationId,
+    this.pickWorkplace = showWorkplacePicker,
   });
   final WorkAssignmentCreationRepository repository;
   final String companyId;
   final EngagementClosureGateway closureGateway;
+  final WorkplacePicker pickWorkplace;
 
   /// Optional group context. Resolve only against freshly authorized candidates.
   final String? applicationId;
@@ -36,6 +40,12 @@ class _WorkAssignmentCreationDialogState
   TimeOfDay? _selectedStart, _selectedEnd;
   bool _validationRequested = false;
   final _location = TextEditingController();
+  String _workplaceDefault = '';
+  String _draftAddress = '';
+  WorkplaceCoordinates? _workplacePin, _defaultPin;
+  WorkplaceCoordinates? _previousWorkplacePin;
+  int _workplaceRevision = 0;
+  bool _pickingWorkplace = false;
   late final String? _actor = widget.repository.source.userId;
   WorkAssignmentCandidate? _candidate;
   String? _job;
@@ -63,20 +73,27 @@ class _WorkAssignmentCreationDialogState
       _selectedStart = null;
       _selectedEnd = null;
       _validationRequested = false;
-      _candidate = null;
+      _setCandidate(null);
+      _workplaceDefault = '';
+      _draftAddress = '';
+      _workplacePin = _defaultPin = null;
+      _previousWorkplacePin = null;
+      _workplaceRevision++;
       _job = null;
       _confirm = false;
       _result = null;
       for (final c in [_startDate, _startTime, _endTime, _location]) {
         c.clear();
       }
-    } else if (!_confirm && !widget.repository.state.loading) {
+    } else if (!_confirm &&
+        !widget.repository.state.loading &&
+        widget.repository.state.errorKind == null) {
       final rows = widget.repository.state.candidates;
       if (widget.applicationId != null) {
         final matches = rows.where(
           (c) => c.applicationId == widget.applicationId,
         );
-        _candidate = matches.length == 1 ? matches.single : null;
+        _setCandidate(matches.length == 1 ? matches.single : null);
         _job = _candidate?.jobId;
       } else {
         if (!rows.any((c) => c.jobId == _job)) _job = null;
@@ -84,11 +101,170 @@ class _WorkAssignmentCreationDialogState
           (c) =>
               c.applicationId == _candidate?.applicationId && c.jobId == _job,
         );
-        _candidate = selection.length == 1 ? selection.single : null;
+        _setCandidate(selection.length == 1 ? selection.single : null);
       }
     }
     _ensureEngagementStatus(_candidate?.applicationId);
     setState(() {});
+  }
+
+  void _setCandidate(WorkAssignmentCandidate? candidate) {
+    // A refresh can replace the candidate object for the same application.
+    // Keep the current shift draft until the selected application changes.
+    if (_candidate?.applicationId != candidate?.applicationId ||
+        _candidate?.jobId != candidate?.jobId) {
+      _workplaceDefault = candidate?.workplaceLocation ?? '';
+      _location.text = _workplaceDefault;
+      _draftAddress = _workplaceDefault;
+      _workplacePin = _defaultPin = candidate?.workplacePin;
+      _previousWorkplacePin = null;
+      _workplaceRevision++;
+    }
+    _candidate = candidate;
+  }
+
+  Future<void> _chooseWorkplacePin() async {
+    final actor = widget.repository.source.userId;
+    final address = _location.text.trim();
+    if (actor == null ||
+        actor != _actor ||
+        _candidate == null ||
+        address.isEmpty ||
+        _pickingWorkplace ||
+        _busy ||
+        _confirm) {
+      return;
+    }
+    final revision = _workplaceRevision;
+    setState(() => _pickingWorkplace = true);
+    try {
+      final result = await widget.pickWorkplace(
+        context,
+        _workplacePin,
+        address,
+        false,
+      );
+      if (!mounted ||
+          result == null ||
+          _confirm ||
+          _busy ||
+          widget.repository.source.userId != actor ||
+          revision != _workplaceRevision ||
+          address != _location.text.trim()) {
+        return;
+      }
+      final point = result.coordinates;
+      final pin = workplaceCoordinates(point.latitude, point.longitude);
+      if (pin == null) return;
+      final placeAddress = result.placeAddress?.trim();
+      setState(() {
+        if (placeAddress != null &&
+            placeAddress.isNotEmpty &&
+            placeAddress.runes.length <= 500) {
+          _location.text = placeAddress;
+          _draftAddress = placeAddress;
+        }
+        _workplacePin = pin;
+        _previousWorkplacePin = null;
+        _workplaceRevision++;
+      });
+    } finally {
+      if (mounted) setState(() => _pickingWorkplace = false);
+    }
+  }
+
+  String get _pinStatus {
+    final pin = _workplacePin;
+    return pin == null
+        ? 'No map pin selected'
+        : 'Draft pin: ${_coordinateLabel(pin)}';
+  }
+
+  String _coordinateLabel(WorkplaceCoordinates pin) =>
+      '${pin.latitude.toStringAsFixed(6)}, ${pin.longitude.toStringAsFixed(6)}';
+
+  bool get _requestLocked {
+    final candidate = _candidate;
+    if (candidate == null) return false;
+    final status = widget.repository.statusFor(candidate);
+    return status == WorkAssignmentCreateStatus.uncertain ||
+        status == WorkAssignmentCreateStatus.submitting;
+  }
+
+  bool get _canResolvePreviousPin =>
+      _candidate != null &&
+      widget.repository.source.userId == _actor &&
+      !_busy &&
+      !_confirm &&
+      !_closing &&
+      !_leaving &&
+      !_pickingWorkplace &&
+      !_requestLocked &&
+      !widget.repository.state.loading &&
+      widget.repository.state.error == null &&
+      _engagementReady;
+
+  bool get _canKeepPreviousPin =>
+      _canResolvePreviousPin &&
+      _draftAddress.isNotEmpty &&
+      _location.text.runes.length <= 500;
+
+  void _resolvePreviousPin(int revision, {required bool keep}) {
+    if (revision != _workplaceRevision ||
+        _previousWorkplacePin == null ||
+        !_canResolvePreviousPin ||
+        (keep && !_canKeepPreviousPin)) {
+      return;
+    }
+    setState(() {
+      _workplacePin = keep ? _previousWorkplacePin : null;
+      _previousWorkplacePin = null;
+      _workplaceRevision++;
+    });
+  }
+
+  Widget _previousPinConfirmation(WorkplaceCoordinates pin) {
+    final revision = _workplaceRevision;
+    return Card(
+      margin: const EdgeInsets.only(top: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Verify the previous pin',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Edited workplace: ${_draftAddress.isEmpty ? 'Empty' : _draftAddress}',
+            ),
+            Text('Previous pin: ${_coordinateLabel(pin)}'),
+            const Text(
+              'Keep the previous pin only if you verify that the edited workplace refers to the same physical location.',
+            ),
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton(
+                  onPressed: _canKeepPreviousPin
+                      ? () => _resolvePreviousPin(revision, keep: true)
+                      : null,
+                  child: const Text('Keep existing pin'),
+                ),
+                TextButton(
+                  onPressed: _canResolvePreviousPin
+                      ? () => _resolvePreviousPin(revision, keep: false)
+                      : null,
+                  child: const Text('Clear pin'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _ensureEngagementStatus(String? applicationId) {
@@ -158,12 +334,9 @@ class _WorkAssignmentCreationDialogState
     _closing = true;
     final dirty =
         (_candidate != null && widget.applicationId == null) ||
-        [
-          _startDate,
-          _startTime,
-          _endTime,
-          _location,
-        ].any((c) => c.text.isNotEmpty);
+        [_startDate, _startTime, _endTime].any((c) => c.text.isNotEmpty) ||
+        _location.text != _workplaceDefault ||
+        _workplacePin != _defaultPin;
     final leave =
         assignmentId != null || await confirmDiscardChanges(context, dirty);
     _closing = false;
@@ -263,7 +436,10 @@ class _WorkAssignmentCreationDialogState
     }
   }
 
-  Future<void> _submit({bool reconcile = false}) async {
+  Future<void> _submit({
+    bool reconcile = false,
+    bool useLegacyTextOnly = false,
+  }) async {
     if (_busy ||
         (!reconcile && _result?.scheduleConflict == true) ||
         _candidate == null ||
@@ -271,6 +447,10 @@ class _WorkAssignmentCreationDialogState
       return;
     }
     final candidate = _candidate!;
+    final revision = _workplaceRevision;
+    final start = _start, end = _end;
+    final location = _location.text.trim();
+    final pin = _workplacePin;
     setState(() => _busy = true);
     if (!reconcile) {
       try {
@@ -278,7 +458,8 @@ class _WorkAssignmentCreationDialogState
           candidate.applicationId,
         );
         if (!mounted) return;
-        if (widget.repository.source.userId != _actor) {
+        if (widget.repository.source.userId != _actor ||
+            revision != _workplaceRevision) {
           setState(() => _busy = false);
           _changed();
           return;
@@ -315,9 +496,12 @@ class _WorkAssignmentCreationDialogState
         ? await widget.repository.reconcile(candidate)
         : await widget.repository.create(
             candidate: candidate,
-            start: _start!,
-            end: _end!,
-            location: _location.text,
+            start: start!,
+            end: end!,
+            location: location,
+            workplaceLatitude: pin?.latitude,
+            workplaceLongitude: pin?.longitude,
+            useLegacyTextOnly: useLegacyTextOnly,
           );
     if (!mounted) return;
     setState(() {
@@ -352,12 +536,8 @@ class _WorkAssignmentCreationDialogState
     final accountChanged = repository.source.userId != _actor;
     final scoped = widget.applicationId != null;
     final unavailable = scoped && _candidate == null;
-    final locked =
-        _candidate != null &&
-        [
-          WorkAssignmentCreateStatus.uncertain,
-          WorkAssignmentCreateStatus.submitting,
-        ].contains(repository.statusFor(_candidate!));
+    final locked = _requestLocked;
+    final previousPin = _previousWorkplacePin;
     final jobs = {for (final c in state.candidates) c.jobId: c.jobTitle};
     Widget input(
       TextEditingController controller,
@@ -401,7 +581,15 @@ class _WorkAssignmentCreationDialogState
               : null,
         ),
         validator: validate,
-        onChanged: (_) => setState(() => _result = null),
+        onChanged: (value) => setState(() {
+          _result = null;
+          if (controller == _location && value.trim() != _draftAddress) {
+            _draftAddress = value.trim();
+            _previousWorkplacePin = _workplacePin ?? _previousWorkplacePin;
+            _workplacePin = null;
+            _workplaceRevision++;
+          }
+        }),
       ),
     );
     String? date(String? value) =>
@@ -542,8 +730,13 @@ class _WorkAssignmentCreationDialogState
                                 '${_end!.difference(_start!).inHours}h ${_end!.difference(_start!).inMinutes.remainder(60)}m',
                               ),
                               ('Workplace', _location.text.trim()),
+                              ('Map pin', _pinStatus),
                             ],
                           ),
+                          if (_workplacePin != null)
+                            const Text(
+                              'The workplace and map pin will be saved for this shift.',
+                            ),
                           const SizedBox(height: 12),
                           const Text(
                             'Confirming creates a real assignment. Existing assignments are not edited. If the result is uncertain, check assignments before taking any further action.',
@@ -609,7 +802,7 @@ class _WorkAssignmentCreationDialogState
                                         ? null
                                         : (value) => setState(() {
                                             _job = value;
-                                            _candidate = null;
+                                            _setCandidate(null);
                                             _result = null;
                                           }),
                                     validator: (v) =>
@@ -641,12 +834,12 @@ class _WorkAssignmentCreationDialogState
                                         ? null
                                         : (value) {
                                             setState(() {
-                                              _candidate = state.candidates
-                                                  .singleWhere(
-                                                    (c) =>
-                                                        c.applicationId ==
-                                                        value,
-                                                  );
+                                              _setCandidate(
+                                                state.candidates.singleWhere(
+                                                  (c) =>
+                                                      c.applicationId == value,
+                                                ),
+                                              );
                                               _result = null;
                                             });
                                             _ensureEngagementStatus(
@@ -698,6 +891,42 @@ class _WorkAssignmentCreationDialogState
                                       : v.runes.length > 500
                                       ? 'Use no more than 500 characters.'
                                       : null,
+                                ),
+                                Text(_pinStatus),
+                                if (previousPin != null)
+                                  _previousPinConfirmation(previousPin),
+                                if (_workplacePin != null)
+                                  const Text(
+                                    'Check that the pin matches the workplace address before creating the shift.',
+                                  ),
+                                Wrap(
+                                  spacing: 8,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      onPressed:
+                                          _busy ||
+                                              _pickingWorkplace ||
+                                              _candidate == null ||
+                                              _draftAddress.isEmpty
+                                          ? null
+                                          : _chooseWorkplacePin,
+                                      icon: const Icon(Icons.map_outlined),
+                                      label: Text(
+                                        _workplacePin == null
+                                            ? 'Choose pin'
+                                            : 'Change pin',
+                                      ),
+                                    ),
+                                    if (_workplacePin != null)
+                                      TextButton(
+                                        onPressed: _busy || _pickingWorkplace
+                                            ? null
+                                            : () => setState(
+                                                () => _workplacePin = null,
+                                              ),
+                                        child: const Text('Clear pin'),
+                                      ),
+                                  ],
                                 ),
                                 if (_start != null &&
                                     _end != null &&
@@ -751,7 +980,14 @@ class _WorkAssignmentCreationDialogState
                   !state.loading &&
                   !unavailable &&
                   !(_confirm && _result?.scheduleConflict == true) &&
-                  (_confirm || state.candidates.isNotEmpty))
+                  (_confirm || state.candidates.isNotEmpty)) ...[
+                if (_confirm && _result?.legacyTextOnlyAvailable == true)
+                  OutlinedButton(
+                    onPressed: _busy
+                        ? null
+                        : () => _submit(useLegacyTextOnly: true),
+                    child: const Text('Save text only in compatibility mode'),
+                  ),
                 FilledButton(
                   onPressed: _busy
                       ? null
@@ -779,6 +1015,7 @@ class _WorkAssignmentCreationDialogState
                         },
                   child: Text(_confirm ? 'Confirm & Save' : 'Review Shift'),
                 ),
+              ],
             ],
           ),
         ],

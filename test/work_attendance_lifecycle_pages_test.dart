@@ -6,6 +6,7 @@ import 'package:jobmate/features/work_attendance/work_attendance_pages.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_repository.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_routes.dart';
 import 'package:jobmate/features/work_attendance/work_verification_pages.dart';
+import 'package:jobmate/features/work_attendance/work_shift_ui.dart';
 import 'package:jobmate/shared/navigation/app_routes.dart';
 
 import 'work_attendance_lifecycle_test.dart' show lifecycleRow;
@@ -36,14 +37,21 @@ void main() {
     testWidgets('history missing timestamps use actual lifecycle $status', (
       tester,
     ) async {
-      source.workerRead = () async => [lifecycleRow(status: status)];
+      source.workerRead = () async => [
+        lifecycleRow(status: status)
+          ..['workplace_latitude'] = status == 'cancelled' ? 3.117777 : null
+          ..['workplace_longitude'] = status == 'cancelled' ? 101.677777 : null,
+      ];
       await tester.pumpWidget(
         MaterialApp(
           home: WorkAttendancePage(repository: repository, history: true),
         ),
       );
       await tester.pumpAndSettle();
-      await tap(tester, find.text('View original attendance & audit'));
+      expect(
+        find.text('View workplace on map'),
+        status == 'cancelled' ? findsOneWidget : findsNothing,
+      );
       expect(find.text('Check-in: Not recorded'), findsOneWidget);
       expect(find.text('Checkout: Not recorded'), findsOneWidget);
       expect(
@@ -78,15 +86,11 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tap(tester, find.text('View original attendance & audit'));
         expect(
           find.text('Attendance resolution: Pending employer review'),
           findsNothing,
         );
-        expect(
-          find.text('Resolution reason: Reviewed actual resolution'),
-          findsOneWidget,
-        );
+        expect(find.text('Reviewed actual resolution'), findsOneWidget);
         expect(
           find.text(corrected ? 'Corrected Attendance' : 'Confirmed Absent'),
           findsOneWidget,
@@ -96,15 +100,23 @@ void main() {
     );
   }
 
-  testWidgets('missed shift has distinct summary and full record labels', (
+  testWidgets('missed shift keeps guidance and a full record action', (
     tester,
   ) async {
-    source.workerRead = () async => [lifecycleRow()];
+    source.workerRead = () async => [
+      lifecycleRow()
+        ..['workplace_latitude'] = 3.117777
+        ..['workplace_longitude'] = 101.677777,
+    ];
     await tester.pumpWidget(
       MaterialApp(home: WorkAttendancePage(repository: repository)),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Attendance summary'), findsOneWidget);
+    await tap(tester, find.text('Show application shifts'));
+    expect(find.text('Missed Attendance'), findsOneWidget);
+    expect(find.text('Attendance summary'), findsNothing);
+    expect(find.text('View original attendance & audit'), findsNothing);
+    expect(find.text('View workplace on map'), findsOneWidget);
     expect(find.text('View Full Record'), findsOneWidget);
     expect(find.text('Show attendance details'), findsNothing);
     expect(find.text('View attendance details'), findsNothing);
@@ -141,7 +153,7 @@ void main() {
         MaterialApp(home: WorkAttendancePage(repository: repository)),
       );
       await tester.pumpAndSettle();
-      await tap(tester, find.byTooltip('Hide job shifts'));
+      expect(find.text('Show application shifts'), findsOneWidget);
       expect(
         find.text('Shifts needing action remain visible below.'),
         findsOneWidget,
@@ -152,6 +164,106 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final employer in [false, true]) {
+    testWidgets(
+      'application priorities and refresh are independent for employer=$employer',
+      (tester) async {
+        const secondApplication = '33333333-3333-4333-8333-333333333333';
+        final ids = List.generate(
+          7,
+          (index) => '44444444-4444-4444-8444-44444444444${index + 1}',
+        );
+        Map<String, dynamic> shift(
+          int index,
+          int day, {
+          String status = 'scheduled',
+          String verification = 'not_submitted',
+          String? input,
+          String? output,
+        }) {
+          final date = '2026-11-${day.toString().padLeft(2, '0')}';
+          return lifecycleRow(
+            company: employer,
+            now: '2026-11-06T10:00:00Z',
+            status: status,
+            verification: verification,
+            input: input,
+            output: output,
+          )..addAll({
+            'assignment_id': ids[index],
+            'scheduled_start': '${date}T01:00:00Z',
+            'scheduled_end': '${date}T09:00:00Z',
+          });
+        }
+
+        final rows = [
+          shift(0, 3),
+          shift(1, 9),
+          shift(2, 8),
+          shift(3, 5, status: 'cancelled'),
+          shift(
+            4,
+            4,
+            status: 'awaiting_verification',
+            verification: employer ? 'pending_review' : 'not_submitted',
+            input: '2026-11-04T01:00:00Z',
+            output: '2026-11-04T09:00:00Z',
+          ),
+          shift(5, 8),
+          shift(6, 10)..['application_id'] = secondApplication,
+        ];
+        source.workerRead = () async => rows;
+        source.companyRead = (_) async => rows;
+        final page = MaterialApp(
+          home: employer
+              ? WorkVerificationPage(
+                  repository: repository,
+                  companyId: id,
+                  loadAccess: () async =>
+                      const JobAccess({'company_id': id}, null),
+                )
+              : WorkAttendancePage(repository: repository),
+        );
+        await tester.pumpWidget(page);
+        await tester.pumpAndSettle();
+        final toggle = find.text('Show application shifts');
+        expect(toggle, findsNWidgets(2));
+        expect(find.byKey(ValueKey(ids[2])), findsNothing);
+        expect(find.text('Sun, 8 Nov 2026'), findsOneWidget);
+        expect(find.text('Next upcoming shift'), findsNWidgets(2));
+        if (!employer) {
+          expect(find.byKey(ValueKey(ids[4])), findsOneWidget);
+        }
+        await tap(tester, toggle.first);
+        expect(toggle, findsOneWidget);
+        expect(find.text('Next upcoming shift'), findsOneWidget);
+        expect(find.byKey(ValueKey(ids[6])), findsNothing);
+        final shiftWidgets = find.byWidgetPredicate(
+          (widget) => ids.any((id) => widget.key == ValueKey(id)),
+        );
+        List<Key?> displayedOrder() => tester
+            .widgetList(shiftWidgets)
+            .map((widget) => widget.key)
+            .toList();
+        final expected = [4, 2, 5, 1, 3, 0].map((i) => ValueKey(ids[i]));
+        expect(displayedOrder(), expected);
+        if (employer) {
+          await repository.loadCompanyAssignments(id);
+        } else {
+          await repository.loadWorkerAssignments();
+        }
+        await tester.pumpAndSettle();
+        expect(displayedOrder(), expected);
+        expect(toggle, findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+        await tester.pumpWidget(page);
+        await tester.pumpAndSettle();
+        expect(toggle, findsNWidgets(2));
+      },
+    );
+  }
 
   testWidgets(
     'real history filters no-row missed shifts, recorded attendance and Details route',
@@ -244,6 +356,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tap(tester, find.text('Show application shifts'));
       final target = find.byKey(const ValueKey(id));
       expect(
         find.descendant(of: target, matching: find.text('Scheduled')),
@@ -338,6 +451,7 @@ void main() {
       );
       await tap(tester, dropdown);
       await tap(tester, find.text('Attendance Issues').last);
+      await tap(tester, find.text('Show application shifts'));
       expect(find.byKey(const ValueKey(id)), findsOneWidget);
       expect(find.byKey(const ValueKey(other)), findsNothing);
       expect(find.text('1 matching of 2 shifts'), findsOneWidget);
@@ -385,7 +499,11 @@ void main() {
   testWidgets(
     'missed shift has structured truthful empty states and only one warning',
     (tester) async {
-      source.companyRead = (_) async => [lifecycleRow(company: true)];
+      source.companyRead = (_) async => [
+        lifecycleRow(company: true)
+          ..['workplace_latitude'] = 3.117777
+          ..['workplace_longitude'] = 101.677777,
+      ];
       await tester.pumpWidget(
         MaterialApp(
           home: WorkVerificationPage(
@@ -396,12 +514,14 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tap(tester, find.text('Show application shifts'));
+      expect(find.text('View workplace on map'), findsOneWidget);
       await tap(tester, find.byTooltip('Show shift details'));
+      expect(find.text('View workplace on map'), findsOneWidget);
       for (final label in [
         'Scheduled',
         'Check-in',
         'Check-out',
-        'Evidence',
         'Workplace & GPS',
         'Work Evidence',
       ]) {
@@ -424,6 +544,62 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final width in [320.0, 1200.0]) {
+    testWidgets(
+      'future employer shift shows a compact preview and details at $width',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        source.companyRead = (_) async => [
+          lifecycleRow(company: true, now: '2026-11-04T22:00:00Z')
+            ..['workplace_latitude'] = 3.117
+            ..['workplace_longitude'] = 101.677,
+        ];
+        await tester.pumpWidget(
+          MaterialApp(
+            home: WorkVerificationPage(
+              repository: repository,
+              companyId: id,
+              loadAccess: () async => const JobAccess({'company_id': id}, null),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Next upcoming shift'), findsOneWidget);
+        expect(find.text('Thu, 5 Nov 2026'), findsOneWidget);
+        expect(find.text('9:00 AM – 5:00 PM MYT'), findsOneWidget);
+        expect(find.text('Server location'), findsOneWidget);
+        final preview = find.byType(UpcomingShiftPreview);
+        final addShift = find.widgetWithText(OutlinedButton, 'Add shift');
+        expect(
+          tester.getTopLeft(addShift).dy - tester.getBottomLeft(preview).dy,
+          greaterThanOrEqualTo(12),
+        );
+        expect(
+          tester
+              .widget<OutlinedButton>(
+                find.widgetWithText(OutlinedButton, 'Add shift'),
+              )
+              .onPressed,
+          isNull,
+        );
+        await tap(tester, find.text('Show application shifts'));
+        expect(find.text('Upcoming / Scheduled'), findsOneWidget);
+        expect(find.text('Workplace: Server location'), findsOneWidget);
+        expect(find.text('View workplace on map'), findsOneWidget);
+        expect(find.text('Shift details'), findsOneWidget);
+        expect(find.byTooltip('Show shift details'), findsNothing);
+        expect(find.text('Workplace & GPS'), findsNothing);
+        expect(find.text('Work Evidence'), findsNothing);
+        expect(find.text('View attendance GPS'), findsNothing);
+        expect(find.text('View original attendance & audit'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   for (final corrected in [false, true]) {
     testWidgets(
@@ -463,16 +639,13 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        await tap(tester, find.text('Show application shifts'));
         await tap(tester, find.byTooltip('Show shift details'));
         expect(
           find.text(corrected ? 'Corrected Attendance' : 'Confirmed Absent'),
           findsOneWidget,
         );
-        await tap(tester, find.text('View original attendance & audit'));
-        expect(
-          find.text('Resolution reason: Actual employer resolution reason'),
-          findsOneWidget,
-        );
+        expect(find.text('Actual employer resolution reason'), findsOneWidget);
         expect(find.text('Review Attendance'), findsNothing);
         if (corrected) {
           expect(
@@ -517,6 +690,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tap(tester, find.text('Show application shifts'));
       await tap(tester, find.byTooltip('Show shift details').first);
       await tester.ensureVisible(find.text('View attendance GPS').first);
       expect(tester.takeException(), isNull);

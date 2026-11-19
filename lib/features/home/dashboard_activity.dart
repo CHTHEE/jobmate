@@ -87,7 +87,7 @@ class DashboardActivity extends StatelessWidget {
                     child: Text(
                       employer
                           ? 'Workers / Attendance (demo)'
-                          : 'Explore Nearby (demo)',
+                          : 'Explore Nearby Jobs',
                     ),
                   ),
                 ],

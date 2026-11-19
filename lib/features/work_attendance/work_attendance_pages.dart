@@ -43,7 +43,14 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
   bool _confirming = false;
   AttendanceHistoryFilter _historyFilter = AttendanceHistoryFilter.all;
   String _period = 'all';
-  final Set<String> _collapsedApplications = {};
+  final Set<String> _toggledApplications = {};
+
+  bool _applicationExpanded(String id) =>
+      _toggledApplications.contains(id) != widget.history;
+
+  void _toggleApplication(String id) => setState(() {
+    if (!_toggledApplications.add(id)) _toggledApplications.remove(id);
+  });
 
   bool _matches(WorkerWorkAssignment row) {
     if (widget.history) return _historyFilter.matches(row);
@@ -246,7 +253,7 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
     _actor = actor;
     _historyFilter = AttendanceHistoryFilter.all;
     _period = 'all';
-    _collapsedApplications.clear();
+    _toggledApplications.clear();
     // The repository clears rows synchronously. Reload after its notification
     // finishes, avoiding nested ChangeNotifier notifications.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -260,9 +267,20 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
   void didUpdateWidget(covariant WorkAttendancePage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.repository, widget.repository)) {
+      _toggledApplications.clear();
       oldWidget.repository.removeListener(_accountChanged);
       _attach();
     }
+  }
+
+  Widget _upcomingShiftSummary(List<WorkerWorkAssignment> shifts) {
+    final next = nextUpcomingShift(shifts.where(_matches));
+    if (next != null) return UpcomingShiftPreview(shift: next);
+    return Text(
+      shifts.where(_matches).any((row) => row.attendanceAsOf == null)
+          ? 'Upcoming shift timing unavailable.'
+          : 'No upcoming shifts.',
+    );
   }
 
   @override
@@ -482,35 +500,30 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
                                     ],
                                   ),
                                 ),
-                                Semantics(
-                                  expanded: !_collapsedApplications.contains(
-                                    shifts.first.applicationId,
-                                  ),
-                                  child: IconButton(
-                                    tooltip:
-                                        _collapsedApplications.contains(
-                                          shifts.first.applicationId,
-                                        )
-                                        ? 'Show job shifts'
-                                        : 'Hide job shifts',
-                                    onPressed: () => setState(() {
-                                      if (!_collapsedApplications.add(
-                                        shifts.first.applicationId,
-                                      )) {
-                                        _collapsedApplications.remove(
-                                          shifts.first.applicationId,
-                                        );
-                                      }
-                                    }),
-                                    icon: Icon(
-                                      _collapsedApplications.contains(
+                                if (widget.history)
+                                  Semantics(
+                                    expanded: _applicationExpanded(
+                                      shifts.first.applicationId,
+                                    ),
+                                    child: IconButton(
+                                      tooltip:
+                                          _applicationExpanded(
                                             shifts.first.applicationId,
                                           )
-                                          ? Icons.expand_more
-                                          : Icons.expand_less,
+                                          ? 'Hide job shifts'
+                                          : 'Show job shifts',
+                                      onPressed: () => _toggleApplication(
+                                        shifts.first.applicationId,
+                                      ),
+                                      icon: Icon(
+                                        _applicationExpanded(
+                                              shifts.first.applicationId,
+                                            )
+                                            ? Icons.expand_less
+                                            : Icons.expand_more,
+                                      ),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                             Wrap(
@@ -559,14 +572,62 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
                                   ),
                               ],
                             ),
+                            if (!widget.history &&
+                                !_applicationExpanded(
+                                  shifts.first.applicationId,
+                                ))
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: _upcomingShiftSummary(shifts),
+                              ),
+                            if (!widget.history)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 14),
+                                child: Align(
+                                  alignment: AlignmentDirectional.centerStart,
+                                  child: Semantics(
+                                    expanded: _applicationExpanded(
+                                      shifts.first.applicationId,
+                                    ),
+                                    child: TextButton.icon(
+                                      onPressed: () => _toggleApplication(
+                                        shifts.first.applicationId,
+                                      ),
+                                      icon: Icon(
+                                        _applicationExpanded(
+                                              shifts.first.applicationId,
+                                            )
+                                            ? Icons.expand_less
+                                            : Icons.expand_more,
+                                      ),
+                                      label: Text(
+                                        _applicationExpanded(
+                                              shifts.first.applicationId,
+                                            )
+                                            ? 'Hide application shifts'
+                                            : 'Show application shifts',
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             if (!widget.history && _closureGateway != null)
                               ExpansionTile(
                                 key: PageStorageKey(
                                   'worker-closure-${shifts.first.applicationId}',
                                 ),
                                 tilePadding: EdgeInsets.zero,
-                                title: const Text(
+                                childrenPadding: const EdgeInsets.only(
+                                  top: 4,
+                                  bottom: 12,
+                                ),
+                                shape: const Border(),
+                                collapsedShape: const Border(),
+                                expandedCrossAxisAlignment:
+                                    CrossAxisAlignment.stretch,
+                                title: Text(
                                   'Engagement status & closure',
+                                  style: Theme.of(context).textTheme.titleSmall,
                                 ),
                                 children: [
                                   EngagementClosureControls(
@@ -582,7 +643,7 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
                                   ),
                                 ],
                               ),
-                            if (_collapsedApplications.contains(
+                            if (!_applicationExpanded(
                                   shifts.first.applicationId,
                                 ) &&
                                 !widget.history &&
@@ -591,7 +652,7 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
                                 'Shifts needing action remain visible below.',
                               ),
                             for (final assignment in shifts.where(_matches))
-                              if (!_collapsedApplications.contains(
+                              if (_applicationExpanded(
                                     shifts.first.applicationId,
                                   ) ||
                                   (!widget.history &&
@@ -634,8 +695,13 @@ List<List<WorkerWorkAssignment>> _applicationGroups(
   }
   for (final shifts in groups.values) {
     shifts.sort((a, b) {
-      if (prioritize && _workerActionable(a) != _workerActionable(b)) {
-        return _workerActionable(a) ? -1 : 1;
+      if (prioritize) {
+        return compareShiftDisplayOrder(
+          a,
+          b,
+          aNeedsAction: _workerActionable(a),
+          bNeedsAction: _workerActionable(b),
+        );
       }
       final start = a.scheduledStart.compareTo(b.scheduledStart);
       if (start != 0) return start;
@@ -660,18 +726,33 @@ List<List<WorkerWorkAssignment>> _applicationGroups(
   return result;
 }
 
+bool _recoveryEnded(WorkerWorkAssignment row) =>
+    row.resolution?.recoveryEnforced == true &&
+    row.attendanceAsOf != null &&
+    row.attendanceAsOf!.isAfter(row.resolution!.recoveryCutoff);
+
+bool _showsClockAction(WorkerWorkAssignment row) =>
+    row.resolution?.decision == null &&
+    !_recoveryEnded(row) &&
+    ((row.assignmentStatus == WorkAssignmentStatus.scheduled &&
+            AttendanceLifecycle.of(row) != AttendanceLifecycle.missed &&
+            row.checkInAt == null &&
+            row.checkOutAt == null) ||
+        (row.assignmentStatus == WorkAssignmentStatus.active &&
+            row.checkInAt != null &&
+            row.checkOutAt == null));
+
+bool _clockActionAvailable(WorkerWorkAssignment row) =>
+    row.assignmentStatus != WorkAssignmentStatus.scheduled ||
+    !{
+      AttendanceLifecycle.scheduled,
+      AttendanceLifecycle.missed,
+      AttendanceLifecycle.inconsistent,
+    }.contains(AttendanceLifecycle.of(row));
+
 bool _workerActionable(WorkerWorkAssignment row) =>
-    {
-      AttendanceLifecycle.ready,
-      AttendanceLifecycle.onShift,
-      AttendanceLifecycle.overdue,
-      AttendanceLifecycle.incomplete,
-    }.contains(AttendanceLifecycle.of(row)) ||
-    (row.effectiveCheckOutAt != null &&
-        {
-          WorkVerificationStatus.notSubmitted,
-          WorkVerificationStatus.moreEvidenceRequired,
-        }.contains(row.verificationStatus));
+    (_showsClockAction(row) && _clockActionAvailable(row)) ||
+    workerShiftNeedsAction(row);
 
 class _AssignmentCard extends StatelessWidget {
   const _AssignmentCard(
@@ -688,10 +769,10 @@ class _AssignmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final row = assignment;
     final stage = WorkStage.fromAssignment(row);
-    final recoveryEnded =
-        row.resolution?.recoveryEnforced == true &&
-        row.attendanceAsOf != null &&
-        row.attendanceAsOf!.isAfter(row.resolution!.recoveryCutoff);
+    final state = AttendanceLifecycle.of(row);
+    final recoveryEnded = _recoveryEnded(row);
+    final hasAttendance =
+        row.effectiveCheckInAt != null || row.effectiveCheckOutAt != null;
     return Card.outlined(
       key: ValueKey(row.assignmentId),
       child: Padding(
@@ -720,7 +801,10 @@ class _AssignmentCard extends StatelessWidget {
                   ),
               ],
             ),
+            const SizedBox(height: 8),
             Text('Workplace: ${row.workplaceLocation}'),
+            WorkplaceMapAction(uri: row.workplaceMapLink),
+            const SizedBox(height: 8),
             if (row.verificationStatus ==
                 WorkVerificationStatus.moreEvidenceRequired)
               const Text(
@@ -728,27 +812,23 @@ class _AssignmentCard extends StatelessWidget {
               ),
             if (row.verificationStatus == WorkVerificationStatus.pendingReview)
               const Text('Your evidence is waiting for employer review.'),
-            Text(
-              AttendanceLifecycle.of(row).guidanceFor(
-                employer: false,
-                recoveryEnforced: row.resolution?.recoveryEnforced == true,
+            if (!hasAttendance || row.resolution?.decision != 'corrected')
+              Text(
+                state.guidanceFor(
+                  employer: false,
+                  recoveryEnforced: row.resolution?.recoveryEnforced == true,
+                ),
+                style: Theme.of(context).textTheme.bodySmall,
               ),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const Text(
-              'Attendance summary',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            AttendanceLifecycleNotice(
-              assignment: row,
-              showHeading: false,
-              showGuidance: false,
-            ),
-            WorkCheckInTiming(assignment: row),
+            if (hasAttendance) ...[
+              const SizedBox(height: 8),
+              ShiftAttendanceSummary(assignment: row, inShiftCard: true),
+            ],
             if (row.verifiedAt != null)
               Text('Verified at: ${_malaysiaTime(row.verifiedAt!)}'),
             if (row.effectiveCheckOutAt != null)
               EvidenceDeadlineSummary(assignment: row),
+            const SizedBox(height: 8),
             OutlinedButton(
               style:
                   row.verificationStatus ==
@@ -775,6 +855,8 @@ class _AssignmentCard extends StatelessWidget {
                       AttendanceLifecycle.confirmedAbsent,
                     }.contains(AttendanceLifecycle.of(row))
                     ? 'View Full Record'
+                    : state == AttendanceLifecycle.scheduled
+                    ? 'Shift details'
                     : stage.evidenceAction(false),
               ),
             ),
@@ -783,16 +865,7 @@ class _AssignmentCard extends StatelessWidget {
               const Text(
                 'The ordinary checkout recovery window has ended. Ask the employer to review and correct attendance.',
               ),
-            if (row.resolution?.decision == null &&
-                !recoveryEnded &&
-                ((row.assignmentStatus == WorkAssignmentStatus.scheduled &&
-                        AttendanceLifecycle.of(row) !=
-                            AttendanceLifecycle.missed &&
-                        row.checkInAt == null &&
-                        row.checkOutAt == null) ||
-                    (row.assignmentStatus == WorkAssignmentStatus.active &&
-                        row.checkInAt != null &&
-                        row.checkOutAt == null))) ...[
+            if (_showsClockAction(row) && _clockActionAvailable(row)) ...[
               const SizedBox(height: 16),
               // Use only server-returned status, never the device clock.
               FilledButton(
@@ -802,15 +875,7 @@ class _AssignmentCard extends StatelessWidget {
                         foregroundColor: Theme.of(context).colorScheme.onError,
                       )
                     : null,
-                onPressed:
-                    enabled &&
-                        (!(row.assignmentStatus ==
-                                WorkAssignmentStatus.scheduled) ||
-                            !{
-                              AttendanceLifecycle.scheduled,
-                              AttendanceLifecycle.missed,
-                              AttendanceLifecycle.inconsistent,
-                            }.contains(AttendanceLifecycle.of(row)))
+                onPressed: enabled
                     ? () => onClock(
                         row.assignmentStatus == WorkAssignmentStatus.scheduled,
                       )
@@ -864,6 +929,7 @@ class _HistoryAssignmentCard extends StatelessWidget {
               ],
             ),
             Text('Workplace: ${row.workplaceLocation}'),
+            WorkplaceMapAction(uri: row.workplaceMapLink),
             AttendanceLifecycleNotice(assignment: row, showHeading: false),
             WorkCheckInTiming(assignment: row),
             if (row.effectiveCheckOutAt != null)

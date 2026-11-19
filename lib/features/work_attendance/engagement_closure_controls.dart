@@ -13,6 +13,9 @@ abstract interface class EngagementClosureGateway {
   Future<DateTime?> respond(String requestId, String decision, String reason);
 }
 
+const unresolvedEngagementShiftsReason =
+    'Every Shift must be verified, confirmed absent, or have an audited cancellation.';
+
 @immutable
 class EngagementClosureStatusSnapshot {
   const EngagementClosureStatusSnapshot({
@@ -338,6 +341,7 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
             _ => 'Engagement status: Open',
           },
         ),
+        if (widget.worker) const SizedBox(height: 8),
         if (_status!['eligible'] == true &&
             _status!['closure_status'] != 'closed' &&
             _status!['closure_status'] != 'closure_requested') ...[
@@ -357,7 +361,13 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
           const Text('Not yet eligible for closure'),
         if (_status!['eligibility_reason'] is String &&
             (_status!['eligibility_reason'] as String).isNotEmpty)
-          Text('${_status!['eligibility_reason']}'),
+          Text(
+            !widget.worker &&
+                    _status!['eligibility_reason'] ==
+                        unresolvedEngagementShiftsReason
+                ? 'To close this engagement, each shift must be verified, confirmed absent, or have an audited cancellation.'
+                : '${_status!['eligibility_reason']}',
+          ),
         if (_status!['response_reason'] is String &&
             (_status!['response_reason'] as String).isNotEmpty)
           Text('Company response: ${_status!['response_reason']}'),
@@ -366,7 +376,8 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
           _status != null &&
           _status!['closure_status'] != 'closed' &&
           _status!['closure_status'] != 'closure_requested' &&
-          (widget.worker || _status!['eligible'] == true))
+          (widget.worker || _status!['eligible'] == true)) ...[
+        if (widget.worker) const SizedBox(height: 12),
         OutlinedButton.icon(
           style: _status!['eligible'] == true
               ? OutlinedButton.styleFrom(
@@ -416,6 +427,7 @@ class _EngagementClosureControlsState extends State<EngagementClosureControls> {
                 : 'Close Engagement',
           ),
         ),
+      ],
       if (_busy) const LinearProgressIndicator(),
     ],
   );

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'job_application_repository.dart';
 import 'my_applications_repository.dart';
+import '../jobs/workplace_coordinates.dart';
 import 'employer_applicants_repository.dart';
 import 'hiring_membership_source.dart';
 
@@ -62,7 +63,8 @@ enum ApplicationStage {
 /// This is NOT a replacement for backend column-level protection.
 class BrowseJob {
   BrowseJob(Map<String, dynamic> fields, {required this.company})
-    : fields = Map.unmodifiable({
+    : workplace = workplaceCoordinates(fields['latitude'], fields['longitude']),
+      fields = Map.unmodifiable({
         for (final key in const [
           'job_id',
           'company_id',
@@ -90,6 +92,7 @@ class BrowseJob {
       });
   final Map<String, dynamic> fields;
   final String company;
+  final WorkplaceCoordinates? workplace;
   String? get logoStoragePath => fields['logo_storage_path'] as String?;
   factory BrowseJob.published(Map<String, dynamic> row) => BrowseJob({
     ...row,
@@ -114,10 +117,12 @@ class BrowseJob {
   }
 }
 
+typedef PublishedJobsResult = ({List<Map<String, dynamic>> rows, int? total});
+
 abstract class PublishedJobsSource {
   String? get userId;
   Stream<String?> get accountChanges;
-  Future<List<Map<String, dynamic>>> list();
+  Future<PublishedJobsResult> list();
   Future<String> signLogo(String path);
 }
 
@@ -133,12 +138,23 @@ class SupabasePublishedJobsSource implements PublishedJobsSource {
   Stream<String?> get accountChanges =>
       client.auth.onAuthStateChange.map((event) => event.session?.user.id);
   @override
-  Future<List<Map<String, dynamic>>> list() async {
+  Future<PublishedJobsResult> list() async {
     debugPublishedLogo(
       'RPC list_published_jobs project=${Uri.parse(client.rest.url).host}',
     );
-    final rows = await client.rpc('list_published_jobs');
-    if (kDebugMode && rows is List) {
+    final rpc = client.rpc<List<dynamic>>('list_published_jobs');
+    final List<dynamic> rows;
+    int? total;
+    try {
+      final response = await rpc.count(CountOption.exact);
+      rows = response.data;
+      total = response.count;
+    } on TypeError {
+      // PostgREST's Dart count parser requires a readable Content-Range total.
+      // Keep ordinary browsing available if the header is absent.
+      return (rows: _publishedRows(await rpc), total: null);
+    }
+    if (kDebugMode) {
       for (var index = 0; index < rows.length; index++) {
         final row = rows[index] as Map;
         final path = row['logo_storage_path'];
@@ -152,11 +168,12 @@ class SupabasePublishedJobsSource implements PublishedJobsSource {
         );
       }
     }
-    return (rows as List)
-        .map((row) => Map<String, dynamic>.from(row as Map))
-        .toList();
+    return (rows: _publishedRows(rows), total: total);
   }
 }
+
+List<Map<String, dynamic>> _publishedRows(List<dynamic> rows) =>
+    rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
 
 /// Real browsing stays separate from the application demo's fictional jobs.
 class PublishedJobsRepository extends ChangeNotifier {
@@ -240,6 +257,9 @@ class PublishedJobsRepository extends ChangeNotifier {
   int _generation = 0;
   bool _disposed = false;
   bool loading = false, loaded = false;
+  bool _catalogueComplete = false;
+  bool get catalogueComplete =>
+      loaded && source.userId == _actorId && _catalogueComplete;
   String? error;
   final List<BrowseJob> _jobs = [];
   final Set<String> _saved = {};
@@ -271,11 +291,12 @@ class PublishedJobsRepository extends ChangeNotifier {
     notifyListeners();
     try {
       if (actor == null) throw StateError('Sign in to browse jobs.');
-      final rows = await source.list();
+      final result = await source.list();
       if (_disposed || generation != _generation || source.userId != actor) {
         return;
       }
-      final jobs = rows.map(BrowseJob.published).toList();
+      final jobs = result.rows.map(BrowseJob.published).toList();
+      _catalogueComplete = result.total == jobs.length;
       _jobs.addAll(jobs);
       loaded = true;
     } catch (failure) {

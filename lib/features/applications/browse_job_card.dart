@@ -14,10 +14,12 @@ class BrowseJobCard extends StatelessWidget {
     required this.saved,
     required this.onSave,
     required this.onDetails,
+    this.distanceKm,
   });
   final BrowseJob job;
   final Widget logo;
   final bool saved;
+  final double? distanceKm;
   final VoidCallback onSave, onDetails;
 
   @override
@@ -88,6 +90,11 @@ class BrowseJobCard extends StatelessWidget {
                     JobListingMetadata(
                       Icons.work_outline,
                       jobLabel(job.text('work_arrangement')),
+                    ),
+                  if (distanceKm case final distance?)
+                    JobListingMetadata(
+                      Icons.straighten,
+                      '${distance.toStringAsFixed(1)} km straight-line from selected area',
                     ),
                 ],
               );

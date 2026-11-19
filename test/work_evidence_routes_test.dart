@@ -95,13 +95,32 @@ void main() {
         await source.changes.close();
       });
 
+      Finder employerApplication() => find.byKey(
+        ValueKey('application-${assignment(company: true)['application_id']}'),
+      );
+
+      Finder employerGroupText(String label) => find.descendant(
+        of: employerApplication(),
+        matching: find.text(label),
+      );
+
+      Future<void> expandEmployerApplication(WidgetTester tester) async {
+        final show = employerGroupText('Show application shifts');
+        expect(show, findsOneWidget);
+        expect(employerGroupText('Review Evidence'), findsNothing);
+        await tester.ensureVisible(show);
+        await tester.tap(show);
+        await tester.pumpAndSettle();
+        expect(employerGroupText('Hide application shifts'), findsOneWidget);
+      }
+
       testWidgets(
         '$role direct URL and fresh refresh revalidate assignment; direct return is safe',
         (tester) async {
           router = createRouter(initial: '$root/$id/evidence?company_id=$id');
           await tester.pumpWidget(MaterialApp.router(routerConfig: router));
           await tester.pumpAndSettle();
-          expect(find.text('Evidence PDF 1'), findsOneWidget);
+          expect(find.text('file.pdf'), findsOneWidget);
           expect(roleChecks, 1);
           expect(metadataReads, 1);
           if (employer) expect(companyReads, [other]);
@@ -120,8 +139,11 @@ void main() {
           );
           await tester.pumpAndSettle();
           expect(router.routeInformationProvider.value.uri.path, root);
+          if (employer) await expandEmployerApplication(tester);
           expect(
-            find.text(employer ? 'Review Evidence' : 'View Evidence'),
+            employer
+                ? employerGroupText('Review Evidence')
+                : find.text('View Evidence'),
             findsOneWidget,
           );
           await tester.pumpWidget(const SizedBox());
@@ -136,12 +158,12 @@ void main() {
           await tester.pumpWidget(MaterialApp.router(routerConfig: router));
           await tester.pumpAndSettle();
           if (!employer) expect(find.text('Check in'), findsOneWidget);
-          await tester.ensureVisible(
-            find.text(employer ? 'Review Evidence' : 'View Evidence'),
-          );
-          await tester.tap(
-            find.text(employer ? 'Review Evidence' : 'View Evidence'),
-          );
+          if (employer) await expandEmployerApplication(tester);
+          final evidenceAction = employer
+              ? employerGroupText('Review Evidence')
+              : find.text('View Evidence');
+          await tester.ensureVisible(evidenceAction);
+          await tester.tap(evidenceAction);
           await tester.pumpAndSettle();
           expect(
             GoRouterState.of(tester.element(find.byType(WorkEvidencePage)))
@@ -149,14 +171,17 @@ void main() {
                 .path,
             '$root/$id/evidence',
           );
-          expect(find.text('Evidence PDF 1'), findsOneWidget);
+          expect(find.text('file.pdf'), findsOneWidget);
           router.pop();
           await tester.pumpAndSettle();
           expect(router.routeInformationProvider.value.uri.path, root);
-          expect(
-            find.text(employer ? 'Review Evidence' : 'View Evidence'),
-            findsOneWidget,
-          );
+          expect(evidenceAction, findsOneWidget);
+          if (employer) {
+            expect(
+              employerGroupText('Hide application shifts'),
+              findsOneWidget,
+            );
+          }
           if (!employer) expect(find.text('Check in'), findsOneWidget);
           expect(source.checkIns, 0);
           expect(source.checkOuts, 0);
@@ -179,7 +204,7 @@ void main() {
               ),
               findsOneWidget,
             );
-            expect(find.text('Evidence PDF 1'), findsNothing);
+            expect(find.text('file.pdf'), findsNothing);
             expect(metadataReads, 0);
             await tester.pumpWidget(const SizedBox());
           },
@@ -210,17 +235,17 @@ void main() {
           router = createRouter();
           await tester.pumpWidget(MaterialApp.router(routerConfig: router));
           await tester.pumpAndSettle();
-          expect(find.text('Evidence PDF 1'), findsOneWidget);
+          expect(find.text('file.pdf'), findsOneWidget);
           allowed = false;
           source.switchAccount(other);
           await tester.pumpAndSettle();
-          expect(find.text('Evidence PDF 1'), findsNothing);
+          expect(find.text('file.pdf'), findsNothing);
           expect(find.text('Page unavailable'), findsOneWidget);
           expect(roleChecks, 2);
           expect(metadataReads, 1);
           source.switchAccount(null);
           await tester.pumpAndSettle();
-          expect(find.text('Evidence PDF 1'), findsNothing);
+          expect(find.text('file.pdf'), findsNothing);
           expect(metadataReads, 1);
           await tester.pumpWidget(const SizedBox());
           expect(source.changes.hasListener, isFalse);
@@ -247,7 +272,7 @@ void main() {
           await tester.pumpAndSettle();
           pending.complete([evidenceRow()]);
           await tester.pumpAndSettle();
-          expect(find.text('Evidence PDF 1'), findsNothing);
+          expect(find.text('file.pdf'), findsNothing);
           expect(find.text('Evidence access denied'), findsOneWidget);
           expect(roleChecks, 2);
           expect(metadataReads, 1);
@@ -261,10 +286,10 @@ void main() {
           router = createRouter();
           await tester.pumpWidget(MaterialApp.router(routerConfig: router));
           await tester.pumpAndSettle();
-          expect(find.text('Evidence PDF 1'), findsOneWidget);
+          expect(find.text('file.pdf'), findsOneWidget);
           router.go('$root/$other/evidence');
           await tester.pumpAndSettle();
-          expect(find.text('Evidence PDF 1'), findsNothing);
+          expect(find.text('file.pdf'), findsNothing);
           expect(find.text('Evidence access denied'), findsOneWidget);
           expect(metadataReads, 1);
           await tester.pumpWidget(const SizedBox());
@@ -319,12 +344,12 @@ void main() {
             source.switchAccount(other);
             await tester.pumpAndSettle();
             expect(find.text('No evidence submitted yet'), findsNothing);
-            expect(find.text('Evidence PDF 1'), findsOneWidget);
+            expect(find.text('file.pdf'), findsOneWidget);
             expect(companyReads, [other, id]);
             expect(metadataReads, 1);
             source.switchAccount(null);
             await tester.pumpAndSettle();
-            expect(find.text('Evidence PDF 1'), findsNothing);
+            expect(find.text('file.pdf'), findsNothing);
             expect(find.text('No evidence submitted yet'), findsNothing);
             await tester.pumpWidget(const SizedBox());
           },

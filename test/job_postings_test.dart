@@ -18,6 +18,8 @@ import 'package:jobmate/features/jobs/job_preview.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jobmate/features/jobs/job_form_page.dart';
 import 'package:jobmate/features/jobs/job_form_route.dart';
+import 'package:jobmate/features/jobs/workplace_coordinates.dart';
+import 'package:jobmate/features/jobs/workplace_map_picker.dart';
 import 'package:jobmate/features/location/location_pages.dart';
 import 'package:jobmate/features/jobs/job_postings_page.dart';
 import 'package:jobmate/features/jobs/job_postings_repository.dart';
@@ -95,7 +97,12 @@ TextEditingController field(WidgetTester tester, String label) => tester
     .firstWhere((f) => inputLabel(f) == label)
     .controller!;
 
-GoRouter testRouter(TestJobs repo, {bool dashboard = false, String? initial}) {
+GoRouter testRouter(
+  TestJobs repo, {
+  bool dashboard = false,
+  String? initial,
+  WorkplacePicker pickWorkplace = showWorkplacePicker,
+}) {
   return GoRouter(
     initialLocation: initial ?? (dashboard ? '/' : AppRoutes.jobPostings),
     routes: [
@@ -110,8 +117,16 @@ GoRouter testRouter(TestJobs repo, {bool dashboard = false, String? initial}) {
           initialStatus: state.uri.queryParameters['status'] ?? 'all',
         ),
       ),
-      jobFormRoute(AppRoutes.createJob, repository: repo),
-      jobFormRoute('${AppRoutes.jobPostings}/:jobId/edit', repository: repo),
+      jobFormRoute(
+        AppRoutes.createJob,
+        repository: repo,
+        pickWorkplace: pickWorkplace,
+      ),
+      jobFormRoute(
+        '${AppRoutes.jobPostings}/:jobId/edit',
+        repository: repo,
+        pickWorkplace: pickWorkplace,
+      ),
       GoRoute(
         path: AppRoutes.jobLocationDemo,
         builder: (_, _) => const JobLocationDemoPage(),
@@ -176,7 +191,163 @@ void completeForm(WidgetTester tester) {
   }
 }
 
+const testWorkplacePin = (latitude: 3.139, longitude: 101.6869);
+const testPickerResult = WorkplacePickerResult(
+  testWorkplacePin,
+  placeAddress: 'A Geoapify address separate from the posting address',
+);
+
+Future<void> tapPostingAction(WidgetTester tester, String label) async {
+  final action = find.text(label);
+  await tester.ensureVisible(action);
+  await tester.tap(action);
+  await tester.pumpAndSettle();
+}
+
 void main() {
+  test('Workplace coordinates validate both axes and storage precision', () {
+    expect(workplaceCoordinates(3.1390004, 101.6869004), testWorkplacePin);
+    expect(workplaceCoordinates(-90, 180), (latitude: -90.0, longitude: 180.0));
+    for (final (latitude, longitude) in [
+      (null, 101),
+      (3, null),
+      (double.nan, 101),
+      (3, double.infinity),
+      (90.000001, 101),
+      (3, -180.000001),
+      (101, 3),
+    ]) {
+      expect(workplaceCoordinates(latitude, longitude), isNull);
+    }
+  });
+
+  for (final arrangement in ['on_site', 'hybrid', 'remote']) {
+    testWidgets('New $arrangement publication applies the workplace pin rule', (
+      tester,
+    ) async {
+      final repo = TestJobs();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: JobFormPage(
+            repository: repo,
+            pickWorkplace: (_, _, _, _) async => testPickerResult,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      completeForm(tester);
+      final state = tester.state<JobFormPageState>(find.byType(JobFormPage));
+      state.selected['work_arrangement'] = arrangement;
+      if (arrangement != 'remote') {
+        await tapPostingAction(tester, 'Publish Job');
+        expect(repo.saves, 0);
+        expect(find.text(workplaceRequiredForPublication), findsOneWidget);
+        await tapPostingAction(tester, 'Choose on map');
+      }
+      await tapPostingAction(tester, 'Publish Job');
+      expect(repo.saved?['status'], 'published');
+      expect(repo.saved?['work_arrangement'], arrangement);
+      expect(repo.saved?['location'], isNot(testPickerResult.placeAddress));
+      expect(
+        repo.saved?['latitude'],
+        arrangement == 'remote' ? null : testWorkplacePin.latitude,
+      );
+      expect(
+        repo.saved?['longitude'],
+        arrangement == 'remote' ? null : testWorkplacePin.longitude,
+      );
+    });
+  }
+
+  for (final edit in [
+    'unrelated',
+    'cancel picker',
+    'clear pin',
+    'remote',
+    'change address',
+  ]) {
+    testWidgets('Published workplace payload on $edit', (tester) async {
+      final repo = TestJobs()
+        ..records = [
+          {
+            ...completeJob(),
+            'status': 'published',
+            'job_id': 'live',
+            'latitude': testWorkplacePin.latitude,
+            'longitude': testWorkplacePin.longitude,
+          },
+        ];
+      WorkplaceCoordinates? initialPin;
+      const replacement = (latitude: 3.2, longitude: 101.7);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: JobFormPage(
+            repository: repo,
+            jobId: 'live',
+            pickWorkplace: (_, initial, _, _) async {
+              initialPin = initial;
+              return edit == 'cancel picker'
+                  ? null
+                  : const WorkplacePickerResult(replacement);
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('3.139000, 101.686900'), findsOneWidget);
+      if (edit == 'cancel picker') {
+        await tapPostingAction(tester, 'Change pin');
+        expect(initialPin, testWorkplacePin);
+        expect(find.text('3.139000, 101.686900'), findsOneWidget);
+      } else if (edit == 'clear pin') {
+        await tapPostingAction(tester, 'Clear pin');
+        final state = tester.state<JobFormPageState>(find.byType(JobFormPage));
+        final exit = state.confirmExit();
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsOneWidget);
+        Navigator.pop(tester.element(find.byType(AlertDialog)), false);
+        await tester.pumpAndSettle();
+        expect(await exit, isFalse);
+      } else if (edit == 'remote') {
+        final state = tester.state<JobFormPageState>(find.byType(JobFormPage));
+        state.selected['work_arrangement'] = 'remote';
+      } else if (edit == 'change address') {
+        final address = find.byWidgetPredicate(
+          (w) => w is TextField && inputLabel(w) == 'Job location',
+        );
+        await tester.ensureVisible(address);
+        await tester.enterText(address, 'New workplace');
+        await tester.pumpAndSettle();
+        await tapPostingAction(tester, 'Preview');
+        final preview = tester.widget<JobPreview>(find.byType(JobPreview));
+        expect(preview.job['location'], 'New workplace');
+        expect(preview.job['latitude'], isNull);
+        expect(preview.job['longitude'], isNull);
+        Navigator.pop(tester.element(find.byType(JobPreview)));
+        await tester.pumpAndSettle();
+        await tapPostingAction(tester, 'Save Changes');
+        expect(repo.saves, 0);
+        expect(find.text(confirmWorkplaceMessage), findsOneWidget);
+        await tapPostingAction(tester, 'Choose on map');
+      } else {
+        field(tester, 'Department').text = 'Updated department';
+      }
+      await tapPostingAction(tester, 'Save Changes');
+      expect(repo.saves, 1);
+      if (edit == 'clear pin' || edit == 'remote') {
+        expect(repo.saved, containsPair('latitude', null));
+        expect(repo.saved, containsPair('longitude', null));
+      } else if (edit == 'change address') {
+        expect(repo.saved, containsPair('latitude', replacement.latitude));
+        expect(repo.saved, containsPair('longitude', replacement.longitude));
+      } else {
+        expect(repo.saved!.containsKey('latitude'), isFalse);
+        expect(repo.saved!.containsKey('longitude'), isFalse);
+        expect(repo.records.single['latitude'], testWorkplacePin.latitude);
+        expect(repo.records.single['longitude'], testWorkplacePin.longitude);
+      }
+    });
+  }
   testWidgets(
     'Create Job, location picker, Create Job have separate keys and exit guards',
     (tester) async {
@@ -670,7 +841,14 @@ void main() {
     'Validation refreshes immediately after corrections and clearing without another submission',
     (tester) async {
       final repo = TestJobs();
-      await tester.pumpWidget(MaterialApp(home: JobFormPage(repository: repo)));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: JobFormPage(
+            repository: repo,
+            pickWorkplace: (_, _, _, _) async => testPickerResult,
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Enter department.'), findsNothing);
       final publish = find.widgetWithText(FilledButton, 'Publish Job');
@@ -695,6 +873,8 @@ void main() {
       expect(find.text('Enter job title.'), findsOneWidget);
       completeForm(tester);
       await tester.pumpAndSettle();
+      await tapPostingAction(tester, 'Choose on map');
+      expect(find.text('3.139000, 101.686900'), findsOneWidget);
       for (final input in tester.widgetList<TextField>(
         find.byType(TextField),
       )) {
@@ -994,7 +1174,10 @@ void main() {
           addTearDown(tester.view.resetPhysicalSize);
           addTearDown(tester.view.resetDevicePixelRatio);
           final repo = TestJobs();
-          final router = testRouter(repo);
+          final router = testRouter(
+            repo,
+            pickWorkplace: (_, _, _, _) async => testPickerResult,
+          );
           addTearDown(router.dispose);
           await tester.pumpWidget(MaterialApp.router(routerConfig: router));
           await tester.pumpAndSettle();
@@ -1015,6 +1198,9 @@ void main() {
             field(tester, 'Job location').text = 'Kuala Lumpur';
             field(tester, 'Role overview').text = 'Build useful software.';
             field(tester, 'Responsibilities').text = 'Build apps\n\n Test apps';
+            await tester.pumpAndSettle();
+            await tapPostingAction(tester, 'Choose on map');
+            expect(find.text('3.139000, 101.686900'), findsOneWidget);
           }
           await tester.ensureVisible(action);
           await tester.tap(action);
@@ -1113,6 +1299,48 @@ void main() {
       expect(find.text('Engineer'), findsOneWidget);
     },
   );
+  testWidgets('workplace empty state is compact and remote uses Work Region', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(home: JobFormPage(repository: TestJobs())),
+    );
+    await tester.pumpAndSettle();
+
+    final mapButton = find.widgetWithText(OutlinedButton, 'Choose on map');
+    expect(
+      find.text('Workplace Address *', findRichText: true),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Enter where employees will report for work.'),
+      findsOneWidget,
+    );
+    expect(find.text('No location selected'), findsOneWidget);
+    expect(find.text('Workplace Map Location'), findsNothing);
+    expect(tester.widget<OutlinedButton>(mapButton).onPressed, isNull);
+
+    field(tester, 'Job location').text = 'Shah Alam';
+    await tester.pumpAndSettle();
+    expect(tester.widget<OutlinedButton>(mapButton).onPressed, isNotNull);
+
+    final arrangement = find.text('On-site');
+    await tester.ensureVisible(arrangement);
+    await tester.tap(arrangement);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remote').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Work Region *', findRichText: true), findsOneWidget);
+    expect(field(tester, 'Job location').text, 'Shah Alam');
+    expect(mapButton, findsNothing);
+    expect(find.text('No location selected'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Every field has guidance and deadline has a picker', (
     tester,
   ) async {
@@ -1181,6 +1409,55 @@ void main() {
     expect(find.text('Salary'), findsNothing);
     expect(find.textContaining('12'), findsNothing);
   });
+  testWidgets('Draft card requires a pin for on-site status-only publication', (
+    tester,
+  ) async {
+    final draft = {...completeJob(), 'job_id': 'draft', 'status': 'draft'};
+    final repo = TestJobs()..records = [draft];
+    await tester.pumpWidget(
+      MaterialApp(home: JobPostingsPage(repository: repo)),
+    );
+    await tester.pumpAndSettle();
+    await tapPostingAction(tester, 'Publish');
+    expect(repo.saves, 0);
+    expect(
+      find.textContaining(workplaceRequiredForPublication),
+      findsOneWidget,
+    );
+    draft.addAll({
+      'latitude': testWorkplacePin.latitude,
+      'longitude': testWorkplacePin.longitude,
+    });
+    await tapPostingAction(tester, 'Publish');
+    expect(repo.saved, {'status': 'published'});
+    expect(repo.records.single['latitude'], testWorkplacePin.latitude);
+    expect(repo.records.single['longitude'], testWorkplacePin.longitude);
+  });
+
+  testWidgets('Draft address change may save while clearing its stale pin', (
+    tester,
+  ) async {
+    final repo = TestJobs()
+      ..records = [
+        {
+          ...completeJob(),
+          'job_id': 'draft',
+          'status': 'draft',
+          'latitude': testWorkplacePin.latitude,
+          'longitude': testWorkplacePin.longitude,
+        },
+      ];
+    final router = testRouter(repo, initial: '/job-postings/draft/edit');
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    field(tester, 'Job location').text = 'New workplace';
+    await tapPostingAction(tester, 'Save Draft');
+    expect(repo.saved, containsPair('latitude', null));
+    expect(repo.saved, containsPair('longitude', null));
+    expect(repo.saved?['location'], 'New workplace');
+  });
+
   testWidgets('Draft card publishes saved data and selects Published', (
     tester,
   ) async {

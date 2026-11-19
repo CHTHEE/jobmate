@@ -41,13 +41,18 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));
     final paths = <String>[];
+    var includeTotal = true;
     server.listen((request) async {
       paths.add(request.uri.path);
       expect(request.method, 'POST');
+      if (includeTotal) {
+        expect(request.headers.value('prefer'), contains('count=exact'));
+        request.response.headers.set('content-range', '0-6/7');
+      }
       request.response.headers.contentType = ContentType.json;
       request.response.write(
         jsonEncode([
-          {'job_id': 'real-id'},
+          for (var index = 0; index < 7; index++) {'job_id': 'job-$index'},
         ]),
       );
       await request.response.close();
@@ -58,8 +63,14 @@ void main() {
       authOptions: const AuthClientOptions(autoRefreshToken: false),
     );
     addTearDown(client.dispose);
-    final rows = await SupabasePublishedJobsSource(client).list();
-    expect(rows.single['job_id'], 'real-id');
+    final result = await SupabasePublishedJobsSource(client).list();
+    expect(result.rows, hasLength(7));
+    expect(result.total, 7);
     expect(paths, ['/rest/v1/rpc/list_published_jobs']);
+    includeTotal = false;
+    final unverified = await SupabasePublishedJobsSource(client).list();
+    expect(unverified.rows, hasLength(7));
+    expect(unverified.total, isNull);
+    expect(paths, everyElement('/rest/v1/rpc/list_published_jobs'));
   });
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../jobs/workplace_coordinates.dart';
+
 enum WorkAssignmentStatus {
   scheduled,
   active,
@@ -79,6 +81,10 @@ sealed class WorkAssignment {
       scheduledStart = _time(row, 'scheduled_start'),
       scheduledEnd = _time(row, 'scheduled_end'),
       workplaceLocation = _text(row, 'workplace_location'),
+      workplacePin = workplaceCoordinates(
+        row['workplace_latitude'],
+        row['workplace_longitude'],
+      ),
       assignmentStatus = WorkAssignmentStatus.parse(row['assignment_status']),
       verificationStatus = WorkVerificationStatus.parse(
         row['verification_status'],
@@ -95,6 +101,17 @@ sealed class WorkAssignment {
       verifiedAt = _nullableTime(row, 'verified_at');
 
   final String assignmentId, applicationId, jobId, jobTitle, workplaceLocation;
+  final WorkplaceCoordinates? workplacePin;
+
+  Uri? get workplaceMapLink {
+    final pin = workplacePin;
+    if (pin == null) return null;
+    return Uri.https('www.google.com', '/maps/search/', {
+      'api': '1',
+      'query': '${pin.latitude},${pin.longitude}',
+    });
+  }
+
   final DateTime scheduledStart, scheduledEnd;
   final DateTime? checkInAt, checkOutAt, verifiedAt;
 

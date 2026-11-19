@@ -78,14 +78,13 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
     'WORKSPACE': [(AppRoutes.home, 'Dashboard', Icons.grid_view_rounded)],
     if (role == 'job_seeker') ...{
       'Find Work': [
-        (AppRoutes.search, 'Search', Icons.search),
         (AppRoutes.browseJobs, 'Browse Jobs', Icons.search),
         (
           AppRoutes.recommendations,
           'For You (demo)',
           Icons.auto_awesome_outlined,
         ),
-        (AppRoutes.nearbyJobs, 'Nearby Jobs (demo)', Icons.map_outlined),
+        (AppRoutes.nearbyJobs, 'Nearby Jobs', Icons.map_outlined),
       ],
       'Applications': [
         (AppRoutes.applications, 'My Applications', Icons.assignment_outlined),

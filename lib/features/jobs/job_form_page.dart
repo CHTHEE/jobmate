@@ -22,11 +22,19 @@ import 'job_display.dart';
 import 'job_validation.dart';
 import '../company/company_logo.dart';
 import 'job_ai_formatter.dart';
+import 'workplace_coordinates.dart';
+import 'workplace_map_picker.dart';
 
 class JobFormPage extends StatefulWidget {
-  const JobFormPage({super.key, this.jobId, this.repository});
+  const JobFormPage({
+    super.key,
+    this.jobId,
+    this.repository,
+    this.pickWorkplace = showWorkplacePicker,
+  });
   final String? jobId;
   final JobPostingsRepository? repository;
+  final WorkplacePicker pickWorkplace;
   @override
   State<JobFormPage> createState() => JobFormPageState();
 }
@@ -79,6 +87,52 @@ class JobFormPageState extends State<JobFormPage> {
   String? aiError;
   String status = 'draft';
   Map<String, dynamic>? savedJob;
+  WorkplaceCoordinates? _confirmedPin;
+  String? _confirmedAddress;
+  bool _pinCleared = false;
+  String get _address => fields['location']!.text.trim();
+  bool get _remote => selected['work_arrangement'] == 'remote';
+  WorkplaceCoordinates? get _pin =>
+      !_remote && _address.isNotEmpty && _address == _confirmedAddress
+      ? _confirmedPin
+      : null;
+
+  void _setCanonicalJob(Map<String, dynamic> job) {
+    savedJob = job;
+    _pinCleared = false;
+    _confirmedAddress = _address;
+    _confirmedPin = _remote
+        ? null
+        : workplaceCoordinates(job['latitude'], job['longitude']);
+  }
+
+  final _autoSearchedAddresses = <String>{};
+
+  Future<void> _chooseWorkplace() async {
+    final address = _address;
+    final previous = _pin;
+    final result = await widget.pickWorkplace(
+      context,
+      previous ??
+          _confirmedPin ??
+          workplaceCoordinates(savedJob?['latitude'], savedJob?['longitude']),
+      address,
+      previous == null &&
+          address.isNotEmpty &&
+          _autoSearchedAddresses.add(address),
+    );
+    if (!mounted || _remote || address != _address || result == null) return;
+    final point = result.coordinates;
+    final pin = workplaceCoordinates(point.latitude, point.longitude);
+    if (pin == null) return;
+    setState(() {
+      _confirmedPin = pin;
+      _confirmedAddress = address;
+      _pinCleared = false;
+    });
+    if (validationActivated) fieldKeys['location']?.currentState?.validate();
+  }
+
   String? _savedSnapshot;
   Future<bool>? _exitConfirmation;
   String get _snapshot => jsonEncode({
@@ -86,6 +140,9 @@ class JobFormPageState extends State<JobFormPage> {
     ...selected,
     'salary_visible': salaryVisible,
     'ai_assisted': aiAssisted,
+    'latitude': _pin?.latitude,
+    'longitude': _pin?.longitude,
+    'pin_cleared': _pinCleared,
   });
 
   Future<bool> confirmExit() async {
@@ -181,7 +238,6 @@ class JobFormPageState extends State<JobFormPage> {
       if (!mounted) return;
       access = result;
       if (job != null) {
-        savedJob = job;
         aiAssisted = job['ai_assisted'] == true;
         status = job['status'] as String;
         for (final entry in fields.entries) {
@@ -194,6 +250,7 @@ class JobFormPageState extends State<JobFormPage> {
           selected[key] = job[key] as String? ?? selected[key]!;
         }
         salaryVisible = job['salary_visible'] as bool? ?? true;
+        _setCanonicalJob(job);
       } else {
         fields['vacancies']!.text = '1';
       }
@@ -215,8 +272,27 @@ class JobFormPageState extends State<JobFormPage> {
     'salary_visible': salaryVisible,
   };
 
-  String? validate(String key, String value) =>
-      jobFieldError(key, validationValues(), publishing: publishing);
+  String? validate(String key, String value) {
+    final error = jobFieldError(
+      key,
+      validationValues(),
+      publishing: publishing,
+    );
+    if (error != null ||
+        key != 'location' ||
+        !publishing ||
+        _remote ||
+        _pin != null) {
+      return error;
+    }
+    if (status != 'published') return workplaceRequiredForPublication;
+    if (_address != (savedJob?['location'] as String? ?? '').trim() ||
+        savedJob?['work_arrangement'] == 'remote' ||
+        _confirmedPin != null) {
+      return confirmWorkplaceMessage;
+    }
+    return null;
+  }
 
   Widget requiredLabel(String label) => Text.rich(
     TextSpan(
@@ -274,8 +350,28 @@ class JobFormPageState extends State<JobFormPage> {
       error = null;
     });
     try {
+      final pin = _pin;
+      final storedPin = workplaceCoordinates(
+        savedJob?['latitude'],
+        savedJob?['longitude'],
+      );
+      final clearStoredCoordinates =
+          pin == null &&
+          (savedJob?['latitude'] != null || savedJob?['longitude'] != null);
+      final pinConfirmedForNewAddress =
+          pin != null && _address != savedJob?['location'];
       final saved = await repo.save(
-        {...values(), 'status': publishing ? 'published' : 'draft'},
+        {
+          ...values(),
+          if (pin != storedPin ||
+              clearStoredCoordinates ||
+              pinConfirmedForNewAddress ||
+              _pinCleared) ...{
+            'latitude': pin?.latitude,
+            'longitude': pin?.longitude,
+          },
+          'status': publishing ? 'published' : 'draft',
+        },
         jobId: jobId,
         expectedStatus: status,
       );
@@ -283,6 +379,11 @@ class JobFormPageState extends State<JobFormPage> {
       setState(() {
         jobId = saved['job_id'].toString();
         status = saved['status'] as String;
+        fields['location']!.text = (saved['location'] as String?) ?? '';
+        selected['work_arrangement'] =
+            saved['work_arrangement'] as String? ??
+            selected['work_arrangement']!;
+        _setCanonicalJob(saved);
         _savedSnapshot = _snapshot;
         busy = false;
       });
@@ -429,8 +530,11 @@ class JobFormPageState extends State<JobFormPage> {
       'role_overview',
       ...jobBulletFields,
     ].contains(key);
+    final label = key == 'location'
+        ? (_remote ? 'Work Region' : 'Workplace Address')
+        : jobLabel(key);
     return JobLabeledField(
-      label: requiredLabel(jobLabel(key)),
+      label: requiredLabel(label),
       action: key == 'original_description'
           ? OutlinedButton.icon(
               onPressed: busy || status == 'closed' ? null : formatWithAi,
@@ -439,13 +543,18 @@ class JobFormPageState extends State<JobFormPage> {
             )
           : null,
       child: Semantics(
-        label: '${jobLabel(key)}, required before publishing',
+        label: '$label, required before publishing',
         child: TextFormField(
           key: fieldKeys.putIfAbsent(
             key,
             () => GlobalKey<FormFieldState<String>>(),
           ),
           controller: fields[key],
+          onChanged: key == 'location'
+              ? (_) => setState(() {
+                  if (_address != _confirmedAddress) _confirmedAddress = null;
+                })
+              : null,
           enabled: !busy && status != 'closed',
           minLines: multiline ? 3 : 1,
           maxLines: multiline ? 8 : 1,
@@ -475,11 +584,128 @@ class JobFormPageState extends State<JobFormPage> {
                 : key == 'role_overview'
                 ? 'You can write multiple sentences or paragraphs. Press Enter to start a new line.'
                 : key == 'location'
-                ? 'Enter the workplace for on-site/hybrid jobs, or the work region for remote jobs.'
+                ? (_remote
+                      ? 'Enter the region where employees can work remotely.'
+                      : 'Enter where employees will report for work.')
                 : null,
           ),
           validator: (value) => validate(key, value ?? ''),
         ),
+      ),
+    );
+  }
+
+  Widget _workplaceMapField() {
+    final pin = _pin;
+    final enabled = !busy && status != 'closed';
+    final mapButton = OutlinedButton.icon(
+      onPressed: enabled && _address.isNotEmpty ? _chooseWorkplace : null,
+      icon: const Icon(Icons.map_outlined),
+      label: Text(pin == null ? 'Choose on map' : 'Change pin'),
+    );
+    if (_confirmedPin == null) {
+      return OverflowBar(
+        alignment: MainAxisAlignment.spaceBetween,
+        overflowAlignment: OverflowBarAlignment.start,
+        spacing: 8,
+        overflowSpacing: 4,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.location_on_outlined,
+                size: 18,
+                color: JobMateTheme.body,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  'No location selected',
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: JobMateTheme.body),
+                ),
+              ),
+            ],
+          ),
+          mapButton,
+        ],
+      );
+    }
+    return JobLabeledField(
+      label: const Text('Workplace Map Location'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (pin != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: JobMateTheme.divider),
+                borderRadius: BorderRadius.circular(JobMateTheme.controlRadius),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.check_circle_outline,
+                    color: JobMateTheme.darkTeal,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Workplace location confirmed',
+                          style: TextStyle(
+                            color: JobMateTheme.heading,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (_address.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(_address),
+                        ],
+                        const SizedBox(height: 4),
+                        Text(
+                          '${pin.latitude.toStringAsFixed(6)}, ${pin.longitude.toStringAsFixed(6)}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: JobMateTheme.body),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Text(
+              _address.isEmpty
+                  ? 'Enter the workplace address to choose a pin.'
+                  : 'Address changed. Confirm the workplace pin again.',
+            ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              mapButton,
+              if (_confirmedPin != null)
+                TextButton(
+                  onPressed: enabled
+                      ? () => setState(() {
+                          _confirmedPin = null;
+                          _confirmedAddress = null;
+                          _pinCleared = true;
+                        })
+                      : null,
+                  child: const Text('Clear pin'),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -771,6 +997,11 @@ class JobFormPageState extends State<JobFormPage> {
                               ),
                               const SizedBox(height: 16),
                               _textInput('location'),
+                              if (!_remote)
+                                ValueListenableBuilder<TextEditingValue>(
+                                  valueListenable: fields['location']!,
+                                  builder: (_, _, _) => _workplaceMapField(),
+                                ),
                             ],
                           ),
                         ),
@@ -868,7 +1099,12 @@ class JobFormPageState extends State<JobFormPage> {
                                             context: context,
                                             builder: (_) => JobPreview(
                                               logo: access!.logo,
-                                              job: {...?savedJob, ...values()},
+                                              job: {
+                                                ...?savedJob,
+                                                ...values(),
+                                                'latitude': _pin?.latitude,
+                                                'longitude': _pin?.longitude,
+                                              },
                                               company:
                                                   access!.company!['company_name']
                                                       as String,

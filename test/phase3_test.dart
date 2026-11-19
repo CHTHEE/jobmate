@@ -29,7 +29,7 @@ void main() {
         final entries = role == 'job_seeker'
             ? {
                 'For You (demo)': AppRoutes.recommendations,
-                'Nearby Jobs (demo)': AppRoutes.nearbyJobs,
+                'Nearby Jobs': AppRoutes.nearbyJobs,
                 'My Work Shifts': AppRoutes.workAttendance,
                 'Messages': AppRoutes.messages,
               }

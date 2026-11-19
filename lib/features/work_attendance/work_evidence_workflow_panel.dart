@@ -23,6 +23,8 @@ class WorkEvidenceWorkflowPanel extends StatefulWidget {
     this.createUploads,
     this.ledger,
     this.workerName,
+    this.workerAttendance,
+    this.upcoming = false,
   });
   final WorkEvidenceRepository viewer;
   final WorkEvidenceWorkflowSource source;
@@ -31,6 +33,8 @@ class WorkEvidenceWorkflowPanel extends StatefulWidget {
   createUploads;
   final WorkEvidenceWorkflowLedger? ledger;
   final String? workerName;
+  final WorkerWorkAssignment? workerAttendance;
+  final bool upcoming;
   @override
   State<WorkEvidenceWorkflowPanel> createState() =>
       _WorkEvidenceWorkflowPanelState();
@@ -257,6 +261,7 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
     listenable: controller,
     builder: (context, _) {
       final state = controller.snapshot;
+      final upcoming = widget.upcoming;
       final request = widget.viewer.employer
           ? state?.review
           : state?.pendingAttempt;
@@ -280,7 +285,7 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
               if (state != null && widget.viewer.assignment != null)
                 if (state.verificationStatus == WorkVerificationStatus.verified)
                   const Text(
-                    'No submission required. Evidence has been verified; work verification does not confirm payment.',
+                    'No submission required. Evidence has been verified. Work verification does not confirm payment approval.',
                   )
                 else if (widget.viewer.assignment!.effectiveCheckOutAt == null)
                   Text(
@@ -323,6 +328,15 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                     'Review recorded.',
                   ].contains(controller.message))
                 Text(controller.message!),
+              if (state == null &&
+                  widget.viewer.assignment?.verificationStatus ==
+                      WorkVerificationStatus.verified) ...[
+                if (widget.viewer.assignment?.verifiedAt case final time?)
+                  Text('Verified at: ${_time(time)}'),
+                const Text(
+                  'Work verification does not confirm payment approval.',
+                ),
+              ],
               if (state != null) ...[
                 if (controller.newWriteBlocked &&
                     !controller.busy &&
@@ -334,7 +348,11 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                     'An earlier action is unresolved. Refresh to check its status. Do not submit a replacement; contact support if it remains unresolved.',
                   ),
                 const SizedBox(height: 12),
-                if (state.verificationStatus != WorkVerificationStatus.verified)
+                if (state.verificationStatus !=
+                        WorkVerificationStatus.verified &&
+                    !(upcoming &&
+                        state.verificationStatus ==
+                            WorkVerificationStatus.notSubmitted))
                   AttendanceStatusBadge(
                     label:
                         state.verificationStatus ==
@@ -348,25 +366,19 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                         : 'Verification: ${state.verificationStatus == WorkVerificationStatus.verified ? 'Verified' : 'Not submitted'}',
                     tone: verificationTone(state.verificationStatus),
                   ),
-                Text('Latest submission round: ${state.round}'),
+                if ((!upcoming || state.round > 0) &&
+                    state.verificationStatus != WorkVerificationStatus.verified)
+                  Text('Latest submission round: ${state.round}'),
                 if (state.verificationStatus.name == 'verified') ...[
                   Text(
                     'Employer approval recorded - Approved submission round: ${state.round}',
                   ),
-                  if (state.history
-                          .where((e) => e.action == 'verified')
-                          .lastOrNull
-                      case final event?)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Verified at: ${_time(event.at)}'),
-                        if (widget.viewer.employer)
-                          ExpansionTile(
-                            title: const Text('Reviewer audit identity'),
-                            children: [SelectableText(event.actorId)],
-                          ),
-                      ],
+                  if (!state.history.any(
+                        (event) => event.action == 'verified',
+                      ) &&
+                      widget.viewer.assignment?.verifiedAt != null)
+                    Text(
+                      'Verified at: ${_time(widget.viewer.assignment!.verifiedAt!)}',
                     ),
                 ],
                 if (state.verificationStatus.name == 'moreEvidenceRequired')
@@ -472,41 +484,16 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                     onPressed: controller.busy || _opening ? null : _resume,
                     child: const Text('Complete reserved action'),
                   ),
-                const SizedBox(height: 12),
-                Text(
-                  'Verification history',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                if (state.history.isEmpty)
-                  const Text('No verification events recorded yet.'),
-                for (final event in state.history.reversed.take(3))
-                  _HistoryTile(
-                    event: event,
-                    showNote:
-                        !(state.verificationStatus ==
-                                WorkVerificationStatus.moreEvidenceRequired &&
-                            event.action == 'more_evidence_requested' &&
-                            event.round == state.round),
-                  ),
-                if (state.history.length > 3)
-                  ExpansionTile(
-                    title: Text(
-                      'Earlier history (${state.history.length - 3})',
-                    ),
-                    children: [
-                      for (final event in state.history.reversed.skip(3))
-                        _HistoryTile(
-                          event: event,
-                          showNote:
-                              !(state.verificationStatus ==
-                                      WorkVerificationStatus
-                                          .moreEvidenceRequired &&
-                                  event.action == 'more_evidence_requested' &&
-                                  event.round == state.round),
-                        ),
-                    ],
-                  ),
               ],
+              if (widget.workerAttendance case final attendance?)
+                WorkerAttendanceHistory(
+                  assignment: attendance,
+                  verification: state == null
+                      ? const []
+                      : _verificationHistory(context, state),
+                )
+              else if (state != null && (!upcoming || state.history.isNotEmpty))
+                ..._verificationHistory(context, state),
               TextButton(
                 onPressed: controller.loading || controller.busy
                     ? null
@@ -519,6 +506,43 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
       );
     },
   );
+
+  List<Widget> _verificationHistory(
+    BuildContext context,
+    WorkEvidenceWorkflowSnapshot state,
+  ) => [
+    const SizedBox(height: 12),
+    Text(
+      'Verification history',
+      style: Theme.of(context).textTheme.titleMedium,
+    ),
+    if (state.history.isEmpty)
+      const Text('No verification events recorded yet.'),
+    for (final event in state.history.reversed.take(3))
+      _HistoryTile(
+        event: event,
+        showNote:
+            !(state.verificationStatus ==
+                    WorkVerificationStatus.moreEvidenceRequired &&
+                event.action == 'more_evidence_requested' &&
+                event.round == state.round),
+      ),
+    if (state.history.length > 3)
+      ExpansionTile(
+        title: Text('Earlier history (${state.history.length - 3})'),
+        children: [
+          for (final event in state.history.reversed.skip(3))
+            _HistoryTile(
+              event: event,
+              showNote:
+                  !(state.verificationStatus ==
+                          WorkVerificationStatus.moreEvidenceRequired &&
+                      event.action == 'more_evidence_requested' &&
+                      event.round == state.round),
+            ),
+        ],
+      ),
+  ];
 }
 
 class _Session implements EvidenceDraftSession {

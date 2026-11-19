@@ -1,4 +1,5 @@
 import 'fixtures/published_jobs_source.dart';
+import 'fixtures/fake_reputation_gateway.dart';
 
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -158,7 +159,10 @@ void main() {
             assignmentId: 'sample-assignment-1',
             store: data,
           ),
-          'reputation' => ReputationPage(store: data),
+          'reputation' => ReputationPage(
+            store: data,
+            gateway: FakeReputationGateway(),
+          ),
           'payments' => PaymentHistoryPage(store: data),
           'record-payment' => PaymentRecordPage(store: data),
           'admin-jobs' => AdminPreviewPage(section: 'Jobs', store: data),
@@ -204,7 +208,10 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        if (![
+        if (screen == 'reputation') {
+          expect(find.text('Working Performance'), findsOneWidget);
+          expect(find.text('4.50 / 5'), findsOneWidget);
+        } else if (![
           'settings',
           'apply',
           'browse',

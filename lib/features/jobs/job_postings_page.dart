@@ -10,6 +10,7 @@ import 'job_postings_repository.dart';
 import 'job_preview.dart';
 import 'employer_job_card.dart';
 import 'job_validation.dart';
+import 'workplace_coordinates.dart';
 import '../company/company_logo.dart';
 
 class JobPostingsPage extends StatefulWidget {
@@ -108,7 +109,16 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
 
   Future<void> publish(Map<String, dynamic> job) async {
     if (busy) return;
-    final validation = jobPublishError(job);
+    final remote = job['work_arrangement'] == 'remote';
+    final validation =
+        jobPublishError(job) ??
+        (remote && (job['latitude'] != null || job['longitude'] != null)
+            ? 'Save this remote draft to clear its workplace pin.'
+            : !remote &&
+                  workplaceCoordinates(job['latitude'], job['longitude']) ==
+                      null
+            ? workplaceRequiredForPublication
+            : null);
     if (validation != null) {
       setState(
         () => error = '$validation Use Edit Draft to complete this job.',

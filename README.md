@@ -448,6 +448,9 @@ uses `verified`, independently of assignment/attendance status. Counts describe
 the loaded authorized projection, not a guaranteed complete company total.
 Worker-name search reuses the existing authorized name lookup and omits unavailable
 names. Compact shift cards preserve GPS, evidence, Add shift and closure actions.
+Application cards start collapsed, show their summary and Add shift action,
+preview the nearest matching upcoming shift when available, and retain their
+individual expansion state across refreshes on the same page.
 The short Work Verification sidebar label remains; Attendance Review (demo) is
 hidden from normal employer navigation but its direct route remains available.
 Workers (demo) and Payments (sandbox) are unchanged.
@@ -463,9 +466,21 @@ valid. Review/explicit confirmation and server scheduling checks remain required
 The picker alone caps text scaling at 1.3 to keep its fixed-size Material controls
 usable on narrow screens; the surrounding scrollable form retains full scaling.
 Worker attendance groups shifts by hired application ID, with the job title,
-company name and shift count shown once per group. Groups remain expanded and
-shifts appear in scheduled-start order; attendance and evidence actions still
-belong to each individual shift.
+company name and shift count shown once per group. My Work Shifts starts with
+groups collapsed and previews the next upcoming shift. Shifts that need worker
+action stay accessible while collapsed. The Show application shifts control
+appears below the preview or summary. Employer and worker shift lists show
+actionable shifts first, followed by upcoming shifts nearest first and past
+shifts newest first.
+Collapsed worker groups highlight the next shift’s date, MYT time and saved
+workplace. Upcoming shift details lead with the schedule and check-in guidance.
+Employer upcoming details also lead with the shift schedule and workplace.
+Authorized detail and history views show original attendance, correction reasons,
+resolution times, and verification events in readable form. Internal identifiers
+and server snapshot diagnostics are omitted from routine views.
+Employer verification details, Worker shift details, and expanded Worker shift
+cards show effective attendance in responsive time cards. Evidence submissions show the full worker note,
+submission metadata, and attachments in separate sections.
 The normal Job Seeker menu shows My Work Shifts; attendance demo routes remain
 available directly but are hidden from the menu. Shift cards group workplace and
 recorded check-in/out times. Saved GPS status is not returned by the worker
@@ -499,9 +514,12 @@ review only and has not been deployed. No worker availability form or per-shift 
 Attendance, GPS, evidence and verification remain independent per shift.
 Employers can also use the existing Create Assignment selector for a hired
 application from Work Verification, with explicit worker/job/company/MYT schedule
-and workplace confirmation. Creation requires the new server-issued request-ID
-contract; there is no legacy fallback. Uncertain responses block further writes
-for that application's running session; reconciliation uses the request ID only.
+and workplace confirmation. A valid workplace from the selected posting
+prefills the new shift. The employer can change that text before confirming,
+and each shift stores its own reviewed workplace. Creation requires the
+server-issued request-ID contract; there is no direct-write fallback. Uncertain
+responses block further writes for that application's running session.
+Reconciliation uses the request ID only.
 Migration `20261106000100_work_assignment_creation_idempotency.sql`
 is deployed and catalog-verified. Environments without that contract fail closed. Server
 request identity and duplicate protection survive client restart; local unresolved
@@ -510,6 +528,18 @@ Reopening a dialog for an unresolved application retains the read-only Check
 current assignment action; it reconciles the original request without another
 creation attempt. See the [Module 2/4 integration review](docs/module2_module4_integration_review.md)
 for regression coverage and remaining backend/device acceptance gates.
+
+Assignment creation saves the reviewed address and optional pin per shift
+through the coordinate-aware v2 request contract. If the v2 reservation RPC
+is missing, a reviewed text-only shift can be explicitly saved in compatibility
+mode. Pending requests and pinned shifts are never downgraded.
+Confirming a Geoapify result in the shift picker fills the shift address and
+pin together. Confirming a manually moved pin keeps the existing shift address.
+Editing a pinned shift address clears the pin from the draft until the employer
+explicitly verifies that the previous pin still matches the edited workplace.
+Work Verification and My Work Shifts, including history, display the saved shift
+address and offer a Google Maps link when that shift has a valid saved pin.
+See [Stage 2B.2 deployment and rollback notes](docs/work_assignment_workplace_coordinates_review.md).
 No live assignments or evidence/verification records were changed.
 
 Phase 4 future-shift editing/cancellation is audit-only: no verified edit/cancel
@@ -644,7 +674,7 @@ return actions; they do not get a second workspace shell.
 
 - Use the shared left sidebar on Web: persistent from 840 logical pixels, an off-canvas left drawer below that. Never render Android bottom navigation on Web. General content can grow to 1280 logical pixels; forms retain their narrower feature-specific limits.
 - Job Seeker and Employer workspace pages place the account avatar/menu at the top right of the AppBar, matching the Admin dashboard. Wide layouts show the person's name and role; compact layouts show the avatar and chevron. The menu opens Personal profile, Account settings and Sign out. The Job Seeker's clearly labeled reputation demo is embedded alongside the real personal profile on wide layouts and below it on compact layouts; the existing reputation URL remains available. Employer company reputation remains a separate demo reachable from the account menu. Payments (sandbox) stays in the sidebar/More menu for both roles. Sidebar destinations use expandable categories; the active category opens automatically and Dashboard remains directly available. Admin also reaches Personal profile and Account settings from its top-right menu.
-- The Job Seeker dashboard keeps search beside notifications in the top bar, a compact profile-completion checklist, demo applied-company cards, and a future-evaluations placeholder. The checklist disappears when name, email, phone and photo are all present; the Employer's completion progress also disappears at 100%. Demo applications remain clearly labeled and separate from real account data; no evaluation score is shown until that feature exists. On Web and Android, the dashboard search button opens a panel near the top center with a light background dim, without changing the URL; Web notifications open a compact panel at the upper right. The Admin dashboard uses the same Web notification panel. Search history is kept only while that panel is open; it starts empty. Android notifications retain the existing focused page. Direct `/search` and `/notifications` routes remain available. Jobs search uses the demo catalogue; Companies calls `search_public_companies` for verified company name, industry and location only, once the new migration is reviewed and applied; People shows no results until public/private profile controls exist. The company function does not expose documents or private logos.
+- The Job Seeker dashboard keeps search beside notifications in the top bar, a compact profile-completion checklist, demo applied-company cards, and a future-evaluations placeholder. The checklist disappears when name, email, phone and photo are all present; the Employer's completion progress also disappears at 100%. Demo applications remain clearly labeled and separate from real account data; no evaluation score is shown until that feature exists. On Web and Android, the dashboard search button opens a panel near the top center with a light background dim, without changing the URL; Web notifications open a compact panel at the upper right. The Admin dashboard uses the same Web notification panel. Search history is kept only while that panel is open; it starts empty. Android notifications retain the existing focused page. The Jobs action opens the real Browse Jobs catalogue at `/jobs` with the optional keyword in the URL. The old `/search` URL redirects to Browse Jobs, and `/notifications` remains available. Companies calls `search_public_companies` for verified company name, industry and location only, once the new migration is reviewed and applied; People shows no results until public/private profile controls exist. The company function does not expose documents or private logos.
 - Do not stretch mobile-style full-width forms across large desktop screens. Size forms and dialogs appropriately for desktop.
 - Avoid redundant top-left AppBar back arrows when clear in-app navigation exists. Provide Cancel, Back to Job Postings, breadcrumbs or sidebar navigation as appropriate. Never rely exclusively on browser Back.
 - Preserve browser Back, Forward, refresh and direct URL navigation through the existing router. Verify authentication and route-state behavior rather than assuming every flow survives refresh.
@@ -654,7 +684,7 @@ return actions; they do not get a second workspace shell.
 ### Android requirements
 
 - Use touch-friendly layouts, comfortably sized targets and mobile-appropriate dialogs, spacing and navigation.
-- Use the shared bottom NavigationBar at root destinations, including wide tablets. Three primary role destinations, a separate Account avatar and More are shown where the account menu is enabled. Account opens profile and settings; More opens the grouped navigation sheet with Sign out at the bottom. The mobile More sheet omits Dashboard and Job Seeker Search/Browse Jobs; the Job Seeker Jobs tab opens `/jobs`, while the dashboard search icon opens the search panel. Web sidebar entries remain available. Screens that intentionally hide the account menu retain only More. Do not render the Web sidebar/drawer as native primary navigation.
+- Use the shared bottom NavigationBar at root destinations, including wide tablets. Three primary role destinations, a separate Account avatar and More are shown where the account menu is enabled. Account opens profile and settings; More opens the grouped navigation sheet with Sign out at the bottom. The mobile More sheet omits Dashboard and Job Seeker Browse Jobs; the Job Seeker Jobs tab opens `/jobs`, while the dashboard search icon opens the search panel. Web sidebar entries remain available. Screens that intentionally hide the account menu retain only More. Do not render the Web sidebar/drawer as native primary navigation.
 - Root tab switches use GoRouter `go` and `NoTransitionPage` rather than stacking duplicate root pages or sliding the bottom bar. Route selection remains synchronized with the URL; this does not introduce a StatefulShellRoute or preserve every disposed root widget's local filter/scroll state. Existing store-backed drafts are retained. Focused forms/details hide the bar and keep guarded contextual Back with native Material transitions. The bar also hides while the software keyboard is open to preserve form space.
 - Keep contextual AppBar back arrows on pushed detail, create and edit screens where appropriate. Respect Android system Back.
 - Use scrollable forms that remain usable when the keyboard opens. Respect SafeArea and system insets.
@@ -701,6 +731,21 @@ the existing job route guard. Those limitations need separate scoped work.
 
 ## 4. Employer Job Posting Requirements
 
+Create/Edit Job provides a manual workplace map picker using MapLibre GL and
+OpenFreeMap's Liberty style. Enter the address, pan the map to position the pin,
+and confirm. New on-site and hybrid postings require a confirmed pin before
+publication, including publication from the draft list. Incomplete drafts and
+unrelated edits to existing published postings without a pin are supported.
+Changing a published workplace address requires reconfirmation. Saving a remote
+posting clears any stored physical pin. The picker depends on network access and
+a WebGL2-capable browser on Web. Android map rendering requires API 24 or later
+and a build JDK supporting Java 21. Location selection uses the existing posting
+RPC and leaves the address exactly as entered apart from existing trimming.
+
+Explicit workplace place search is prepared locally behind an authenticated
+Supabase Edge Function and a private quota migration. Manual pin placement works
+while search is unavailable. See [workplace search setup and quota design](docs/workplace_place_search_design.md).
+
 **Original Description** is the employer's own unstructured input. Employers should include the role's purpose, duties, actual qualifications/experience, location and work arrangement, employment type, salary details, benefits, vacancies and deadline where known. Structured fields must agree with these facts. Missing facts must come from the employer.
 
 - **Format with AI** generates Role Overview, Responsibilities, Requirements and Benefits. The client currently requires at least 30 trimmed characters in Original Description.
@@ -720,6 +765,62 @@ Implemented routes:
 | Route | Screen | Data |
 | --- | --- | --- |
 | `/jobs` | Search/filter/sort and session-saved jobs | Supabase `list_published_jobs` RPC |
+
+Browse Jobs supports keyword, employment type, work arrangement, and city or
+state text filtering. Geoapify place search, radius filters, and workplace
+distances belong to the real Nearby Jobs experience. Its List and MapLibre views
+share one filtered result set behind the existing Job Seeker gate at
+`/nearby-jobs`. Results require a complete catalogue. To verify the
+production baseline, inspect the `list_published_jobs` response while signed in as an active Job
+Seeker and compare its `Content-Range` total and JSON row count with the
+database eligibility count from the same period (7 at the Phase 2D audit).
+
+#### Job Seeker place search deployment
+
+The separate endpoint returns up to five validated Malaysian Geoapify results
+to active Job Seekers. It shares the Employer endpoint's private quota ledger
+and transaction lock. Across both endpoints the limit is 2,000 reservations per
+rolling 24 hours and two per rolling second. Each account has a 20-per-rolling-day
+limit and a three-second cooldown. Reservations count before provider dispatch,
+including failed provider requests. External use of the Geoapify account is
+outside this budget.
+
+After approval, deploy through the Dashboard in this order:
+
+1. Confirm the Employer quota RPC uses the shared ledger, lock and quota limits.
+   If the Job Seeker migration has already been applied and its permission
+   checks passed, skip SQL Editor. For a fresh deployment, run
+   `supabase/migrations/20261119000100_job_discovery_place_search_quota.sql`
+   once. Verify effective EXECUTE is denied for `anon` and `authenticated` and
+   granted to `service_role`. Keep the existing private schema outside the Data
+   API exposed schemas.
+2. Under Edge Function Secrets, retain the existing server-only
+   `GEOAPIFY_API_KEY`. Leave `JOB_DISCOVERY_SEARCH_ALLOWED_ORIGIN` unset for
+   Flutter Web on HTTP `localhost` or `127.0.0.1` with dynamic ports, and for
+   Flutter Android. Android requests can omit `Origin`. Other browser origins
+   are denied unless they exactly match the configured origin. If hosted Web
+   is added later, set the optional secret to the exact origin (scheme, host,
+   optional port, and no path or trailing slash). The function uses the
+   runtime-provided `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
+   `SUPABASE_SERVICE_ROLE_KEY`.
+3. Under Edge Functions, choose **Deploy a new function**, then **Via Editor**.
+   Name it `search-job-discovery-places` and replace `index.ts` with
+   `supabase/dashboard/search-job-discovery-places/index.ts`. Deploy only this
+   function. Keep gateway **Verify JWT** enabled for the new function and
+   test with the Flutter app's real Job Seeker session bearer. The handler also
+   validates the bearer with Supabase Auth. If a valid session fails at the
+   gateway, check the project's JWT configuration before changing the setting.
+4. Verify localhost Web preflight, an Android lookup, signed-out denial, and
+   cross-role denial on both endpoints. Test hosted Web only if configured. Confirm
+   the Job Seeker can read their own role/status with their session token, and
+   check catalogue completeness and radius filtering in Nearby Jobs. Keep
+   production smoke tests small and use local mocks or a separately approved
+   isolated database for quota boundary and concurrency testing.
+
+To roll back, disable or remove only the new Edge Function, then run
+`supabase/rollback/20261119000100_job_discovery_place_search_quota_rollback.sql`.
+It drops only the Job Seeker reservation RPC. Keep the shared ledger, Employer
+function, and Geoapify secret in place.
 | `/jobs/:jobId` | Published job details and Apply with optional resume | Supabase browsing and submission RPCs |
 | `/applications` | My Applications, All/Active/Completed, search/status filters | Supabase `list_my_job_applications` RPC |
 | `/applications/:applicationId` | Application details and chronological status history | Supabase seeker list and history RPCs |
@@ -917,8 +1018,8 @@ Gemini formatting paths remain unchanged. No Dashboard steps are required.
 | RPT-01 | `/attendance/:recordId/report`, `/attendance-review/:recordId/report` | Responsive report derived from that same session record, plus a separate printable HTML view on Web |
 | JS-22 | `/messages`, `/messages/:conversationId` | Conversation search/unread indicators, job context, grouped messages, local text/attachments and simulated receipts |
 | EMP-18 | `/employer-messages`, `/employer-messages/:conversationId` | Employer view of the same fictional conversation history |
-| JS-07 | `/nearby-jobs` | Map/list toggle, sample city filter, 2/5/10/25/50 demo km radius, type filter, markers, radius visualization and cards |
-| JS-08 | `/nearby-jobs/:jobId` | Fictional workplace address/distance, job facts, demo map and existing Module 2 View Job / Apply navigation |
+| JS-07 | `/nearby-jobs` | Real Map/List views, Malaysian place selection, 5/10/20 km radius, employment type, workplace markers and published job cards |
+| JS-08 | `/nearby-jobs/:jobId` | Legacy redirect to the gated Nearby Jobs root. Current job cards open `/jobs/:jobId`. |
 | EMP-06 | `/job-location-demo` | Standalone address input/sample suggestions, tap/drag marker, keyboard-accessible X/Y sliders and Confirm Location |
 
 New destinations are exposed through each role's existing sidebar/drawer. Compact
@@ -969,13 +1070,10 @@ outgoing messages. Every receipt is visibly simulated; there is no actual online
 presence or automated fake reply. Search, unread counts and messages share one
 source across both role views. No administrator chat interface is added.
 
-Nearby distance is Euclidean distance in a fixed fictional kilometre grid, not
-from a user's position. Radius changes update the same markers/list. The location
-input filters sample city names; it does not geocode. Remote jobs have no
-workplace marker and remain accessible in Browse Jobs. Closed jobs are excluded;
-expired jobs are labeled and Module 2 prevents applying. Current GPS location and
-directions controls explain that those services are unavailable. The employer
-picker uses **DEMO GRID X/Y out of 100**, never fictional geographic degrees.
+Nearby Jobs computes straight-line distance from an explicitly selected place
+to eligible on-site and hybrid workplace pins. Map and List share the same
+radius-filtered results. Remote and coordinate-less jobs remain available in
+Browse Jobs. The separate employer demo picker uses **DEMO GRID X/Y out of 100**.
 Its confirmed address/marker are isolated from `job_postings.location`,
 `latitude` and `longitude`; it cannot update a real posting.
 

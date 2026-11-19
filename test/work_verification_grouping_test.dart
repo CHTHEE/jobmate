@@ -8,6 +8,7 @@ import 'package:jobmate/features/work_attendance/work_assignment_creation_dialog
 import 'package:jobmate/features/work_attendance/work_verification_pages.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_repository.dart';
 import 'package:jobmate/features/work_attendance/engagement_closure_controls.dart';
+import 'package:jobmate/features/work_attendance/work_shift_ui.dart';
 
 import 'work_assignment_creation_repository_test.dart'
     show CandidateSource, uid, complete;
@@ -43,10 +44,14 @@ Map<String, dynamic> shift(int number, {int application = 4}) =>
       ..['job_title'] = 'QA Assistant';
 
 class FakeEngagementClosureGateway implements EngagementClosureGateway {
+  FakeEngagementClosureGateway({this.eligible = true});
+  final bool eligible;
+
   @override
   Future<Map<String, dynamic>> status(String applicationId) async => {
-    'closure_status': 'open',
-    'eligible': true,
+    'closure_status': eligible ? 'open' : 'ineligible',
+    'eligible': eligible,
+    if (!eligible) 'eligibility_reason': unresolvedEngagementShiftsReason,
   };
 
   @override
@@ -91,13 +96,13 @@ void main() {
     await gps.changes.close();
   });
 
-  Widget page() => WorkVerificationPage(
+  Widget page({bool eligible = true}) => WorkVerificationPage(
     repository: repository,
     companyId: candidates.company,
     loadAccess: () => candidates.access(),
     loadWorkerName: (_, _) async => 'Synthetic worker',
     gpsSource: gps,
-    closureGateway: FakeEngagementClosureGateway(),
+    closureGateway: FakeEngagementClosureGateway(eligible: eligible),
     createAssignmentRepository: () => WorkAssignmentCreationRepository(
       candidates,
       ledger: WorkAssignmentCreationLedger(),
@@ -105,22 +110,77 @@ void main() {
     ),
   );
 
-  Future<void> show(WidgetTester tester) async {
-    await tester.pumpWidget(MaterialApp(home: page()));
-    await tester.pumpAndSettle();
-  }
-
   Future<void> tap(WidgetTester tester, Finder finder) async {
     await tester.ensureVisible(finder);
     await tester.tap(finder);
     await tester.pumpAndSettle();
   }
 
+  Future<void> expandApplications(WidgetTester tester) async {
+    final show = find.text('Show application shifts');
+    final count = show.evaluate().length;
+    for (var i = 0; i < count; i++) {
+      await tap(tester, show.first);
+    }
+  }
+
+  Future<void> show(WidgetTester tester, {bool expand = true}) async {
+    await tester.pumpWidget(MaterialApp(home: page()));
+    await tester.pumpAndSettle();
+    if (expand) await expandApplications(tester);
+  }
+
+  testWidgets(
+    'engagement summary is concise and expands to the closure rules',
+    (tester) async {
+      await tester.pumpWidget(MaterialApp(home: page(eligible: false)));
+      await tester.pumpAndSettle();
+      expect(find.text('Engagement: Open'), findsOneWidget);
+      expect(
+        find.text('Closure available once all shifts are resolved.'),
+        findsOneWidget,
+      );
+      expect(find.text(unresolvedEngagementShiftsReason), findsNothing);
+      expect(find.text('Add shift'), findsOneWidget);
+      expect(find.text('Close Engagement'), findsNothing);
+      await tap(tester, find.text('Show application shifts'));
+      expect(find.text('Not yet eligible for closure'), findsOneWidget);
+      expect(
+        find.text(
+          'To close this engagement, each shift must be verified, confirmed absent, or have an audited cancellation.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Close Engagement'), findsNothing);
+    },
+  );
+
+  testWidgets('verified employer shift has one evidence panel and action', (
+    tester,
+  ) async {
+    rows = [
+      shift(10)
+        ..['assignment_status'] = 'completed'
+        ..['verification_status'] = 'verified'
+        ..['check_in_at'] = '2026-11-05T01:00:00Z'
+        ..['check_out_at'] = '2026-11-05T09:00:00Z',
+    ];
+    await show(tester);
+    await tap(tester, find.byTooltip('Show shift details'));
+    expect(find.text('Work Evidence'), findsOneWidget);
+    expect(find.text('Status: Verified'), findsOneWidget);
+    expect(find.text('View Verification Details'), findsOneWidget);
+    expect(find.text('Evidence'), findsNothing);
+    expect(find.text('Technical details'), findsNothing);
+    expect(find.textContaining(uid(10)), findsNothing);
+    expect(find.text('View attendance GPS'), findsOneWidget);
+  });
+
   testWidgets(
     'application groups omit raw ID details while retaining independent controls and shifts',
     (tester) async {
       rows = [shift(10), shift(11, application: 6)];
-      await show(tester);
+      await show(tester, expand: false);
       Finder group(int application) =>
           find.byKey(ValueKey('application-${uid(application)}'));
       Finder inGroup(int application, String text) =>
@@ -133,11 +193,22 @@ void main() {
       }
 
       expectNoRawDetails();
-      for (final application in [4, 6, 4]) {
+      expect(find.text('Show application shifts'), findsNWidgets(2));
+      expect(find.text('Next upcoming shift'), findsNothing);
+      expect(find.text('Hired'), findsNWidgets(2));
+      expect(find.byKey(ValueKey(uid(10))), findsNothing);
+      expect(find.byKey(ValueKey(uid(11))), findsNothing);
+      for (final application in [4, 6]) {
         final shiftId = application == 4 ? 10 : 11;
         final otherShiftId = application == 4 ? 11 : 10;
-        expect(inGroup(application, 'Engagement status: Open'), findsOneWidget);
-        expect(inGroup(application, 'Close Engagement'), findsOneWidget);
+        expect(inGroup(application, 'Engagement: Open'), findsOneWidget);
+        expect(inGroup(application, '1 total shift'), findsOneWidget);
+        expect(inGroup(application, '0 verified'), findsOneWidget);
+        expect(inGroup(application, '0 awaiting review'), findsOneWidget);
+        expect(
+          inGroup(application, 'Worker: Synthetic worker'),
+          findsOneWidget,
+        );
         expect(
           tester
               .widget<OutlinedButton>(
@@ -149,17 +220,25 @@ void main() {
               .onPressed,
           isNotNull,
         );
-        await tap(tester, inGroup(application, 'Hide application shifts'));
-        expect(find.byKey(ValueKey(uid(shiftId))), findsNothing);
-        expect(find.byKey(ValueKey(uid(otherShiftId))), findsOneWidget);
-        expectNoRawDetails();
         await tap(tester, inGroup(application, 'Show application shifts'));
         expect(find.byKey(ValueKey(uid(shiftId))), findsOneWidget);
+        expect(
+          find.byKey(ValueKey(uid(otherShiftId))),
+          application == 4 ? findsNothing : findsOneWidget,
+        );
         expect(inGroup(application, 'Engagement status: Open'), findsOneWidget);
         expect(inGroup(application, 'Close Engagement'), findsOneWidget);
         expectNoRawDetails();
         expect(tester.takeException(), isNull);
       }
+      await tap(tester, inGroup(4, 'Hide application shifts'));
+      await tap(tester, find.byTooltip('Refresh company assignments'));
+      expect(find.byKey(ValueKey(uid(10))), findsNothing);
+      expect(find.byKey(ValueKey(uid(11))), findsOneWidget);
+      await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+      await tester.pumpAndSettle();
+      await show(tester, expand: false);
+      expect(find.text('Show application shifts'), findsNWidgets(2));
       expect(repository.company.rows.map((r) => r.applicationId), [
         uid(4),
         uid(6),
@@ -360,20 +439,14 @@ void main() {
       await tap(tester, toggle(10, 'Show shift details'));
       expect(toggle(10, 'Hide shift details'), findsOneWidget);
       expect(toggle(11, 'Show shift details'), findsOneWidget);
-      await tap(
-        tester,
-        find.descendant(
-          of: card(10),
-          matching: find.text('View original attendance & audit'),
-        ),
-      );
       expect(
         find.descendant(
           of: card(10),
-          matching: find.textContaining('Scheduled start:'),
+          matching: find.widgetWithText(ShiftDetailPanel, 'Scheduled'),
         ),
         findsOneWidget,
       );
+      expect(find.text('Technical details'), findsNothing);
       final search = find.widgetWithText(
         TextField,
         'Search job title or worker name',
@@ -616,6 +689,7 @@ void main() {
       addTearDown(router.dispose);
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await tester.pumpAndSettle();
+      await expandApplications(tester);
       final completed = find.byKey(ValueKey(uid(10)));
       final pending = find.byKey(ValueKey(uid(11)));
       expect(
@@ -683,6 +757,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('2 total shifts'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      await expandApplications(tester);
       await tap(tester, find.byTooltip('Show shift details').first);
       expect(find.byTooltip('Hide shift details'), findsOneWidget);
       expect(find.text('View attendance GPS'), findsNothing);

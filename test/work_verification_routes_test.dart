@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:jobmate/features/jobs/job_postings_repository.dart';
 import 'package:jobmate/features/work_attendance/work_verification_pages.dart';
 import 'package:jobmate/features/work_attendance/work_verification_routes.dart';
+import 'package:jobmate/features/work_attendance/work_evidence_pages.dart';
 import 'package:jobmate/shared/navigation/app_routes.dart';
 import 'package:jobmate/shared/navigation/workspace_destinations.dart';
 import 'package:jobmate/shared/widgets/app_workspace.dart';
@@ -40,6 +41,12 @@ void main() {
             checkAccess: () => roleCheck(),
             loadCompanyAccess: () => companyAccess(),
           ),
+          workVerificationRoute(
+            evidence: true,
+            source: source,
+            checkAccess: () => roleCheck(),
+            loadCompanyAccess: () => companyAccess(),
+          ),
         ],
       );
   setUp(() {
@@ -68,8 +75,8 @@ void main() {
       'Work Verification',
     );
     expect(
-      destinations.where((v) => v.$1 == AppRoutes.attendanceReview).single.$2,
-      'Attendance Review (demo)',
+      destinations.where((v) => v.$1 == AppRoutes.attendanceReview),
+      isEmpty,
     );
     expect(AppRoutes.workVerification, '/work-verification');
     expect(isWorkspaceRootPath(AppRoutes.workVerification), isTrue);
@@ -88,6 +95,31 @@ void main() {
     router = createRouter();
   });
 
+  testWidgets('direct shift evidence opens from a fresh navigation session', (
+    tester,
+  ) async {
+    final evidenceReads = <String>[];
+    final readCompany = source.companyRead;
+    source.companyRead = (company) async => [
+      for (final row in await readCompany(company))
+        {...row, 'verification_status': 'pending_review'},
+    ];
+    source.evidenceRead = (assignmentId) async {
+      evidenceReads.add(assignmentId);
+      return [];
+    };
+    router = createRouter(
+      initial: '${AppRoutes.workVerification}/$id/evidence',
+    );
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    expect(find.byType(WorkEvidencePage), findsOneWidget);
+    expect(find.text('Server job'), findsOneWidget);
+    expect(evidenceReads, [id]);
+    expect(companies, [id]);
+    expect(find.text('Show application shifts'), findsNothing);
+  });
+
   testWidgets(
     'direct URL uses resolved company, ignoring untrusted query UUID',
     (tester) async {
@@ -103,7 +135,8 @@ void main() {
         tester.widget<AppWorkspace>(find.byType(AppWorkspace)).path,
         AppRoutes.workVerification,
       );
-            if (find.byKey(const ValueKey('workspace-bottom-navigation'))
+      if (find
+          .byKey(const ValueKey('workspace-bottom-navigation'))
           .evaluate()
           .isNotEmpty) {
         // Native layout: Home is in the bottom navigation bar.

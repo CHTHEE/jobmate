@@ -64,18 +64,19 @@ class SupabaseWorkAttendanceSource implements WorkAttendanceSource {
     Map<String, dynamic>? params,
   }) async {
     final actor = userId;
-    try {
-      final rows = await _read('${name}_lifecycle', params: params);
-      if (rows.any((row) => row['attendance_as_of'] == null)) {
-        throw const FormatException('Missing server attendance time.');
+    for (final suffix in ['_lifecycle_v2', '_lifecycle']) {
+      try {
+        final rows = await _read('$name$suffix', params: params);
+        if (rows.any((row) => row['attendance_as_of'] == null)) {
+          throw const FormatException('Missing server attendance time.');
+        }
+        return rows;
+      } on PostgrestException catch (error) {
+        // Only a missing RPC can advance to the older read contract.
+        if (error.code != 'PGRST202' || userId != actor) rethrow;
       }
-      return rows;
-    } on PostgrestException catch (error) {
-      // Backward-compatible rollout only for an absent additive RPC. Never
-      // fall back on a permission error, malformed response or network failure.
-      if (error.code != 'PGRST202' || userId != actor) rethrow;
-      return _read(name, params: params);
     }
+    return _read(name, params: params);
   }
 
   @override

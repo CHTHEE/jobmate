@@ -3,10 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
-import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
-import '../applications/module2_repository.dart';
 
 enum SearchCategory { jobs, companies, people }
 
@@ -293,10 +291,29 @@ class _UniversalSearchPageState extends State<UniversalSearchPage> {
         ],
       ),
       const SizedBox(height: 20),
-      if (!widget.embedded || _query.text.trim().isNotEmpty) ...[
-        if (_category == SearchCategory.jobs) _jobs(context),
-        if (_category == SearchCategory.companies) _companyResults(context),
-      ],
+      if (_category == SearchCategory.jobs)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: () {
+              final router = GoRouter.of(context);
+              final keyword = _query.text.trim();
+              if (widget.embedded) Navigator.of(context).pop();
+              final destination = AppRoutes.browseJobsLocation(keyword);
+              final request = {'keyword': keyword};
+              if (router.state.uri.path == AppRoutes.browseJobs) {
+                router.replace<void>(destination, extra: request);
+              } else {
+                router.push<void>(destination, extra: request);
+              }
+            },
+            icon: const Icon(Icons.search),
+            label: const Text('Browse jobs'),
+          ),
+        ),
+      if (_category == SearchCategory.companies &&
+          (!widget.embedded || _query.text.trim().isNotEmpty))
+        _companyResults(context),
       if (_category == SearchCategory.people)
         const WorkspaceCard(
           title: 'People search is not available yet',
@@ -306,44 +323,6 @@ class _UniversalSearchPageState extends State<UniversalSearchPage> {
         ),
     ],
   );
-
-  Widget _jobs(BuildContext context) {
-    final jobs = Module2Repository.session.searchJobs(query: _query.text);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text(
-          'Demo jobs only. Real public job search is awaiting a backend read contract.',
-          style: TextStyle(color: JobMateTheme.body),
-        ),
-        const SizedBox(height: 12),
-        if (jobs.isEmpty)
-          const WorkspaceCard(
-            title: 'No matches',
-            child: Text('Try another job or company name.'),
-          )
-        else
-          for (final job in jobs) ...[
-            WorkspaceCard(
-              title: job.title,
-              subtitle: job.company,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton(
-                  onPressed: () {
-                    final router = GoRouter.of(context);
-                    if (widget.embedded) Navigator.of(context).pop();
-                    router.push('${AppRoutes.browseJobs}/${job.id}');
-                  },
-                  child: const Text('View demo job'),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-      ],
-    );
-  }
 
   Widget _companyResults(BuildContext context) {
     if (_query.text.trim().length < 2) {

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jobmate/features/work_attendance/work_assignment_creation_dialog.dart';
+import 'package:jobmate/features/jobs/workplace_map_picker.dart';
+import 'package:jobmate/features/jobs/workplace_coordinates.dart';
 import 'package:jobmate/features/work_attendance/work_assignment_creation_repository.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_repository.dart';
 import 'package:jobmate/features/work_attendance/work_verification_pages.dart';
@@ -63,6 +65,7 @@ void main() {
     double scale = 1,
     String? applicationId,
     EngagementClosureGateway? closureGateway,
+    WorkplacePicker? pickWorkplace,
   }) async {
     if (width != null) {
       tester.view.physicalSize = Size(width, 850);
@@ -88,6 +91,7 @@ void main() {
                     repository: repository,
                     companyId: source.company,
                     applicationId: applicationId,
+                    pickWorkplace: pickWorkplace ?? showWorkplacePicker,
                     closureGateway:
                         closureGateway ?? FakeEngagementClosureGateway(),
                   ),
@@ -170,6 +174,261 @@ void main() {
     await tester.tap(find.text('Review Shift'));
     await tester.pumpAndSettle();
   }
+
+  testWidgets('missing v2 requires an explicit compatibility save', (
+    tester,
+  ) async {
+    source.reserve = (_) async => throw const PostgrestException(
+      message: 'Missing v2 reservation',
+      code: 'PGRST202',
+    );
+    await show(tester);
+    await fill(tester);
+    await review(tester);
+    final legacy = find.text('Save text only in compatibility mode');
+    expect(legacy, findsNothing);
+    await tester.tap(find.text('Confirm & Save'));
+    await tester.pumpAndSettle();
+    expect(source.reservations, 1);
+    expect(source.creates, 0);
+    expect(legacy, findsOneWidget);
+    source.reserve = (payload) async {
+      expect(payload.keys, isNot(contains('p_workplace_latitude')));
+      return uid(80);
+    };
+    await tester.tap(legacy);
+    await tester.pumpAndSettle();
+    expect(source.creates, 1);
+    expect(source.parameters!['p_workplace_location'], 'QA workplace');
+    expect(source.parameters!.keys, isNot(contains('p_workplace_longitude')));
+  });
+
+  testWidgets('posting workplace prefills and an override survives refresh', (
+    tester,
+  ) async {
+    var postingWorkplace = '  Mid Valley Megamall  ';
+    source.jobs = (_) async => complete([
+      {
+        'job_id': uid(3),
+        'company_id': source.company,
+        'title': 'QA Assistant',
+        'location': postingWorkplace,
+        'latitude': 3.118,
+        'longitude': 101.677,
+      },
+      {
+        'job_id': uid(13),
+        'company_id': source.company,
+        'title': 'QA Associate',
+        'latitude': 3.149,
+        'longitude': 101.713,
+      },
+    ]);
+    source.applicants = (job) async => complete([
+      {
+        'application_id': job == uid(3) ? uid(4) : uid(14),
+        'applicant_id': uid(5),
+        'applicant_name': job == uid(3) ? 'Synthetic worker' : 'Second worker',
+        'status': 'hired',
+      },
+      if (job == uid(3))
+        {
+          'application_id': uid(6),
+          'applicant_id': uid(7),
+          'applicant_name': 'Another hired worker',
+          'status': 'hired',
+        },
+    ]);
+    final workplace = find.widgetWithText(TextFormField, 'Workplace location');
+    String value() => tester.widget<TextFormField>(workplace).controller!.text;
+    const inherited = (latitude: 3.118, longitude: 101.677);
+    const override = (latitude: 3.149, longitude: 101.713);
+    const manual = WorkplacePickerResult(override);
+    const place = WorkplacePickerResult(
+      override,
+      placeAddress: '  Pavilion Kuala Lumpur, Malaysia  ',
+    );
+    var pickerResult = Future<WorkplacePickerResult?>.value();
+    WorkplaceCoordinates? pickerInitial;
+    String? pickerAddress;
+    await show(
+      tester,
+      pickWorkplace: (_, initial, address, autoSearch) {
+        pickerInitial = initial;
+        pickerAddress = address;
+        expect(autoSearch, isFalse);
+        return pickerResult;
+      },
+    );
+    Future<void> pick(String label) async {
+      final action = find.text(label);
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+    }
+
+    expect(value(), isEmpty);
+    await select(tester);
+    expect(value(), 'Mid Valley Megamall');
+    expect(find.text('Draft pin: 3.118000, 101.677000'), findsOneWidget);
+    await pick('Change pin');
+    expect(pickerInitial, inherited);
+    expect(pickerAddress, 'Mid Valley Megamall');
+    expect(value(), 'Mid Valley Megamall');
+    expect(find.text('Draft pin: 3.118000, 101.677000'), findsOneWidget);
+    await field(tester, 'Workplace location', 'Pavilion Kuala Lumpur');
+    expect(find.text('No map pin selected'), findsOneWidget);
+    await field(tester, 'Workplace location', 'Mid Valley Megamall');
+    expect(find.text('No map pin selected'), findsOneWidget);
+    expect(find.text('Keep existing pin'), findsOneWidget);
+    await field(tester, 'Workplace location', 'Pavilion Kuala Lumpur');
+    pickerResult = Future.value(manual);
+    await pick('Choose pin');
+    expect(pickerInitial, isNull);
+    expect(pickerAddress, 'Pavilion Kuala Lumpur');
+    expect(value(), 'Pavilion Kuala Lumpur');
+    pickerResult = Future.value(place);
+    await pick('Change pin');
+    expect(value(), 'Pavilion Kuala Lumpur, Malaysia');
+    expect(find.text('Draft pin: 3.149000, 101.713000'), findsOneWidget);
+    expect(find.text('Keep existing pin'), findsNothing);
+    await field(tester, 'Workplace location', 'Pavilion');
+    postingWorkplace = 'Updated posting address';
+    await repository.load(companyId: source.company);
+    await tester.pumpAndSettle();
+    expect(value(), 'Pavilion');
+    expect(find.text('Edited workplace: Pavilion'), findsOneWidget);
+    expect(find.text('Previous pin: 3.149000, 101.713000'), findsOneWidget);
+    expect(find.text('No map pin selected'), findsOneWidget);
+    pickerResult = Future.value(null);
+    await pick('Choose pin');
+    expect(value(), 'Pavilion');
+    expect(find.text('Previous pin: 3.149000, 101.713000'), findsOneWidget);
+    await pick('Keep existing pin');
+    expect(find.text('Draft pin: 3.149000, 101.713000'), findsOneWidget);
+    expect(find.text('Keep existing pin'), findsNothing);
+
+    final stale = Completer<WorkplacePickerResult?>();
+    pickerResult = stale.future;
+    await pick('Change pin');
+    await field(tester, 'Workplace location', 'Edited address');
+    await field(
+      tester,
+      'Workplace location',
+      'Pavilion Kuala Lumpur, Malaysia',
+    );
+    stale.complete(
+      const WorkplacePickerResult(override, placeAddress: 'Stale address'),
+    );
+    await tester.pumpAndSettle();
+    expect(value(), 'Pavilion Kuala Lumpur, Malaysia');
+    expect(find.text('No map pin selected'), findsOneWidget);
+    expect(find.text('Keep existing pin'), findsOneWidget);
+
+    final dropdowns = find.byType(DropdownButtonFormField<String>);
+    Future<void> choose(Finder dropdown, String label) async {
+      await tester.ensureVisible(dropdown);
+      await tester.tap(dropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    final oldApplicationResult = Completer<WorkplacePickerResult?>();
+    pickerResult = oldApplicationResult.future;
+    await pick('Choose pin');
+    await choose(dropdowns.last, 'Another hired worker');
+    oldApplicationResult.complete(place);
+    await tester.pumpAndSettle();
+    expect(value(), 'Updated posting address');
+    expect(find.text('Draft pin: 3.118000, 101.677000'), findsOneWidget);
+    expect(find.text('Keep existing pin'), findsNothing);
+    await field(tester, 'Workplace location', 'Completely different workplace');
+    await pick('Clear pin');
+    expect(value(), 'Completely different workplace');
+    expect(find.text('Keep existing pin'), findsNothing);
+    expect(find.text('No map pin selected'), findsOneWidget);
+    await choose(dropdowns.first, 'QA Associate');
+    await choose(dropdowns.last, 'Second worker');
+    expect(value(), isEmpty);
+    expect(find.text('No map pin selected'), findsOneWidget);
+    await field(tester, 'Workplace location', 'Manual address');
+    expect(value(), 'Manual address');
+    pickerResult = Future.value(place);
+    await pick('Choose pin');
+    await field(tester, 'Workplace location', 'Pending before account switch');
+    expect(find.text('Keep existing pin'), findsOneWidget);
+    final oldAccountResult = Completer<WorkplacePickerResult?>();
+    pickerResult = oldAccountResult.future;
+    await pick('Choose pin');
+    source.account(uid(22));
+    oldAccountResult.complete(place);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Account changed.'), findsOneWidget);
+    expect(find.text('Keep existing pin'), findsNothing);
+    expect(find.text('Draft pin: 3.149000, 101.713000'), findsNothing);
+    expect(source.creates, 0);
+  });
+
+  testWidgets('Add shift saves each reviewed workplace independently', (
+    tester,
+  ) async {
+    source.jobs = (_) async => complete([
+      {
+        'job_id': uid(3),
+        'company_id': source.company,
+        'title': 'QA Assistant',
+        'location': 'Mid Valley Megamall',
+        'latitude': 3.118,
+        'longitude': 101.677,
+      },
+    ]);
+    final workplace = find.widgetWithText(TextFormField, 'Workplace location');
+    for (final (date, override, expected, keepPin) in [
+      ('2026-11-07', 'Mid Valley', 'Mid Valley', true),
+      ('2026-11-08', ' Pavilion Kuala Lumpur ', 'Pavilion Kuala Lumpur', false),
+    ]) {
+      await show(tester, applicationId: uid(4));
+      expect(
+        tester.widget<TextFormField>(workplace).controller!.text,
+        'Mid Valley Megamall',
+      );
+      await field(tester, 'Shift date (MYT)', date);
+      await field(tester, 'Start time (MYT)', '09:00');
+      await field(tester, 'End time (MYT)', '17:00');
+      await field(tester, 'Workplace location', override);
+      if (keepPin) {
+        final keep = find.text('Keep existing pin');
+        await tester.ensureVisible(keep);
+        await tester.tap(keep);
+        await tester.pumpAndSettle();
+      }
+      final previousWrites = source.creates;
+      await review(tester);
+      expect(find.text(expected), findsOneWidget);
+      expect(find.text('Keep existing pin'), findsNothing);
+      if (keepPin) {
+        expect(find.text('Draft pin: 3.118000, 101.677000'), findsOneWidget);
+        expect(
+          find.text('The workplace and map pin will be saved for this shift.'),
+          findsOneWidget,
+        );
+      }
+      expect(source.creates, previousWrites);
+      await tester.tap(find.text('Confirm & Save'));
+      await tester.pumpAndSettle();
+      expect(source.creates, previousWrites + 1);
+      expect(source.parameters!['p_workplace_location'], expected);
+      expect(
+        source.parameters!['p_workplace_latitude'],
+        keepPin ? 3.118 : null,
+      );
+      expect(
+        source.parameters!['p_workplace_longitude'],
+        keepPin ? 101.677 : null,
+      );
+    }
+  });
 
   testWidgets(
     'desktop time fields share a row and workplace stays in the form viewport',
@@ -768,6 +1027,14 @@ void main() {
       await tester.tap(find.text('Confirm & Save'));
       await tester.pumpAndSettle();
       expect(find.text('New QA shift'), findsOneWidget);
+      expect(find.byKey(ValueKey(uid(90))), findsNothing);
+      final showShifts = find.descendant(
+        of: find.byKey(ValueKey('application-${uid(4)}')),
+        matching: find.text('Show application shifts'),
+      );
+      await tester.ensureVisible(showShifts);
+      await tester.tap(showShifts);
+      await tester.pumpAndSettle();
       expect(find.byKey(ValueKey(uid(90))), findsOneWidget);
       expect(find.text('Server job'), findsOneWidget);
       expect(original, originalSnapshot);

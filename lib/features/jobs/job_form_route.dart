@@ -4,10 +4,15 @@ import 'package:go_router/go_router.dart';
 import '../../shared/navigation/app_page.dart';
 import 'job_form_page.dart';
 import 'job_postings_repository.dart';
+import 'workplace_map_picker.dart';
 
 /// A pushed route instance owns its form key and exit guard. A second Create
 /// Job route must never reuse the key of a form still below it in the stack.
-GoRoute jobFormRoute(String path, {JobPostingsRepository? repository}) {
+GoRoute jobFormRoute(
+  String path, {
+  JobPostingsRepository? repository,
+  WorkplacePicker pickWorkplace = showWorkplacePicker,
+}) {
   final guards = <LocalKey, Future<bool> Function()>{};
   return GoRoute(
     path: path,
@@ -21,6 +26,7 @@ GoRoute jobFormRoute(String path, {JobPostingsRepository? repository}) {
         routeKey: state.pageKey,
         guards: guards,
         repository: repository,
+        pickWorkplace: pickWorkplace,
         jobId: state.pathParameters['jobId'],
       ),
     ),
@@ -32,6 +38,7 @@ class _JobFormRouteBody extends StatefulWidget {
     super.key,
     required this.routeKey,
     required this.guards,
+    required this.pickWorkplace,
     this.repository,
     this.jobId,
   });
@@ -39,6 +46,7 @@ class _JobFormRouteBody extends StatefulWidget {
   final LocalKey routeKey;
   final Map<LocalKey, Future<bool> Function()> guards;
   final JobPostingsRepository? repository;
+  final WorkplacePicker pickWorkplace;
   final String? jobId;
 
   @override
@@ -69,6 +77,7 @@ class _JobFormRouteBodyState extends State<_JobFormRouteBody> {
   Widget build(BuildContext context) => JobFormPage(
     key: _formKey,
     repository: widget.repository,
+    pickWorkplace: widget.pickWorkplace,
     jobId: widget.jobId,
   );
 }
