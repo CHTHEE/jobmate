@@ -12,14 +12,17 @@ import 'employer_job_card.dart';
 import 'job_validation.dart';
 import 'workplace_coordinates.dart';
 import '../company/company_logo.dart';
+import '../applications/applicant_unseen_controller.dart';
 
 class JobPostingsPage extends StatefulWidget {
   const JobPostingsPage({
     super.key,
     this.repository,
+    this.applicantUnseen,
     this.initialStatus = 'all',
   });
   final JobPostingsRepository? repository;
+  final ApplicantUnseenController? applicantUnseen;
   final String initialStatus;
   @override
   State<JobPostingsPage> createState() => _JobPostingsPageState();
@@ -28,6 +31,11 @@ class JobPostingsPage extends StatefulWidget {
 class _JobPostingsPageState extends State<JobPostingsPage> {
   late final repo =
       widget.repository ?? JobPostingsRepository(Supabase.instance.client);
+  ApplicantUnseenController? get _applicantUnseen =>
+      widget.applicantUnseen ??
+      (widget.repository == null
+          ? ApplicantUnseenController.session(repo.client)
+          : null);
   JobAccess? access;
   List<Map<String, dynamic>> jobs = [];
   String filter = 'all';
@@ -50,7 +58,18 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
       error = null;
     });
     try {
+      final accountId = widget.repository == null
+          ? repo.client.auth.currentUser?.id
+          : null;
       final result = await repo.loadAccess();
+      if (mounted && widget.repository == null) {
+        _applicantUnseen?.enterWorkspace(
+          accountId: accountId,
+          companyId: result.allowed
+              ? result.company!['company_id'] as String?
+              : null,
+        );
+      }
       final records = result.allowed
           ? await repo.list(result.company!['company_id'].toString())
           : <Map<String, dynamic>>[];
@@ -155,6 +174,18 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final unseen = _applicantUnseen;
+    if (unseen == null) return _buildPostings(context, null);
+    return ListenableBuilder(
+      listenable: unseen,
+      builder: (context, child) => _buildPostings(context, unseen),
+    );
+  }
+
+  Widget _buildPostings(
+    BuildContext context,
+    ApplicantUnseenController? unseen,
+  ) {
     final counts = {
       'all': jobs.length,
       for (final status in ['published', 'draft', 'closed'])
@@ -173,6 +204,7 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
       title: 'My Job Postings',
       path: AppRoutes.jobPostings,
       role: 'employer',
+      applicantUnseen: unseen,
       navigationLocked: busy,
       child: loading
           ? const Center(
@@ -316,6 +348,8 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                         child: EmployerJobCard(
                           key: ValueKey('employer-job-${job['job_id']}'),
                           job: job,
+                          unseenApplicantCount:
+                              unseen?.countFor(job['job_id'].toString()) ?? 0,
                           busy: busy,
                           onEdit: () => open(
                             '${AppRoutes.jobPostings}/${job['job_id']}/edit',

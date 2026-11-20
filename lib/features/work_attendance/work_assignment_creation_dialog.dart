@@ -50,6 +50,7 @@ class _WorkAssignmentCreationDialogState
   WorkAssignmentCandidate? _candidate;
   String? _job;
   bool _confirm = false, _busy = false, _leaving = false, _closing = false;
+  bool _reconciling = false;
   WorkAssignmentCreateResult? _result;
   Map<String, dynamic>? _engagementStatus;
   String? _engagementError;
@@ -448,10 +449,24 @@ class _WorkAssignmentCreationDialogState
     }
     final candidate = _candidate!;
     final revision = _workplaceRevision;
+    setState(() {
+      _busy = true;
+      _reconciling = reconcile;
+    });
+    if (!reconcile) {
+      // Paint the disabled save button before validation and server preflight.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      if (widget.repository.source.userId != _actor ||
+          revision != _workplaceRevision) {
+        setState(() => _busy = false);
+        _changed();
+        return;
+      }
+    }
     final start = _start, end = _end;
     final location = _location.text.trim();
     final pin = _workplacePin;
-    setState(() => _busy = true);
     if (!reconcile) {
       try {
         final latest = await widget.closureGateway.status(
@@ -537,6 +552,7 @@ class _WorkAssignmentCreationDialogState
     final scoped = widget.applicationId != null;
     final unavailable = scoped && _candidate == null;
     final locked = _requestLocked;
+    final saving = _busy && !_reconciling && _confirm && !accountChanged;
     final previousPin = _previousWorkplacePin;
     final jobs = {for (final c in state.candidates) c.jobId: c.jobTitle};
     Widget input(
@@ -661,7 +677,7 @@ class _WorkAssignmentCreationDialogState
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (_busy)
+                        if (_busy && !saving)
                           const LinearProgressIndicator(
                             semanticsLabel: 'Creating or checking assignment',
                           ),
@@ -779,6 +795,8 @@ class _WorkAssignmentCreationDialogState
                                   const SizedBox(height: 16),
                                 ],
                                 if (!scoped) ...[
+                                  // The floating label paints above the first field.
+                                  const SizedBox(height: 12),
                                   DropdownButtonFormField<String>(
                                     initialValue: _job,
                                     isExpanded: true,
@@ -950,12 +968,12 @@ class _WorkAssignmentCreationDialogState
         actions: [
           _AssignmentFooter(
             children: [
-              if (!_confirm || locked || accountChanged)
+              if (!_confirm || (locked && !saving) || accountChanged)
                 OutlinedButton(
                   onPressed: _busy ? null : () => _close(),
                   child: const Text('Cancel'),
                 ),
-              if (!accountChanged && _confirm && !locked)
+              if (!accountChanged && _confirm && (!locked || saving))
                 OutlinedButton(
                   onPressed: _busy
                       ? null
@@ -966,21 +984,22 @@ class _WorkAssignmentCreationDialogState
                         },
                   child: const Text('Back'),
                 ),
-              if (!accountChanged && locked)
+              if (!accountChanged && locked && !saving)
                 OutlinedButton(
                   onPressed: _busy ? null : () => _submit(reconcile: true),
                   child: const Text('Check current assignment'),
                 ),
-              if (!accountChanged &&
-                  !locked &&
-                  !_engagementClosed &&
-                  _engagementError == null &&
-                  !_engagementLoading &&
-                  state.error == null &&
-                  !state.loading &&
-                  !unavailable &&
-                  !(_confirm && _result?.scheduleConflict == true) &&
-                  (_confirm || state.candidates.isNotEmpty)) ...[
+              if (saving ||
+                  (!accountChanged &&
+                      !locked &&
+                      !_engagementClosed &&
+                      _engagementError == null &&
+                      !_engagementLoading &&
+                      state.error == null &&
+                      !state.loading &&
+                      !unavailable &&
+                      !(_confirm && _result?.scheduleConflict == true) &&
+                      (_confirm || state.candidates.isNotEmpty))) ...[
                 if (_confirm && _result?.legacyTextOnlyAvailable == true)
                   OutlinedButton(
                     onPressed: _busy
@@ -1013,7 +1032,9 @@ class _WorkAssignmentCreationDialogState
                           }
                           setState(() => _confirm = true);
                         },
-                  child: Text(_confirm ? 'Confirm & Save' : 'Review Shift'),
+                  child: _confirm
+                      ? _SaveAssignmentLabel(saving: saving)
+                      : const Text('Review Shift'),
                 ),
               ],
             ],
@@ -1022,6 +1043,56 @@ class _WorkAssignmentCreationDialogState
       ),
     );
   }
+}
+
+class _SaveAssignmentLabel extends StatelessWidget {
+  const _SaveAssignmentLabel({required this.saving});
+
+  final bool saving;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: saving,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        Visibility(
+          visible: !saving,
+          maintainSize: true,
+          maintainAnimation: true,
+          maintainState: true,
+          child: const Text('Confirm & Save', textAlign: TextAlign.center),
+        ),
+        Visibility(
+          visible: saving,
+          maintainSize: true,
+          maintainAnimation: true,
+          maintainState: true,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox.square(
+                dimension: 16,
+                child: saving
+                    ? CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 8),
+              const Flexible(
+                child: Text(
+                  'Saving assignment...',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _AssignmentFooter extends StatelessWidget {

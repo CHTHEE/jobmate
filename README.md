@@ -463,6 +463,8 @@ clock pickers with AM/PM display. Both timestamps use the selected Malaysia date
 (UTC+08:00), independent of device timezone; overnight shifts require separate
 daily assignments. Field errors appear after Review and clear as values become
 valid. Review/explicit confirmation and server scheduling checks remain required.
+The review stays open and shows Saving assignment while the request is pending.
+An uncertain result offers Check current assignment to reconcile the request.
 The picker alone caps text scaling at 1.3 to keep its fixed-size Material controls
 usable on narrow screens; the surrounding scrollable form retains full scaling.
 Worker attendance groups shifts by hired application ID, with the job title,
@@ -1959,6 +1961,10 @@ skills, ratings or reputation source is introduced. Profile and recruitment
 dialog internals, repositories and backend contracts remain unchanged.
 Focused coverage adds `test/employer_applicant_overview_refinement_test.dart`.
 
+Job Seeker application details pair the application summary and actions with a
+connected status timeline at wide widths and stack them on smaller screens.
+The full application ID is selectable under Application reference.
+
 Phase 3B presents Applicant Profile in a responsive 640-pixel modal with a stable
 header/footer, visible scrollbar, application identity/status and local applied
 time from the authorized overview row. The existing application-scoped profile
@@ -2001,6 +2007,60 @@ For focused job changes, use `flutter test test/job_postings_test.dart`. Run oth
 ### Details requiring team confirmation
 
 Confirm the deployed `format-job-description` implementation, Gemini configuration, server-side secret names and deployment ownership. Confirm the existing Supabase schema/RPC/storage/policy baseline and authentication settings before attempting a fresh environment; checked-in migrations are partial. Web hosting and its URL behavior require deployment-specific verification. This documentation does not imply live-backend or platform acceptance testing.
+
+### Applicant unseen counts
+
+Migration `20261120000200_new_applicant_notification_foundation.sql` installs
+the applicant count and acknowledgment RPCs with the feature disabled. Keep
+`applicant_notifications_private` outside the API's exposed schemas.
+
+The shared Flutter unseen-count controller refreshes on entry to My Job
+Postings or View Applicants after company access is resolved, on app resume,
+and after a successful acknowledgment. It clears its cached state when the
+account or company changes. Positive counts show a dot on the employer's
+View Applicants menu item and a per-job badge beside View Applicants on
+My Job Postings. View Applicants acknowledges only IDs from successfully
+rendered, filtered results for the selected job. It sends up to 100 IDs per
+request and refreshes authoritative counts after successful receipts. Receipt
+failures leave the applicant list usable and can be retried on a later load.
+
+In the SQL Editor, check migration-history availability before querying it:
+
+```sql
+SELECT pg_catalog.to_regclass('supabase_migrations.schema_migrations')
+  AS migration_history_relation;
+```
+
+Query the history table only if the result identifies a relation and your role
+has read access. If it returns NULL, compare deployed objects and definitions
+with the expected migrations and review deployment records. SQL Editor changes
+can exist without a CLI migration-history entry.
+
+After deployment and separate activation approval, the migration owner or an
+authorized database administrator can run this one-time statement and commit
+immediately. One returned row means the cutoff was set. Zero rows means the
+cutoff was already set and should be left in place.
+
+```sql
+UPDATE applicant_notifications_private.activation
+SET activated_at = pg_catalog.clock_timestamp()
+WHERE singleton AND activated_at IS NULL
+RETURNING activated_at;
+```
+
+The activation trigger assigns the database timestamp on a NULL-to-non-NULL
+request. It rejects NULL-to-NULL updates, all updates after activation, and
+deletion or truncation of the activation record. Apply migrations
+through version tracking. A manual rerun fails on existing object names and
+does not replace the cutoff. Use a trusted migration owner and verify effective
+permissions for any custom API roles before release.
+
+Only applications whose stored `applied_at` is later than the cutoff count.
+`list_unseen_applicant_counts()` groups positive counts across the caller's
+managed companies. `acknowledge_applicants_seen(uuid, uuid[])` accepts one job
+and up to 100 IDs from the displayed list. It returns the number of newly
+inserted receipts. Counts and acknowledgments do not alter application status.
+Deploying the Flutter badge and acknowledgment flow is a separate step.
 
 ### Real in-app notifications (Module 2 Step 25C)
 

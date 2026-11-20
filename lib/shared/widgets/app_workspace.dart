@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/notifications/notifications_page.dart';
 import '../../features/chat/chat_unread.dart';
+import '../../features/applications/applicant_unseen_controller.dart';
 import '../../features/search/universal_search_page.dart';
 import '../navigation/app_routes.dart';
 import 'auth_style.dart';
@@ -38,6 +39,7 @@ class AppWorkspace extends StatelessWidget {
     this.onSignOut,
     this.showAccountMenu = true,
     this.navigationActionCounts = const {},
+    this.applicantUnseen,
   });
   final String title;
   final Widget? titleWidget;
@@ -61,6 +63,21 @@ class AppWorkspace extends StatelessWidget {
 
   /// Optional counts supplied by the current authorized page, not fetched here.
   final Map<String, int> navigationActionCounts;
+  final ApplicantUnseenController? applicantUnseen;
+
+  ApplicantUnseenController? _employerApplicantUnseen() {
+    if (role != 'employer') return null;
+    if (applicantUnseen != null) return applicantUnseen;
+    try {
+      final supabase = Supabase.instance;
+      return supabase.isInitialized
+          ? ApplicantUnseenController.session(supabase.client)
+          : null;
+    } on AssertionError {
+      // Standalone workspaces can be rendered without Supabase.
+      return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -148,6 +165,7 @@ class AppWorkspace extends StatelessWidget {
           bool moreSheet = false,
         }) => _WorkspaceMenu(
           actionCounts: navigationActionCounts,
+          applicantUnseen: _employerApplicantUnseen(),
           groups: moreSheet ? moreGroups : groups,
           selected: selected,
           locked: navigationLocked,
@@ -552,6 +570,7 @@ class _WorkspaceMenu extends StatefulWidget {
     this.showMoreHeading = false,
     this.collapsible = true,
     this.actionCounts = const {},
+    this.applicantUnseen,
   });
   final Map<String, List<WorkspaceDestination>> groups;
   final String? selected;
@@ -561,6 +580,7 @@ class _WorkspaceMenu extends StatefulWidget {
   final bool showMoreHeading;
   final bool collapsible;
   final Map<String, int> actionCounts;
+  final ApplicantUnseenController? applicantUnseen;
 
   @override
   State<_WorkspaceMenu> createState() => _WorkspaceMenuState();
@@ -580,7 +600,22 @@ class _WorkspaceMenuState extends State<_WorkspaceMenu> {
     }
   }
 
-  Widget destination(WorkspaceDestination item) => ListTile(
+  Widget destination(WorkspaceDestination item) {
+    final unseen = widget.applicantUnseen;
+    if (item.$1 != AppRoutes.applicants || unseen == null) {
+      return _destinationTile(item);
+    }
+    return ListenableBuilder(
+      listenable: unseen,
+      builder: (context, child) =>
+          _destinationTile(item, hasNewApplicants: unseen.hasUnseen),
+    );
+  }
+
+  Widget _destinationTile(
+    WorkspaceDestination item, {
+    bool hasNewApplicants = false,
+  }) => ListTile(
     minTileHeight: 48,
     selected: widget.selected == item.$1,
     selectedTileColor: JobMateTheme.teal50,
@@ -590,8 +625,22 @@ class _WorkspaceMenuState extends State<_WorkspaceMenu> {
         item.$1 == AppRoutes.messages || item.$1 == AppRoutes.employerMessages
         ? ChatUnreadIcon(icon: item.$3)
         : Icon(item.$3, size: 20),
-    title: Text(item.$2),
-    trailing: (widget.actionCounts[item.$1] ?? 0) > 0
+    title: Text(
+      item.$2,
+      semanticsLabel: hasNewApplicants ? '${item.$2}, new applications' : null,
+    ),
+    trailing: hasNewApplicants
+        ? const SizedBox.square(
+            key: ValueKey('unseen-applicants-dot'),
+            dimension: 8,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: JobMateTheme.applicantNotification,
+                shape: BoxShape.circle,
+              ),
+            ),
+          )
+        : (widget.actionCounts[item.$1] ?? 0) > 0
         ? Tooltip(
             message: '${widget.actionCounts[item.$1]} actions in loaded shifts',
             child: Semantics(

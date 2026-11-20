@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../shared/navigation/app_routes.dart';
+import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../jobs/job_display.dart';
 import '../chat/chat_application_button.dart';
@@ -185,7 +186,7 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
           ),
         ],
         child: WorkspaceContent(
-          maxWidth: 448,
+          maxWidth: 1040,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -223,152 +224,310 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
                   title: 'Application unavailable',
                   message: 'This application is unavailable or does not belong to your account.',
                 )
-              else ...[
-                WorkspaceCard(
-                  title: application.jobTitle,
-                  subtitle: application.companyName,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SelectableText('Application ID: ${application.id}'),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: MyApplicationStatusBadge(
-                          application.status,
-                          label: statusLabel(application.status),
-                        ),
-                      ),
-                      if (application.status.lifecycleExplanation
-                          case final explanation?) ...[
-                        Text(explanation),
-                        const SizedBox(height: 12),
-                      ],
-                      Text(
-                        'Applied: ${dateTime(context, application.appliedAt)}',
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        application.resumeId != null
-                            ? 'Resume attached'
-                            : 'No resume attached',
-                      ),
-                      if (application.coverNote?.trim().isNotEmpty == true) ...[
-                        const SizedBox(height: 16),
-                        Text(
-                          'Cover note',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Text(application.coverNote!),
-                      ],
-                      const SizedBox(height: 16),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: OutlinedButton(
-                          onPressed: repo.responding
-                              ? null
-                              : () => navigate(
-                                  '${AppRoutes.browseJobs}/${application.jobId}',
-                                ),
-                          child: const Text('View Job'),
-                        ),
-                      ),
-                      ChatApplicationButton(
-                        key: ValueKey('chat:${application.id}'),
-                        applicationId: application.id,
-                        enabled: !repo.responding && !confirming,
-                      ),
-                      if (repo.responding) ...[
-                        const SizedBox(height: 12),
-                        const LinearProgressIndicator(),
-                        const Text('Updating application…'),
-                      ],
-                      if (ApplicationResponseAction.values.any(
-                        (a) => a.allowed(application.status),
-                      )) ...[
-                        const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final action
-                                in ApplicationResponseAction.values.where(
-                                  (a) => a.allowed(application.status),
-                                ))
-                              OutlinedButton(
-                                onPressed: repo.responding || confirming
-                                    ? null
-                                    : () => respond(application, action),
-                                child: Text(action.label),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                if (application.status == MyApplicationStatus.hired &&
-                    widget.source is HiringMembershipStatusSource) ...[
-                  HiringMembershipPanel(
-                    key: ValueKey(
-                      '${repo.sessionVersion}:${repo.applicationReadVersion}:${application.id}',
-                    ),
-                    source: widget.source as HiringMembershipStatusSource,
-                    applicationId: application.id,
-                  ),
-                  const SizedBox(height: 20),
-                ],
-                WorkspaceCard(
-                  title: 'Application timeline',
-                  child: repo.historyLoading
-                      ? const Column(
-                          children: [
-                            LinearProgressIndicator(),
-                            SizedBox(height: 12),
-                            Text('Loading status history…'),
-                          ],
-                        )
-                      : repo.historyError != null
-                      ? ModuleState(
-                          title: 'Unable to load status history',
-                          message: repo.historyError!,
-                          action: repo.loadHistory,
-                          actionLabel: 'Retry history',
-                        )
-                      : repo.events.isEmpty
-                      ? const Text('No status history available.')
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            for (final event in repo.events)
-                              ListTile(
-                                key: ValueKey(event.id),
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.check_circle_outline),
-                                title: Text(statusLabel(event.newStatus)),
-                                subtitle: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Text(dateTime(context, event.changedAt)),
-                                    if (event.changedByName
-                                            ?.trim()
-                                            .isNotEmpty ==
-                                        true)
-                                      Text(event.changedByName!),
-                                    if (event.note?.trim().isNotEmpty == true)
-                                      Text(event.note!),
-                                  ],
-                                ),
-                              ),
-                          ],
-                        ),
-                ),
-              ],
+              else
+                _details(context, application),
             ],
           ),
         ),
       );
     },
+  );
+
+  Widget _details(BuildContext context, MyJobApplication application) {
+    final summary = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _summaryCard(context, application),
+        if (application.status == MyApplicationStatus.hired &&
+            widget.source is HiringMembershipStatusSource) ...[
+          const SizedBox(height: 16),
+          HiringMembershipPanel(
+            key: ValueKey(
+              '${repo.sessionVersion}:${repo.applicationReadVersion}:${application.id}',
+            ),
+            source: widget.source as HiringMembershipStatusSource,
+            applicationId: application.id,
+          ),
+        ],
+      ],
+    );
+    final timeline = _timeline(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+        if (constraints.maxWidth < 760 * scale.clamp(1.0, 1.25)) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [summary, const SizedBox(height: 16), timeline],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 3, child: summary),
+            const SizedBox(width: 24),
+            Expanded(flex: 2, child: timeline),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _summaryCard(BuildContext context, MyJobApplication application) {
+    final theme = Theme.of(context);
+    final title = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          application.jobTitle,
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          application.companyName,
+          style: theme.textTheme.bodyMedium?.copyWith(color: JobMateTheme.body),
+        ),
+      ],
+    );
+    final badge = MyApplicationStatusBadge(
+      application.status,
+      label: statusLabel(application.status),
+    );
+    final actions = ApplicationResponseAction.values.where(
+      (action) => action.allowed(application.status),
+    );
+    VoidCallback? onResponse(ApplicationResponseAction action) =>
+        repo.responding || confirming
+        ? null
+        : () => respond(application, action);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+                if (constraints.maxWidth < 360 * scale) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [title, const SizedBox(height: 8), badge],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: title),
+                    const SizedBox(width: 16),
+                    badge,
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                _metadata(
+                  Icons.event_outlined,
+                  'Applied: ${dateTime(context, application.appliedAt)}',
+                ),
+                _metadata(
+                  Icons.description_outlined,
+                  application.resumeId != null
+                      ? 'Resume attached'
+                      : 'No resume attached',
+                ),
+              ],
+            ),
+            if (application.status.lifecycleExplanation
+                case final explanation?) ...[
+              const SizedBox(height: 16),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: JobMateTheme.teal50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(explanation),
+                ),
+              ),
+            ],
+            if (application.coverNote?.trim().isNotEmpty == true) ...[
+              const SizedBox(height: 16),
+              Text('Cover note', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(application.coverNote!),
+            ],
+            if (repo.responding) ...[
+              const SizedBox(height: 16),
+              const LinearProgressIndicator(),
+              const Text('Updating application…'),
+            ],
+            if (actions.any(
+              (action) => action != ApplicationResponseAction.withdraw,
+            )) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final action in actions)
+                    if (action == ApplicationResponseAction.acceptOffer)
+                      FilledButton(
+                        onPressed: onResponse(action),
+                        child: Text(action.label),
+                      )
+                    else if (action == ApplicationResponseAction.declineOffer)
+                      OutlinedButton(
+                        onPressed: onResponse(action),
+                        child: Text(action.label),
+                      ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: repo.responding
+                      ? null
+                      : () => navigate(
+                          '${AppRoutes.browseJobs}/${application.jobId}',
+                        ),
+                  icon: const Icon(Icons.work_outline),
+                  label: const Text('View Job'),
+                ),
+                ChatApplicationButton(
+                  key: ValueKey('chat:${application.id}'),
+                  applicationId: application.id,
+                  enabled: !repo.responding && !confirming,
+                ),
+                if (actions.contains(ApplicationResponseAction.withdraw))
+                  TextButton(
+                    onPressed: onResponse(ApplicationResponseAction.withdraw),
+                    child: Text(ApplicationResponseAction.withdraw.label),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ExpansionTile(
+              key: ValueKey('reference:${application.id}'),
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(bottom: 8),
+              expandedCrossAxisAlignment: CrossAxisAlignment.start,
+              title: const Text('Application reference'),
+              children: [SelectableText('Application ID: ${application.id}')],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _metadata(IconData icon, String label) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 16, color: JobMateTheme.body),
+      const SizedBox(width: 8),
+      Flexible(
+        child: Text(label, style: const TextStyle(color: JobMateTheme.body)),
+      ),
+    ],
+  );
+
+  Widget _timeline(BuildContext context) => WorkspaceCard(
+    title: 'Application timeline',
+    child: repo.historyLoading
+        ? const Column(
+            children: [
+              LinearProgressIndicator(),
+              SizedBox(height: 12),
+              Text('Loading status history…'),
+            ],
+          )
+        : repo.historyError != null
+        ? ModuleState(
+            title: 'Unable to load status history',
+            message: repo.historyError!,
+            action: repo.loadHistory,
+            actionLabel: 'Retry history',
+          )
+        : repo.events.isEmpty
+        ? const Text('No status history available.')
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final (index, event) in repo.events.indexed)
+                IntrinsicHeight(
+                  key: ValueKey(event.id),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        child: Column(
+                          children: [
+                            const SizedBox(height: 4),
+                            const Icon(
+                              Icons.circle,
+                              size: 12,
+                              color: JobMateTheme.darkTeal,
+                            ),
+                            if (index < repo.events.length - 1)
+                              const Expanded(
+                                child: VerticalDivider(
+                                  width: 16,
+                                  thickness: 1,
+                                  color: JobMateTheme.divider,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            bottom: index < repo.events.length - 1 ? 12 : 0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                statusLabel(event.newStatus),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                dateTime(context, event.changedAt),
+                                style: const TextStyle(
+                                  color: JobMateTheme.body,
+                                ),
+                              ),
+                              if (event.changedByName?.trim().isNotEmpty ==
+                                  true)
+                                Text(event.changedByName!),
+                              if (event.note?.trim().isNotEmpty == true)
+                                Text(event.note!),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
   );
 }

@@ -10,6 +10,7 @@ import 'package:jobmate/features/work_attendance/work_attendance_repository.dart
 import 'package:jobmate/features/work_attendance/work_verification_pages.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:jobmate/features/work_attendance/engagement_closure_controls.dart';
+import 'package:jobmate/shared/theme/jobmate_theme.dart';
 
 import 'work_assignment_creation_repository_test.dart'
     show CandidateSource, uid, complete;
@@ -66,6 +67,7 @@ void main() {
     String? applicationId,
     EngagementClosureGateway? closureGateway,
     WorkplacePicker? pickWorkplace,
+    ThemeData? theme,
   }) async {
     if (width != null) {
       tester.view.physicalSize = Size(width, 850);
@@ -75,6 +77,7 @@ void main() {
     }
     await tester.pumpWidget(
       MaterialApp(
+        theme: theme,
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context)
               .copyWith(textScaler: TextScaler.linear(scale)),
@@ -173,6 +176,55 @@ void main() {
   Future<void> review(WidgetTester tester) async {
     await tester.tap(find.text('Review Shift'));
     await tester.pumpAndSettle();
+  }
+
+  for (final width in [320.0, 1200.0]) {
+    testWidgets(
+      'Company job label stays within the scroll viewport at $width',
+      (tester) async {
+        await show(
+          tester,
+          width: width,
+          scale: 1.6,
+          theme: JobMateTheme.light(),
+        );
+        final label = find.text('Company job');
+        final field = find.widgetWithText(
+          DropdownButtonFormField<String>,
+          'Company job',
+        );
+        final viewport = find
+            .ancestor(of: field, matching: find.byType(SingleChildScrollView))
+            .first;
+        void expectLabelVisible() {
+          final labelRect = tester.getRect(label);
+          final viewportRect = tester.getRect(viewport);
+          expect(labelRect.top, greaterThanOrEqualTo(viewportRect.top));
+          expect(labelRect.bottom, lessThanOrEqualTo(viewportRect.bottom));
+        }
+
+        expectLabelVisible();
+        Focus.of(tester.element(label)).requestFocus();
+        await tester.pumpAndSettle();
+        expect(Focus.of(tester.element(label)).hasFocus, isTrue);
+        expectLabelVisible();
+
+        await review(tester);
+        expect(find.text('Select a job.'), findsOneWidget);
+        expectLabelVisible();
+
+        await tester.tap(field);
+        await tester.pumpAndSettle();
+        expect(find.text('QA Assistant').hitTestable(), findsOneWidget);
+        expectLabelVisible();
+        await tester.tap(find.text('QA Assistant').hitTestable());
+        await tester.pumpAndSettle();
+        expect(find.text('QA Assistant'), findsOneWidget);
+        expect(find.text('Select a job.'), findsNothing);
+        expectLabelVisible();
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 
   testWidgets('missing v2 requires an explicit compatibility save', (
@@ -845,21 +897,49 @@ void main() {
   testWidgets('duplicate taps disabled while confirmation is in flight', (
     tester,
   ) async {
+    final gateway = FakeEngagementClosureGateway();
+    final preflight = Completer<Map<String, dynamic>>();
     final pending = Completer<Object?>();
     source.create = (_) => pending.future;
-    await show(tester);
+    await show(tester, closureGateway: gateway);
     await fill(tester);
     await review(tester);
-    await tester.tap(find.text('Confirm & Save'));
+    var statusRequests = 0;
+    gateway.statusHandler = (_) {
+      statusRequests++;
+      return preflight.future;
+    };
+    final confirm = find.widgetWithText(FilledButton, 'Confirm & Save');
+    final size = tester.getSize(confirm);
+    await tester.tap(confirm);
+    await tester.tap(confirm);
+    expect(statusRequests, 0);
     await tester.pump();
+    final saving = find.widgetWithText(FilledButton, 'Saving assignment...');
+    expect(tester.getSize(saving), size);
+    expect(tester.widget<FilledButton>(saving).onPressed, isNull);
+    expect(
+      find.descendant(
+        of: saving,
+        matching: find.byType(CircularProgressIndicator),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Review shift before saving'), findsOneWidget);
+    expect(find.text('Synthetic worker'), findsOneWidget);
+    expect(statusRequests, 1);
+    expect(source.creates, 0);
+    preflight.complete({'closure_status': 'open', 'eligible': true});
     await tester.pump(const Duration(milliseconds: 100));
     expect(source.creates, 1);
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
-    expect(find.text('Confirm & Save'), findsNothing);
-    final button = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Check current assignment'),
+    expect(tester.widget<FilledButton>(saving).onPressed, isNull);
+    expect(find.text('Check current assignment'), findsNothing);
+    expect(
+      tester
+          .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Back'))
+          .onPressed,
+      isNull,
     );
-    expect(button.onPressed, isNull);
     pending.complete(uid(90));
     await tester.pumpAndSettle();
   });
@@ -975,12 +1055,28 @@ void main() {
     (1200.0, 1.0),
   ]) {
     testWidgets('responsive form ${width}px text $scale', (tester) async {
+      final pending = Completer<Object?>();
+      source.create = (_) => pending.future;
       await show(tester, width: width, scale: scale);
       await fill(tester);
       await review(tester);
       expect(find.text('Confirm & Save'), findsOneWidget);
       expect(tester.takeException(), isNull);
       expect(source.creates, 0);
+      final confirm = find.widgetWithText(FilledButton, 'Confirm & Save');
+      final size = tester.getSize(confirm);
+      await tester.tap(confirm);
+      await tester.pump();
+      expect(
+        tester.getSize(
+          find.widgetWithText(FilledButton, 'Saving assignment...'),
+        ),
+        size,
+      );
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      pending.complete(uid(90));
+      await tester.pumpAndSettle();
     });
   }
 

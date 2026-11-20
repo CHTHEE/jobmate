@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../jobs/job_postings_repository.dart';
+import 'applicant_unseen_controller.dart';
 import 'my_applications_repository.dart';
 
 class JobApplicant {
@@ -63,6 +64,8 @@ class SupabaseEmployerApplicantsSource implements EmployerApplicantsSource {
     : jobs = JobPostingsRepository(client);
   final SupabaseClient client;
   final JobPostingsRepository jobs;
+  ApplicantUnseenController get applicantUnseen =>
+      ApplicantUnseenController.session(client);
   @override
   Future<FunctionResponse> viewResume(String applicationId) =>
       client.functions.invoke(
@@ -77,7 +80,14 @@ class SupabaseEmployerApplicantsSource implements EmployerApplicantsSource {
       client.auth.onAuthStateChange.map((e) => e.session?.user.id);
   @override
   Future<EmployerPostingContext> loadJobs() async {
+    final accountId = userId;
     final access = await jobs.loadAccess();
+    applicantUnseen.enterWorkspace(
+      accountId: accountId,
+      companyId: access.allowed
+          ? access.company!['company_id'] as String?
+          : null,
+    );
     if (!access.allowed) {
       throw StateError(access.message ?? 'Job access denied.');
     }
@@ -114,7 +124,7 @@ class SupabaseEmployerApplicantsSource implements EmployerApplicantsSource {
 }
 
 class EmployerApplicantsRepository extends ChangeNotifier {
-  EmployerApplicantsRepository(this.source, this.jobId)
+  EmployerApplicantsRepository(this.source, this.jobId, {this.applicantUnseen})
     : _actor = source.userId {
     _subscription = source.accountChanges.listen((id) {
       if (id == _actor) return;
@@ -124,6 +134,7 @@ class EmployerApplicantsRepository extends ChangeNotifier {
   }
   final EmployerApplicantsSource source;
   final String? jobId;
+  final ApplicantUnseenController? applicantUnseen;
   late final StreamSubscription<String?> _subscription;
   String? _actor;
   int _generation = 0;
@@ -135,6 +146,9 @@ class EmployerApplicantsRepository extends ChangeNotifier {
   String? error;
   EmployerPostingContext? _context;
   List<JobApplicant> _rows = [];
+  ApplicantDisplayScope? _displayScope;
+  ApplicantDisplayScope? get displayScope =>
+      active && !loading && !updating && error == null ? _displayScope : null;
   EmployerPostingContext? get context =>
       source.userId == _actor ? _context : null;
   Map<String, dynamic>? get job =>
@@ -174,6 +188,7 @@ class EmployerApplicantsRepository extends ChangeNotifier {
     _actor = source.userId;
     _context = null;
     _rows = [];
+    _displayScope = null;
     loading = false;
     updating = false;
     error = 'Your account changed. Refresh to view applicants.';
@@ -186,6 +201,7 @@ class EmployerApplicantsRepository extends ChangeNotifier {
     final generation = ++_generation, actor = _actor;
     _context = null;
     _rows = [];
+    _displayScope = null;
     loading = true;
     error = null;
     notifyListeners();
@@ -198,9 +214,14 @@ class EmployerApplicantsRepository extends ChangeNotifier {
       // Revalidate job/company context before every applicant request.
       _context = context;
       if (jobId != null && job != null) {
+        final companyId = context.access.company?['company_id'];
+        final scope = context.access.allowed && companyId is String
+            ? applicantUnseen?.beginApplicantLoad(jobId, companyId: companyId)
+            : null;
         final rows = await source.applicants(jobId!);
         if (!_current(generation, actor)) return;
         _rows = rows.map(JobApplicant.new).toList();
+        _displayScope = scope;
       }
     } catch (failure) {
       if (!_current(generation, actor)) return;

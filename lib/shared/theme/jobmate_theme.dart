@@ -18,6 +18,7 @@ abstract final class JobMateTheme {
   static const border = Color(0xFFCBD5E1);
   static const divider = Color(0xFFE2E8F0);
   static const error = Color(0xFFDC2626);
+  static const applicantNotification = Color(0xFFDC3545);
   static const controlRadius = 8.0;
   static const dialogRadius = 16.0;
   static const sidebarWidth = 240.0;

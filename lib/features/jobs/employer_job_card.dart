@@ -25,9 +25,11 @@ class EmployerJobCard extends StatelessWidget {
     required this.onPublish,
     required this.onClose,
     required this.onApplicants,
+    this.unseenApplicantCount = 0,
   });
   final Map<String, dynamic> job;
   final bool busy;
+  final int unseenApplicantCount;
   final VoidCallback onEdit, onPreview, onPublish, onClose, onApplicants;
 
   @override
@@ -42,7 +44,7 @@ class EmployerJobCard extends StatelessWidget {
     final deadlineMessage = status == 'published'
         ? display.unavailable()
         : null;
-    final applicants = FilledButton.tonalIcon(
+    final applicantsButton = FilledButton.tonalIcon(
       onPressed: busy ? null : onApplicants,
       style: FilledButton.styleFrom(
         backgroundColor: JobMateTheme.teal50,
@@ -52,6 +54,36 @@ class EmployerJobCard extends StatelessWidget {
       icon: const Icon(Icons.people_outline, size: 18),
       label: const Text('View Applicants'),
     );
+    final applicants = unseenApplicantCount > 0
+        ? Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              applicantsButton,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: JobMateTheme.applicantNotification,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  unseenApplicantCount > 999
+                      ? '999+ new'
+                      : '$unseenApplicantCount new',
+                  semanticsLabel: unseenApplicantCount == 1
+                      ? '1 new application'
+                      : '$unseenApplicantCount new applications',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          )
+        : applicantsButton;
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,

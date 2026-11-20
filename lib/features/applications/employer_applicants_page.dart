@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -14,11 +15,18 @@ import 'module2_widgets.dart';
 import 'my_applications_repository.dart';
 import 'employer_status_change_form.dart';
 import 'employer_resume_button.dart';
+import 'applicant_unseen_controller.dart';
 
 class EmployerApplicantsPage extends StatefulWidget {
-  const EmployerApplicantsPage({super.key, required this.source, this.jobId});
+  const EmployerApplicantsPage({
+    super.key,
+    required this.source,
+    this.jobId,
+    this.applicantUnseen,
+  });
   final EmployerApplicantsSource source;
   final String? jobId;
+  final ApplicantUnseenController? applicantUnseen;
   @override
   State<EmployerApplicantsPage> createState() => _EmployerApplicantsPageState();
 }
@@ -27,8 +35,22 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
   late EmployerApplicantsRepository repo;
   final search = TextEditingController();
   String tab = 'All', status = '', sort = 'Newest';
+  ApplicantDisplayScope? _attemptedScope;
+  final _attemptedIds = <String>{};
+  bool _acknowledging = false;
+  bool _acknowledgmentFailed = false;
+
   void initialize() {
-    repo = EmployerApplicantsRepository(widget.source, widget.jobId);
+    final source = widget.source;
+    repo = EmployerApplicantsRepository(
+      source,
+      widget.jobId,
+      applicantUnseen:
+          widget.applicantUnseen ??
+          (source is SupabaseEmployerApplicantsSource
+              ? source.applicantUnseen
+              : null),
+    );
     final current = repo;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && identical(current, repo)) current.load();
@@ -44,7 +66,9 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
   @override
   void didUpdateWidget(covariant EmployerApplicantsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.jobId != widget.jobId || oldWidget.source != widget.source) {
+    if (oldWidget.jobId != widget.jobId ||
+        oldWidget.source != widget.source ||
+        oldWidget.applicantUnseen != widget.applicantUnseen) {
       repo.dispose();
       search.clear();
       tab = 'All';
@@ -77,17 +101,66 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
     sort = 'Newest';
   });
 
+  List<JobApplicant> _filteredRows() =>
+      repo.search(query: search.text, tab: tab, status: status, sort: sort);
+
+  void _acknowledgeAfterFrame(List<JobApplicant> rows) {
+    final currentRepo = repo;
+    final scope = currentRepo.displayScope;
+    final unseen = currentRepo.applicantUnseen;
+    if (scope == null || unseen == null || _acknowledging || rows.isEmpty) {
+      return;
+    }
+    if (!identical(_attemptedScope, scope)) {
+      _attemptedScope = scope;
+      _attemptedIds.clear();
+      _acknowledgmentFailed = false;
+    }
+    if (_acknowledgmentFailed) return;
+    final displayed = rows.map((row) => row.id).toSet();
+    final pending = displayed.difference(_attemptedIds);
+    if (pending.isEmpty) return;
+
+    _acknowledging = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      bool isCurrentDisplay() =>
+          mounted &&
+          identical(repo, currentRepo) &&
+          identical(repo.displayScope, scope) &&
+          ModalRoute.isCurrentOf(context) != false &&
+          setEquals(displayed, _filteredRows().map((row) => row.id).toSet());
+
+      var displayChanged = false;
+      try {
+        if (!isCurrentDisplay()) return;
+        await unseen.acknowledgeDisplayed(
+          scope,
+          pending.toList(),
+          isCurrentDisplay: () {
+            displayChanged = !isCurrentDisplay();
+            return !displayChanged;
+          },
+          onBatchSent: _attemptedIds.addAll,
+        );
+      } catch (_) {
+        // Receipt failures never block applicant actions. A fresh list load
+        // creates a new scope and can safely retry an uncertain receipt.
+        _acknowledgmentFailed = !displayChanged;
+      } finally {
+        if (mounted) setState(() => _acknowledging = false);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: repo,
     builder: (context, _) {
       final job = repo.job, company = repo.context?.access.company;
-      final rows = repo.search(
-        query: search.text,
-        tab: tab,
-        status: status,
-        sort: sort,
-      );
+      final rows = _filteredRows();
+      if (ModalRoute.isCurrentOf(context) != false) {
+        _acknowledgeAfterFrame(rows);
+      }
       final counts = {
         'All': repo.applicants.length,
         'Active': repo.applicants
