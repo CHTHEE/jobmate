@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
+import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../applications/module2_widgets.dart';
 import '../jobs/job_postings_repository.dart';
@@ -413,6 +414,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
               const SizedBox(height: 4),
               const Text('All times are Malaysia time (MYT, UTC+08:00).'),
               const SizedBox(height: 12),
+              const _ShiftEligibilityBanner(),
               if (authorized && !loading && error == null) ...[
                 const SizedBox(height: 16),
                 Align(
@@ -887,6 +889,45 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
         ),
       );
     },
+  );
+}
+
+class _ShiftEligibilityBanner extends StatelessWidget {
+  const _ShiftEligibilityBanner();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: JobMateTheme.teal50,
+      border: Border.all(color: JobMateTheme.teal100),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.info_outline, size: 20, color: JobMateTheme.teal),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Shift assignments are for Part-Time and Temporary jobs',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Create shifts for hired workers under these employment types. '
+                'Other job types are not eligible for new shift assignments.',
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(color: JobMateTheme.body),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
   );
 }
 

@@ -465,6 +465,11 @@ daily assignments. Field errors appear after Review and clear as values become
 valid. Review/explicit confirmation and server scheduling checks remain required.
 The review stays open and shows Saving assignment while the request is pending.
 An uncertain result offers Check current assignment to reconcile the request.
+New shifts require a hired application for a Part-Time or Temporary posting.
+The Flutter selector filters these types. Apply
+`20261120000300_require_shift_eligible_employment_types.sql` after the workplace
+coordinates and Temporary posting migrations to enforce the rule on new
+assignment inserts. Existing assignments remain visible.
 The picker alone caps text scaling at 1.3 to keep its fixed-size Material controls
 usable on narrow screens; the surrounding scrollable form retains full scaling.
 Worker attendance groups shifts by hired application ID, with the job title,
@@ -1963,7 +1968,6 @@ Focused coverage adds `test/employer_applicant_overview_refinement_test.dart`.
 
 Job Seeker application details pair the application summary and actions with a
 connected status timeline at wide widths and stack them on smaller screens.
-The full application ID is selectable under Application reference.
 
 Phase 3B presents Applicant Profile in a responsive 640-pixel modal with a stable
 header/footer, visible scrollbar, application identity/status and local applied

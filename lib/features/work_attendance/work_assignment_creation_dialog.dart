@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/mobile_back_action.dart';
 import '../jobs/workplace_coordinates.dart';
 import '../jobs/workplace_map_picker.dart';
@@ -771,8 +772,19 @@ class _WorkAssignmentCreationDialogState
                             'This hired application is no longer available for scheduling. Close and refresh the assignments.',
                           )
                         else if (state.candidates.isEmpty)
-                          const Text(
-                            'No eligible hired applications. Hired workers can receive additional non-overlapping shifts.',
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'No eligible jobs available',
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'New shifts require a Part-Time or Temporary job with an eligible hired worker. '
+                                'Hired workers can receive additional non-overlapping shifts.',
+                              ),
+                            ],
                           )
                         else
                           Form(
@@ -825,6 +837,12 @@ class _WorkAssignmentCreationDialogState
                                           }),
                                     validator: (v) =>
                                         v == null ? 'Select a job.' : null,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Only Part-Time and Temporary jobs with eligible hired workers are available.',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(color: JobMateTheme.body),
                                   ),
                                   const SizedBox(height: 12),
                                   DropdownButtonFormField<String>(

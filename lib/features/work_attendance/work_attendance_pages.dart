@@ -1,10 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
+import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../applications/module2_widgets.dart';
 import 'work_attendance_models.dart';
@@ -328,11 +327,10 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
               const SizedBox(height: 8),
               const Text('All times are Malaysia time (MYT, UTC+08:00).'),
               const SizedBox(height: 12),
-              if (!widget.history &&
-                  !state.loading &&
-                  state.error == null &&
-                  state.rows.isNotEmpty)
-                const _AttendanceClock(),
+              if (!widget.history) ...[
+                const _WorkerShiftAvailabilityBanner(),
+                const SizedBox(height: 12),
+              ],
               if (!state.loading && state.error == null)
                 Wrap(
                   spacing: 8,
@@ -444,11 +442,17 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
                   ),
                 )
               else if (state.rows.isEmpty)
-                const ModuleState(
-                  title: 'No work assignments',
-                  message:
-                      'There are no scheduled work assignments to display.',
-                )
+                if (widget.history)
+                  const ModuleState(
+                    title: 'No work assignments',
+                    message:
+                        'There are no scheduled work assignments to display.',
+                  )
+                else
+                  const ModuleState(
+                    title: 'No work shifts scheduled yet',
+                    message: 'Your shifts will appear here once an employer schedules them for you.',
+                  )
               else ...[
                 if (!state.rows.any(_matches))
                   Text(
@@ -953,58 +957,46 @@ class _HistoryAssignmentCard extends StatelessWidget {
   }
 }
 
-/// Device clock is orientation only; never feeds lifecycle or action eligibility.
-class _AttendanceClock extends StatefulWidget {
-  const _AttendanceClock();
-  @override
-  State<_AttendanceClock> createState() => _AttendanceClockState();
+// Fixed MYT conversion intentionally does not use the browser/device timezone.
+String _malaysiaTime(DateTime timestamp) {
+  return '${shiftDateLabel(timestamp)} ${shiftTimeLabel(timestamp)} MYT';
 }
 
-class _AttendanceClockState extends State<_AttendanceClock> {
-  late final Timer _timer;
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer.cancel();
-    super.dispose();
-  }
+class _WorkerShiftAvailabilityBanner extends StatelessWidget {
+  const _WorkerShiftAvailabilityBanner();
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(10),
-    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.secondaryContainer,
-      borderRadius: BorderRadius.circular(16),
+      color: JobMateTheme.teal50,
+      border: Border.all(color: JobMateTheme.teal100),
+      borderRadius: BorderRadius.circular(12),
     ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          _malaysiaTime(DateTime.now()),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onSecondaryContainer,
-          ),
-        ),
-        Text(
-          'Device clock - informational only. Attendance uses server time.',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSecondaryContainer,
+        const Icon(Icons.info_outline, size: 20, color: JobMateTheme.teal),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Work shifts are for Part-Time and Temporary jobs',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "If you're hired for a Part-Time or Temporary job, your employer can schedule shifts here. "
+                'Your assigned shifts and attendance actions will appear below.',
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(color: JobMateTheme.body),
+              ),
+            ],
           ),
         ),
       ],
     ),
   );
-}
-
-// Fixed MYT conversion intentionally does not use the browser/device timezone.
-String _malaysiaTime(DateTime timestamp) {
-  return '${shiftDateLabel(timestamp)} ${shiftTimeLabel(timestamp)} MYT';
 }

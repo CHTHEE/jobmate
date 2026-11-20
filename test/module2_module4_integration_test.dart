@@ -50,6 +50,7 @@ void main() {
             'company_id': uid(2),
             'title': 'QA Assistant',
             'status': 'published',
+            'employment_type': 'part_time',
           },
         ],
       );

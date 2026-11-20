@@ -53,7 +53,12 @@ class CandidateSource implements WorkAssignmentCreationSource {
   }, null);
   late Future<WorkAssignmentCandidateRead> Function(String) jobs = (_) async =>
       complete([
-        {'job_id': uid(3), 'company_id': company, 'title': 'QA Assistant'},
+        {
+          'job_id': uid(3),
+          'company_id': company,
+          'title': 'QA Assistant',
+          'employment_type': 'part_time',
+        },
       ]);
   Future<WorkAssignmentCandidateRead> Function(String) applicants = (_) async =>
       complete([
@@ -188,11 +193,61 @@ void main() {
   });
 
   test(
+    'only Part-Time and Temporary postings with hired workers qualify',
+    () async {
+      const types = [
+        'part_time',
+        'temporary',
+        'full_time',
+        'internship',
+        'contract',
+        'unknown',
+        null,
+        'part_time',
+      ];
+      source.jobs = (_) async => complete([
+        for (final (index, type) in types.indexed)
+          {
+            'job_id': uid(30 + index),
+            'company_id': source.company,
+            'title': 'Posting $index',
+            'employment_type': type,
+          },
+      ]);
+      source.applicants = (jobId) async => complete([
+        applicant(
+          int.parse(jobId.substring(jobId.length - 3)),
+          status: jobId == uid(37) ? 'offered' : 'hired',
+        ),
+      ]);
+      await repo.load();
+      expect(repo.state.error, isNull);
+      expect(repo.state.candidates.map((row) => row.jobId), [uid(30), uid(31)]);
+      expect(
+        source.calls
+            .where((call) => call.$1 == 'applicants')
+            .map((call) => call.$2),
+        [uid(30), uid(31), uid(37)],
+      );
+    },
+  );
+
+  test(
     'all jobs are read and one failing job blocks the whole candidate set',
     () async {
       source.jobs = (_) async => complete([
-        {'job_id': uid(3), 'company_id': source.company, 'title': 'First'},
-        {'job_id': uid(9), 'company_id': source.company, 'title': 'Second'},
+        {
+          'job_id': uid(3),
+          'company_id': source.company,
+          'title': 'First',
+          'employment_type': 'part_time',
+        },
+        {
+          'job_id': uid(9),
+          'company_id': source.company,
+          'title': 'Second',
+          'employment_type': 'part_time',
+        },
       ]);
       source.applicants = (id) async {
         if (id == uid(9)) throw Exception('private backend details');
@@ -255,7 +310,12 @@ void main() {
 
   test('foreign company job is not queried for applicants', () async {
     source.jobs = (_) async => complete([
-      {'job_id': uid(3), 'company_id': uid(8), 'title': 'Foreign'},
+      {
+        'job_id': uid(3),
+        'company_id': uid(8),
+        'title': 'Foreign',
+        'employment_type': 'part_time',
+      },
     ]);
     await repo.load();
     expectBlocked(WorkAssignmentCreationError.permission);
@@ -299,8 +359,12 @@ void main() {
   for (final field in ['job_id', 'company_id', 'title']) {
     test('missing job $field fails the entire load', () async {
       source.jobs = (_) async => complete([
-        {'job_id': uid(3), 'company_id': source.company, 'title': 'QA'}
-          ..remove(field),
+        {
+          'job_id': uid(3),
+          'company_id': source.company,
+          'title': 'QA',
+          'employment_type': 'part_time',
+        }..remove(field),
       ]);
       await repo.load();
       expectBlocked(WorkAssignmentCreationError.incompleteData);
@@ -331,7 +395,12 @@ void main() {
     source.jobs = (_) async => complete(
       List.generate(
         2,
-        (_) => {'job_id': uid(3), 'company_id': source.company, 'title': 'QA'},
+        (_) => {
+          'job_id': uid(3),
+          'company_id': source.company,
+          'title': 'QA',
+          'employment_type': 'part_time',
+        },
       ),
     );
     await repo.load();
@@ -437,8 +506,18 @@ void main() {
     'duplicate application across separate jobs fails the whole load',
     () async {
       source.jobs = (_) async => complete([
-        {'job_id': uid(3), 'company_id': source.company, 'title': 'First'},
-        {'job_id': uid(9), 'company_id': source.company, 'title': 'Second'},
+        {
+          'job_id': uid(3),
+          'company_id': source.company,
+          'title': 'First',
+          'employment_type': 'part_time',
+        },
+        {
+          'job_id': uid(9),
+          'company_id': source.company,
+          'title': 'Second',
+          'employment_type': 'part_time',
+        },
       ]);
       source.applicants = (_) async => complete([applicant(4)]);
       await repo.load();

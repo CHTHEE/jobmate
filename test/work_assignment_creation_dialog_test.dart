@@ -264,6 +264,7 @@ void main() {
         'job_id': uid(3),
         'company_id': source.company,
         'title': 'QA Assistant',
+        'employment_type': 'part_time',
         'location': postingWorkplace,
         'latitude': 3.118,
         'longitude': 101.677,
@@ -272,6 +273,7 @@ void main() {
         'job_id': uid(13),
         'company_id': source.company,
         'title': 'QA Associate',
+        'employment_type': 'temporary',
         'latitude': 3.149,
         'longitude': 101.713,
       },
@@ -430,6 +432,7 @@ void main() {
         'job_id': uid(3),
         'company_id': source.company,
         'title': 'QA Assistant',
+        'employment_type': 'part_time',
         'location': 'Mid Valley Megamall',
         'latitude': 3.118,
         'longitude': 101.677,
@@ -834,10 +837,8 @@ void main() {
     source.jobs = (_) async => complete([]);
     await tester.tap(find.text('Retry loading applications'));
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('No eligible hired applications'),
-      findsOneWidget,
-    );
+    expect(find.text('No eligible jobs available'), findsOneWidget);
+    expect(find.textContaining('eligible hired worker'), findsOneWidget);
     expect(source.creates, 0);
   });
 
@@ -1058,6 +1059,12 @@ void main() {
       final pending = Completer<Object?>();
       source.create = (_) => pending.future;
       await show(tester, width: width, scale: scale);
+      expect(
+        find.text(
+          'Only Part-Time and Temporary jobs with eligible hired workers are available.',
+        ),
+        findsOneWidget,
+      );
       await fill(tester);
       await review(tester);
       expect(find.text('Confirm & Save'), findsOneWidget);

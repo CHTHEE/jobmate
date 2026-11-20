@@ -79,11 +79,17 @@ void main() {
   ) async {
     source.workerRead = () async => [
       assignment()
+        ..['employment_type'] = 'full_time'
         ..['attendance_as_of'] = '2026-11-04T22:00:00Z'
         ..['workplace_latitude'] = 3.117
         ..['workplace_longitude'] = 101.677,
     ];
     final router = await showPageWithDetails(tester);
+    expect(find.textContaining('Device clock'), findsNothing);
+    expect(
+      find.text('All times are Malaysia time (MYT, UTC+08:00).'),
+      findsOneWidget,
+    );
     expect(find.text('Show application shifts'), findsOneWidget);
     expect(find.text('Next upcoming shift'), findsOneWidget);
     expect(
@@ -476,22 +482,61 @@ void main() {
   );
 
   testWidgets('loading, error, retry and empty state', (tester) async {
+    final banner = find.text(
+      'Work shifts are for Part-Time and Temporary jobs',
+    );
+    final empty = find.text('No work shifts scheduled yet');
     final pending = Completer<List<Map<String, dynamic>>>();
     source.workerRead = () => pending.future;
     await showPage(tester);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(banner, findsOneWidget);
+    expect(empty, findsNothing);
     expect(find.byTooltip('Refresh assignments'), findsOneWidget);
     pending.completeError(Exception('offline'));
     await tester.pumpAndSettle();
     expect(find.text('Unable to load assignments'), findsOneWidget);
+    expect(banner, findsOneWidget);
+    expect(empty, findsNothing);
     expect(find.textContaining('Check your connection'), findsOneWidget);
     source.workerRead = () async => [];
-    await tester.tap(find.text('Retry'));
-    await tester.pumpAndSettle();
-    expect(find.text('No work assignments'), findsOneWidget);
+    await tap(tester, 'Retry');
+    expect(find.text('No work shifts scheduled yet'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(source.calls, 2);
   });
+
+  for (final width in [320.0, 768.0, 1200.0]) {
+    testWidgets('worker availability and empty schedule fit at $width', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      source.workerRead = () async => [];
+      await showPage(tester);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Work shifts are for Part-Time and Temporary jobs'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining("If you're hired for a Part-Time or Temporary job"),
+        findsOneWidget,
+      );
+      expect(find.text('No work shifts scheduled yet'), findsOneWidget);
+      expect(
+        find.text(
+          'Your shifts will appear here once an employer schedules them for you.',
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets(
     'real fields, MYT rollover, nullable timestamps and evidence link',
@@ -589,7 +634,7 @@ void main() {
       source.switchAccount(other);
       await tester.pumpAndSettle();
       expect(find.text('Server job'), findsNothing);
-      expect(find.text('No work assignments'), findsOneWidget);
+      expect(find.text('No work shifts scheduled yet'), findsOneWidget);
       old.complete([assignment()]);
       await tester.pumpAndSettle();
       expect(find.text('Server job'), findsNothing);
@@ -611,7 +656,7 @@ void main() {
         MaterialApp(home: WorkAttendancePage(repository: replacement)),
       );
       await tester.pumpAndSettle();
-      expect(find.text('No work assignments'), findsOneWidget);
+      expect(find.text('No work shifts scheduled yet'), findsOneWidget);
       source.switchAccount(other);
       await tester.pumpAndSettle();
       expect(replacementSource.calls, 1);

@@ -572,6 +572,16 @@ void main() {
         expect(find.text('Thu, 5 Nov 2026'), findsOneWidget);
         expect(find.text('9:00 AM – 5:00 PM MYT'), findsOneWidget);
         expect(find.text('Server location'), findsOneWidget);
+        expect(
+          find.text('Shift assignments are for Part-Time and Temporary jobs'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'Other job types are not eligible for new shift assignments.',
+          ),
+          findsOneWidget,
+        );
         final preview = find.byType(UpcomingShiftPreview);
         final addShift = find.widgetWithText(OutlinedButton, 'Add shift');
         expect(

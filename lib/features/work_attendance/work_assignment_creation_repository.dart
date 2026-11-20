@@ -668,6 +668,12 @@ class WorkAssignmentCreationRepository extends ChangeNotifier {
       final candidates = <WorkAssignmentCandidate>[];
       for (final job in jobs) {
         final jobId = workUuid(job['job_id']);
+        if (!const {
+          'part_time',
+          'temporary',
+        }.contains(job['employment_type'])) {
+          continue;
+        }
         final rawLocation = job['location'];
         final location = rawLocation is String ? rawLocation.trim() : '';
         final usableLocation =
