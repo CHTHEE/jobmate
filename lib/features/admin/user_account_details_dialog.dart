@@ -1,6 +1,10 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'admin_scoring_gateway.dart';
 import 'user_management_gateway.dart';
 
 class UserAccountDetailsDialog extends StatefulWidget {
@@ -9,11 +13,19 @@ class UserAccountDetailsDialog extends StatefulWidget {
     required this.userId,
     required this.gateway,
     this.canManage = true,
+    this.scoringGateway,
+    this.scoringSessionSource,
+    this.scoringEnabledForTesting,
   });
 
   final String userId;
   final UserManagementGateway gateway;
   final bool canManage;
+  final AdminScoringGateway? scoringGateway;
+  final AdminScoringSessionSource? scoringSessionSource;
+
+  /// Test-only injection; profile/release builds remain disabled by [kDebugMode].
+  final bool? scoringEnabledForTesting;
 
   @override
   State<UserAccountDetailsDialog> createState() =>
@@ -29,11 +41,76 @@ class _UserAccountDetailsDialogState extends State<UserAccountDetailsDialog> {
   bool _saving = false;
   String? _error;
   String? _message;
+  AdminScoringGateway? _scoringGateway;
+  AdminScoringSessionSource? _scoringSessionSource;
+  StreamSubscription<String?>? _scoringSessionSubscription;
+  String? _scoringActorId;
+  int _scoringGeneration = 0;
+  bool _scoringLoading = false;
+  bool _scoringSessionInvalid = false;
+  AdminJobSeekerReputation? _reputation;
+  AdminJobSeekerTrustScore? _trustScore;
+  String? _reputationError;
+  String? _trustError;
+  bool _trustAccessDenied = false;
+
+  bool get _scoringEnabled =>
+      kDebugMode && (widget.scoringEnabledForTesting ?? adminScoringEnabled);
 
   @override
   void initState() {
     super.initState();
+    _configureScoring();
     _load();
+  }
+
+  void _configureScoring() {
+    unawaited(_scoringSessionSubscription?.cancel());
+    _scoringSessionSubscription = null;
+    _scoringSessionInvalid = false;
+    if (!_scoringEnabled) return;
+    final gateway = widget.scoringGateway;
+    if (gateway == null) {
+      final client = Supabase.instance.client;
+      _scoringGateway = SupabaseAdminScoringGateway(client);
+      _scoringSessionSource =
+          widget.scoringSessionSource ??
+          SupabaseAdminScoringSessionSource(client);
+    } else {
+      _scoringGateway = gateway;
+      _scoringSessionSource = widget.scoringSessionSource;
+    }
+    final session = _scoringSessionSource;
+    _scoringActorId = session?.currentUserId;
+    if (session == null) return;
+    if (_scoringActorId == null) _scoringSessionInvalid = true;
+    _scoringSessionSubscription = session.userIdChanges.listen((userId) {
+      if (userId != _scoringActorId) _invalidateScoringSession();
+    }, onError: (_, _) => _invalidateScoringSession());
+  }
+
+  void _invalidateScoringSession() {
+    if (!mounted || _scoringSessionInvalid) return;
+    setState(() {
+      _scoringSessionInvalid = true;
+      _scoringGeneration++;
+      _scoringLoading = false;
+      _reputation = null;
+      _trustScore = null;
+      _reputationError = null;
+      _trustError = null;
+      _trustAccessDenied = false;
+    });
+  }
+
+  void _clearScoring() {
+    _scoringGeneration++;
+    _scoringLoading = false;
+    _reputation = null;
+    _trustScore = null;
+    _reputationError = null;
+    _trustError = null;
+    _trustAccessDenied = false;
   }
 
   Future<void> _load() async {
@@ -42,6 +119,7 @@ class _UserAccountDetailsDialogState extends State<UserAccountDetailsDialog> {
       _error = null;
       _account = null;
       _history = [];
+      _clearScoring();
     });
     try {
       final account = widget.canManage
@@ -56,6 +134,9 @@ class _UserAccountDetailsDialogState extends State<UserAccountDetailsDialog> {
         _history = history.take(20).toList();
         _more = history.length > 20;
       });
+      if (_scoringEnabled && account?['role'] == 'job_seeker') {
+        unawaited(_loadScoring(widget.userId));
+      }
     } on PostgrestException catch (error) {
       if (mounted) {
         setState(() {
@@ -78,6 +159,56 @@ class _UserAccountDetailsDialogState extends State<UserAccountDetailsDialog> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _loadScoring(String targetUserId) async {
+    final gateway = _scoringGateway;
+    if (gateway == null || _scoringSessionInvalid) return;
+    final generation = ++_scoringGeneration;
+    final actorId = _scoringActorId;
+    setState(() {
+      _scoringLoading = true;
+      _reputation = null;
+      _trustScore = null;
+      _reputationError = null;
+      _trustError = null;
+      _trustAccessDenied = false;
+    });
+    AdminJobSeekerReputation? reputation;
+    AdminJobSeekerTrustScore? trust;
+    String? reputationError;
+    String? trustError;
+    var trustAccessDenied = false;
+    try {
+      reputation = await gateway.jobSeekerReputation(targetUserId);
+    } catch (_) {
+      reputationError = 'Job Seeker Reputation is unavailable.';
+    }
+    try {
+      trust = await gateway.jobSeekerTrustScore(targetUserId);
+    } on AdminTrustAccessDenied {
+      trustAccessDenied = true;
+    } catch (_) {
+      // The server is authoritative for permission denial; never preserve a
+      // prior value after either denial or malformed data.
+      trustError = 'Internal Trust Score is temporarily unavailable.';
+    }
+    if (!mounted ||
+        generation != _scoringGeneration ||
+        _scoringSessionInvalid ||
+        (_scoringSessionSource != null &&
+            (_scoringSessionSource!.currentUserId == null ||
+                _scoringSessionSource!.currentUserId != actorId))) {
+      return;
+    }
+    setState(() {
+      _scoringLoading = false;
+      _reputation = reputation;
+      _trustScore = trust;
+      _reputationError = reputationError;
+      _trustError = trustError;
+      _trustAccessDenied = trustAccessDenied;
+    });
   }
 
   Future<void> _changeStatus(String action) async {
@@ -132,6 +263,88 @@ class _UserAccountDetailsDialogState extends State<UserAccountDetailsDialog> {
     return '${labels.formatMediumDate(local)} ${labels.formatTimeOfDay(TimeOfDay.fromDateTime(local))}';
   }
 
+  Widget _scoringSection() {
+    final reputation = _reputation;
+    final trust = _trustScore;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Text('Scoring', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        if (_scoringSessionInvalid)
+          const Text(
+            'Scoring was cleared because the administrator account changed.',
+          )
+        else if (_scoringLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else ...[
+          if (reputation != null)
+            Text(
+              reputation.coreAverage == null
+                  ? 'Job Seeker Reputation: Unavailable (no released ratings)'
+                  : 'Job Seeker Reputation: ${reputation.coreAverage!.toStringAsFixed(1)} / 5',
+            )
+          else
+            Text(_reputationError ?? 'Job Seeker Reputation is unavailable.'),
+          const SizedBox(height: 6),
+          if (_trustAccessDenied)
+            const Text(
+              'You do not have permission to view Internal Trust Score.',
+            )
+          else if (trust != null)
+            Text(
+              trust.isAvailable
+                  ? 'Internal Trust Score: ${trust.trustScore!.toStringAsFixed(1)} / 100 — Provisional / Not Certified'
+                  : 'Internal Trust Score: Unavailable — ${trust.missingFactors.isEmpty ? 'evidence is incomplete' : 'missing ${trust.missingFactors.join(', ')}'}',
+            )
+          else
+            Text(
+              _trustError ?? 'Internal Trust Score is temporarily unavailable.',
+            ),
+          TextButton.icon(
+            onPressed: () => _loadScoring(widget.userId),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry scoring'),
+          ),
+        ],
+      ],
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant UserAccountDetailsDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId != widget.userId) {
+      _offset = 0;
+      _load();
+      return;
+    }
+    if (oldWidget.scoringGateway != widget.scoringGateway ||
+        oldWidget.scoringSessionSource != widget.scoringSessionSource ||
+        oldWidget.scoringEnabledForTesting != widget.scoringEnabledForTesting) {
+      _clearScoring();
+      _configureScoring();
+      if (_scoringEnabled && _account?['role'] == 'job_seeker') {
+        unawaited(_loadScoring(widget.userId));
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _scoringGeneration++;
+    unawaited(_scoringSessionSubscription?.cancel());
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final account = _account;
@@ -177,6 +390,9 @@ class _UserAccountDetailsDialogState extends State<UserAccountDetailsDialog> {
                                 padding: const EdgeInsets.only(bottom: 6),
                                 child: Text('${field.$1}: ${_value(field.$2)}'),
                               ),
+                            if (_scoringEnabled &&
+                                account['role'] == 'job_seeker')
+                              _scoringSection(),
                             if (widget.canManage) ...[
                               const SizedBox(height: 12),
                               Text(

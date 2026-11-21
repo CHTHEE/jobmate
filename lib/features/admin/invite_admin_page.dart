@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../../shared/widgets/auth_layout.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/mobile_back_action.dart';
+import 'admin_invitation_gateway.dart';
 
 class InviteAdminPage extends StatefulWidget {
   const InviteAdminPage({super.key});
@@ -79,40 +80,20 @@ class _InviteAdminPageState extends State<InviteAdminPage> {
     try {
       _checkSession();
 
-      final response = await _supabase.functions.invoke(
-        'admin-invitations',
-        body: {
-          'action': 'send_invitation',
-          'invitation_id': attempt['id'],
-          'name': attempt['name'],
-          'email': attempt['email'],
-        },
-      );
+      final receipt = await SupabaseAdminInvitationGateway(_supabase)
+          .sendInvitation(
+            invitationId: attempt['id']!,
+            name: attempt['name']!,
+            email: attempt['email']!,
+          );
 
       if (!mounted) return;
 
       _checkSession();
 
-      final data = response.data;
-
-      if (data is! Map ||
-          data['status'] != 'pending' ||
-          data['invitationId'] != attempt['id']) {
-        throw const FormatException('Unexpected server response.');
-      }
-
-      final expiresValue = data['expiresAt'];
-      final expiresAt = expiresValue is String
-          ? DateTime.tryParse(expiresValue)
-          : null;
-
-      if (expiresAt == null) {
-        throw const FormatException('Invalid invitation expiry.');
-      }
-
       setState(() {
         _sent = true;
-        _expiresAt = expiresAt;
+        _expiresAt = receipt.expiresAt;
       });
     } on FunctionException catch (error) {
       if (!mounted) return;

@@ -156,7 +156,7 @@ void main() {
     }
   }
 
-  test('hiring connects to repeat/overnight shifts, independent attendance, late evidence and verification', () async {
+  test('hiring connects to repeat shifts, attendance, late evidence and verification', () async {
     await offer();
     await worker.respond(worker.application!, 'accept_offer');
     await employer.load();
@@ -184,14 +184,14 @@ void main() {
     expect(candidates.reservations, 0);
     expect(candidates.creates, 0);
 
-    for (final (date, startTime, endTime) in [
-      ('2026-11-10', '14:30', '18:15'),
-      ('2026-11-09', '09:00', '17:00'),
+    for (final (startDate, startTime, endDate, endTime) in [
+      ('2026-11-10', '14:30', '2026-11-10', '18:15'),
+      ('2026-11-09', '09:00', '2026-11-09', '17:00'),
     ]) {
       final result = await creation.create(
         candidate: creation.state.candidates.single,
-        start: workAssignmentMalaysiaUtc(date, startTime)!,
-        end: workAssignmentMalaysiaUtc(date, endTime)!,
+        start: workAssignmentMalaysiaUtc(startDate, startTime)!,
+        end: workAssignmentMalaysiaUtc(endDate, endTime)!,
         location: 'Agreed workplace',
       );
       expect(
@@ -467,6 +467,22 @@ void main() {
             const ValueKey(other),
             const ValueKey(id),
           ]);
+          if (employerView) {
+            final firstShift = find.byKey(const ValueKey(id));
+            await tester.ensureVisible(firstShift);
+            await tester.pumpAndSettle();
+            await tester.tap(
+              find.descendant(
+                of: firstShift,
+                matching: find.text('Show shift details'),
+              ),
+            );
+            await tester.pumpAndSettle();
+          }
+          await tester.ensureVisible(
+            find.text('Scheduled end: 07/11/2026 02:15 MYT'),
+          );
+          await tester.pumpAndSettle();
           expect(
             within(
               within(group, find.byKey(const ValueKey(id))),

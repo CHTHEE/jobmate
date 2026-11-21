@@ -8,6 +8,7 @@ import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../phase4/reputation_page.dart';
+import '../trust/job_seeker_trust_score.dart';
 
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
@@ -815,6 +816,14 @@ class _ProfilePageState extends State<ProfilePage> {
         const SizedBox(height: 20),
         ReputationContent(interactive: !_isEditing && !_isBusy),
       ]);
+      if (jobSeekerTrustScoreEnabled) {
+        rightSections.addAll([
+          const SizedBox(height: 20),
+          JobSeekerTrustScoreSection(
+            isActiveJobSeeker: _accountStatus == 'active',
+          ),
+        ]);
+      }
     }
     final profileDetails = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

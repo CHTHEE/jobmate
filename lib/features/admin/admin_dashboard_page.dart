@@ -8,6 +8,7 @@ import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../../shared/navigation/workspace_destinations.dart';
 import '../phase4/phase4_store.dart';
+import 'admin_invitation_dialog.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key, required this.email});
@@ -20,8 +21,8 @@ class AdminDashboardPage extends StatefulWidget {
 
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   bool _loadingAccess = true;
+  bool _isActiveAdmin = false;
   bool _canInviteAdmins = false;
-  bool _canManageAdminPermissions = false;
   bool _canReviewCompanies = false;
   bool _canAccessUserDirectory = false;
   bool _canAccessCompanyDirectory = false;
@@ -50,8 +51,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     if (actorId == null) {
       setState(() {
         _loadingAccess = false;
+        _isActiveAdmin = false;
         _canInviteAdmins = false;
-        _canManageAdminPermissions = false;
         _canReviewCompanies = false;
         _canAccessUserDirectory = false;
         _canAccessCompanyDirectory = false;
@@ -66,8 +67,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
     setState(() {
       _loadingAccess = true;
+      _isActiveAdmin = false;
       _canInviteAdmins = false;
-      _canManageAdminPermissions = false;
       _canReviewCompanies = false;
       _canAccessUserDirectory = false;
       _canAccessCompanyDirectory = false;
@@ -113,14 +114,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       final summary = Map<String, dynamic>.from(summaryData.first as Map);
 
       setState(() {
-        _canInviteAdmins = data['canInviteAdmins'] == true;
-        _canManageAdminPermissions = data['canManageAdminPermissions'] == true;
-        _canReviewCompanies = ownPermissions['can_review_companies'] == true;
+        _isActiveAdmin = data['isAdmin'] == true;
+        _canInviteAdmins =
+            data['canInviteAdmins'] == true ||
+            data['canManageAdminPermissions'] == true;
+        _canReviewCompanies =
+            data['canManageAdminPermissions'] == true ||
+            ownPermissions['can_review_companies'] == true;
         _canAccessUserDirectory = true;
         _canAccessCompanyDirectory = true;
-        _canManageReports = ownPermissions['can_manage_user_reports'] == true;
-        _canManageJobs = ownPermissions['can_manage_job_moderation'] == true;
-        _canManageDisputes = ownPermissions['can_manage_disputes'] == true;
+        _canManageReports =
+            data['canManageAdminPermissions'] == true ||
+            ownPermissions['can_manage_user_reports'] == true;
+        _canManageJobs =
+            data['canManageAdminPermissions'] == true ||
+            ownPermissions['can_manage_job_moderation'] == true;
+        _canManageDisputes =
+            data['canManageAdminPermissions'] == true ||
+            ownPermissions['can_manage_disputes'] == true;
         _registeredUsers = _intValue(summary['registered_users']);
         _pendingCompanyReviews = _intValue(summary['pending_company_reviews']);
         _administratorAccounts = _intValue(summary['administrator_accounts']);
@@ -159,16 +170,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             'Company Verification',
             Icons.business_outlined,
           ),
-        if (_canInviteAdmins)
-          (
-            AppRoutes.inviteAdmin,
-            'Invite administrator',
-            Icons.person_add_alt_1_outlined,
-          ),
-        if (_canManageAdminPermissions)
+        if (_isActiveAdmin)
           (
             AppRoutes.adminPermissions,
-            'Admin permissions',
+            'Administrator Management',
             Icons.admin_panel_settings_outlined,
           ),
       ];
@@ -307,7 +312,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           icon: Icons.person_add_alt_1_outlined,
           title: 'Invite administrator',
           description: 'Invite an unregistered person to join the admin team.',
-          onTap: () => context.push<void>(AppRoutes.inviteAdmin),
+          onTap: () => showAdminInvitationDialog(context),
         ),
       );
     }
@@ -372,13 +377,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
       );
     }
-    if (_canManageAdminPermissions) {
+    if (_isActiveAdmin) {
       actions.add(
         _ToolCard(
           icon: Icons.admin_panel_settings_outlined,
-          title: 'Manage administrator permissions',
+          title: 'Administrator Management',
           description:
-              'Control who can invite administrators and review Companies.',
+              'View administrators and manage access when you are authorized.',
           onTap: () => context.push<void>(AppRoutes.adminPermissions),
         ),
       );

@@ -11,7 +11,7 @@ import 'package:jobmate/features/phase4/admin_preview_pages.dart';
 import 'package:jobmate/features/phase4/account_settings_page.dart';
 import 'package:jobmate/shared/theme/jobmate_theme.dart';
 
-import 'fixtures/fake_reputation_gateway.dart';
+import 'fixtures/reputation_gateway_fixture.dart';
 
 Future<Map<String, dynamic>> accountFixture() async => {
   'name': 'Account under test',
@@ -256,6 +256,7 @@ void main() {
         addTearDown(tester.view.resetDevicePixelRatio);
         final store = Phase4Store();
         addTearDown(store.dispose);
+        final reputationGateway = ReputationGatewayFixture();
         final child = switch (screen) {
           'Seeker Evaluations' => EvaluationsPage(store: store),
           'Employer Evaluations' => EvaluationsPage(
@@ -277,12 +278,12 @@ void main() {
           ),
           'Worker Reputation' => ReputationPage(
             store: store,
-            gateway: FakeReputationGateway(),
+            gateway: reputationGateway,
           ),
           'Company Reputation' => ReputationPage(
             employer: true,
             store: store,
-            gateway: FakeReputationGateway(),
+            gateway: reputationGateway,
           ),
           'Record Payment' => PaymentRecordPage(store: store),
           'Worker Payments' => PaymentHistoryPage(store: store),
@@ -344,14 +345,17 @@ void main() {
           expect(find.text('Profile completion: 50%'), findsOneWidget);
         } else if (screen == 'Worker Reputation') {
           expect(find.text('My Reputation'), findsWidgets);
+          expect(find.text('Evaluation'), findsOneWidget);
           expect(find.text('Working Performance'), findsOneWidget);
-          expect(find.text('4.50 / 5'), findsOneWidget);
+          expect(find.text('4.25 / 5'), findsOneWidget);
         } else if (screen == 'Company Reputation') {
-          expect(find.text('Fixture Company'), findsOneWidget);
+          expect(find.text('Synthetic Company'), findsOneWidget);
           expect(find.text('4.50 / 5'), findsOneWidget);
+          expect(find.text('Criteria breakdown'), findsOneWidget);
         } else {
           expect(find.text('DEMO / PREVIEW'), findsOneWidget);
         }
+        expect(tester.takeException(), isNull);
         if (screen == 'Worker Payments') {
           await tester.enterText(find.byType(TextField).first, 'no match');
           await tester.pumpAndSettle();
@@ -362,7 +366,7 @@ void main() {
     }
   }
   testWidgets(
-    'Embedded Job Seeker reputation shows verified data without edit controls',
+    'Embedded Job Seeker reputation shows verified data and stays read-only',
     (tester) async {
       tester.view.physicalSize = const Size(360, 900);
       tester.view.devicePixelRatio = 1;
@@ -370,6 +374,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       final store = Phase4Store();
       addTearDown(store.dispose);
+      final gateway = ReputationGatewayFixture();
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -377,7 +382,7 @@ void main() {
               child: ReputationContent(
                 store: store,
                 interactive: false,
-                gateway: FakeReputationGateway(),
+                gateway: gateway,
               ),
             ),
           ),
@@ -386,11 +391,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Evaluation'), findsOneWidget);
       expect(find.text('Working Performance'), findsOneWidget);
-      expect(find.text('4.50 / 5'), findsOneWidget);
-      expect(find.text('3'), findsOneWidget);
+      expect(find.text('4.25 / 5'), findsOneWidget);
+      expect(find.text('4'), findsOneWidget);
       expect(find.text('completed and verified Shifts'), findsOneWidget);
-      expect(find.text('Refresh reputation'), findsNothing);
       expect(find.byType(SwitchListTile), findsNothing);
+      expect(find.text('Refresh reputation'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

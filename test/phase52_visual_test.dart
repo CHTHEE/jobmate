@@ -30,6 +30,8 @@ import 'package:jobmate/features/phase4/payment_pages.dart';
 import 'package:jobmate/features/phase4/admin_preview_pages.dart';
 import 'package:jobmate/features/phase4/account_settings_page.dart';
 
+import 'fixtures/reputation_gateway_fixture.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() async {
@@ -109,6 +111,7 @@ void main() {
         addTearDown(work.dispose);
         addTearDown(data.dispose);
         final application = jobs.applications.firstWhere((a) => a.mine);
+        final reputationGateway = ReputationGatewayFixture();
         final child = switch (screen) {
           'browse' => BrowseJobsPage(repository: jobs),
           'job-detail' => JobDetailsPage(jobId: 'demo-job-1', repository: jobs),
@@ -161,7 +164,7 @@ void main() {
           ),
           'reputation' => ReputationPage(
             store: data,
-            gateway: FakeReputationGateway(),
+            gateway: reputationGateway,
           ),
           'payments' => PaymentHistoryPage(store: data),
           'record-payment' => PaymentRecordPage(store: data),
@@ -209,8 +212,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         if (screen == 'reputation') {
+          expect(find.text('Evaluation'), findsOneWidget);
           expect(find.text('Working Performance'), findsOneWidget);
-          expect(find.text('4.50 / 5'), findsOneWidget);
+          expect(find.text('4.25 / 5'), findsOneWidget);
+          expect(find.text('DEMO / PREVIEW'), findsNothing);
         } else if (![
           'settings',
           'apply',
