@@ -36,9 +36,6 @@ String jobDate(Object? value) {
   return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 }
 
-String jobSalary(Map<String, dynamic> job) =>
-    '${job['salary_min'] ?? 'Not specified'} – ${job['salary_max'] ?? 'Not specified'} / ${jobLabel('${job['salary_period'] ?? ''}')}';
-
 const jobExamples = {
   'title': 'e.g. Part-Time Retail Assistant',
   'department': 'e.g. Retail Operations',

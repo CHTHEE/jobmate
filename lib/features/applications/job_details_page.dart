@@ -26,12 +26,11 @@ class JobFacts extends StatelessWidget {
         Chip(label: Text(jobLabel(job.text(key)))),
       Text('Vacancies: ${job.text('vacancies')}'),
       Text('Deadline: ${jobDate(job.fields['application_deadline'])}'),
-      if (job.fields['salary_visible'] == true &&
-          job.fields['salary_min'] != null &&
-          job.fields['salary_max'] != null)
-        Text('Salary: ${jobSalary(job.fields)}')
+      if (marketplaceSalary(job) case final salary
+          when salary != salaryNotDisclosed)
+        Text('Salary: $salary')
       else
-        const Text('Not disclosed'),
+        const Text(salaryNotDisclosed),
     ],
   );
 }

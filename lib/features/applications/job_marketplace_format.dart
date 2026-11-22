@@ -21,16 +21,16 @@ String marketplaceDate(Object? value) {
   return '${date.day} ${months[date.month - 1]} ${date.year}';
 }
 
+const salaryNotDisclosed = 'Salary not disclosed';
+
 String marketplaceSalary(BrowseJob job) {
-  if (job.fields['salary_visible'] != true ||
-      job.fields['salary_min'] == null ||
-      job.fields['salary_max'] == null) {
-    return 'Not disclosed';
+  if (job.fields['salary_visible'] != true) return salaryNotDisclosed;
+  final min = num.tryParse('${job.fields['salary_min']}');
+  final max = num.tryParse('${job.fields['salary_max']}');
+  if (min == null || max == null || !min.isFinite || !max.isFinite) {
+    return salaryNotDisclosed;
   }
-  String amount(Object value) {
-    final raw = '$value';
-    final number = num.tryParse(raw);
-    if (number == null || !number.isFinite) return raw;
+  String amount(num number) {
     final parts =
         (number == number.roundToDouble()
                 ? number.toInt().toString()
@@ -50,5 +50,6 @@ String marketplaceSalary(BrowseJob job) {
     'yearly' => 'year',
     final value => value,
   };
-  return '${amount(job.fields['salary_min'])}–${amount(job.fields['salary_max'])}${period.isEmpty ? '' : ' / $period'}';
+  final range = min == max ? amount(min) : '${amount(min)}–${amount(max)}';
+  return 'RM $range${period.isEmpty ? '' : ' / $period'}';
 }

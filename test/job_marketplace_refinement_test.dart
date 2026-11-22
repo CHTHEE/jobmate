@@ -28,17 +28,27 @@ void main() {
       };
       expect(
         marketplaceSalary(BrowseJob.published(row)),
-        '1,500.5–20,000 / ${period.value}',
+        'RM 1,500.5–20,000 / ${period.value}',
       );
       expect(
         marketplaceSalary(
           BrowseJob.published({...row, 'salary_visible': false}),
         ),
-        'Not disclosed',
+        'Salary not disclosed',
       );
       expect(
         marketplaceSalary(BrowseJob.published({...row, 'salary_max': null})),
-        'Not disclosed',
+        'Salary not disclosed',
+      );
+      expect(
+        marketplaceSalary(
+          BrowseJob.published({...row, 'salary_max': '1500.50'}),
+        ),
+        'RM 1,500.5 / ${period.value}',
+      );
+      expect(
+        marketplaceSalary(BrowseJob.published({...row, 'salary_max': 'NaN'})),
+        'Salary not disclosed',
       );
     }
     expect(marketplaceDate('2026-11-30'), '30 Nov 2026');
@@ -84,7 +94,7 @@ void main() {
           .abs(),
       lessThan(10),
     );
-    expect(find.text('4,000–6,000 / month'), findsOneWidget);
+    expect(find.text('RM 4,000–6,000 / month'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -157,7 +167,7 @@ void main() {
       );
       expect(find.text('Application deadline has passed.'), findsOneWidget);
       expect(find.byType(JobApplicationBanner), findsNothing);
-      expect(find.text('Not disclosed'), findsOneWidget);
+      expect(find.text('Salary not disclosed'), findsOneWidget);
       expect(find.text('Not provided'), findsWidgets);
       expect(find.text('Role Overview'), findsNothing);
       expect(find.text('Job Description'), findsNothing);
@@ -237,7 +247,7 @@ void main() {
         expect(find.text('You were hired for this job'), findsOneWidget);
         expect(find.text('Application deadline has passed.'), findsOneWidget);
         expect(find.text('Apply Now'), findsNothing);
-        expect(find.text('4,000–6,000 / month'), findsOneWidget);
+        expect(find.text('RM 4,000–6,000 / month'), findsOneWidget);
         expect(find.text('1 Jan 2020'), findsOneWidget);
         expect(find.text('Help customers'), findsOneWidget);
         expect(

@@ -74,11 +74,22 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: JobFormPage(repository: repo)));
       await tester.pumpAndSettle();
       expect(find.text('Verified company'), findsNothing);
-      await tester.ensureVisible(input('Minimum salary'));
-      await tester.enterText(input('Minimum salary'), '1500');
-      await tester.enterText(input('Maximum salary'), '1600');
+      expect(
+        find.textContaining('Minimum salary (RM)', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Maximum salary (RM)', findRichText: true),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(input('Minimum salary (RM)'));
+      await tester.enterText(input('Minimum salary (RM)'), '1500');
+      await tester.enterText(input('Maximum salary (RM)'), '1600');
       await tester.pump();
-      expect(find.text('Salary preview: 1,500–1,600 / month'), findsOneWidget);
+      expect(
+        find.text('Salary preview: RM 1,500–1,600 / month'),
+        findsOneWidget,
+      );
       await tap(
         tester,
         find.descendant(
@@ -87,9 +98,15 @@ void main() {
         ),
       );
       await tap(tester, find.text('Hourly').last);
-      expect(find.text('Salary preview: 1,500–1,600 / hour'), findsOneWidget);
+      expect(
+        find.text('Salary preview: RM 1,500–1,600 / hour'),
+        findsOneWidget,
+      );
       await tap(tester, find.byType(SwitchListTile));
-      expect(find.text('Salary preview: Not disclosed'), findsOneWidget);
+      expect(
+        find.text('Salary preview: Hidden from job seekers'),
+        findsOneWidget,
+      );
       expect(repo.saves, 0);
       expect(repo.formats, 0);
       final vacancies = find.ancestor(
@@ -142,11 +159,14 @@ void main() {
       await tap(tester, find.text('Preview'));
       final preview = find.byType(JobPreview);
       expect(
-        find.descendant(of: preview, matching: find.text('Not disclosed')),
+        find.descendant(
+          of: preview,
+          matching: find.text('Salary not disclosed'),
+        ),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: preview, matching: find.textContaining('12–18')),
+        find.descendant(of: preview, matching: find.textContaining('RM 12–18')),
         findsNothing,
       );
       expect(

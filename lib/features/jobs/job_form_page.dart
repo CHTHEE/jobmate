@@ -530,9 +530,11 @@ class JobFormPageState extends State<JobFormPage> {
       'role_overview',
       ...jobBulletFields,
     ].contains(key);
-    final label = key == 'location'
-        ? (_remote ? 'Work Region' : 'Workplace Address')
-        : jobLabel(key);
+    final label = switch (key) {
+      'location' => _remote ? 'Work Region' : 'Workplace Address',
+      'salary_min' || 'salary_max' => '${jobLabel(key)} (RM)',
+      _ => jobLabel(key),
+    };
     return JobLabeledField(
       label: requiredLabel(label),
       action: key == 'original_description'
@@ -970,7 +972,9 @@ class JobFormPageState extends State<JobFormPage> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
-                                    'Salary preview: ${marketplaceSalary(BrowseJob(values(), company: ''))}',
+                                    salaryVisible
+                                        ? 'Salary preview: ${marketplaceSalary(BrowseJob(values(), company: ''))}'
+                                        : 'Salary preview: Hidden from job seekers',
                                     style: const TextStyle(
                                       color: JobMateTheme.darkTeal,
                                       fontWeight: FontWeight.w600,

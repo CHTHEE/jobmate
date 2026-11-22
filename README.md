@@ -942,7 +942,7 @@ The `BrowseJob` display projection keeps existing posting field names and
 list formats and excludes `salary_min`, `salary_max` and `salary_period` unless
 `salary_visible` is exactly true. Cards/details never render hidden compensation.
 Only rows returned by the published-job RPC appear in browsing; expired jobs are
-labeled and Apply is disabled. Hidden or missing salary displays as Not disclosed.
+labeled and Apply is disabled. Hidden or missing salary displays as Salary not disclosed.
 Closed/missing direct detail routes show unavailable states. Company names and
 descriptions come from the RPC; verification and trust scores are not fabricated.
 Nullable `logo_storage_path` values use authenticated five-minute signed URLs
@@ -1913,8 +1913,9 @@ active filters remain visible when collapsed. Result counts and the existing
 Newest / Title / Deadline sorting remain available below search. Browse and
 production Job Details now use centered content up to 880 logical pixels. Cards
 combine secondary metadata and View Details on desktop and wrap at narrow widths
-without fixed heights. Salary uses thousands separators and stored pay periods,
-without assuming a currency; readable dates retain the existing parsing semantics.
+without fixed heights. Job salaries display Malaysian Ringgit (RM), thousands
+separators, and stored pay periods. Equal endpoints display as a single amount.
+Readable dates retain the existing parsing semantics.
 Job Details has one hero, a responsive two-column information grid, independent
 application-status and deadline messages, populated content sections and the
 existing public Company profile action. Application eligibility, session saves,

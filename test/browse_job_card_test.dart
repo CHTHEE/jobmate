@@ -55,7 +55,7 @@ void main() {
           ),
         );
         expect(tester.takeException(), isNull, reason: 'width $width');
-        expect(find.text('Not disclosed'), findsOneWidget);
+        expect(find.text('Salary not disclosed'), findsOneWidget);
         expect(find.textContaining('12345'), findsNothing);
         expect(find.text('Application deadline has passed.'), findsOneWidget);
         await tester.tap(find.byTooltip('Unsave job (this session)'));

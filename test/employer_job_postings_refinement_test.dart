@@ -273,7 +273,7 @@ void main() {
           ),
         );
         expect(find.text(postingStatusLabel(status)), findsOneWidget);
-        expect(find.text('1,500–1,600 / month'), findsOneWidget);
+        expect(find.text('RM 1,500–1,600 / month'), findsOneWidget);
         expect(find.text('Deadline: 15 Nov 2020'), findsOneWidget);
         expect(
           find.text('Application deadline has passed.'),
@@ -331,7 +331,7 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Not disclosed'), findsOneWidget);
+      expect(find.text('Salary not disclosed'), findsOneWidget);
       expect(find.textContaining('98765'), findsNothing);
       for (final button in tester.widgetList<ButtonStyleButton>(
         find.byWidgetPredicate((widget) => widget is ButtonStyleButton),

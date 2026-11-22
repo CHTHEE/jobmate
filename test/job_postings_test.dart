@@ -145,7 +145,12 @@ String? inputLabel(TextField field) =>
         : null) ??
     jobExamples.entries
         .where((entry) => entry.value == field.decoration?.hintText)
-        .map((entry) => jobLabel(entry.key))
+        .map(
+          (entry) => switch (entry.key) {
+            'salary_min' || 'salary_max' => '${jobLabel(entry.key)} (RM)',
+            _ => jobLabel(entry.key),
+          },
+        )
         .firstOrNull;
 
 Map<String, dynamic> completeJob() => {
@@ -174,8 +179,8 @@ void completeForm(WidgetTester tester) {
       'Job title': 'title',
       'Department': 'department',
       'Job location': 'location',
-      'Minimum salary': 'salary_min',
-      'Maximum salary': 'salary_max',
+      'Minimum salary (RM)': 'salary_min',
+      'Maximum salary (RM)': 'salary_max',
       'Vacancies': 'vacancies',
       'Application deadline': 'application_deadline',
       'Original description': 'original_description',
@@ -880,13 +885,13 @@ void main() {
       )) {
         expect(input.decoration?.errorText, isNull, reason: inputLabel(input));
       }
-      field(tester, 'Minimum salary').text = '30';
+      field(tester, 'Minimum salary (RM)').text = '30';
       await tester.pumpAndSettle();
       expect(
         find.text('Maximum salary must be at least the minimum.'),
         findsOneWidget,
       );
-      field(tester, 'Minimum salary').text = '12';
+      field(tester, 'Minimum salary (RM)').text = '12';
       await tester.pumpAndSettle();
       expect(
         find.text('Maximum salary must be at least the minimum.'),
