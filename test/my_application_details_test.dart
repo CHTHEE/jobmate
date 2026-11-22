@@ -114,15 +114,11 @@ void main() {
       expect(find.text('ABC Company'), findsOneWidget);
       expect(find.text('Resume attached'), findsOneWidget);
       expect(find.text('My submitted note'), findsOneWidget);
+      final initialEvent = find.byKey(const ValueKey('initial'));
+      expect(initialEvent, findsOneWidget);
       expect(
-        find
-            .byType(ListTile)
-            .evaluate()
-            .where(
-              (e) => (e.widget as ListTile).key == const ValueKey('initial'),
-            )
-            .length,
-        1,
+        find.descendant(of: initialEvent, matching: find.text('Applied')),
+        findsOneWidget,
       );
       expect(find.text('Applied'), findsNWidgets(2));
       expect(find.text('Applicant'), findsOneWidget);

@@ -492,7 +492,7 @@ void main() {
       source.switchAccount(other);
       pending.completeError(const SocketException('old account'));
       await tester.pumpAndSettle();
-      expect(find.text('No work assignments'), findsOneWidget);
+      expect(find.text('No work shifts scheduled yet'), findsOneWidget);
       expect(find.textContaining('Could not confirm'), findsNothing);
       expect(find.textContaining('recorded by the server'), findsNothing);
     });

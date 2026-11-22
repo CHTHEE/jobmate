@@ -48,12 +48,12 @@ void main() {
 
       expect(paths, contains(AppRoutes.adminUsers));
       expect(paths, contains(AppRoutes.adminReports));
-      expect(paths, contains(AppRoutes.inviteAdmin));
+      expect(paths, isNot(contains(AppRoutes.inviteAdmin)));
       expect(paths, contains(AppRoutes.adminCompanies));
       expect(paths, isNot(contains(AppRoutes.adminJobModeration)));
       expect(paths, isNot(contains(AppRoutes.adminDisputes)));
       expect(paths, isNot(contains(AppRoutes.companyReviews)));
-      expect(paths, isNot(contains(AppRoutes.adminPermissions)));
+      expect(paths, contains(AppRoutes.adminPermissions));
     },
   );
 

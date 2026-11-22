@@ -547,20 +547,19 @@ void main() {
           'review_comment': 'Use a clearer company logo.',
         };
       var picks = 0;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: CompanyLogoEditor(
-              gateway: gateway,
-              canEdit: true,
-              pickImage: () async {
-                picks++;
-                return null;
-              },
-            ),
+      final page = MaterialApp(
+        home: Scaffold(
+          body: CompanyLogoEditor(
+            gateway: gateway,
+            canEdit: true,
+            pickImage: () async {
+              picks++;
+              return null;
+            },
           ),
         ),
       );
+      await tester.pumpWidget(page);
       await tester.pumpAndSettle();
       expect(
         find.textContaining('Use a clearer company logo.'),
@@ -570,10 +569,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(picks, 1);
       gateway.statusUnavailable = true;
-      await tester.tap(find.text('Refresh logo review status'));
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(page);
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Change company photo'));
-      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Choose photo'),
+            )
+            .onPressed,
+        isNull,
+      );
       expect(picks, 1);
       expect(
         find.textContaining('Unable to load logo review status.'),
@@ -620,7 +626,7 @@ void main() {
       expect(gateway.saves.length, 1);
       expect(find.text('Retry same photo'), findsNothing);
       gateway.statusUnavailable = false;
-      await tester.tap(find.text('Refresh logo review status'));
+      await tester.tap(find.text('Try again'));
       await tester.pumpAndSettle();
       expect(
         gateway.uploads,

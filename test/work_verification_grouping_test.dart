@@ -638,6 +638,7 @@ void main() {
           'job_id': uid(3),
           'company_id': candidates.company,
           'title': 'QA Assistant',
+          'employment_type': 'part_time',
         },
       ]);
       await tap(tester, find.text('Retry loading applications'));

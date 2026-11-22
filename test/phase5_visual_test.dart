@@ -142,10 +142,11 @@ void main() {
         final content = tester.widget<WorkspaceContent>(
           find.byType(WorkspaceContent),
         );
-        expect(
-          content.maxWidth,
-          screen == 'jobs' || screen == 'employer-home' ? 768 : 672,
-        );
+        expect(content.maxWidth, switch (screen) {
+          'jobs' || 'create' => 880,
+          'employer-home' => 768,
+          _ => 672,
+        });
         if (!kIsWeb || width >= 840) {
           expect(find.byType(Drawer), findsNothing);
         } else {
@@ -156,16 +157,36 @@ void main() {
         }
         if (screen == 'create') {
           for (final title in [
-            'Basic job information',
+            'Basic Information',
             'Compensation',
-            'Schedule & location',
-            'Description & AI formatting',
-            'Requirements & benefits',
+            'Schedule & Location',
+            'Job Description & AI Formatting',
+            'Requirements & Benefits',
           ]) {
             expect(find.text(title), findsOneWidget);
           }
         }
-        if (screen == 'jobs' || screen == 'employer-home') {
+        if (screen == 'jobs') {
+          for (final (status, label, count) in [
+            ('all', 'Total Jobs', repo.records.length),
+            (
+              'published',
+              'Published',
+              repo.records.where((j) => j['status'] == 'published').length,
+            ),
+          ]) {
+            final tile = find.byKey(ValueKey('posting-stat-$status'));
+            expect(
+              find.descendant(of: tile, matching: find.text(label)),
+              findsOneWidget,
+            );
+            expect(
+              find.descendant(of: tile, matching: find.text('$count')),
+              findsOneWidget,
+            );
+          }
+        }
+        if (screen == 'employer-home') {
           final tiles = tester.widgetList<StatTile>(find.byType(StatTile));
           expect(
             tiles.where((t) => t.label == 'Total Jobs').single.value,

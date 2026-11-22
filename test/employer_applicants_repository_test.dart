@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jobmate/features/applications/employer_applicants_repository.dart';
 import 'package:jobmate/features/applications/my_applications_repository.dart';
@@ -9,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'fixtures/employer_applicants_source.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   test(
     'Resume function POST uses application_id and the SDK session JWT',
     () async {
@@ -126,6 +128,7 @@ void main() {
         '/rest/v1/rpc/list_job_applicants' => [
           applicantRow('real-application-id'),
         ],
+        '/rest/v1/rpc/list_unseen_applicant_counts' => [],
         _ => throw StateError('Unexpected endpoint'),
       };
       request.response.headers.contentType = ContentType.json;
@@ -154,8 +157,12 @@ void main() {
     expect(repo.error, isNull);
     expect(repo.job!['title'], 'Part-Time Cafe Crew');
     expect(repo.applicants.single.name, 'Alex Thee');
-    expect(requests.last.$1, '/rest/v1/rpc/list_job_applicants');
-    expect(requests.last.$2, {'p_job_id': 'real-job-id'});
+    expect(
+      requests
+          .singleWhere((r) => r.$1 == '/rest/v1/rpc/list_job_applicants')
+          .$2,
+      {'p_job_id': 'real-job-id'},
+    );
     expect(requests.any((r) => r.$1 == '/rest/v1/job_postings'), isFalse);
   });
 }

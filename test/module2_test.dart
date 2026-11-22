@@ -386,7 +386,7 @@ void main() {
           expect(find.text('No matching jobs'), findsOneWidget);
         }
         if (page == '${AppRoutes.browseJobs}/demo-job-2') {
-          expect(find.text('Not disclosed'), findsOneWidget);
+          expect(find.text('Salary not disclosed'), findsOneWidget);
           expect(
             find.byType(BackButton),
             kIsWeb ? findsNothing : findsOneWidget,

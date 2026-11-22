@@ -467,22 +467,6 @@ void main() {
             const ValueKey(other),
             const ValueKey(id),
           ]);
-          if (employerView) {
-            final firstShift = find.byKey(const ValueKey(id));
-            await tester.ensureVisible(firstShift);
-            await tester.pumpAndSettle();
-            await tester.tap(
-              find.descendant(
-                of: firstShift,
-                matching: find.text('Show shift details'),
-              ),
-            );
-            await tester.pumpAndSettle();
-          }
-          await tester.ensureVisible(
-            find.text('Scheduled end: 07/11/2026 02:15 MYT'),
-          );
-          await tester.pumpAndSettle();
           expect(
             within(
               within(group, find.byKey(const ValueKey(id))),

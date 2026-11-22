@@ -157,7 +157,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Flutter Developer'), findsOneWidget);
     expect(find.text('Actual Company'), findsOneWidget);
-    expect(find.text('Not disclosed'), findsOneWidget);
+    expect(find.text('Salary not disclosed'), findsOneWidget);
   });
 
   for (final width in [320.0, 1440.0]) {
@@ -187,7 +187,7 @@ void main() {
       expect(find.text('Actual Company'), findsWidgets);
       expect(find.text('Develop our Flutter app.'), findsOneWidget);
       expect(find.text('Build useful software.'), findsOneWidget);
-      expect(find.text('Not disclosed'), findsOneWidget);
+      expect(find.text('Salary not disclosed'), findsOneWidget);
       final before = repo.applications.length;
       await tester.ensureVisible(find.text('Apply Now'));
       await tester.tap(find.text('Apply Now'));
@@ -232,7 +232,7 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Not disclosed'), findsOneWidget);
+    expect(find.text('Salary not disclosed'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
