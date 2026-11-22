@@ -8,6 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../shared/widgets/app_workspace.dart';
+import '../phase4/cross_party_reputation_content.dart';
+import '../phase4/reputation_gateway.dart';
 
 typedef CompanyProfileData = Map<String, List<Map<String, dynamic>>>;
 
@@ -857,17 +859,22 @@ class PublicCompanyProfileButton extends StatelessWidget {
   const PublicCompanyProfileButton({
     required this.companyId,
     this.repository,
+    this.reputationGateway,
     super.key,
   });
   final String companyId;
   final PublicCompanyProfileRepository? repository;
+  final CrossPartyReputationGateway? reputationGateway;
   @override
   Widget build(BuildContext context) => TextButton.icon(
     key: const ValueKey('view-public-company-profile'),
     onPressed: () => showDialog<void>(
       context: context,
-      builder: (_) =>
-          _PublicCompanyDialog(companyId: companyId, repository: repository),
+      builder: (_) => _PublicCompanyDialog(
+        companyId: companyId,
+        repository: repository,
+        reputationGateway: reputationGateway,
+      ),
     ),
     icon: const Icon(Icons.business_outlined),
     label: const Text('View Company profile'),
@@ -875,9 +882,14 @@ class PublicCompanyProfileButton extends StatelessWidget {
 }
 
 class _PublicCompanyDialog extends StatefulWidget {
-  const _PublicCompanyDialog({required this.companyId, this.repository});
+  const _PublicCompanyDialog({
+    required this.companyId,
+    this.repository,
+    this.reputationGateway,
+  });
   final String companyId;
   final PublicCompanyProfileRepository? repository;
+  final CrossPartyReputationGateway? reputationGateway;
   @override
   State<_PublicCompanyDialog> createState() => _PublicCompanyDialogState();
 }
@@ -974,6 +986,11 @@ class _PublicCompanyDialogState extends State<_PublicCompanyDialog> {
                     Text(
                       '${item['certification_name']}${item['issuer'] == null ? '' : ' · ${item['issuer']}'}${item['independently_verified'] == true ? '' : ' · Self-submitted, unverified'}',
                     ),
+                  const SizedBox(height: 16),
+                  CrossPartyReputationContent.company(
+                    companyId: widget.companyId,
+                    gateway: widget.reputationGateway,
+                  ),
                 ],
               ),
       ),

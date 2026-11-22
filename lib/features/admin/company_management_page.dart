@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,12 +9,25 @@ import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/responsive_layout.dart';
+import 'admin_scoring_gateway.dart';
 import 'company_management_gateway.dart';
 
 class CompanyManagementPage extends StatefulWidget {
-  const CompanyManagementPage({super.key, this.companyId, this.gateway});
+  const CompanyManagementPage({
+    super.key,
+    this.companyId,
+    this.gateway,
+    this.scoringGateway,
+    this.scoringSessionSource,
+    this.scoringEnabledForTesting,
+  });
   final String? companyId;
   final CompanyManagementGateway? gateway;
+  final AdminScoringGateway? scoringGateway;
+  final AdminScoringSessionSource? scoringSessionSource;
+
+  /// Test-only injection; profile/release builds remain disabled by [kDebugMode].
+  final bool? scoringEnabledForTesting;
 
   @override
   State<CompanyManagementPage> createState() => _CompanyManagementPageState();
@@ -39,6 +53,18 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
   bool _canManageRestrictions = false;
   String? _error;
   String? _detailsError;
+  AdminScoringGateway? _scoringGateway;
+  AdminScoringSessionSource? _scoringSessionSource;
+  StreamSubscription<String?>? _scoringSessionSubscription;
+  String? _scoringActorId;
+  int _scoringGeneration = 0;
+  bool _scoringLoading = false;
+  bool _scoringSessionInvalid = false;
+  AdminCompanyReputation? _companyReputation;
+  String? _companyReputationError;
+
+  bool get _scoringEnabled =>
+      kDebugMode && (widget.scoringEnabledForTesting ?? adminScoringEnabled);
 
   @override
   void initState() {
@@ -46,6 +72,7 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
     _selectedCompanyId = widget.companyId;
     _detailsLoading = _selectedCompanyId != null;
     _listController.addListener(_onListScroll);
+    _configureScoring();
     _load();
   }
 
@@ -56,16 +83,70 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
     _listController
       ..removeListener(_onListScroll)
       ..dispose();
+    _scoringGeneration++;
+    unawaited(_scoringSessionSubscription?.cancel());
     super.dispose();
   }
 
   @override
   void didUpdateWidget(covariant CompanyManagementPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.companyId != widget.companyId ||
+        oldWidget.scoringGateway != widget.scoringGateway ||
+        oldWidget.scoringSessionSource != widget.scoringSessionSource ||
+        oldWidget.scoringEnabledForTesting != widget.scoringEnabledForTesting) {
+      _clearCompanyScoring();
+      _configureScoring();
+      if (oldWidget.companyId == widget.companyId &&
+          _scoringEnabled &&
+          _selectedCompanyId != null) {
+        unawaited(_loadCompanyReputation(_selectedCompanyId!));
+      }
+    }
     if (oldWidget.companyId != widget.companyId) {
       _selectedCompanyId = widget.companyId;
       _load();
     }
+  }
+
+  void _configureScoring() {
+    unawaited(_scoringSessionSubscription?.cancel());
+    _scoringSessionSubscription = null;
+    _scoringSessionInvalid = false;
+    if (!_scoringEnabled) return;
+    final gateway = widget.scoringGateway;
+    if (gateway == null) {
+      final client = Supabase.instance.client;
+      _scoringGateway = SupabaseAdminScoringGateway(client);
+      _scoringSessionSource =
+          widget.scoringSessionSource ??
+          SupabaseAdminScoringSessionSource(client);
+    } else {
+      _scoringGateway = gateway;
+      _scoringSessionSource = widget.scoringSessionSource;
+    }
+    final session = _scoringSessionSource;
+    _scoringActorId = session?.currentUserId;
+    if (session == null) return;
+    if (_scoringActorId == null) _scoringSessionInvalid = true;
+    _scoringSessionSubscription = session.userIdChanges.listen((userId) {
+      if (userId != _scoringActorId) _invalidateScoringSession();
+    }, onError: (_, _) => _invalidateScoringSession());
+  }
+
+  void _clearCompanyScoring() {
+    _scoringGeneration++;
+    _scoringLoading = false;
+    _companyReputation = null;
+    _companyReputationError = null;
+  }
+
+  void _invalidateScoringSession() {
+    if (!mounted || _scoringSessionInvalid) return;
+    setState(() {
+      _scoringSessionInvalid = true;
+      _clearCompanyScoring();
+    });
   }
 
   void _onListScroll() {
@@ -113,6 +194,7 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
         _selectedCompanyId = selected;
         _company = null;
         _history = [];
+        _clearCompanyScoring();
         _detailsError = null;
         _detailsLoading = selected != null;
       });
@@ -236,6 +318,7 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
         _canManageRestrictions = canManage;
         _detailsError = null;
       });
+      if (_scoringEnabled) unawaited(_loadCompanyReputation(companyId));
     } catch (_) {
       if (mounted && _selectedCompanyId == companyId) {
         setState(() {
@@ -258,9 +341,43 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
       _selectedCompanyId = id;
       _company = null;
       _history = [];
+      _clearCompanyScoring();
       _detailsError = null;
     });
     _loadCompanyDetails(id);
+  }
+
+  Future<void> _loadCompanyReputation(String companyId) async {
+    final gateway = _scoringGateway;
+    if (gateway == null || _scoringSessionInvalid) return;
+    final generation = ++_scoringGeneration;
+    final actorId = _scoringActorId;
+    setState(() {
+      _scoringLoading = true;
+      _companyReputation = null;
+      _companyReputationError = null;
+    });
+    AdminCompanyReputation? score;
+    String? error;
+    try {
+      score = await gateway.companyReputation(companyId);
+    } catch (_) {
+      error = 'Company Reputation is unavailable.';
+    }
+    if (!mounted ||
+        generation != _scoringGeneration ||
+        _scoringSessionInvalid ||
+        _selectedCompanyId != companyId ||
+        (_scoringSessionSource != null &&
+            (_scoringSessionSource!.currentUserId == null ||
+                _scoringSessionSource!.currentUserId != actorId))) {
+      return;
+    }
+    setState(() {
+      _scoringLoading = false;
+      _companyReputation = score;
+      _companyReputationError = error;
+    });
   }
 
   Future<void> _loadRestrictionPermission() async {
@@ -621,6 +738,10 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
             ),
           ),
         ),
+        if (_scoringEnabled) ...[
+          const SizedBox(height: 16),
+          _companyReputationSection(),
+        ],
         const SizedBox(height: 16),
         Text(
           'Memberships (${members.length})',
@@ -663,6 +784,51 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
         ],
         if (_detailsError != null) _errorPanel(details: true),
       ],
+    );
+  }
+
+  Widget _companyReputationSection() {
+    final score = _companyReputation;
+    return Card.outlined(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Company Reputation',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            if (_scoringSessionInvalid)
+              const Text(
+                'Company Reputation was cleared because the administrator account changed.',
+              )
+            else if (_scoringLoading)
+              const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else ...[
+              Text(
+                score?.coreAverage == null
+                    ? 'Rating: Unavailable (no released ratings)'
+                    : 'Rating: ${score!.coreAverage!.toStringAsFixed(1)} / 5',
+              ),
+              if (_companyReputationError != null)
+                Text(_companyReputationError!),
+              TextButton.icon(
+                onPressed: _selectedCompanyId == null
+                    ? null
+                    : () => _loadCompanyReputation(_selectedCompanyId!),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry Company Reputation'),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 

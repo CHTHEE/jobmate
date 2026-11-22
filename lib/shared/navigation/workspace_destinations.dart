@@ -116,9 +116,10 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
   },
 };
 
-/// The Admin sidebar is derived from the signed-in Admin's own permission
-/// row, so every Admin page shows the same destinations and fails closed while
-/// a permission is unavailable or has not been deployed.
+/// The Admin sidebar is derived from the signed-in Admin's current,
+/// server-authoritative access response plus only the non-invitation profile
+/// flags needed for the remaining destinations. It fails closed while access
+/// is unavailable or has not been deployed.
 Map<String, List<WorkspaceDestination>> adminWorkspaceDestinations(
   Map<String, dynamic>? permissions,
 ) {
@@ -149,10 +150,10 @@ Map<String, List<WorkspaceDestination>> adminWorkspaceDestinations(
           'Company Verification',
           Icons.business_outlined,
         ),
-      if (has('can_manage_admin_permissions'))
+      if (permissions != null)
         (
           AppRoutes.adminPermissions,
-          'Admin permissions',
+          'Administrator Management',
           Icons.admin_panel_settings_outlined,
         ),
     ],
@@ -213,6 +214,7 @@ bool isWorkspaceRootPath(String path) =>
     path != AppRoutes.createJob &&
     (path == AppRoutes.adminPermissions ||
         path == AppRoutes.companyReviews ||
+        path == AppRoutes.inviteAdmin ||
         ['job_seeker', 'employer', 'administrator'].any(
           (role) =>
               workspaceDestinations(role).values

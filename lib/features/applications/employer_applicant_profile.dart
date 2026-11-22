@@ -10,6 +10,8 @@ import 'employer_applicants_repository.dart';
 import 'employer_resume_button.dart';
 import 'resume_pdf_opener.dart';
 import 'module2_widgets.dart';
+import '../phase4/cross_party_reputation_content.dart';
+import '../phase4/reputation_gateway.dart';
 
 abstract interface class ApplicantProfileRepository {
   Future<Map<String, dynamic>> load(String applicationId);
@@ -49,6 +51,7 @@ class ApplicantProfileButton extends StatelessWidget {
     this.applicantsRepository,
     this.resumeOpener,
     this.createChatRepository,
+    this.reputationGateway,
     super.key,
   });
 
@@ -59,6 +62,7 @@ class ApplicantProfileButton extends StatelessWidget {
   final EmployerApplicantsRepository? applicantsRepository;
   final ResumePdfOpener? resumeOpener;
   final ChatRepository Function()? createChatRepository;
+  final CrossPartyReputationGateway? reputationGateway;
 
   @override
   Widget build(BuildContext context) => OutlinedButton.icon(
@@ -73,6 +77,7 @@ class ApplicantProfileButton extends StatelessWidget {
         applicantsRepository: applicantsRepository,
         resumeOpener: resumeOpener,
         createChatRepository: createChatRepository,
+        reputationGateway: reputationGateway,
       ),
     ),
     icon: const Icon(Icons.account_circle_outlined),
@@ -89,6 +94,7 @@ class _ApplicantProfileDialog extends StatefulWidget {
     this.applicantsRepository,
     this.resumeOpener,
     this.createChatRepository,
+    this.reputationGateway,
   });
 
   final String applicationId;
@@ -98,6 +104,7 @@ class _ApplicantProfileDialog extends StatefulWidget {
   final EmployerApplicantsRepository? applicantsRepository;
   final ResumePdfOpener? resumeOpener;
   final ChatRepository Function()? createChatRepository;
+  final CrossPartyReputationGateway? reputationGateway;
 
   @override
   State<_ApplicantProfileDialog> createState() =>
@@ -204,6 +211,12 @@ class _ApplicantProfileDialogState extends State<_ApplicantProfileDialog> {
     return '${from.isEmpty ? 'Date not provided' : from} – ${to.isEmpty ? 'End date not provided' : to}';
   }
 
+  String _studyStatus(Map<String, dynamic> row) {
+    if (row['is_current'] == true) return 'Currently studying';
+    if (row['is_current'] == false) return 'Not currently studying';
+    return 'Study status not provided';
+  }
+
   Widget _section(String title, List<Widget> children, String emptyMessage) =>
       Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -273,6 +286,11 @@ class _ApplicantProfileDialogState extends State<_ApplicantProfileDialog> {
             SelectableText(_text(profile['bio'])),
         ], 'No profile introduction provided.'),
         const SizedBox(height: 12),
+        CrossPartyReputationContent.applicant(
+          applicationId: widget.applicationId,
+          gateway: widget.reputationGateway,
+        ),
+        const SizedBox(height: 12),
         _section('Skills', [
           if (skills.isNotEmpty)
             Wrap(
@@ -300,6 +318,7 @@ class _ApplicantProfileDialogState extends State<_ApplicantProfileDialog> {
                 _text(row['qualification']),
                 _text(row['field_of_study']),
               ].where((value) => value.isNotEmpty).join(' · '),
+              _studyStatus(row),
               _dateRange(row, 'started_on', 'completed_on'),
               _text(row['description']),
             ]),

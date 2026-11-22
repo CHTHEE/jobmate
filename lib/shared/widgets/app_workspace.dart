@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
@@ -491,8 +493,9 @@ class AppWorkspace extends StatelessWidget {
   );
 }
 
-/// Loads only the signed-in Admin's own permission row. This is presentation
-/// filtering; every protected route/RPC remains authorized by the backend.
+/// Loads sidebar flags for the signed-in Admin. The invitation and
+/// permission-management flags come from the protected Edge access check;
+/// every protected route/RPC remains authorized by the backend.
 class _AdminNavigationPermissions extends StatefulWidget {
   const _AdminNavigationPermissions({required this.builder});
 
@@ -505,8 +508,10 @@ class _AdminNavigationPermissions extends StatefulWidget {
 
 class _AdminNavigationPermissionsState
     extends State<_AdminNavigationPermissions> {
-  late final String? _userId;
-  late final Future<Map<String, dynamic>?> _permissions;
+  String? _userId;
+  late Future<Map<String, dynamic>?> _permissions;
+  StreamSubscription<AuthState>? _authSubscription;
+  var _generation = 0;
 
   @override
   void initState() {
@@ -514,32 +519,105 @@ class _AdminNavigationPermissionsState
     try {
       final client = Supabase.instance.client;
       _userId = client.auth.currentUser?.id;
-      _permissions = _load(client);
+      _permissions = _load(client, _userId, ++_generation);
+      _authSubscription = client.auth.onAuthStateChange.listen((_) {
+        if (!mounted) return;
+        _reload(client);
+      });
     } catch (_) {
       _userId = null;
       _permissions = Future.value(null);
     }
   }
 
-  Future<Map<String, dynamic>?> _load(SupabaseClient client) async {
-    final userId = _userId;
+  void _reload(SupabaseClient client) {
+    setState(() {
+      _userId = client.auth.currentUser?.id;
+      _permissions = _load(client, _userId, ++_generation);
+    });
+  }
+
+  Future<Map<String, dynamic>?> _load(
+    SupabaseClient client,
+    String? userId,
+    int generation,
+  ) async {
     if (userId == null) return null;
     try {
-      final row = await client
-          .from('administrator_profiles')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle();
-      if (client.auth.currentUser?.id != userId || row == null) return null;
-      return Map<String, dynamic>.from(row);
+      final access = await client.functions.invoke(
+        'admin-invitations',
+        body: const {'action': 'check_access'},
+      );
+      if (!_isCurrent(client, userId, generation)) return null;
+
+      final accessData = access.data;
+      if (accessData is! Map ||
+          accessData['isAdmin'] != true ||
+          accessData['canInviteAdmins'] is! bool ||
+          accessData['canManageAdminPermissions'] is! bool) {
+        return null;
+      }
+
+      // `check_access` is authoritative for invitation and permission-management
+      // navigation. The profile row supplies only the remaining sidebar flags.
+      final permissions = <String, dynamic>{
+        'can_invite_admins': accessData['canInviteAdmins'],
+        'can_manage_admin_permissions': accessData['canManageAdminPermissions'],
+      };
+      try {
+        final row = await client
+            .from('administrator_profiles')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle();
+        if (!_isCurrent(client, userId, generation)) return null;
+        if (row != null) {
+          permissions.addAll(Map<String, dynamic>.from(row));
+          // Never let a profile response override the Edge Function's current
+          // authorization decision for either protected destination.
+          permissions['can_invite_admins'] = accessData['canInviteAdmins'];
+          permissions['can_manage_admin_permissions'] =
+              accessData['canManageAdminPermissions'];
+        }
+      } catch (error) {
+        debugPrint('Admin navigation profile lookup failed: $error');
+      }
+      // Superadmin identity comes from the server-authoritative access action.
+      // It grants UI discoverability only; each backend endpoint still performs
+      // its own active-account, target, and conflict authorization.
+      if (accessData['canManageAdminPermissions'] == true) {
+        permissions.addAll(const {
+          'can_invite_admins': true,
+          'can_review_companies': true,
+          'can_manage_user_accounts': true,
+          'can_manage_disputes': true,
+          'can_manage_company_restrictions': true,
+          'can_manage_user_reports': true,
+          'can_manage_job_moderation': true,
+        });
+      }
+      if (!_isCurrent(client, userId, generation)) return null;
+      return permissions;
     } catch (error) {
       debugPrint('Admin navigation permission lookup failed: $error');
       return null;
     }
   }
 
+  bool _isCurrent(SupabaseClient client, String userId, int generation) =>
+      mounted &&
+      _generation == generation &&
+      client.auth.currentUser?.id == userId;
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>?>(
+    key: ValueKey(_generation),
     future: _permissions,
     builder: (context, snapshot) => widget.builder(
       snapshot.connectionState == ConnectionState.done && !snapshot.hasError

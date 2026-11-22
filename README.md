@@ -1303,6 +1303,13 @@ UI preview; existing per-operation real admin/company-review permissions remain
 authoritative. Protected conversation access is explicitly unavailable: no RLS
 bypass, real private-message query or fabricated secure access audit is added.
 
+The deployed historical Dispute finding RPC can be exercised from the existing
+Admin Dispute Details page in local Debug builds with
+`--dart-define=ENABLE_HISTORICAL_CLASSIFICATION=true`. The flag defaults off and
+cannot enable the workflow in profile/release builds. The Admin must explicitly
+select an outcome and provide a reviewed reason; the backend remains authoritative
+for report classification, Incident consistency, Appeals and authorization.
+
 Form drafts (including rating selections, notes, payment worker/method/proof and
 case party/outcome choices) survive in-app navigation in memory. Discarding the
 payment draft confirms first. Resume/proof selection reuses the existing local
@@ -2008,6 +2015,71 @@ For focused job changes, use `flutter test test/job_postings_test.dart`. Run oth
 - [ ] Loading, empty, success and error states; repeated actions and session changes where relevant.
 - [ ] AI success, editable output, preserved Original Description and replacement confirmation.
 - [ ] Temporary AI failure, rate limit, malformed response and session-expiry handling; preserve text and manual editing.
+
+### Cross-party Reputation MVP (prepared SQL; Flutter verified)
+
+The existing Applicant Profile dialog now shows an application-authorized
+applicant Reputation summary. The existing verified Company Profile dialog,
+reachable from Job Details, shows Company Reputation for active Job Seekers when
+that Company has a Job visible through the existing published-job directory.
+Both reuse the self-facing aggregate UI; unavailable/undeployed RPCs show an
+error with Retry rather than fabricated ratings. The additive candidate creates
+two scoped public read RPCs and one private release helper, preserving existing
+Phase A/B/C definitions, RLS and legacy Shift Evaluations. The user reports a
+successful SQL postflight and basic Flutter manual checks; isolated authorization
+regression remains unexecuted by the coding agent. See
+[the cross-party implementation and manual SQL sequence](docs/reputation/cross_party_reputation.md).
+No internal Trust Score or Payment/Attendance scoring is implemented by this
+change. Earlier demo descriptions elsewhere document historical UI stages.
+
+### Internal Job Seeker Trust engine (prepared; not deployed)
+
+`supabase/patches/job_seeker_trust_score_candidate.sql` adds four owner-only
+private functions for on-demand evidence calculation and bounded formula
+arithmetic. Work evidence separates future/ongoing/ended, verification, Disputes
+and cancellation audits; original-attendance observations never imply confirmed
+absence or an approved grace period. Released Evaluation averages have equal weight per Application and
+normalize to 0-100. A numerical C/A kernel implements a versioned candidate
+policy over trusted canonical obligations, with original-record candidates wired
+through the work evidence helper. The supplied installed Attendance Resolution
+catalog now supports exact corrected/confirmed-absence mapping; the proposed
+15-minute grace and C/A scoring rules are adopted as provisional FYP v1
+decisions; C/A factor scores are available from complete authoritative evidence.
+D and the composite remain NULL in the existing v1 calculator. Separate
+incident/finding/appeal and mediation SQL candidates now prepare an explicit
+Admin decision path and an internal v2 score, but remain undeployed and require
+isolated authorization tests, historical coverage review and correction-policy
+review. The incident candidate now guards legacy terminal actions, provides an
+explicit historical-case classifier and binds coverage attestations to an
+effective-evidence fingerprint. Existing Flutter terminal actions require a
+structured-outcome integration before backend deployment. A dependent,
+unexecuted finalized-incident correction candidate now
+prepares independent Admin approval and append-only audit. The earlier
+Assignment-keyed D candidate is superseded. The dependent candidate changes
+only the prepared internal incident D evidence and mediation relink guard needed
+for an approved correction. It adds no public score RPC, Flutter UI or mutable
+score table. Read-only preflight/postflight and
+an isolated-only rollback regression are prepared; no SQL execution is implied.
+See [the internal Trust engine contract and missing policies](docs/reputation/job_seeker_trust_score.md).
+The [Dashboard-only isolated Trust/Dispute runtime procedure](docs/reputation/trust_dispute_isolated_runtime_verification.md)
+records the exact candidate order, required baseline and unexecuted test gates.
+
+### Phase A/B/C authenticated Local integration (prepared only)
+
+`test/reputation_phase_abc_local_integration_test.dart` exercises the existing
+Engagement Closure, reciprocal application Evaluation and Reputation RPCs
+through real Local Auth sessions. Run it only with
+`supabase/diagnostics/run_reputation_phase_abc_local_integration.ps1` against a
+separately named disposable Local Supabase project whose reviewed Phase A/B/C
+schema is already installed. The runner checks function fingerprints/security,
+RLS, constraints, skills and trigger contracts; it does not install SQL. It
+creates synthetic Auth/business fixtures and destroys the dedicated project
+data volumes afterwards because closure and evaluation audit records are
+immutable. See
+[`reputation_phase_abc_local_integration.md`](supabase/diagnostics/reputation_phase_abc_local_integration.md)
+for isolation requirements, cleanup limitations and the exact PowerShell
+command. This integration has not been executed; an empty Supabase install or
+the existing shared development database is not an acceptable target.
 
 ### Details requiring team confirmation
 
