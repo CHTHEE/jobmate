@@ -865,7 +865,8 @@ note until session reset. Browser refresh/tab closing do not retain drafts.
 `list_my_job_applications()` RPC. Its exact projection is `application_id`,
 `job_id`, `job_title`, `company_name`, nullable `resume_id`/`cover_note`, `status`,
 `applied_at`, `updated_at`, and nullable `withdrawn_at`. Cards use the returned
-title, company, date and status, with a neutral work icon. No logo, resume
+title, company, date and status, with a work icon, compact summary counts and
+a responsive action footer. No logo, resume
 filename, location or salary is inferred. Submitted displays as Applied;
 Declined and Withdrawn remain distinct completed statuses. The list preserves
 search, status filters, tabs and sorting (applied date then application ID), and

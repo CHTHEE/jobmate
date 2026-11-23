@@ -28,12 +28,14 @@ void main() {
     ),
   );
 
-  for (final width in [320.0, 1440.0]) {
+  for (final width in [320.0, 390.0, 768.0, 1440.0]) {
     testWidgets('Real cards preserve responsive UI at $width', (tester) async {
       tester.view.physicalSize = Size(width, 1000);
       tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.6;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       source.rows = [applicationRow('bc697799-463f-4251-b6be-8888551c3712')];
       await showPage(tester);
       await tester.pumpAndSettle();
@@ -42,6 +44,9 @@ void main() {
       expect(find.text('ABC Company'), findsOneWidget);
       expect(find.text('Applied'), findsOneWidget);
       expect(find.text('Applied: 2026-11-04'), findsOneWidget);
+      expect(find.text('Application submitted.'), findsOneWidget);
+      expect(find.byIcon(Icons.calendar_today_outlined), findsOneWidget);
+      expect(find.text('Your applications'), findsOneWidget);
       expect(find.text('DEMO / PREVIEW'), findsNothing);
       expect(find.textContaining('Demo candidate'), findsNothing);
       expect(
@@ -50,14 +55,16 @@ void main() {
       );
       expect(
         tester
-            .widget<OutlinedButton>(
-              find.widgetWithText(OutlinedButton, 'View Application'),
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'View Application'),
             )
             .onPressed,
         isNotNull,
       );
       expect(find.text('Withdraw'), findsNothing);
       expect(find.text('Resume not provided'), findsNothing);
+      expect(find.text('Message Employer'), findsOneWidget);
+      expect(find.text('View Job'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
@@ -100,11 +107,25 @@ void main() {
       ];
       await showPage(tester);
       await tester.pumpAndSettle();
+      for (final (label, value) in [
+        ('All', '3'),
+        ('Active', '1'),
+        ('Completed', '2'),
+      ]) {
+        expect(
+          tester
+              .widget<Text>(find.byKey(ValueKey('application-count-$label')))
+              .data,
+          value,
+        );
+      }
       await tester.tap(find.widgetWithText(ChoiceChip, 'Completed'));
       await tester.pumpAndSettle();
       expect(find.text('Part-Time Cafe Crew'), findsNothing);
       expect(find.text('Declined'), findsOneWidget);
       expect(find.text('Withdrawn'), findsOneWidget);
+      expect(find.text('You declined the offer.'), findsOneWidget);
+      expect(find.text('You withdrew this application.'), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'Declined job');
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('declined')), findsOneWidget);
