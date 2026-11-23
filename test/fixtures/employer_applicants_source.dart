@@ -51,6 +51,7 @@ class TestEmployerApplicantsSource implements EmployerApplicantsSource {
   }
 
   final updates = <(String, MyApplicationStatus, String?)>[];
+  final offerRequests = <(String, String, String?)>[];
   Future<void> Function()? sendUpdate;
   @override
   Future<void> updateStatus(
@@ -70,6 +71,38 @@ class TestEmployerApplicantsSource implements EmployerApplicantsSource {
         else
           row,
     ];
+  }
+
+  @override
+  Future<Map<String, dynamic>> issueCompensationOffer(
+    String id,
+    String requestId,
+    String? note,
+  ) async {
+    offerRequests.add((id, requestId, note));
+    final row = {
+      'offer_id': '00000000-0000-4000-8000-000000000001',
+      'application_id': id,
+      'offer_version': 1,
+      'employment_type': 'part_time',
+      'salary_period': 'hourly',
+      'salary_min_sen': '1500',
+      'salary_max_sen': '2000',
+      'currency': 'MYR',
+      'issued_by': '00000000-0000-4000-8000-000000000003',
+      'issued_at': '2026-11-04T10:11:37.58546Z',
+      'payment_basis_supported': true,
+      'is_current': true,
+      'is_accepted': false,
+    };
+    rows = [
+      for (final item in rows)
+        if (item['application_id'] == id)
+          {...item, 'status': MyApplicationStatus.offered.name}
+        else
+          item,
+    ];
+    return row;
   }
 
   @override

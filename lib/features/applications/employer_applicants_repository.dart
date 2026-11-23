@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import '../jobs/job_postings_repository.dart';
 import 'applicant_unseen_controller.dart';
+import 'compensation_offer.dart';
 import 'my_applications_repository.dart';
 
 class JobApplicant {
@@ -36,6 +38,8 @@ class JobApplicant {
       MyApplicationStatus.offered,
       MyApplicationStatus.rejected,
     ],
+    MyApplicationStatus.offered =>
+      p03CompensationOffersEnabled ? [MyApplicationStatus.offered] : [],
     _ => [],
   };
 }
@@ -55,6 +59,11 @@ abstract class EmployerApplicantsSource {
   Future<void> updateStatus(
     String applicationId,
     MyApplicationStatus status,
+    String? note,
+  );
+  Future<Map<String, dynamic>> issueCompensationOffer(
+    String applicationId,
+    String requestId,
     String? note,
   );
 }
@@ -121,17 +130,42 @@ class SupabaseEmployerApplicantsSource implements EmployerApplicantsSource {
       },
     );
   }
+
+  @override
+  Future<Map<String, dynamic>> issueCompensationOffer(
+    String applicationId,
+    String requestId,
+    String? note,
+  ) async {
+    final result = await client.rpc(
+      'issue_application_compensation_offer_v1',
+      params: {
+        'p_application_id': applicationId,
+        'p_request_id': requestId,
+        'p_note': note,
+      },
+    );
+    if (result is! Map) {
+      throw const FormatException('Invalid compensation offer response.');
+    }
+    return Map<String, dynamic>.from(result);
+  }
 }
 
 class EmployerApplicantsRepository extends ChangeNotifier {
-  EmployerApplicantsRepository(this.source, this.jobId, {this.applicantUnseen})
-    : _actor = source.userId {
+  EmployerApplicantsRepository(
+    this.source,
+    this.jobId, {
+    this.applicantUnseen,
+    this.compensationOffersEnabled = p03CompensationOffersEnabled,
+  }) : _actor = source.userId {
     _subscription = source.accountChanges.listen((id) {
       if (id == _actor) return;
       _reset();
       if (id != null) load();
     });
   }
+  final bool compensationOffersEnabled;
   final EmployerApplicantsSource source;
   final String? jobId;
   final ApplicantUnseenController? applicantUnseen;
@@ -146,6 +180,9 @@ class EmployerApplicantsRepository extends ChangeNotifier {
   String? error;
   EmployerPostingContext? _context;
   List<JobApplicant> _rows = [];
+  final Map<String, String> _pendingOfferRequests = {};
+  String compensationOfferRequestId(String applicationId) =>
+      _pendingOfferRequests.putIfAbsent(applicationId, const Uuid().v4);
   ApplicantDisplayScope? _displayScope;
   ApplicantDisplayScope? get displayScope =>
       active && !loading && !updating && error == null ? _displayScope : null;
@@ -188,6 +225,7 @@ class EmployerApplicantsRepository extends ChangeNotifier {
     _actor = source.userId;
     _context = null;
     _rows = [];
+    _pendingOfferRequests.clear();
     _displayScope = null;
     loading = false;
     updating = false;
@@ -267,6 +305,15 @@ class EmployerApplicantsRepository extends ChangeNotifier {
     if (trimmed.runes.length > 2000) {
       throw StateError('Keep the note within 2,000 characters.');
     }
+    if (compensationOffersEnabled && next == MyApplicationStatus.offered) {
+      final selectedJob = job;
+      if (selectedJob == null || !hasPaymentTermsMetadata(selectedJob)) {
+        throw StateError('Refresh the Job terms before issuing an Offer.');
+      }
+      if (isPaymentSupportedJob(selectedJob)) {
+        throw StateError('Use versioned Offer issuance for this Job.');
+      }
+    }
     final generation = _generation, actor = _actor;
     final companyId = context!.access.company!['company_id'];
     Object? failure;
@@ -316,6 +363,94 @@ class EmployerApplicantsRepository extends ChangeNotifier {
     if (failure != null) throw failure;
   }
 
+  Future<CompensationOffer> issueCompensationOffer(
+    JobApplicant applicant,
+    String note,
+    String requestId,
+  ) async {
+    if (!compensationOffersEnabled ||
+        _disposed ||
+        updating ||
+        loading ||
+        job == null ||
+        source.userId == null ||
+        source.userId != _actor) {
+      throw StateError(
+        'Versioned Offer issuance is unavailable. Refresh and try again.',
+      );
+    }
+    final selectedJob = job!;
+    if (!isPaymentSupportedJob(selectedJob)) {
+      throw StateError(
+        'This Job uses the existing non-payment Offer workflow.',
+      );
+    }
+    final current = applicants
+        .where((row) => row.id == applicant.id)
+        .firstOrNull;
+    if (current == null ||
+        current.status != applicant.status ||
+        !current.employerNext.contains(MyApplicationStatus.offered)) {
+      throw StateError(
+        'This Offer transition is unavailable. Refresh applicants.',
+      );
+    }
+    if (note.trim().runes.length > 2000) {
+      throw StateError('Keep the note within 2,000 characters.');
+    }
+    final generation = _generation, actor = _actor;
+    final companyId = context!.access.company!['company_id'];
+    Object? failure;
+    CompensationOffer? offer;
+    updating = true;
+    notifyListeners();
+    try {
+      final fresh = await source.loadJobs();
+      final freshJob = fresh.jobs
+          .where((row) => row['job_id'] == jobId)
+          .firstOrNull;
+      if (!_current(generation, actor) ||
+          !fresh.access.allowed ||
+          fresh.access.company?['company_id'] != companyId ||
+          freshJob == null ||
+          !isPaymentSupportedJob(freshJob)) {
+        throw StateError(
+          'Your account, company or Job terms changed. Reopen this Job.',
+        );
+      }
+      final raw = await source.issueCompensationOffer(
+        applicant.id,
+        requestId,
+        note.trim().isEmpty ? null : note.trim(),
+      );
+      offer = CompensationOffer.fromJson(raw);
+      if (offer.applicationId != applicant.id || !offer.isCurrent) {
+        throw const FormatException('The server returned a stale Offer.');
+      }
+      if (!_current(generation, actor)) {
+        throw StateError(
+          'Your session changed. Reopen this Job to check the result.',
+        );
+      }
+    } catch (error) {
+      failure = error;
+    } finally {
+      if (_current(generation, actor)) updating = false;
+    }
+    if (!_current(generation, actor)) {
+      throw StateError(
+        'Your session or Job changed. Reopen to check the result.',
+      );
+    }
+    await load();
+    if (!_current(_generation, actor)) {
+      throw StateError('Your session or company changed. Reopen this Job.');
+    }
+    if (failure != null) throw failure;
+    _pendingOfferRequests.remove(applicant.id);
+    return offer!;
+  }
+
   @override
   void dispose() {
     _disposed = true;
@@ -324,6 +459,13 @@ class EmployerApplicantsRepository extends ChangeNotifier {
     super.dispose();
   }
 }
+
+bool isPaymentSupportedJob(Map<String, dynamic> job) =>
+    const {'part_time', 'temporary'}.contains(job['employment_type']) &&
+    const {'hourly', 'daily'}.contains(job['salary_period']);
+
+bool hasPaymentTermsMetadata(Map<String, dynamic> job) =>
+    job.containsKey('employment_type') && job.containsKey('salary_period');
 
 String employerStatusError(Object error) {
   if (error is StateError) return error.message.toString();
