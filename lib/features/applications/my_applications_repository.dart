@@ -126,9 +126,12 @@ class SupabaseMyApplicationsSource
     )) {
       throw StateError('This application action is unavailable.');
     }
-    if (action == ApplicationResponseAction.acceptOffer.wireName &&
-        p03CompensationOffersEnabled) {
+    if (action == ApplicationResponseAction.acceptOffer.wireName) {
+      final actor = userId;
       final versionedOffer = await currentCompensationOffer(applicationId);
+      if (userId != actor) {
+        throw StateError('Your session changed. Refresh the application.');
+      }
       if (versionedOffer != null) {
         throw StateError(
           'Accept this Offer using its exact displayed version.',
@@ -262,6 +265,12 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
   CompensationOffer? _compensationOffer;
   CompensationOffer? get compensationOffer =>
       source.userId == _actor ? _compensationOffer : null;
+  bool get canAcceptOffer =>
+      !offerLoading &&
+      offerError == null &&
+      (compensationOffer == null ||
+          compensationOffersEnabled &&
+              source is ExactVersionCompensationOfferSource);
   int _sessionVersion = 0;
   int get sessionVersion => _sessionVersion;
 
@@ -330,7 +339,6 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
           .firstOrNull;
       _application = row == null ? null : MyJobApplication(row);
       loading = false;
-      notifyListeners();
       await loadCompensationOffer();
       if (_application != null) await loadHistory();
     } catch (_) {
@@ -346,16 +354,15 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
     final selected = application;
     _compensationOffer = null;
     offerError = null;
-    if (!compensationOffersEnabled ||
-        selected == null ||
-        !const {
-          MyApplicationStatus.offered,
-          MyApplicationStatus.hired,
-        }.contains(selected.status)) {
+    // Pending offers still need classification when versioned actions are off.
+    if (selected?.status != MyApplicationStatus.offered &&
+        !(compensationOffersEnabled &&
+            selected?.status == MyApplicationStatus.hired)) {
       offerLoading = false;
       notifyListeners();
       return;
     }
+    final status = selected!.status;
     final generation = _generation, actor = _actor;
     offerLoading = true;
     notifyListeners();
@@ -365,9 +372,9 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
       if (row != null) {
         final offer = CompensationOffer.fromJson(row);
         if (offer.applicationId != applicationId ||
-            selected.status == MyApplicationStatus.offered &&
+            status == MyApplicationStatus.offered &&
                 (!offer.isCurrent || offer.isAccepted) ||
-            selected.status == MyApplicationStatus.hired && !offer.isAccepted) {
+            status == MyApplicationStatus.hired && !offer.isAccepted) {
           throw const FormatException(
             'Offer does not match this application state.',
           );
@@ -394,9 +401,7 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
     if (!currentSession(version) ||
         responding ||
         loading ||
-        choice == ApplicationResponseAction.acceptOffer &&
-            compensationOffersEnabled &&
-            (offerLoading || offerError != null) ||
+        choice == ApplicationResponseAction.acceptOffer && !canAcceptOffer ||
         application?.id != selected.id ||
         application?.status != selected.status ||
         choice == null ||
@@ -426,11 +431,6 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
               offer.version,
             );
       } else {
-        if (choice == ApplicationResponseAction.acceptOffer &&
-            compensationOffersEnabled &&
-            offerError != null) {
-          throw StateError(offerError!);
-        }
         await source.respond(applicationId, action);
       }
     } catch (error) {

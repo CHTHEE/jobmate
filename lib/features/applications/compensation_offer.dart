@@ -1,14 +1,10 @@
-import 'package:flutter/foundation.dart';
-
 import '../payments/payment_feature_gate.dart';
 
-/// P03 stays opt-in until the Offer candidate and its prerequisite privilege
-/// hardening have been reviewed and installed together.
+/// Payment Handling requires exact-version Offers.
 const p03CompensationOffersEnabled =
-    kDebugMode &&
     bool.fromEnvironment(
       'JOBMATE_P03_COMPENSATION_OFFERS',
-      defaultValue: false,
+      defaultValue: true,
     ) ||
     paymentHandlingEnabled;
 

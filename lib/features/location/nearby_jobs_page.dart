@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../shared/navigation/app_page.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/theme/jobmate_theme.dart';
+import '../../shared/widgets/expandable_filter_bar.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../applications/browse_job_card.dart';
@@ -262,18 +263,15 @@ class _NearbyJobsListState extends State<_NearbyJobsList> {
                 ],
               ),
             const Divider(height: JobMateTheme.space24),
-            if (stacked) ...[
-              radiusFilter,
-              const SizedBox(height: JobMateTheme.space12),
-              employmentFilter,
-            ] else
-              Row(
-                children: [
-                  Expanded(child: radiusFilter),
-                  const SizedBox(width: JobMateTheme.space16),
-                  SizedBox(width: 220, child: employmentFilter),
-                ],
-              ),
+            ExpandableFilterBar(
+              activeCount:
+                  (_radius == 5 ? 0 : 1) + (_employmentType.isEmpty ? 0 : 1),
+              onClear: () => setState(() {
+                _radius = 5;
+                _employmentType = '';
+              }),
+              filters: [radiusFilter, employmentFilter],
+            ),
           ],
         );
       },

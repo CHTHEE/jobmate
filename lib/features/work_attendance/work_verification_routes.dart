@@ -33,6 +33,7 @@ GoRoute workVerificationRoute({
       checkAccess: checkAccess,
       loadCompanyAccess: loadCompanyAccess,
       assignmentId: evidence ? state.pathParameters['assignmentId'] : null,
+      jobId: evidence ? null : state.uri.queryParameters['job'],
     ),
   ),
 );
@@ -43,8 +44,10 @@ class _EmployerAccess extends StatefulWidget {
     this.checkAccess,
     this.loadCompanyAccess,
     this.assignmentId,
+    this.jobId,
   });
   final String? assignmentId;
+  final String? jobId;
   final WorkAttendanceSource? source;
   final Future<bool> Function()? checkAccess;
   final Future<JobAccess> Function()? loadCompanyAccess;
@@ -84,6 +87,7 @@ class _EmployerAccessState extends State<_EmployerAccess> {
       source: source,
       loadAccess: loadAccess,
       assignmentId: widget.assignmentId,
+      jobId: widget.jobId,
     ),
   );
 }
@@ -94,8 +98,10 @@ class _CompanyAssignments extends StatefulWidget {
     required this.source,
     required this.loadAccess,
     this.assignmentId,
+    this.jobId,
   });
   final String? assignmentId;
+  final String? jobId;
   final WorkAttendanceSource source;
   final Future<JobAccess> Function() loadAccess;
   @override
@@ -146,6 +152,8 @@ class _CompanyAssignmentsState extends State<_CompanyAssignments> {
           repository: repository,
           companyId: snapshot.data!,
           loadAccess: widget.loadAccess,
+          jobId: widget.jobId,
+          overview: widget.jobId == null,
         );
       }
       final failure = snapshot.error;

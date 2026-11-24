@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/expandable_filter_bar.dart';
 import '../applications/module2_widgets.dart';
 import 'work_attendance_models.dart';
 import 'work_attendance_repository.dart';
@@ -353,6 +354,21 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
                             : 'Attendance History',
                       ),
                     ),
+                  ],
+                ),
+              if (!state.loading && state.error == null)
+                ExpandableFilterBar(
+                  activeCount:
+                      (widget.history
+                          ? _historyFilter != AttendanceHistoryFilter.all
+                          : _period != 'all')
+                      ? 1
+                      : 0,
+                  onClear: () => setState(() {
+                    _historyFilter = AttendanceHistoryFilter.all;
+                    _period = 'all';
+                  }),
+                  filters: [
                     if (widget.history)
                       for (final filter in AttendanceHistoryFilter.values)
                         ChoiceChip(
@@ -380,6 +396,7 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
                         ),
                   ],
                 ),
+              const SizedBox(height: 8),
               if (widget.history)
                 const Text(
                   'Past shifts and attendance records. Recorded attendance, employer work verification and payment are separate outcomes.',

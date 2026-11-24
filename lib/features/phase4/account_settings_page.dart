@@ -105,6 +105,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     role: widget.role,
     navigationLocked: busy,
     child: WorkspaceContent(
+      title: 'Account Settings',
       child: FutureBuilder<Map<String, dynamic>>(
         future: account,
         builder: (context, snapshot) {

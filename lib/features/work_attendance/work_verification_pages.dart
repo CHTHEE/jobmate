@@ -5,6 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/design_primitives.dart';
+import '../../shared/widgets/expandable_filter_bar.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import '../applications/module2_widgets.dart';
 import '../jobs/job_postings_repository.dart';
 import 'work_attendance_models.dart';
@@ -36,6 +39,8 @@ class WorkVerificationPage extends StatefulWidget {
     this.gpsSource,
     this.closureGateway,
     this.resolutionSource,
+    this.jobId,
+    this.overview = false,
   });
   final WorkAttendanceRepository repository;
   final String companyId;
@@ -47,6 +52,8 @@ class WorkVerificationPage extends StatefulWidget {
   final WorkAttendanceGpsSource? gpsSource;
   final EngagementClosureGateway? closureGateway;
   final WorkAttendanceResolutionSource? resolutionSource;
+  final String? jobId;
+  final bool overview;
 
   @override
   State<WorkVerificationPage> createState() => _WorkVerificationPageState();
@@ -99,7 +106,8 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
 
   bool _matches(CompanyWorkAssignment row) {
     final query = _search.text.trim().toLowerCase();
-    return (_jobFilter.isEmpty || row.jobId == _jobFilter) &&
+    return (widget.jobId == null || row.jobId == widget.jobId) &&
+        (_jobFilter.isEmpty || row.jobId == _jobFilter) &&
         matchesAttendanceShiftFilter(row, _shiftFilter) &&
         (_verificationFilter.isEmpty ||
             row.verificationStatus.name == _verificationFilter) &&
@@ -347,7 +355,8 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
     }
     if (!identical(oldWidget.repository, widget.repository) ||
         oldWidget.companyId != widget.companyId ||
-        oldWidget.loadAccess != widget.loadAccess) {
+        oldWidget.loadAccess != widget.loadAccess ||
+        oldWidget.jobId != widget.jobId) {
       if (!identical(oldWidget.repository, widget.repository) ||
           oldWidget.companyId != widget.companyId) {
         _expandedShiftIds.clear();
@@ -380,8 +389,28 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
       final loading = _checking || (authorized && state.loading);
       final error = _error ?? (authorized ? state.error : null);
       final kind = _errorKind ?? (authorized ? state.errorKind : null);
+      if (widget.overview && widget.jobId == null) {
+        return _buildJobOverview(
+          context,
+          state,
+          authorized: authorized,
+          loading: loading,
+          error: error,
+          kind: kind,
+        );
+      }
+      final selectedRows = widget.jobId == null
+          ? state.rows
+          : state.rows
+                .where((row) => row.jobId == widget.jobId)
+                .toList(growable: false);
+      final selectedTitle = widget.jobId == null
+          ? 'Work Assignments & Verification'
+          : selectedRows.isEmpty
+          ? 'Selected Job'
+          : selectedRows.first.jobTitle;
       return AppWorkspace(
-        title: 'Work Assignments & Verification',
+        title: 'Work Management',
         path: AppRoutes.workVerification,
         role: 'employer',
         navigationActionCounts: authorized && !loading && error == null
@@ -399,33 +428,37 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
           ),
         ],
         child: WorkspaceContent(
-          maxWidth: 1100,
+          maxWidth: 1440,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Work Assignments & Verification',
-                style: Theme.of(context).textTheme.headlineMedium,
+              PageHeading(
+                title: selectedTitle,
+                description: 'Manage this job’s workers, shifts, attendance and verification.',
+                actions: [
+                  if (authorized && !loading && error == null)
+                    FilledButton.icon(
+                      onPressed: _dialogOpen ? null : () => _createAssignment(),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Create Assignment'),
+                    ),
+                ],
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Manage company shifts, attendance and work evidence.',
-              ),
+              if (widget.jobId != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => context.canPop()
+                        ? context.pop()
+                        : context.go(AppRoutes.workVerification),
+                    icon: const Icon(Icons.arrow_back, size: 18),
+                    label: const Text('Back to Work Management'),
+                  ),
+                ),
               const SizedBox(height: 4),
               const Text('All times are Malaysia time (MYT, UTC+08:00).'),
               const SizedBox(height: 12),
               const _ShiftEligibilityBanner(),
-              if (authorized && !loading && error == null) ...[
-                const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton.icon(
-                    onPressed: _dialogOpen ? null : () => _createAssignment(),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Create Assignment'),
-                  ),
-                ),
-              ],
               if (_closureGateway != null)
                 CompanyEngagementClosureRequests(
                   key: ValueKey(widget.repository.source.userId),
@@ -445,94 +478,103 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                       setState(() => _shiftFilter = 'attendanceIssues'),
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: _search,
-                  onChanged: (_) => setState(() {}),
-                  decoration: InputDecoration(
-                    labelText: 'Search job title or worker name',
-                    helperText: 'Worker names are searchable when available.',
-                    helperMaxLines: 2,
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _search.text.isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: 'Clear search',
-                            onPressed: () => setState(_search.clear),
-                            icon: const Icon(Icons.close),
-                          ),
+                ExpandableFilterBar(
+                  search: TextField(
+                    controller: _search,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Search job title or worker name',
+                      helperText: 'Worker names are searchable when available.',
+                      helperMaxLines: 2,
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _search.text.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Clear search',
+                              onPressed: () => setState(_search.clear),
+                              icon: const Icon(Icons.close),
+                            ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final jobs = {
-                      for (final row in state.rows) row.jobId: row.jobTitle,
-                    };
-                    final width = constraints.maxWidth < 600
-                        ? constraints.maxWidth
-                        : 240.0;
-                    Widget filter(
-                      String label,
-                      String value,
-                      Map<String, String> options,
-                      ValueChanged<String> onChanged,
-                    ) => SizedBox(
-                      width: width,
-                      child: DropdownButtonFormField<String>(
-                        key: ValueKey('$label:$value'),
-                        initialValue: options.containsKey(value) ? value : '',
-                        isExpanded: true,
-                        decoration: InputDecoration(labelText: label),
-                        items: options.entries
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e.key,
-                                child: Text(
-                                  e.value,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          if (value != null) setState(() => onChanged(value));
-                        },
-                      ),
-                    );
-                    return Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        if (jobs.length > 1 || _jobFilter.isNotEmpty)
-                          filter('Job', _jobFilter, {
-                            '': 'All jobs',
-                            ...jobs,
-                            if (_jobFilter.isNotEmpty &&
-                                !jobs.containsKey(_jobFilter))
-                              _jobFilter:
-                                  'Previously selected job (unavailable)',
-                          }, (v) => _jobFilter = v),
-                        filter('Shift status', _shiftFilter, {
-                          '': 'All shift statuses',
-                          for (final status in WorkAssignmentStatus.values)
-                            status.name: _shiftStatusLabel(status),
-                          'attendanceIssues': 'Attendance Issues',
-                          for (final status in AttendanceLifecycle.values)
-                            'attendance:${status.name}': status.label,
-                        }, (v) => _shiftFilter = v),
-                        filter('Verification status', _verificationFilter, {
-                          '': 'All verification states',
-                          for (final status in WorkVerificationStatus.values)
-                            status.name: _verificationLabel(status),
-                        }, (v) => _verificationFilter = v),
-                        TextButton.icon(
-                          onPressed: () => setState(_clearFilters),
-                          icon: const Icon(Icons.filter_alt_off_outlined),
-                          label: const Text('Clear filters'),
-                        ),
-                      ],
-                    );
-                  },
+                  activeCount: [
+                    _jobFilter,
+                    _shiftFilter,
+                    _verificationFilter,
+                  ].where((value) => value.isNotEmpty).length,
+                  onClear: () => setState(_clearFilters),
+                  filters: [
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final jobs = {
+                          for (final row in state.rows) row.jobId: row.jobTitle,
+                        };
+                        final width = constraints.maxWidth < 600
+                            ? constraints.maxWidth
+                            : 240.0;
+                        Widget filter(
+                          String label,
+                          String value,
+                          Map<String, String> options,
+                          ValueChanged<String> onChanged,
+                        ) => SizedBox(
+                          width: width,
+                          child: DropdownButtonFormField<String>(
+                            key: ValueKey('$label:$value'),
+                            initialValue: options.containsKey(value)
+                                ? value
+                                : '',
+                            isExpanded: true,
+                            decoration: InputDecoration(labelText: label),
+                            items: options.entries
+                                .map(
+                                  (e) => DropdownMenuItem(
+                                    value: e.key,
+                                    child: Text(
+                                      e.value,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() => onChanged(value));
+                              }
+                            },
+                          ),
+                        );
+                        return Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            if (jobs.length > 1 || _jobFilter.isNotEmpty)
+                              filter('Job', _jobFilter, {
+                                '': 'All jobs',
+                                ...jobs,
+                                if (_jobFilter.isNotEmpty &&
+                                    !jobs.containsKey(_jobFilter))
+                                  _jobFilter:
+                                      'Previously selected job (unavailable)',
+                              }, (v) => _jobFilter = v),
+                            filter('Shift status', _shiftFilter, {
+                              '': 'All shift statuses',
+                              for (final status in WorkAssignmentStatus.values)
+                                status.name: _shiftStatusLabel(status),
+                              'attendanceIssues': 'Attendance Issues',
+                              for (final status in AttendanceLifecycle.values)
+                                'attendance:${status.name}': status.label,
+                            }, (v) => _shiftFilter = v),
+                            filter('Verification status', _verificationFilter, {
+                              '': 'All verification states',
+                              for (final status
+                                  in WorkVerificationStatus.values)
+                                status.name: _verificationLabel(status),
+                            }, (v) => _verificationFilter = v),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 Semantics(
@@ -577,13 +619,17 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                     actionLabel: 'Retry',
                   ),
                 )
-              else if (!authorized || state.rows.isEmpty)
-                const ModuleState(
-                  title: 'No company work assignments',
-                  message: 'There are no work assignments to display for this company.',
+              else if (!authorized || selectedRows.isEmpty)
+                ModuleState(
+                  title: widget.jobId == null
+                      ? 'No company work assignments'
+                      : 'Job work unavailable',
+                  message: widget.jobId == null
+                      ? 'Jobs with work assignments will appear here.'
+                      : 'This job has no accessible work assignments, or it is no longer available.',
                 )
               else
-                for (final shifts in _applicationGroups(state.rows))
+                for (final shifts in _applicationGroups(selectedRows))
                   Builder(
                     builder: (context) {
                       final applicationId = shifts.first.applicationId;
@@ -890,6 +936,258 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
       );
     },
   );
+
+  Widget _buildJobOverview(
+    BuildContext context,
+    WorkAttendanceReadState<CompanyWorkAssignment> state, {
+    required bool authorized,
+    required bool loading,
+    required String? error,
+    required WorkAttendanceError? kind,
+  }) {
+    final query = _search.text.trim().toLowerCase();
+    final groups = _jobGroups(state.rows)
+        .where((rows) {
+          if (query.isNotEmpty &&
+              !rows.first.jobTitle.toLowerCase().contains(query) &&
+              !rows.any(
+                (row) => row.workplaceLocation.toLowerCase().contains(query),
+              )) {
+            return false;
+          }
+          return switch (_verificationFilter) {
+            'pending' => rows.any(
+              (row) =>
+                  row.verificationStatus ==
+                  WorkVerificationStatus.pendingReview,
+            ),
+            'issues' => rows.any((row) => AttendanceLifecycle.of(row).isIssue),
+            _ => true,
+          };
+        })
+        .toList(growable: false);
+    return AppWorkspace(
+      title: 'Work Management',
+      path: AppRoutes.workVerification,
+      role: 'employer',
+      navigationActionCounts: authorized && !loading && error == null
+          ? {
+              AppRoutes.workVerification: state.rows
+                  .where(employerShiftNeedsAction)
+                  .length,
+            }
+          : const {},
+      actions: [
+        IconButton(
+          tooltip: 'Refresh company assignments',
+          onPressed: loading ? null : _load,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+      child: WorkspaceContent(
+        maxWidth: 1440,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PageHeading(
+              title: 'Work Management',
+              description: 'Choose a job to manage its workers, shifts, attendance and verification.',
+              actions: [
+                if (authorized && !loading && error == null)
+                  FilledButton.icon(
+                    onPressed: _dialogOpen ? null : () => _createAssignment(),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Create Assignment'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text('All times are Malaysia time (MYT, UTC+08:00).'),
+            const SizedBox(height: 12),
+            const _ShiftEligibilityBanner(),
+            if (authorized &&
+                !loading &&
+                error == null &&
+                state.rows.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              ExpandableFilterBar(
+                search: TextField(
+                  controller: _search,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: 'Search job title or workplace',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _search.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Clear search',
+                            onPressed: () => setState(_search.clear),
+                            icon: const Icon(Icons.close),
+                          ),
+                  ),
+                ),
+                activeCount: _verificationFilter.isEmpty ? 0 : 1,
+                onClear: () => setState(() => _verificationFilter = ''),
+                filters: [
+                  DropdownButtonFormField<String>(
+                    key: ValueKey('overview-status:$_verificationFilter'),
+                    initialValue: _verificationFilter,
+                    decoration: const InputDecoration(labelText: 'Work status'),
+                    items: const [
+                      DropdownMenuItem(value: '', child: Text('All jobs')),
+                      DropdownMenuItem(
+                        value: 'pending',
+                        child: Text('Pending verification'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'issues',
+                        child: Text('Attendance issues'),
+                      ),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => _verificationFilter = value ?? ''),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  'Showing ${groups.length} of ${_jobGroups(state.rows).length} jobs',
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
+            if (loading)
+              const Center(
+                child: CircularProgressIndicator(
+                  semanticsLabel: 'Loading company work management',
+                ),
+              )
+            else if (error != null)
+              ModuleState(
+                title: switch (kind) {
+                  WorkAttendanceError.authentication => 'Sign in required',
+                  WorkAttendanceError.permission => 'Company access denied',
+                  _ => 'Unable to load work management',
+                },
+                message: error,
+                action: _load,
+                actionLabel: 'Retry',
+              )
+            else if (!authorized || state.rows.isEmpty)
+              const ModuleState(
+                title: 'No company work assignments',
+                message: 'Jobs with work assignments will appear here.',
+              )
+            else if (groups.isEmpty)
+              const ModuleState(
+                title: 'No matching jobs',
+                message:
+                    'Clear the search or filter to see all work assignments.',
+              )
+            else
+              ResponsiveGrid(
+                minItemWidth: 360,
+                maxColumns: 3,
+                equalRowHeight: true,
+                children: [for (final rows in groups) _jobOverviewCard(rows)],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _jobOverviewCard(List<CompanyWorkAssignment> rows) {
+    final first = rows.first;
+    final workers = rows.map((row) => row.applicationId).toSet().length;
+    final pending = rows
+        .where(
+          (row) =>
+              row.verificationStatus == WorkVerificationStatus.pendingReview,
+        )
+        .length;
+    final issuesAvailable = rows.every((row) => row.attendanceAsOf != null);
+    final issues = rows
+        .where((row) => AttendanceLifecycle.of(row).isIssue)
+        .length;
+    final locations = rows
+        .map((row) => row.workplaceLocation.trim())
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  first.jobTitle,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  locations.isEmpty
+                      ? 'Workplace not available'
+                      : locations.length == 1
+                      ? locations.single
+                      : '${locations.length} workplaces',
+                ),
+                const SizedBox(height: 14),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    AttendanceStatusBadge(
+                      label: '$workers ${workers == 1 ? 'worker' : 'workers'}',
+                    ),
+                    AttendanceStatusBadge(
+                      label:
+                          '${rows.length} ${rows.length == 1 ? 'shift' : 'shifts'}',
+                    ),
+                    AttendanceStatusBadge(
+                      label: '$pending pending review',
+                      tone: pending > 0
+                          ? AttendanceTone.pending
+                          : AttendanceTone.neutral,
+                    ),
+                    AttendanceStatusBadge(
+                      label: issuesAvailable
+                          ? '$issues attendance issues'
+                          : 'Issues unavailable',
+                      tone: issues > 0
+                          ? AttendanceTone.issue
+                          : AttendanceTone.neutral,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 18),
+              child: FilledButton.icon(
+                key: ValueKey('manage-work-${first.jobId}'),
+                onPressed: () => context.push(
+                  Uri(
+                    path: AppRoutes.workVerification,
+                    queryParameters: {'job': first.jobId},
+                  ).toString(),
+                ),
+                icon: const Icon(Icons.manage_accounts_outlined, size: 18),
+                label: const Text('Manage Work Assignments'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ShiftEligibilityBanner extends StatelessWidget {
@@ -950,6 +1248,16 @@ List<List<CompanyWorkAssignment>> _applicationGroups(
     );
   }
   return groups.values.toList();
+}
+
+// Preserve first-seen job order and group only by authoritative job identity.
+// Duplicate titles must never merge unrelated postings.
+List<List<CompanyWorkAssignment>> _jobGroups(List<CompanyWorkAssignment> rows) {
+  final groups = <String, List<CompanyWorkAssignment>>{};
+  for (final row in rows) {
+    groups.putIfAbsent(row.jobId, () => <CompanyWorkAssignment>[]).add(row);
+  }
+  return groups.values.toList(growable: false);
 }
 
 class _CompanyAssignmentCard extends StatelessWidget {
@@ -1044,7 +1352,7 @@ class _CompanyAssignmentCard extends StatelessWidget {
         : '${shiftDateLabel(value)}\n${shiftTimeLabel(value)} MYT';
     final details = <Widget>[
       ShiftDetailPanel(
-        title: 'Scheduled',
+        title: 'Scheduled shift',
         icon: Icons.calendar_today_outlined,
         children: [
           Text(
@@ -1053,7 +1361,7 @@ class _CompanyAssignmentCard extends StatelessWidget {
         ],
       ),
       ShiftDetailPanel(
-        title: 'Check-in',
+        title: 'Effective check-in',
         icon: Icons.login,
         children: [
           Text(
@@ -1062,7 +1370,7 @@ class _CompanyAssignmentCard extends StatelessWidget {
         ],
       ),
       ShiftDetailPanel(
-        title: 'Check-out',
+        title: 'Effective checkout',
         icon: Icons.logout,
         children: [
           Text(
@@ -1189,7 +1497,7 @@ class _CompanyAssignmentCard extends StatelessWidget {
               _ShiftResponsiveGrid(columns: 3, children: details),
               const SizedBox(height: 12),
               _ShiftResponsiveGrid(
-                columns: 2,
+                columns: 3,
                 children: [
                   ShiftDetailPanel(
                     title: 'Workplace & GPS',
@@ -1240,6 +1548,21 @@ class _CompanyAssignmentCard extends StatelessWidget {
                         child: evidenceAction(primary: evidencePrimary),
                       ),
                       EvidenceDeadlineSummary(assignment: row),
+                    ],
+                  ),
+                  ShiftDetailPanel(
+                    title: 'Verification & settlement',
+                    icon: Icons.fact_check_outlined,
+                    children: [
+                      Text('Work verification: $evidenceLabel'),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Work verification does not by itself approve payable work. Payment eligibility is calculated separately from accepted compensation, resolved attendance, verified shifts and Engagement Closure.',
+                      ),
+                      if (state.isIssue)
+                        const Text(
+                          'Settlement remains blocked while this attendance issue is unresolved.',
+                        ),
                     ],
                   ),
                 ],

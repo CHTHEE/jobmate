@@ -1,6 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'compensation_offer.dart';
 import 'my_applications_repository.dart';
 import 'hiring_membership_status.dart';
 
@@ -191,12 +190,13 @@ class HiringMembershipApplicationsSource
       if (id != actor) changed = true;
     });
     try {
-      if (accepting && p03CompensationOffersEnabled) {
+      if (accepting) {
         // The current membership RPC accepts only an Application ID. It cannot
         // atomically bind acceptance to a versioned Offer, so never route a
         // versioned Offer through that legacy-shaped contract.
-        final versionedOffer =
-            await applications.currentCompensationOffer(applicationId);
+        final versionedOffer = await applications.currentCompensationOffer(
+          applicationId,
+        );
         if (changed || userId != actor || gateway.userId != actor) {
           throw StateError('Your session changed. Refresh the application.');
         }

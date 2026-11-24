@@ -305,13 +305,17 @@ class EmployerApplicantsRepository extends ChangeNotifier {
     if (trimmed.runes.length > 2000) {
       throw StateError('Keep the note within 2,000 characters.');
     }
-    if (compensationOffersEnabled && next == MyApplicationStatus.offered) {
+    if (next == MyApplicationStatus.offered) {
       final selectedJob = job;
       if (selectedJob == null || !hasPaymentTermsMetadata(selectedJob)) {
         throw StateError('Refresh the Job terms before issuing an Offer.');
       }
       if (isPaymentSupportedJob(selectedJob)) {
-        throw StateError('Use versioned Offer issuance for this Job.');
+        throw StateError(
+          compensationOffersEnabled
+              ? 'Use versioned Offer issuance for this Job.'
+              : 'Versioned Offer issuance is currently unavailable.',
+        );
       }
     }
     final generation = _generation, actor = _actor;
@@ -321,13 +325,21 @@ class EmployerApplicantsRepository extends ChangeNotifier {
     notifyListeners();
     try {
       final fresh = await source.loadJobs();
+      final freshJob = fresh.jobs
+          .where((j) => j['job_id'] == jobId)
+          .firstOrNull;
       if (!_current(generation, actor) ||
           fresh.access.company?['company_id'] != companyId ||
           !fresh.access.allowed ||
-          !fresh.jobs.any((j) => j['job_id'] == jobId)) {
+          freshJob == null) {
         throw StateError(
           'Your account or company access changed. Reopen this job.',
         );
+      }
+      if (next == MyApplicationStatus.offered &&
+          (!hasPaymentTermsMetadata(freshJob) ||
+              isPaymentSupportedJob(freshJob))) {
+        throw StateError('Job terms changed. Refresh before issuing an Offer.');
       }
       await source.updateStatus(
         applicant.id,
@@ -466,6 +478,15 @@ bool isPaymentSupportedJob(Map<String, dynamic> job) =>
 
 bool hasPaymentTermsMetadata(Map<String, dynamic> job) =>
     job.containsKey('employment_type') && job.containsKey('salary_period');
+
+bool canOfferForJob(
+  Map<String, dynamic> job, {
+  required bool versionedOffersEnabled,
+  required bool reissue,
+}) {
+  if (!hasPaymentTermsMetadata(job)) return false;
+  return isPaymentSupportedJob(job) ? versionedOffersEnabled : !reissue;
+}
 
 String employerStatusError(Object error) {
   if (error is StateError) return error.message.toString();

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/expandable_filter_bar.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/responsive_layout.dart';
@@ -373,6 +374,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
 
   Widget _buildFilters(BuildContext context) {
     final roleSelector = DropdownButtonFormField<String>(
+      key: ValueKey(_role),
       initialValue: _role,
       decoration: const InputDecoration(labelText: 'Role'),
       items: const [
@@ -385,6 +387,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       },
     );
     final statusSelector = DropdownButtonFormField<String>(
+      key: ValueKey(_status),
       initialValue: _status,
       decoration: const InputDecoration(labelText: 'Account status'),
       items: const [
@@ -431,7 +434,7 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
       child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) => ResponsiveContent(
-            maxWidth: 1320,
+            maxWidth: double.infinity,
             child: SizedBox(
               height: constraints.maxHeight,
               child: Padding(
@@ -477,26 +480,29 @@ class _AdminUsersPageState extends State<AdminUsersPage> {
                                     12,
                                     0,
                                   ),
-                                  child: TextField(
-                                    controller: _searchController,
-                                    onChanged: _changeSearch,
-                                    decoration: const InputDecoration(
-                                      prefixIcon: Icon(Icons.search),
-                                      hintText: 'Search user name',
-                                      border: OutlineInputBorder(),
-                                      isDense: true,
+                                  child: ExpandableFilterBar(
+                                    search: TextField(
+                                      controller: _searchController,
+                                      onChanged: _changeSearch,
+                                      decoration: const InputDecoration(
+                                        prefixIcon: Icon(Icons.search),
+                                        hintText: 'Search user name',
+                                        border: OutlineInputBorder(),
+                                        isDense: true,
+                                      ),
                                     ),
+                                    activeCount: [
+                                      _role,
+                                      _status,
+                                    ].where((value) => value != 'all').length,
+                                    onClear: () => _changeFilter(
+                                      role: 'all',
+                                      status: 'all',
+                                    ),
+                                    filters: [_buildFilters(context)],
                                   ),
                                 ),
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    12,
-                                    10,
-                                    12,
-                                    8,
-                                  ),
-                                  child: _buildFilters(context),
-                                ),
+                                const SizedBox(height: 8),
                                 const Divider(height: 1),
                                 Expanded(
                                   child: _error != null && _users.isEmpty

@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/expandable_filter_bar.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import 'admin_scoring_gateway.dart';
@@ -48,6 +49,7 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
   String _search = '';
   String? _verificationStatus;
   String? _restrictionStatus;
+  int _filterRevision = 0;
   bool _loading = false, _loadingMore = false, _detailsLoading = false;
   bool _busy = false, _hasMore = false;
   bool _canManageRestrictions = false;
@@ -272,18 +274,11 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
     });
   }
 
-  Future<void> _openFilters() async {
-    final filters = await showDialog<(String?, String?)>(
-      context: context,
-      builder: (context) => _CompanyDirectoryFilterDialog(
-        verificationStatus: _verificationStatus,
-        restrictionStatus: _restrictionStatus,
-      ),
-    );
-    if (filters == null || !mounted) return;
+  Future<void> _applyFilters(String? verification, String? restriction) async {
     setState(() {
-      _verificationStatus = filters.$1;
-      _restrictionStatus = filters.$2;
+      _verificationStatus = verification;
+      _restrictionStatus = restriction;
+      _filterRevision++;
       if (widget.companyId == null) _selectedCompanyId = null;
     });
     await _load();
@@ -471,7 +466,7 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
 
   Widget _directory() => LayoutBuilder(
     builder: (context, constraints) => ResponsiveContent(
-      maxWidth: 1320,
+      maxWidth: double.infinity,
       child: SizedBox(
         height: constraints.maxHeight,
         child: Padding(
@@ -488,7 +483,10 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
                 child: LayoutBuilder(
                   builder: (context, panes) {
                     final list = Card.outlined(
-                      child: Column(
+                      child: ListView(
+                        key: const ValueKey('admin-company-list'),
+                        controller: _listController,
+                        physics: const AlwaysScrollableScrollPhysics(),
                         children: [
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
@@ -500,16 +498,6 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
                                   ),
                                 ),
                                 IconButton(
-                                  tooltip: 'Search and filter companies',
-                                  onPressed: _openFilters,
-                                  color:
-                                      _verificationStatus != null ||
-                                          _restrictionStatus != null
-                                      ? const Color(0xFF087F75)
-                                      : null,
-                                  icon: const Icon(Icons.tune),
-                                ),
-                                IconButton(
                                   tooltip: 'Refresh companies',
                                   onPressed: _loading ? null : _load,
                                   icon: const Icon(Icons.refresh),
@@ -519,70 +507,80 @@ class _CompanyManagementPageState extends State<CompanyManagementPage> {
                           ),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                            child: TextField(
-                              controller: _searchController,
-                              onChanged: _onSearchChanged,
-                              decoration: const InputDecoration(
-                                prefixIcon: Icon(Icons.search),
-                                hintText: 'Search company name',
-                                border: OutlineInputBorder(),
-                                isDense: true,
+                            child: ExpandableFilterBar(
+                              search: TextField(
+                                controller: _searchController,
+                                onChanged: _onSearchChanged,
+                                decoration: const InputDecoration(
+                                  prefixIcon: Icon(Icons.search),
+                                  hintText: 'Search company name',
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                ),
                               ),
+                              activeCount: [
+                                _verificationStatus,
+                                _restrictionStatus,
+                              ].where((value) => value != null).length,
+                              onClear: () => _applyFilters(null, null),
+                              filters: [
+                                _CompanyDirectoryFilters(
+                                  key: ValueKey(_filterRevision),
+                                  verificationStatus: _verificationStatus,
+                                  restrictionStatus: _restrictionStatus,
+                                  onApply: _applyFilters,
+                                ),
+                              ],
                             ),
                           ),
                           const Divider(height: 1),
-                          Expanded(
-                            child: _companies.isEmpty && _loading
-                                ? const Center(
-                                    child: CircularProgressIndicator(),
-                                  )
-                                : _companies.isEmpty && _error == null
-                                ? const Center(
-                                    child: Text('No companies found.'),
-                                  )
-                                : ListView(
-                                    key: const ValueKey('admin-company-list'),
-                                    controller: _listController,
-                                    physics:
-                                        const AlwaysScrollableScrollPhysics(),
-                                    padding: const EdgeInsets.all(8),
-                                    children: [
-                                      for (final item in _companies)
-                                        _companyListRow(item),
-                                      if (_error != null)
-                                        Padding(
-                                          padding: const EdgeInsets.all(12),
-                                          child: Column(
-                                            children: [
-                                              Text(
-                                                _error!,
-                                                textAlign: TextAlign.center,
-                                              ),
-                                              TextButton(
-                                                onPressed: _loadingMore
-                                                    ? null
-                                                    : _loadMore,
-                                                child: const Text('Retry'),
-                                              ),
-                                            ],
-                                          ),
-                                        )
-                                      else if (_loadingMore)
-                                        const Padding(
-                                          padding: EdgeInsets.all(16),
-                                          child: Center(
-                                            child: SizedBox(
-                                              width: 22,
-                                              height: 22,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                    ],
+                          if (_companies.isEmpty && _loading)
+                            const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(child: CircularProgressIndicator()),
+                            )
+                          else if (_companies.isEmpty && _error == null)
+                            const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(child: Text('No companies found.')),
+                            )
+                          else ...[
+                            for (final item in _companies)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                child: _companyListRow(item),
+                              ),
+                            if (_error != null)
+                              Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  children: [
+                                    Text(_error!, textAlign: TextAlign.center),
+                                    TextButton(
+                                      onPressed: _loadingMore
+                                          ? null
+                                          : _loadMore,
+                                      child: const Text('Retry'),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else if (_loadingMore)
+                              const Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   ),
-                          ),
+                                ),
+                              ),
+                          ],
                         ],
                       ),
                     );
@@ -1021,74 +1019,68 @@ class _RestrictionReasonDialogState extends State<_RestrictionReasonDialog> {
   );
 }
 
-class _CompanyDirectoryFilterDialog extends StatefulWidget {
-  const _CompanyDirectoryFilterDialog({
+class _CompanyDirectoryFilters extends StatefulWidget {
+  const _CompanyDirectoryFilters({
+    super.key,
+    required this.onApply,
     required this.verificationStatus,
     required this.restrictionStatus,
   });
 
+  final void Function(String?, String?) onApply;
   final String? verificationStatus;
   final String? restrictionStatus;
 
   @override
-  State<_CompanyDirectoryFilterDialog> createState() =>
-      _CompanyDirectoryFilterDialogState();
+  State<_CompanyDirectoryFilters> createState() =>
+      _CompanyDirectoryFiltersState();
 }
 
-class _CompanyDirectoryFilterDialogState
-    extends State<_CompanyDirectoryFilterDialog> {
+class _CompanyDirectoryFiltersState extends State<_CompanyDirectoryFilters> {
   late String _verification = widget.verificationStatus ?? 'all';
   late String _restriction = widget.restrictionStatus ?? 'all';
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Filter companies'),
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        DropdownButtonFormField<String>(
-          initialValue: _verification,
-          decoration: const InputDecoration(labelText: 'Verification status'),
-          items: const [
-            DropdownMenuItem(value: 'all', child: Text('All statuses')),
-            DropdownMenuItem(value: 'pending', child: Text('Pending')),
-            DropdownMenuItem(value: 'verified', child: Text('Verified')),
-            DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
-          ],
-          onChanged: (value) {
-            if (value != null) setState(() => _verification = value);
-          },
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: _restriction,
-          decoration: const InputDecoration(labelText: 'Operational status'),
-          items: const [
-            DropdownMenuItem(value: 'all', child: Text('All statuses')),
-            DropdownMenuItem(value: 'active', child: Text('Active')),
-            DropdownMenuItem(value: 'restricted', child: Text('Restricted')),
-          ],
-          onChanged: (value) {
-            if (value != null) setState(() => _restriction = value);
-          },
-        ),
-      ],
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context, (null, null)),
-        child: const Text('Clear'),
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      DropdownButtonFormField<String>(
+        key: const ValueKey('company-verification-filter'),
+        initialValue: _verification,
+        decoration: const InputDecoration(labelText: 'Verification status'),
+        items: const [
+          DropdownMenuItem(value: 'all', child: Text('All statuses')),
+          DropdownMenuItem(value: 'pending', child: Text('Pending')),
+          DropdownMenuItem(value: 'verified', child: Text('Verified')),
+          DropdownMenuItem(value: 'rejected', child: Text('Rejected')),
+        ],
+        onChanged: (value) {
+          if (value != null) setState(() => _verification = value);
+        },
       ),
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+      const SizedBox(height: 12),
+      DropdownButtonFormField<String>(
+        initialValue: _restriction,
+        decoration: const InputDecoration(labelText: 'Operational status'),
+        items: const [
+          DropdownMenuItem(value: 'all', child: Text('All statuses')),
+          DropdownMenuItem(value: 'active', child: Text('Active')),
+          DropdownMenuItem(value: 'restricted', child: Text('Restricted')),
+        ],
+        onChanged: (value) {
+          if (value != null) setState(() => _restriction = value);
+        },
       ),
-      FilledButton(
-        onPressed: () => Navigator.pop(context, (
-          _verification == 'all' ? null : _verification,
-          _restriction == 'all' ? null : _restriction,
-        )),
-        child: const Text('Apply'),
+      const SizedBox(height: 8),
+      Align(
+        alignment: AlignmentDirectional.centerEnd,
+        child: FilledButton(
+          onPressed: () => widget.onApply(
+            _verification == 'all' ? null : _verification,
+            _restriction == 'all' ? null : _restriction,
+          ),
+          child: const Text('Apply'),
+        ),
       ),
     ],
   );

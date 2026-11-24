@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_page.dart';
+import '../../shared/navigation/app_routes.dart';
+import '../applications/module2_widgets.dart';
 import 'application_payment_page.dart';
 import 'payment_handling_demo_page.dart';
 import 'payment_feature_gate.dart';
@@ -31,6 +34,7 @@ GoRoute sandboxPaymentRoute(
         openCheckout: openCheckout,
         returnFromCheckout: returnFromCheckout,
         assignmentId: state.pathParameters['assignmentId'],
+        applicationId: state.pathParameters['applicationId'],
         paymentId: returnFromCheckout
             ? state.uri.queryParameters['payment_id']
             : state.pathParameters['paymentId'],
@@ -46,6 +50,7 @@ class _PaymentRouteBody extends StatefulWidget {
     required this.guards,
     this.role,
     this.assignmentId,
+    this.applicationId,
     this.paymentId,
     required this.returnFromCheckout,
     this.repository,
@@ -53,7 +58,7 @@ class _PaymentRouteBody extends StatefulWidget {
   });
   final LocalKey routeKey;
   final Map<LocalKey, Future<bool> Function()> guards;
-  final String? role, assignmentId, paymentId;
+  final String? role, assignmentId, applicationId, paymentId;
   final bool returnFromCheckout;
   final PaymentRepository? repository;
   final Future<bool> Function(Uri)? openCheckout;
@@ -84,19 +89,35 @@ class _PaymentRouteBodyState extends State<_PaymentRouteBody> {
         widget.role == 'employer' || widget.role == 'job_seeker';
     final rootPaymentPage =
         widget.assignmentId == null &&
+        widget.applicationId == null &&
         widget.paymentId == null &&
         !widget.returnFromCheckout;
-    // The real, persisted settlement flow is application-based, not an
-    // assignment checkout. Never silently open the legacy sandbox checkout
-    // when real Payment Handling has been explicitly enabled.
-    if (paymentHandlingEnabled && eligibleRole) {
-      if (rootPaymentPage) {
-        return ApplicationPaymentPage(role: widget.role!);
+    // The injected repository keeps the offline Sandbox preview independent
+    // from the normal application routes.
+    if (widget.repository == null) {
+      if (eligibleRole && (rootPaymentPage || widget.applicationId != null)) {
+        final role = widget.role!;
+        if (paymentHandlingEnabled) {
+          final auth = Supabase.instance.client.auth;
+          return StreamBuilder<AuthState>(
+            stream: auth.onAuthStateChange,
+            builder: (_, _) => Module2Gate(
+              key: ValueKey(auth.currentUser?.id),
+              role: role,
+              child: ApplicationPaymentPage(
+                role: role,
+                applicationId: widget.applicationId,
+              ),
+            ),
+          );
+        }
+        if (paymentHandlingDemoEnabled) {
+          return PaymentHandlingDemoPage(initialRole: role);
+        }
       }
-      return _LegacyCheckoutDisabled(role: widget.role!);
-    }
-    if (paymentHandlingDemoEnabled && eligibleRole && rootPaymentPage) {
-      return PaymentHandlingDemoPage(initialRole: widget.role!);
+      if (eligibleRole || widget.returnFromCheckout) {
+        return _PaymentUnavailable(role: eligibleRole ? widget.role : null);
+      }
     }
     return SandboxPaymentsPage(
       key: _page,
@@ -110,12 +131,11 @@ class _PaymentRouteBodyState extends State<_PaymentRouteBody> {
   }
 }
 
-/// A legacy deep link may still be present in older navigation or bookmarks.
-/// In real Payment Handling mode, it must not invoke the old sandbox gateway.
-class _LegacyCheckoutDisabled extends StatelessWidget {
-  const _LegacyCheckoutDisabled({required this.role});
+/// Old checkout links and disabled features do not start a Sandbox checkout.
+class _PaymentUnavailable extends StatelessWidget {
+  const _PaymentUnavailable({required this.role});
 
-  final String role;
+  final String? role;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -130,19 +150,24 @@ class _LegacyCheckoutDisabled extends StatelessWidget {
             children: [
               const Icon(Icons.info_outline, size: 40),
               const SizedBox(height: 16),
-              const Text(
-                'This legacy sandbox checkout is not available in Payment Handling mode.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Use Payment Overview for verified salary proposals, worker confirmation and simulated payment records. No real payout is made.',
+              Text(
+                role != null && paymentHandlingEnabled
+                    ? 'This legacy sandbox checkout is unavailable. Open Payment Overview to manage salary proposals and simulated payment records.'
+                    : 'Payment Handling is unavailable here.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
               FilledButton(
-                onPressed: () => context.go(sandboxPaymentsRoot(role)),
-                child: const Text('Go to Payment Overview'),
+                onPressed: () => context.go(
+                  role != null && paymentHandlingEnabled
+                      ? sandboxPaymentsRoot(role!)
+                      : AppRoutes.home,
+                ),
+                child: Text(
+                  role != null && paymentHandlingEnabled
+                      ? 'Go to Payment Overview'
+                      : 'Go to Home',
+                ),
               ),
             ],
           ),

@@ -18,6 +18,7 @@ class EmployerApplicantCard extends StatelessWidget {
     this.resumeAction,
     required this.messageAction,
     required this.updating,
+    this.offerAvailable = true,
     required this.onTransition,
   });
   final JobApplicant applicant;
@@ -25,6 +26,7 @@ class EmployerApplicantCard extends StatelessWidget {
   final Widget profileAction, messageAction;
   final Widget? resumeAction;
   final bool updating;
+  final bool offerAvailable;
   final ValueChanged<MyApplicationStatus> onTransition;
 
   @override
@@ -49,6 +51,7 @@ class EmployerApplicantCard extends StatelessWidget {
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
@@ -182,7 +185,10 @@ class EmployerApplicantCard extends StatelessWidget {
                     profileAction,
                     ?resumeAction,
                     for (final next in applicant.employerNext.where(
-                      (state) => state != MyApplicationStatus.rejected,
+                      (state) =>
+                          state != MyApplicationStatus.rejected &&
+                          (state != MyApplicationStatus.offered ||
+                              offerAvailable),
                     ))
                       FilledButton(
                         onPressed: updating ? null : () => onTransition(next),

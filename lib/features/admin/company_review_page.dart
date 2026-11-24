@@ -256,7 +256,8 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
         child: Stack(
           children: [
             ResponsiveContent(
-              maxWidth: 1050,
+              maxWidth: 1200,
+              alignment: Alignment.topLeft,
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : RefreshIndicator(
@@ -265,6 +266,11 @@ class _CompanyReviewPageState extends State<CompanyReviewPage> {
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: ResponsiveLayout.pagePadding(context),
                         children: [
+                          Text(
+                            'Company Verification',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: 16),
                           Wrap(
                             spacing: 12,
                             runSpacing: 8,

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../shared/theme/jobmate_theme.dart';
 
-import 'compensation_offer.dart';
+import 'compensation_offer.dart' show CompensationOffer;
 import 'employer_applicants_repository.dart';
 import 'module2_widgets.dart';
 import 'my_applications_repository.dart';
@@ -77,10 +77,17 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
     });
     try {
       final job = widget.repository.job;
-      if (widget.next == MyApplicationStatus.offered &&
-          p03CompensationOffersEnabled) {
-        if (job == null || !hasPaymentTermsMetadata(job)) {
-          throw StateError('Refresh the Job terms before issuing an Offer.');
+      if (widget.next == MyApplicationStatus.offered) {
+        if (job == null ||
+            !canOfferForJob(
+              job,
+              versionedOffersEnabled:
+                  widget.repository.compensationOffersEnabled,
+              reissue: widget.applicant.status == MyApplicationStatus.offered,
+            )) {
+          throw StateError(
+            'Offer issuance is unavailable. Refresh the Job terms.',
+          );
         }
         if (isPaymentSupportedJob(job)) {
           issuedOffer = await widget.repository.issueCompensationOffer(
@@ -119,17 +126,16 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
         .where((a) => a.id == widget.applicant.id)
         .firstOrNull;
     final selectedJob = repo.job;
-    final reissueVersionedOffer =
-        p03CompensationOffersEnabled &&
-        widget.next == MyApplicationStatus.offered &&
-        current?.status == MyApplicationStatus.offered &&
-        selectedJob != null;
     return !repo.loading &&
         current?.status == widget.applicant.status &&
-        ((current?.employerNext.contains(widget.next) ?? false) ||
-            reissueVersionedOffer &&
-                hasPaymentTermsMetadata(selectedJob) &&
-                isPaymentSupportedJob(selectedJob));
+        (current?.employerNext.contains(widget.next) ?? false) &&
+        (widget.next != MyApplicationStatus.offered ||
+            selectedJob != null &&
+                canOfferForJob(
+                  selectedJob,
+                  versionedOffersEnabled: repo.compensationOffersEnabled,
+                  reissue: current?.status == MyApplicationStatus.offered,
+                ));
   }
 
   Future<void> close() async {

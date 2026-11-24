@@ -11,13 +11,6 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
     'WORKSPACE': [(AppRoutes.home, 'Dashboard', Icons.grid_view_rounded)],
     'Job Management': [
       (AppRoutes.jobPostings, 'My Job Postings', Icons.work_outline),
-      (AppRoutes.createJob, 'Create Job', Icons.add_circle_outline),
-      (
-        AppRoutes.jobLocationDemo,
-        'Location Picker (demo)',
-        Icons.add_location_alt_outlined,
-      ),
-      (AppRoutes.applicants, 'View Applicants', Icons.people_outline),
     ],
     'Work Management': [
       (
@@ -26,11 +19,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
         Icons.assignment_turned_in_outlined,
       ),
       (AppRoutes.workers, 'Company Workers', Icons.groups_outlined),
-      (
-        AppRoutes.employerPayments,
-        'Payments (sandbox)',
-        Icons.receipt_long_outlined,
-      ),
+      (AppRoutes.employerPayments, 'Payments', Icons.receipt_long_outlined),
     ],
     'Communication': [
       (AppRoutes.disputes, 'My disputes', Icons.gavel_outlined),
@@ -111,7 +100,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
     },
     if (role == 'job_seeker')
       'Payments': [
-        (AppRoutes.payments, 'Payments (sandbox)', Icons.receipt_long_outlined),
+        (AppRoutes.payments, 'Payments', Icons.receipt_long_outlined),
       ],
   },
 };
@@ -171,7 +160,11 @@ Map<String, List<WorkspaceDestination>> adminWorkspaceDestinations(
 /// Less frequent destinations remain available through the grouped More menu.
 List<WorkspaceDestination> workspacePrimaryDestinations(String role) {
   final paths = switch (role) {
-    'employer' => [AppRoutes.home, AppRoutes.jobPostings, AppRoutes.applicants],
+    'employer' => [
+      AppRoutes.home,
+      AppRoutes.jobPostings,
+      AppRoutes.workVerification,
+    ],
     'administrator' ||
     'admin' => [AppRoutes.home, AppRoutes.adminUsers, AppRoutes.adminPayments],
     'job_seeker' => [
@@ -199,6 +192,13 @@ String? selectedWorkspacePath(
         (selected == null || candidate.length > selected.length)) {
       selected = candidate;
     }
+  }
+  if (selected == null &&
+      (path == AppRoutes.applicants ||
+          path.startsWith('${AppRoutes.applicants}/') ||
+          path == AppRoutes.jobLocationDemo) &&
+      destinations.any((item) => item.$1 == AppRoutes.jobPostings)) {
+    return AppRoutes.jobPostings;
   }
   return selected;
 }

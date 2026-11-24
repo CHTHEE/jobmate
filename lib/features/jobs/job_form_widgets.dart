@@ -8,10 +8,12 @@ class JobFormSection extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.child,
+    this.compact = false,
   });
   final String title;
   final IconData icon;
   final Widget child;
+  final bool compact;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 16),
@@ -26,7 +28,10 @@ class JobFormSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 12 : 18,
+              vertical: compact ? 6 : 12,
+            ),
             decoration: const BoxDecoration(
               color: JobMateTheme.background,
               border: Border(bottom: BorderSide(color: JobMateTheme.divider)),
@@ -45,7 +50,7 @@ class JobFormSection extends StatelessWidget {
               ],
             ),
           ),
-          Padding(padding: const EdgeInsets.all(18), child: child),
+          Padding(padding: EdgeInsets.all(compact ? 12 : 18), child: child),
         ],
       ),
     ),

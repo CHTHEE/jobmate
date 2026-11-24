@@ -53,6 +53,8 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
               current.application?.id == application.id &&
               current.application?.status == application.status &&
               action.allowed(application.status) &&
+              (action != ApplicationResponseAction.acceptOffer ||
+                  current.canAcceptOffer) &&
               !current.responding &&
               !current.loading;
           return AlertDialog(
@@ -309,13 +311,9 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
     );
     VoidCallback? onResponse(ApplicationResponseAction action) =>
         repo.responding ||
-                confirming ||
-                action == ApplicationResponseAction.acceptOffer &&
-                    p03CompensationOffersEnabled &&
-                    (repo.offerLoading ||
-                        repo.offerError != null ||
-                        repo.compensationOffer != null &&
-                            repo.source is! ExactVersionCompensationOfferSource)
+            confirming ||
+            action == ApplicationResponseAction.acceptOffer &&
+                !repo.canAcceptOffer
         ? null
         : () => respond(application, action);
 
@@ -362,9 +360,21 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
                 ),
               ],
             ),
+            if (!p03CompensationOffersEnabled &&
+                application.status == MyApplicationStatus.offered)
+              if (repo.offerLoading)
+                const Text('Checking Offer availability…')
+              else if (repo.offerError case final error?)
+                Text(error)
+              else if (repo.compensationOffer != null)
+                const Text(
+                  'Versioned Offer acceptance is currently unavailable.',
+                ),
             if (p03CompensationOffersEnabled &&
-                const {MyApplicationStatus.offered, MyApplicationStatus.hired}
-                    .contains(application.status)) ...[
+                const {
+                  MyApplicationStatus.offered,
+                  MyApplicationStatus.hired,
+                }.contains(application.status)) ...[
               const SizedBox(height: 16),
               _compensationOfferCard(context),
             ],
@@ -468,14 +478,18 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Compensation Offer',
-                style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Compensation Offer',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             const SizedBox(height: 6),
             if (repo.offerLoading)
               const LinearProgressIndicator()
             else if (repo.offerError != null)
-              Text(repo.offerError!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error))
+              Text(
+                repo.offerError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              )
             else if (offer == null)
               const Text(
                 'This is a legacy Offer without versioned payable terms. It is not eligible for Payment Handling.',

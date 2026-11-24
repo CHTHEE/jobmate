@@ -528,6 +528,13 @@ class ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Text(
+            'Messages',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+        ),
         TextField(
           controller: _search,
           onChanged: (_) => setState(() {}),
@@ -1185,6 +1192,7 @@ class ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final split = constraints.maxWidth >= 840;
+          final inboxWidth = (constraints.maxWidth * .28).clamp(280.0, 400.0);
           final panel = Padding(
             padding: const EdgeInsets.all(12),
             child: DecoratedBox(
@@ -1198,7 +1206,7 @@ class ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                 child: split
                     ? Row(
                         children: [
-                          SizedBox(width: 300, child: _list()),
+                          SizedBox(width: inboxWidth, child: _list()),
                           const VerticalDivider(width: 24),
                           Expanded(
                             child: widget.conversationId == null

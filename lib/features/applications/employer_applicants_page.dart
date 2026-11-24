@@ -1,9 +1,12 @@
+import '../../shared/widgets/responsive_layout.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/expandable_filter_bar.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import 'employer_applicant_card.dart';
@@ -174,6 +177,8 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
         title: 'View Applicants',
         path: AppRoutes.applicants,
         role: 'employer',
+        focused: widget.jobId != null,
+        backFallback: AppRoutes.jobPostings,
         onNavigate: navigate,
         navigationLocked: repo.updating,
         actions: [
@@ -184,7 +189,7 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
           ),
         ],
         child: WorkspaceContent(
-          maxWidth: 880,
+          maxWidth: double.infinity,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -318,17 +323,23 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
                     onSelected: (value) => setState(() => tab = value),
                   ),
                   const SizedBox(height: 14),
-                  LayoutBuilder(
-                    builder: (context, box) {
-                      final searchField = TextField(
-                        controller: search,
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(
-                          labelText: 'Search applicant name',
-                          prefixIcon: Icon(Icons.search),
-                        ),
-                      );
-                      final sortField = ModuleSelect(
+                  ExpandableFilterBar(
+                    search: TextField(
+                      controller: search,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Search applicant name',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                    ),
+                    activeCount: [
+                      status.isNotEmpty,
+                      sort != 'Newest',
+                      tab != 'All',
+                    ].where((active) => active).length,
+                    onClear: clear,
+                    filters: [
+                      ModuleSelect(
                         label: 'Sort',
                         value: sort,
                         options: {
@@ -336,35 +347,7 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
                             value: value,
                         },
                         onChanged: (value) => setState(() => sort = value),
-                      );
-                      if (box.maxWidth <
-                          520 *
-                              MediaQuery.textScalerOf(context).scale(14) /
-                              14) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            searchField,
-                            const SizedBox(height: 10),
-                            sortField,
-                          ],
-                        );
-                      }
-                      return Row(
-                        children: [
-                          Expanded(child: searchField),
-                          const SizedBox(width: 12),
-                          SizedBox(width: 180, child: sortField),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
+                      ),
                       ModuleSelect(
                         label: 'Application status',
                         value: status,
@@ -376,15 +359,12 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
                         },
                         onChanged: (value) => setState(() => status = value),
                       ),
-                      TextButton(
-                        onPressed: clear,
-                        child: const Text('Clear filters'),
-                      ),
-                      Text(
-                        '${rows.length} matching ${rows.length == 1 ? 'application' : 'applications'}',
-                        style: const TextStyle(color: JobMateTheme.body),
-                      ),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${rows.length} matching ${rows.length == 1 ? 'application' : 'applications'}',
+                    style: const TextStyle(color: JobMateTheme.body),
                   ),
                   const SizedBox(height: 14),
                   if (rows.isEmpty)
@@ -396,45 +376,56 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
                           ? 'Applications for this job will appear here.'
                           : 'Try changing the filters.',
                     ),
-                  for (final applicant in rows)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
-                      child: EmployerApplicantCard(
-                        key: ValueKey(applicant.id),
-                        applicant: applicant,
-                        jobTitle: job['title'] as String,
-                        updating: repo.updating,
-                        profileAction: ApplicantProfileButton(
-                          applicationId: applicant.id,
+                  ResponsiveGrid(
+                    equalRowHeight: true,
+                    minItemWidth: 440,
+                    maxColumns: 2,
+                    children: [
+                      for (final applicant in rows)
+                        EmployerApplicantCard(
+                          key: ValueKey(applicant.id),
                           applicant: applicant,
                           jobTitle: job['title'] as String,
-                          applicantsRepository: repo,
-                        ),
-                        resumeAction: applicant.resumeId == null
-                            ? null
-                            : EmployerResumeButton(
-                                key: ValueKey(
-                                  'resume:${applicant.id}:${applicant.resumeId}',
-                                ),
-                                repository: repo,
-                                applicant: applicant,
-                              ),
-                        messageAction: ChatApplicationButton(
-                          key: ValueKey('chat:${applicant.id}'),
-                          applicationId: applicant.id,
-                          employer: true,
-                          enabled: !repo.updating,
-                        ),
-                        onTransition: (next) => moduleModal<void>(
-                          context,
-                          EmployerStatusChangeForm(
-                            repository: repo,
+                          updating: repo.updating,
+                          offerAvailable: canOfferForJob(
+                            job,
+                            versionedOffersEnabled:
+                                repo.compensationOffersEnabled,
+                            reissue:
+                                applicant.status == MyApplicationStatus.offered,
+                          ),
+                          profileAction: ApplicantProfileButton(
+                            applicationId: applicant.id,
                             applicant: applicant,
-                            next: next,
+                            jobTitle: job['title'] as String,
+                            applicantsRepository: repo,
+                          ),
+                          resumeAction: applicant.resumeId == null
+                              ? null
+                              : EmployerResumeButton(
+                                  key: ValueKey(
+                                    'resume:${applicant.id}:${applicant.resumeId}',
+                                  ),
+                                  repository: repo,
+                                  applicant: applicant,
+                                ),
+                          messageAction: ChatApplicationButton(
+                            key: ValueKey('chat:${applicant.id}'),
+                            applicationId: applicant.id,
+                            employer: true,
+                            enabled: !repo.updating,
+                          ),
+                          onTransition: (next) => moduleModal<void>(
+                            context,
+                            EmployerStatusChangeForm(
+                              repository: repo,
+                              applicant: applicant,
+                              next: next,
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                    ],
+                  ),
                 ],
               ],
             ],

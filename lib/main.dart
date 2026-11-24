@@ -260,6 +260,10 @@ GoRouter _createRouter() {
           '${entry.$1}/assignments/:assignmentId',
           role: entry.$2,
         ),
+        sandboxPaymentRoute(
+          '${entry.$1}/settlements/:applicationId',
+          role: entry.$2,
+        ),
         sandboxPaymentRoute('${entry.$1}/:paymentId', role: entry.$2),
       ],
       _appRoute(

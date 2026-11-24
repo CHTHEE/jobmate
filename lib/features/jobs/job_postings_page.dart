@@ -4,13 +4,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/expandable_filter_bar.dart';
 import '../../shared/widgets/design_primitives.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import 'job_postings_repository.dart';
-import 'job_preview.dart';
+import 'job_form_result.dart';
 import 'employer_job_card.dart';
-import 'job_validation.dart';
-import 'workplace_coordinates.dart';
 import '../company/company_logo.dart';
 import '../applications/applicant_unseen_controller.dart';
 
@@ -41,7 +41,8 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
   String filter = 'all';
   String query = '';
   String? error;
-  bool loading = true, busy = false;
+  bool loading = true, refreshing = false, busy = false;
+  bool get actionsLocked => busy || refreshing;
   @override
   void initState() {
     super.initState();
@@ -53,15 +54,16 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
   }
 
   Future<void> load() async {
+    if (refreshing) return;
+    final accountId = repo.client.auth.currentUser?.id;
     setState(() {
-      loading = true;
+      refreshing = true;
+      loading = access == null;
       error = null;
     });
     try {
-      final accountId = widget.repository == null
-          ? repo.client.auth.currentUser?.id
-          : null;
       final result = await repo.loadAccess();
+      if (!mounted || repo.client.auth.currentUser?.id != accountId) return;
       if (mounted && widget.repository == null) {
         _applicantUnseen?.enterWorkspace(
           accountId: accountId,
@@ -73,14 +75,14 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
       final records = result.allowed
           ? await repo.list(result.company!['company_id'].toString())
           : <Map<String, dynamic>>[];
-      if (mounted) {
+      if (mounted && repo.client.auth.currentUser?.id == accountId) {
         setState(() {
           access = result;
-          jobs = records;
+          jobs = List.of(records);
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && repo.client.auth.currentUser?.id == accountId) {
         setState(() {
           error = jobError(e);
           access = null;
@@ -88,88 +90,39 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
         });
       }
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() {
+          loading = false;
+          refreshing = false;
+          if (repo.client.auth.currentUser?.id != accountId) {
+            jobs = [];
+            access = null;
+          }
+        });
+      }
     }
   }
 
-  Future<void> close(Map<String, dynamic> job) async {
-    if (busy) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Close this job?'),
-        content: const Text('Closed jobs cannot be edited or reopened.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Close Job'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
+  bool _sameSession(String? actor) =>
+      repo.signedIn && repo.client.auth.currentUser?.id == actor;
+
+  Future<void> openJobForm(String path) async {
+    final actor = repo.client.auth.currentUser?.id;
+    final result = await context.push<JobFormResult>(path, extra: 'job-list');
+    if (!mounted || result == null || !_sameSession(actor)) return;
+    _applySavedJob(result);
+  }
+
+  void _applySavedJob(JobFormResult result) {
+    final job = result.job;
+    final index = jobs.indexWhere((row) => row['job_id'] == job['job_id']);
     setState(() {
-      busy = true;
-      error = null;
+      if (index >= 0) {
+        jobs[index] = job;
+      } else if (result.change == JobFormChange.created) {
+        jobs.insert(0, job);
+      }
     });
-    try {
-      await repo.close(job['job_id'].toString());
-      await load();
-    } catch (e) {
-      if (mounted) setState(() => error = jobError(e));
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> publish(Map<String, dynamic> job) async {
-    if (busy) return;
-    final remote = job['work_arrangement'] == 'remote';
-    final validation =
-        jobPublishError(job) ??
-        (remote && (job['latitude'] != null || job['longitude'] != null)
-            ? 'Save this remote draft to clear its workplace pin.'
-            : !remote &&
-                  workplaceCoordinates(job['latitude'], job['longitude']) ==
-                      null
-            ? workplaceRequiredForPublication
-            : null);
-    if (validation != null) {
-      setState(
-        () => error = '$validation Use Edit Draft to complete this job.',
-      );
-      return;
-    }
-    setState(() {
-      busy = true;
-      error = null;
-    });
-    try {
-      await repo.save({'status': 'published'}, jobId: job['job_id'].toString());
-      if (!mounted) return;
-      setState(() => filter = 'published');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Job published successfully')),
-      );
-      await load();
-    } catch (e) {
-      if (mounted) setState(() => error = jobError(e));
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> open(String path) async {
-    final result = await context.push<String>(path, extra: 'job-list');
-    if (!mounted) return;
-    if (['draft', 'published', 'closed'].contains(result)) {
-      setState(() => filter = result!);
-    }
-    await load();
   }
 
   @override
@@ -213,7 +166,7 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
               ),
             )
           : WorkspaceContent(
-              maxWidth: 880,
+              maxWidth: double.infinity,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -222,13 +175,25 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                     description: 'Manage job opportunities for your company.',
                     actions: [
                       OutlinedButton(
-                        onPressed: busy ? null : load,
+                        onPressed: actionsLocked ? null : load,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(
+                            0,
+                            ResponsiveLayout.actionHeight,
+                          ),
+                        ),
                         child: const Text('Check for updates'),
                       ),
                       FilledButton.icon(
-                        onPressed: access?.allowed == true && !busy
-                            ? () => open(AppRoutes.createJob)
+                        onPressed: access?.allowed == true && !actionsLocked
+                            ? () => openJobForm(AppRoutes.createJob)
                             : null,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(
+                            0,
+                            ResponsiveLayout.actionHeight,
+                          ),
+                        ),
                         icon: const Icon(Icons.add, size: 18),
                         label: const Text('Post Job'),
                       ),
@@ -251,7 +216,7 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                               style: const TextStyle(color: JobMateTheme.error),
                             ),
                             TextButton(
-                              onPressed: busy ? null : load,
+                              onPressed: actionsLocked ? null : load,
                               child: const Text('Retry'),
                             ),
                           ],
@@ -266,7 +231,12 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                         children: [
                           Text(access!.message!),
                           TextButton(
-                            onPressed: () => open(AppRoutes.company),
+                            onPressed: actionsLocked
+                                ? null
+                                : () async {
+                                    await context.push<void>(AppRoutes.company);
+                                    if (mounted) await load();
+                                  },
                             child: const Text('Company profile'),
                           ),
                         ],
@@ -280,19 +250,20 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                     const SizedBox(height: 16),
                     PostingSummary(counts),
                     const SizedBox(height: 16),
-                    TextField(
-                      onChanged: (value) => setState(() => query = value),
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
-                        hintText: 'Search job title, department or location',
-                        labelText: 'Search your postings',
+                    ExpandableFilterBar(
+                      activeCount: filter == 'all' ? 0 : 1,
+                      onClear: busy
+                          ? null
+                          : () => setState(() => filter = 'all'),
+                      search: TextField(
+                        onChanged: (value) => setState(() => query = value),
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.search),
+                          hintText: 'Search job title, department or location',
+                          labelText: 'Search your postings',
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
+                      filters: [
                         for (final value in [
                           'all',
                           'published',
@@ -336,47 +307,39 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                               TextButton(
                                 onPressed: busy
                                     ? null
-                                    : () => open(AppRoutes.createJob),
+                                    : () => openJobForm(AppRoutes.createJob),
                                 child: const Text('Post your first job'),
                               ),
                           ],
                         ),
                       ),
-                    for (final job in visible)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: EmployerJobCard(
-                          key: ValueKey('employer-job-${job['job_id']}'),
-                          job: job,
-                          unseenApplicantCount:
-                              unseen?.countFor(job['job_id'].toString()) ?? 0,
-                          busy: busy,
-                          onEdit: () => open(
-                            '${AppRoutes.jobPostings}/${job['job_id']}/edit',
-                          ),
-                          onPreview: () => showDialog<void>(
-                            context: context,
-                            builder: (_) => JobPreview(
-                              logo: access!.logo,
-                              job: job,
-                              company:
-                                  access!.company!['company_name'] as String,
+                    ResponsiveGrid(
+                      minItemWidth: 385,
+                      equalRowHeight: true,
+                      children: [
+                        for (final job in visible)
+                          EmployerJobCard(
+                            key: ValueKey('employer-job-${job['job_id']}'),
+                            job: job,
+                            unseenApplicantCount:
+                                unseen?.countFor(job['job_id'].toString()) ?? 0,
+                            busy: actionsLocked,
+                            onEdit: () => openJobForm(
+                              '${AppRoutes.jobPostings}/${job['job_id']}/edit',
+                            ),
+                            onApplicants: () => context.push<void>(
+                              Uri(
+                                path: AppRoutes.applicants,
+                                queryParameters: {
+                                  'posting': job['job_id'].toString(),
+                                },
+                              ).toString(),
                             ),
                           ),
-                          onPublish: () => publish(job),
-                          onClose: () => close(job),
-                          onApplicants: () => context.push<void>(
-                            Uri(
-                              path: AppRoutes.applicants,
-                              queryParameters: {
-                                'posting': job['job_id'].toString(),
-                              },
-                            ).toString(),
-                          ),
-                        ),
-                      ),
+                      ],
+                    ),
                   ],
-                  if (busy) const LinearProgressIndicator(),
+                  if (busy || refreshing) const LinearProgressIndicator(),
                 ],
               ),
             ),

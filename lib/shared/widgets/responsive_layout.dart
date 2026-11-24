@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 /// Shared screen-size rules for JobMate.
 ///
@@ -8,6 +11,9 @@ import 'package:flutter/material.dart';
 enum JobMateScreenSize { compact, medium, expanded }
 
 abstract final class ResponsiveLayout {
+  static const double cardGap = 16;
+  static const double actionGap = 8;
+  static const double actionHeight = 48;
   static const double compactBreakpoint = 600;
   static const double expandedBreakpoint = 840;
   static const double wideBreakpoint = 1200;
@@ -43,7 +49,7 @@ abstract final class ResponsiveLayout {
       case JobMateScreenSize.medium:
         return const EdgeInsets.all(24);
       case JobMateScreenSize.expanded:
-        return const EdgeInsets.all(32);
+        return const EdgeInsets.all(24);
     }
   }
 }
@@ -55,15 +61,17 @@ class ResponsiveContent extends StatelessWidget {
     super.key,
     required this.child,
     this.maxWidth = 840,
+    this.alignment = Alignment.topCenter,
   });
 
   final Widget child;
   final double maxWidth;
+  final Alignment alignment;
 
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.topCenter,
+      alignment: alignment,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
         child: SizedBox(width: double.infinity, child: child),
@@ -80,13 +88,17 @@ class ResponsiveGrid extends StatelessWidget {
     required this.children,
     this.minItemWidth = 280,
     this.maxColumns = 3,
-    this.spacing = 16,
+    this.spacing = ResponsiveLayout.cardGap,
+    this.equalRowHeight = false,
+    this.reserveEmptyColumns = false,
   });
 
   final List<Widget> children;
   final double minItemWidth;
   final int maxColumns;
   final double spacing;
+  final bool equalRowHeight;
+  final bool reserveEmptyColumns;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -94,11 +106,21 @@ class ResponsiveGrid extends StatelessWidget {
       if (children.isEmpty) return const SizedBox.shrink();
       final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
       final minimum = minItemWidth * textScale.clamp(1.0, 2.0);
-      final limit = children.length < maxColumns ? children.length : maxColumns;
+      final limit = !reserveEmptyColumns && children.length < maxColumns
+          ? children.length
+          : maxColumns;
       final columns = ((constraints.maxWidth + spacing) / (minimum + spacing))
           .floor()
           .clamp(1, limit);
       final width = (constraints.maxWidth - spacing * (columns - 1)) / columns;
+      if (equalRowHeight && columns > 1) {
+        return _EqualHeightGrid(
+          columns: columns,
+          spacing: spacing,
+          textDirection: Directionality.of(context),
+          children: children,
+        );
+      }
       return Wrap(
         spacing: spacing,
         runSpacing: spacing,
@@ -108,6 +130,108 @@ class ResponsiveGrid extends StatelessWidget {
       );
     },
   );
+}
+
+class _EqualHeightGrid extends MultiChildRenderObjectWidget {
+  const _EqualHeightGrid({
+    required this.columns,
+    required this.spacing,
+    required this.textDirection,
+    required super.children,
+  });
+
+  final int columns;
+  final double spacing;
+  final TextDirection textDirection;
+
+  @override
+  _RenderEqualHeightGrid createRenderObject(BuildContext context) =>
+      _RenderEqualHeightGrid(columns, spacing, textDirection);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderEqualHeightGrid renderObject,
+  ) => renderObject.update(columns, spacing, textDirection);
+}
+
+class _GridParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderEqualHeightGrid extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _GridParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _GridParentData> {
+  _RenderEqualHeightGrid(this._columns, this._spacing, this._textDirection);
+
+  int _columns;
+  double _spacing;
+  TextDirection _textDirection;
+
+  void update(int columns, double spacing, TextDirection textDirection) {
+    if (_columns == columns &&
+        _spacing == spacing &&
+        _textDirection == textDirection) {
+      return;
+    }
+    _columns = columns;
+    _spacing = spacing;
+    _textDirection = textDirection;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _GridParentData) {
+      child.parentData = _GridParentData();
+    }
+  }
+
+  @override
+  void performLayout() {
+    final width = constraints.maxWidth;
+    final cellWidth = (width - _spacing * (_columns - 1)) / _columns;
+    final naturalSize = BoxConstraints.tightFor(width: cellWidth);
+    var next = firstChild;
+    var top = 0.0;
+    while (next != null) {
+      final row = <RenderBox>[];
+      var height = 0.0;
+      while (next != null && row.length < _columns) {
+        next.layout(naturalSize, parentUsesSize: true);
+        height = math.max(height, next.size.height);
+        row.add(next);
+        next = childAfter(next);
+      }
+      final rowSize = BoxConstraints(
+        minWidth: cellWidth,
+        maxWidth: cellWidth,
+        minHeight: height,
+      );
+      for (final (column, child) in row.indexed) {
+        // Keep the parent's layout dependent on each card so expanding its
+        // content recomputes the entire row height.
+        if (child.size.height != height) {
+          child.layout(rowSize, parentUsesSize: true);
+        }
+        final start = column * (cellWidth + _spacing);
+        final left = _textDirection == TextDirection.ltr
+            ? start
+            : width - start - cellWidth;
+        (child.parentData! as _GridParentData).offset = Offset(left, top);
+      }
+      top += height;
+      if (next != null) top += _spacing;
+    }
+    size = constraints.constrain(Size(width, top));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }
 
 /// A filter inside Wrap must use its parent's width, not the viewport width
