@@ -209,6 +209,13 @@ Future<void> tapPostingAction(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> openPostingFilters(WidgetTester tester) async {
+  final toolbar = find.byKey(const ValueKey('workspace-filters-toggle'));
+  await tester.ensureVisible(toolbar);
+  await tester.tap(toolbar);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   test('Workplace coordinates validate both axes and storage precision', () {
     expect(workplaceCoordinates(3.1390004, 101.6869004), testWorkplacePin);
@@ -323,7 +330,7 @@ void main() {
         await tester.ensureVisible(address);
         await tester.enterText(address, 'New workplace');
         await tester.pumpAndSettle();
-        await tapPostingAction(tester, 'Preview');
+        await tapPostingAction(tester, 'Preview unsaved changes');
         final preview = tester.widget<JobPreview>(find.byType(JobPreview));
         expect(preview.job['location'], 'New workplace');
         expect(preview.job['latitude'], isNull);
@@ -658,14 +665,9 @@ void main() {
     await tester.tap(find.text('Keep editing'));
     await tester.pumpAndSettle();
     expect(find.byType(JobFormPage), findsOneWidget);
-    if (kIsWeb) {
-      expect(find.byType(BackButton), findsNothing);
-      final back = find.text('Back to Job Postings');
-      await tester.ensureVisible(back);
-      await tester.tap(back);
-    } else {
-      await tester.tap(find.byTooltip('Back').first);
-    }
+    final dismiss = find.byTooltip('Close job form');
+    await tester.ensureVisible(dismiss);
+    await tester.tap(dismiss);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Discard changes'));
     await tester.pumpAndSettle();
@@ -816,7 +818,12 @@ void main() {
         await tester.tap(ai);
         await tester.pumpAndSettle();
         expect(find.text('Replace existing content?'), findsOneWidget);
-        await tester.tap(find.text('Cancel'));
+        await tester.tap(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('Cancel'),
+          ),
+        );
         await tester.pumpAndSettle();
         expect(repo.formats, 0);
         await tester.tap(ai);
@@ -1003,7 +1010,7 @@ void main() {
       addTearDown(router.dispose);
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await tester.pumpAndSettle();
-      final edit = find.widgetWithText(TextButton, 'Edit');
+      final edit = find.widgetWithText(OutlinedButton, 'Edit');
       await tester.ensureVisible(edit);
       await tester.tap(edit);
       await tester.pumpAndSettle();
@@ -1030,6 +1037,7 @@ void main() {
       expect(repo.saved!.containsKey('created_by'), false);
       expect(repo.records.single['published_at'], publishedAt);
       expect(find.text('Job updated successfully'), findsOneWidget);
+      await openPostingFilters(tester);
       expect(
         tester
             .widget<ChoiceChip>(
@@ -1084,8 +1092,8 @@ void main() {
       for (final key in ['responsibilities', 'requirements', 'benefits']) {
         expect(repo.saved?[key], ['First line', 'Second line']);
       }
-      await tester.ensureVisible(find.text('Edit Draft'));
-      await tester.tap(find.text('Edit Draft'));
+      await tester.ensureVisible(find.text('Edit'));
+      await tester.tap(find.text('Edit'));
       await tester.pumpAndSettle();
       for (final label in [
         'Original description',
@@ -1096,7 +1104,7 @@ void main() {
       ]) {
         expect(field(tester, label).text, 'First line\nSecond line');
       }
-      final preview = find.widgetWithText(TextButton, 'Preview');
+      final preview = find.text('Preview unsaved changes');
       await tester.ensureVisible(preview);
       await tester.tap(preview);
       await tester.pumpAndSettle();
@@ -1131,13 +1139,14 @@ void main() {
             'status': 'draft',
           },
         ];
-      await tester.pumpWidget(
-        MaterialApp(home: JobPostingsPage(repository: repo)),
-      );
+      final router = testRouter(repo);
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await tester.pumpAndSettle();
       expect(find.byType(CompanyIdentity), findsOneWidget);
       expect(find.byType(Image), findsOneWidget);
-      final preview = find.widgetWithText(TextButton, 'Preview');
+      await tapPostingAction(tester, 'Edit');
+      final preview = find.text('Preview unsaved changes');
       await tester.ensureVisible(preview);
       await tester.tap(preview);
       await tester.pumpAndSettle();
@@ -1148,7 +1157,9 @@ void main() {
         ),
         findsOneWidget,
       );
-      Navigator.of(tester.element(find.byType(JobPreview))).pop();
+      await tester.tap(find.byTooltip('Close preview'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Close job form'));
       await tester.pumpAndSettle();
       repo.access = const JobAccess({
         'company_id': 'company',
@@ -1172,7 +1183,7 @@ void main() {
   for (final width in [320.0, 1440.0]) {
     for (final publish in [false, true]) {
       testWidgets(
-        'Save returns to refreshed ${publish ? 'published' : 'draft'} list at $width',
+        'Create result updates All with the ${publish ? 'published' : 'draft'} job at $width',
         (tester) async {
           tester.view.physicalSize = Size(width, 1100);
           tester.view.devicePixelRatio = 1;
@@ -1224,14 +1235,10 @@ void main() {
             ),
             findsOneWidget,
           );
+          await openPostingFilters(tester);
           expect(
             tester
-                .widget<ChoiceChip>(
-                  find.widgetWithText(
-                    ChoiceChip,
-                    '${publish ? 'Published' : 'Draft'} (1)',
-                  ),
-                )
+                .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'All (1)'))
                 .selected,
             true,
           );
@@ -1258,8 +1265,8 @@ void main() {
       await tester.pumpAndSettle();
       router.push(AppRoutes.jobPostings);
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Edit Draft'));
-      await tester.tap(find.text('Edit Draft'));
+      await tester.ensureVisible(find.text('Edit'));
+      await tester.tap(find.text('Edit'));
       await tester.pumpAndSettle();
       field(tester, 'Job title').text = 'Updated role';
       final action = find.widgetWithText(OutlinedButton, 'Save Draft');
@@ -1414,27 +1421,29 @@ void main() {
     expect(find.text('Salary'), findsNothing);
     expect(find.textContaining('12'), findsNothing);
   });
-  testWidgets('Draft card requires a pin for on-site status-only publication', (
+  testWidgets('Draft edit requires a pin before on-site publication', (
     tester,
   ) async {
     final draft = {...completeJob(), 'job_id': 'draft', 'status': 'draft'};
     final repo = TestJobs()..records = [draft];
-    await tester.pumpWidget(
-      MaterialApp(home: JobPostingsPage(repository: repo)),
+    final router = testRouter(
+      repo,
+      pickWorkplace: (_, _, _, _) async => testPickerResult,
     );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await tester.pumpAndSettle();
-    await tapPostingAction(tester, 'Publish');
+    await tapPostingAction(tester, 'Edit');
+    await tapPostingAction(tester, 'Publish Job');
     expect(repo.saves, 0);
     expect(
       find.textContaining(workplaceRequiredForPublication),
       findsOneWidget,
     );
-    draft.addAll({
-      'latitude': testWorkplacePin.latitude,
-      'longitude': testWorkplacePin.longitude,
-    });
-    await tapPostingAction(tester, 'Publish');
-    expect(repo.saved, {'status': 'published'});
+    await tapPostingAction(tester, 'Choose on map');
+    await tapPostingAction(tester, 'Publish Job');
+    expect(repo.saves, 1);
+    expect(repo.saved?['status'], 'published');
     expect(repo.records.single['latitude'], testWorkplacePin.latitude);
     expect(repo.records.single['longitude'], testWorkplacePin.longitude);
   });
@@ -1463,7 +1472,7 @@ void main() {
     expect(repo.saved?['location'], 'New workplace');
   });
 
-  testWidgets('Draft card publishes saved data and selects Published', (
+  testWidgets('Publishing a draft updates its row and keeps the All filter', (
     tester,
   ) async {
     final repo = TestJobs()
@@ -1482,44 +1491,46 @@ void main() {
           'created_at': '2026-11-01T10:00:00Z',
         },
       ];
-    await tester.pumpWidget(
-      MaterialApp(home: JobPostingsPage(repository: repo)),
-    );
+    final router = testRouter(repo);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await tester.pumpAndSettle();
     expect(find.text('Remote'), findsOneWidget);
     expect(find.text('Vacancies: 2'), findsOneWidget);
     expect(find.text('Created: 1 Nov 2026'), findsOneWidget);
     expect(find.textContaining('12345'), findsNothing);
-    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Publish'));
-    await tester.tap(find.widgetWithText(FilledButton, 'Publish'));
-    await tester.pumpAndSettle();
+    await tapPostingAction(tester, 'Edit');
+    await tapPostingAction(tester, 'Publish Job');
     expect(repo.saves, 1);
     expect(repo.records.single['status'], 'published');
     expect(find.text('Ready role'), findsOneWidget);
+    await openPostingFilters(tester);
     expect(
       tester
-          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Published (1)'))
+          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'All (1)'))
           .selected,
       true,
     );
-    expect(find.text('Close Job'), findsOneWidget);
+    await tapPostingAction(tester, 'Published (1)');
+    expect(find.text('Ready role'), findsOneWidget);
+    expect(find.byType(JobFormPage), findsNothing);
   });
-  testWidgets('Draft card does not publish incomplete saved data', (
+  testWidgets('Draft edit does not publish incomplete saved data', (
     tester,
   ) async {
     final repo = TestJobs()
       ..records = [
         {'job_id': 'draft', 'title': 'Incomplete role', 'status': 'draft'},
       ];
-    await tester.pumpWidget(
-      MaterialApp(home: JobPostingsPage(repository: repo)),
-    );
+    final router = testRouter(repo);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Publish'));
-    await tester.tap(find.widgetWithText(FilledButton, 'Publish'));
-    await tester.pumpAndSettle();
+    await tapPostingAction(tester, 'Edit');
+    await tapPostingAction(tester, 'Publish Job');
     expect(repo.saves, 0);
-    expect(find.textContaining('Use Edit Draft'), findsOneWidget);
+    expect(repo.records.single['status'], 'draft');
+    expect(find.text('Enter role overview.'), findsOneWidget);
   });
   testWidgets('Unverified company disables creation', (tester) async {
     final repo = TestJobs()
@@ -1545,25 +1556,32 @@ void main() {
         {'job_id': 'live', 'title': 'Live role', 'status': 'published'},
         {'job_id': 'closed', 'title': 'Closed role', 'status': 'closed'},
       ];
-    await tester.pumpWidget(
-      MaterialApp(home: JobPostingsPage(repository: repo)),
+    final router = testRouter(repo);
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    await openPostingFilters(tester);
+    await tapPostingAction(tester, 'Published (1)');
+    expect(find.text('Live role'), findsOneWidget);
+    await tapPostingAction(tester, 'Edit');
+    await tapPostingAction(tester, 'Close Job');
+    expect(
+      repo.records.singleWhere((job) => job['job_id'] == 'live')['status'],
+      'published',
+    );
+    expect(find.widgetWithText(AlertDialog, 'Close this job?'), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(FilledButton, 'Close Job'),
+      ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Edit Draft'), findsOneWidget);
-    await tester.ensureVisible(find.text('Published (1)'));
-    await tester.tap(find.text('Published (1)'));
-    await tester.pumpAndSettle();
+    expect(find.byType(JobFormPage), findsNothing);
+    await tapPostingAction(tester, 'Closed (2)');
     expect(find.text('Live role'), findsOneWidget);
-    await tester.ensureVisible(find.text('Close Job'));
-    await tester.tap(find.text('Close Job'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Close Job'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Closed (2)'));
-    await tester.tap(find.text('Closed (2)'));
-    await tester.pumpAndSettle();
-    expect(find.text('Live role'), findsOneWidget);
-    expect(find.text('Edit Draft'), findsNothing);
+    expect(find.text('Closed role'), findsOneWidget);
+    expect(find.text('Edit'), findsNothing);
     expect(find.text('Close Job'), findsNothing);
   });
   testWidgets('Closed job form is read-only', (tester) async {

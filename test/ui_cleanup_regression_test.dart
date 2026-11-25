@@ -117,6 +117,16 @@ void main() {
           applicantRow('application', status: from)
             ..['applicant_name'] = 'Pat Example',
         ];
+      if (next == MyApplicationStatus.offered) {
+        source.data = EmployerPostingContext(source.data.access, [
+          for (final job in source.data.jobs)
+            {
+              ...job,
+              'employment_type': 'full_time',
+              'salary_period': 'monthly',
+            },
+        ]);
+      }
       final repo = EmployerApplicantsRepository(source, 'real-job-id');
       await repo.load();
       addTearDown(() async {
@@ -191,10 +201,10 @@ void main() {
         if (kIsWeb || role == 'employer') {
           await scrollWorkspaceMenuTo(
             tester,
-            role == 'employer' ? 'View Applicants' : 'Browse Jobs',
+            role == 'employer' ? 'My Job Postings' : 'Browse Jobs',
           );
           expect(
-            find.text(role == 'employer' ? 'View Applicants' : 'Browse Jobs'),
+            find.text(role == 'employer' ? 'My Job Postings' : 'Browse Jobs'),
             findsOneWidget,
           );
         } else {

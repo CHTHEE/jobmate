@@ -157,9 +157,14 @@ void main() {
     'account switch away and back invalidates pending acknowledgement',
     () async {
       final pending = Completer<String>();
-      gateway.accept = (_) => pending.future;
+      final dispatched = Completer<void>();
+      gateway.accept = (_) {
+        dispatched.complete();
+        return pending.future;
+      };
       final operation = source.respond('offer', 'accept_offer');
       final assertion = expectLater(operation, throwsStateError);
+      await dispatched.future;
       legacy.switchAccount('other-worker');
       legacy.switchAccount('seeker-a');
       pending.complete('accepted');

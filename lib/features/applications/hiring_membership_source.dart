@@ -190,6 +190,22 @@ class HiringMembershipApplicationsSource
       if (id != actor) changed = true;
     });
     try {
+      if (accepting) {
+        // The current membership RPC accepts only an Application ID. It cannot
+        // atomically bind acceptance to a versioned Offer, so never route a
+        // versioned Offer through that legacy-shaped contract.
+        final versionedOffer = await applications.currentCompensationOffer(
+          applicationId,
+        );
+        if (changed || userId != actor || gateway.userId != actor) {
+          throw StateError('Your session changed. Refresh the application.');
+        }
+        if (versionedOffer != null) {
+          throw StateError(
+            'Exact-version acceptance is unavailable with the hiring membership workflow.',
+          );
+        }
+      }
       final acknowledgement = accepting
           ? await gateway.acceptOffer(applicationId)
           : await applications.respond(applicationId, action);
@@ -202,4 +218,20 @@ class HiringMembershipApplicationsSource
       _responding = false;
     }
   }
+
+  @override
+  Future<Map<String, dynamic>?> currentCompensationOffer(
+    String applicationId,
+  ) => applications.currentCompensationOffer(applicationId);
+
+  @override
+  Future<void> acceptCompensationOffer(
+    String applicationId,
+    String offerId,
+    int offerVersion,
+  ) => applications.acceptCompensationOffer(
+    applicationId,
+    offerId,
+    offerVersion,
+  );
 }

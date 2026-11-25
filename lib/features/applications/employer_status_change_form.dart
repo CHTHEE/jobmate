@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../shared/theme/jobmate_theme.dart';
 
+import 'compensation_offer.dart' show CompensationOffer;
 import 'employer_applicants_repository.dart';
 import 'module2_widgets.dart';
 import 'my_applications_repository.dart';
@@ -31,6 +32,7 @@ class EmployerStatusChangeForm extends StatefulWidget {
 
 class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
   final note = TextEditingController();
+  CompensationOffer? issuedOffer;
   late final String? actor;
   late final Object? company;
   bool busy = false, success = false, leaving = false, invalid = false;
@@ -74,11 +76,39 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
       error = null;
     });
     try {
-      await widget.repository.updateStatus(
-        widget.applicant,
-        widget.next,
-        note.text,
-      );
+      final job = widget.repository.job;
+      if (widget.next == MyApplicationStatus.offered) {
+        if (job == null ||
+            !canOfferForJob(
+              job,
+              versionedOffersEnabled:
+                  widget.repository.compensationOffersEnabled,
+              reissue: widget.applicant.status == MyApplicationStatus.offered,
+            )) {
+          throw StateError(
+            'Offer issuance is unavailable. Refresh the Job terms.',
+          );
+        }
+        if (isPaymentSupportedJob(job)) {
+          issuedOffer = await widget.repository.issueCompensationOffer(
+            widget.applicant,
+            note.text,
+            widget.repository.compensationOfferRequestId(widget.applicant.id),
+          );
+        } else {
+          await widget.repository.updateStatus(
+            widget.applicant,
+            widget.next,
+            note.text,
+          );
+        }
+      } else {
+        await widget.repository.updateStatus(
+          widget.applicant,
+          widget.next,
+          note.text,
+        );
+      }
       if (!mounted || invalid) return;
       setState(() => success = true);
     } catch (failure) {
@@ -95,9 +125,17 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
     final current = repo.applicants
         .where((a) => a.id == widget.applicant.id)
         .firstOrNull;
+    final selectedJob = repo.job;
     return !repo.loading &&
         current?.status == widget.applicant.status &&
-        (current?.employerNext.contains(widget.next) ?? false);
+        (current?.employerNext.contains(widget.next) ?? false) &&
+        (widget.next != MyApplicationStatus.offered ||
+            selectedJob != null &&
+                canOfferForJob(
+                  selectedJob,
+                  versionedOffersEnabled: repo.compensationOffersEnabled,
+                  reissue: current?.status == MyApplicationStatus.offered,
+                ));
   }
 
   Future<void> close() async {
@@ -219,14 +257,30 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
           ),
           const SizedBox(height: 12),
           if (success)
-            Text(
-              '${widget.applicant.name.trim().isEmpty ? 'This applicant' : widget.applicant.name} ${switch (widget.next) {
-                MyApplicationStatus.shortlisted => 'has been shortlisted successfully. You can continue reviewing this application.',
-                MyApplicationStatus.interview => 'has been moved to the interview stage successfully.',
-                MyApplicationStatus.offered => 'has been sent a job offer successfully.',
-                MyApplicationStatus.rejected => 'has been marked as rejected.',
-                _ => 'has an updated application status.',
-              }}${widget.repository.error == null ? '' : ' The applicant list could not refresh. Close this form and refresh the list.'}',
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${widget.applicant.name.trim().isEmpty ? 'This applicant' : widget.applicant.name} ${switch (widget.next) {
+                    MyApplicationStatus.shortlisted => 'has been shortlisted successfully. You can continue reviewing this application.',
+                    MyApplicationStatus.interview => 'has been moved to the interview stage successfully.',
+                    MyApplicationStatus.offered => 'has been sent a job offer successfully.',
+                    MyApplicationStatus.rejected => 'has been marked as rejected.',
+                    _ => 'has an updated application status.',
+                  }}${widget.repository.error == null ? '' : ' The applicant list could not refresh. Close this form and refresh the list.'}',
+                ),
+                if (issuedOffer case final offer?) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Compensation Offer · Version ${offer.version}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  Text(offer.salaryRange),
+                  const Text(
+                    'These terms are saved as an immutable Offer version.',
+                  ),
+                ],
+              ],
             )
           else ...[
             Text(

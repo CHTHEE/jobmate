@@ -51,6 +51,7 @@ void main() {
             'title': 'QA Assistant',
             'status': 'published',
             'employment_type': 'part_time',
+            'salary_period': 'hourly',
           },
         ],
       );
@@ -78,6 +79,12 @@ void main() {
         ),
       );
       return 'Confirmed';
+    };
+    workerSource.sendOfferAcceptance = (applicationId, offerId, version) async {
+      expect(applicationId, uid(4));
+      expect(offerId, workerSource.offer!['offer_id']);
+      expect(version, workerSource.offer!['offer_version']);
+      await workerSource.sendResponse!(applicationId, 'accept_offer');
     };
     candidates = CandidateSource()..userId = other;
     candidates.access = () async => employerSource.data.access;
@@ -143,11 +150,36 @@ void main() {
         ),
         throwsStateError,
       );
-      await employer.updateStatus(
-        employer.applicants.single,
-        next,
-        'Agreed next step',
-      );
+      if (next == MyApplicationStatus.offered) {
+        final offer = await employer.issueCompensationOffer(
+          employer.applicants.single,
+          'Agreed next step',
+          employer.compensationOfferRequestId(uid(4)),
+        );
+        expect(offer.applicationId, uid(4));
+        expect(offer.version, 1);
+        workerSource.offer = {
+          'offer_id': offer.offerId,
+          'application_id': offer.applicationId,
+          'offer_version': offer.version,
+          'employment_type': offer.employmentType,
+          'salary_period': offer.salaryPeriod,
+          'salary_min_sen': offer.minimumSen.toString(),
+          'salary_max_sen': offer.maximumSen.toString(),
+          'currency': offer.currency,
+          'issued_by': offer.issuerId,
+          'issued_at': offer.issuedAt.toIso8601String(),
+          'payment_basis_supported': offer.paymentBasisSupported,
+          'is_current': offer.isCurrent,
+          'is_accepted': offer.isAccepted,
+        };
+      } else {
+        await employer.updateStatus(
+          employer.applicants.single,
+          next,
+          'Agreed next step',
+        );
+      }
       await worker.load();
       expect(worker.application!.status, next);
       await creation.load(companyId: candidates.company);
@@ -159,6 +191,10 @@ void main() {
   test('hiring connects to repeat shifts, attendance, late evidence and verification', () async {
     await offer();
     await worker.respond(worker.application!, 'accept_offer');
+    expect(workerSource.offerAcceptances, [
+      (uid(4), workerSource.offer!['offer_id'], 1),
+    ]);
+    expect(workerSource.responses, isEmpty);
     await employer.load();
     expect(worker.application!.status, MyApplicationStatus.hired);
     expect(employer.applicants.single.status, MyApplicationStatus.hired);

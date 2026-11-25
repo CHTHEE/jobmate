@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:jobmate/features/admin/company_rejection_dialog.dart';
 import 'package:jobmate/features/admin/company_review_details.dart';
 import 'package:jobmate/features/admin/company_review_gateway.dart';
 import 'package:jobmate/features/admin/company_review_page.dart';
@@ -77,6 +78,40 @@ class ReviewFixture implements CompanyReviewGateway {
 }
 
 void main() {
+  final reviewDialog = find.byType(CompanyRejectionDialog);
+  final reviewComment = find.descendant(
+    of: reviewDialog,
+    matching: find.byType(TextFormField),
+  );
+
+  Finder queueAction(String label) => find.descendant(
+    of: find.ancestor(of: find.text('Company 0'), matching: find.byType(Card)),
+    matching: find.widgetWithText(FilledButton, label),
+  );
+
+  Future<void> tapVisible(WidgetTester tester, Finder target) async {
+    await tester.ensureVisible(target);
+    await tester.pumpAndSettle();
+    expect(target.hitTestable(), findsOneWidget);
+    await tester.tap(target);
+  }
+
+  Future<void> openReview(WidgetTester tester, String action) async {
+    await tapVisible(tester, queueAction(action));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> submitReview(WidgetTester tester, String action) async {
+    expect(reviewDialog, findsOneWidget);
+    await tapVisible(
+      tester,
+      find.descendant(
+        of: reviewDialog,
+        matching: find.widgetWithText(FilledButton, action),
+      ),
+    );
+  }
+
   for (final width in [320.0, 1440.0]) {
     testWidgets(
       'Logo preview and permission retry adapt at $width with large text',
@@ -140,11 +175,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(logos.offsets, [0]);
       expect(find.text('Pending logo changes'), findsOneWidget);
-      await tester.tap(find.text('Approve'));
-      await tester.pumpAndSettle();
+      await openReview(tester, 'Approve');
       expect(find.text('Approve company logo?'), findsOneWidget);
       logos.pendingReview = Completer<void>();
-      await tester.tap(find.widgetWithText(FilledButton, 'Approve').last);
+      await submitReview(tester, 'Approve');
       await tester.pump();
       expect(documents.decisions, isEmpty);
       expect(logos.decisions, [('request-0', 'verified', '')]);
@@ -239,18 +273,18 @@ void main() {
     (tester) async {
       final data = ReviewFixture(1)..pendingReview = Completer<void>();
       await mount(tester, data);
-      await tester.tap(find.text('Approve'));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byType(TextFormField),
-        '  Registration checked  ',
-      );
-      await tester.tap(find.widgetWithText(FilledButton, 'Approve').last);
+      await openReview(tester, 'Approve');
+      await tester.enterText(reviewComment, '  Registration checked  ');
+      await submitReview(tester, 'Approve');
       await tester.pump();
       expect(data.decisions, [
         ('request-0', 'verified', 'Registration checked'),
       ]);
       expect(find.text('Saving company review...'), findsOneWidget);
+      expect(
+        tester.widget<FilledButton>(queueAction('Approve')).onPressed,
+        isNull,
+      );
       await tester.pump(const Duration(milliseconds: 100));
       expect(data.decisions.length, 1);
       data.pendingReview!.complete();
@@ -266,17 +300,13 @@ void main() {
   ) async {
     final data = ReviewFixture(1);
     await mount(tester, data);
-    await tester.tap(find.text('Reject'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Reject').last);
+    await openReview(tester, 'Reject');
+    await submitReview(tester, 'Reject');
     await tester.pump();
     expect(find.text('Enter a reason to continue.'), findsOneWidget);
     expect(data.decisions, isEmpty);
-    await tester.enterText(
-      find.byType(TextFormField),
-      '  Certificate unreadable  ',
-    );
-    await tester.tap(find.widgetWithText(FilledButton, 'Reject').last);
+    await tester.enterText(reviewComment, '  Certificate unreadable  ');
+    await submitReview(tester, 'Reject');
     await tester.pumpAndSettle();
     expect(data.decisions, [
       ('request-0', 'rejected', 'Certificate unreadable'),
@@ -290,9 +320,8 @@ void main() {
         message: 'This Company request is no longer pending.',
       );
     await mount(tester, data);
-    await tester.tap(find.text('Approve'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Approve').last);
+    await openReview(tester, 'Approve');
+    await submitReview(tester, 'Approve');
     await tester.pumpAndSettle();
     expect(data.decisions.single.$3, '');
     expect(
@@ -364,9 +393,8 @@ void main() {
   ) async {
     final data = ReviewFixture(1);
     await mount(tester, data);
-    await tester.tap(find.text('Approve'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Approve').last);
+    await openReview(tester, 'Approve');
+    await submitReview(tester, 'Approve');
     await tester.pumpAndSettle();
     expect(data.decisions, [('request-0', 'verified', '')]);
   });
@@ -376,17 +404,10 @@ void main() {
   ) async {
     final data = ReviewFixture(1);
     await mount(tester, data);
-    await tester.tap(find.text('Reject'));
-    await tester.pumpAndSettle();
+    await openReview(tester, 'Reject');
     // 1001 graphemes but 2002 Unicode code points, which exceeds SQL length().
-    await tester.enterText(
-      find.byType(TextFormField),
-      List.filled(1001, 'a\u0301').join(),
-    );
-    await tester.ensureVisible(
-      find.widgetWithText(FilledButton, 'Reject').last,
-    );
-    await tester.tap(find.widgetWithText(FilledButton, 'Reject').last);
+    await tester.enterText(reviewComment, List.filled(1001, 'a\u0301').join());
+    await submitReview(tester, 'Reject');
     await tester.pump();
     expect(find.text('Use 2000 characters or fewer.'), findsOneWidget);
     expect(data.decisions, isEmpty);
@@ -398,8 +419,7 @@ void main() {
     final data = ReviewFixture(1);
     await mount(tester, data);
     data.sessionChanged = true;
-    await tester.tap(find.text('Approve'));
-    await tester.pumpAndSettle();
+    await openReview(tester, 'Approve');
     expect(find.text('Your signed-in account has changed.'), findsOneWidget);
     expect(find.byType(TextFormField), findsNothing);
     expect(data.decisions, isEmpty);

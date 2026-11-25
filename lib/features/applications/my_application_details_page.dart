@@ -7,6 +7,7 @@ import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../jobs/job_display.dart';
 import '../chat/chat_application_button.dart';
+import 'compensation_offer.dart';
 import 'module2_widgets.dart';
 import 'my_applications_repository.dart';
 import 'hiring_membership_panel.dart';
@@ -52,6 +53,8 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
               current.application?.id == application.id &&
               current.application?.status == application.status &&
               action.allowed(application.status) &&
+              (action != ApplicationResponseAction.acceptOffer ||
+                  current.canAcceptOffer) &&
               !current.responding &&
               !current.loading;
           return AlertDialog(
@@ -69,6 +72,14 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
                         Text(application.jobTitle),
                         Text(application.companyName),
                         const SizedBox(height: 12),
+                        if (action == ApplicationResponseAction.acceptOffer &&
+                            p03CompensationOffersEnabled &&
+                            current.compensationOffer != null) ...[
+                          Text(
+                            'Offer version ${current.compensationOffer!.version}: ${current.compensationOffer!.salaryRange}',
+                          ),
+                          const SizedBox(height: 8),
+                        ],
                         Text(action.confirmationMessage),
                       ],
               ),
@@ -299,7 +310,10 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
       (action) => action.allowed(application.status),
     );
     VoidCallback? onResponse(ApplicationResponseAction action) =>
-        repo.responding || confirming
+        repo.responding ||
+            confirming ||
+            action == ApplicationResponseAction.acceptOffer &&
+                !repo.canAcceptOffer
         ? null
         : () => respond(application, action);
 
@@ -346,6 +360,24 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
                 ),
               ],
             ),
+            if (!p03CompensationOffersEnabled &&
+                application.status == MyApplicationStatus.offered)
+              if (repo.offerLoading)
+                const Text('Checking Offer availability…')
+              else if (repo.offerError case final error?)
+                Text(error)
+              else if (repo.compensationOffer != null)
+                const Text(
+                  'Versioned Offer acceptance is currently unavailable.',
+                ),
+            if (p03CompensationOffersEnabled &&
+                const {
+                  MyApplicationStatus.offered,
+                  MyApplicationStatus.hired,
+                }.contains(application.status)) ...[
+              const SizedBox(height: 16),
+              _compensationOfferCard(context),
+            ],
             if (application.status.lifecycleExplanation
                 case final explanation?) ...[
               const SizedBox(height: 16),
@@ -435,6 +467,47 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
       ),
     ],
   );
+
+  Widget _compensationOfferCard(BuildContext context) {
+    final offer = repo.compensationOffer;
+    return Card(
+      margin: EdgeInsets.zero,
+      color: JobMateTheme.teal50,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Compensation Offer',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 6),
+            if (repo.offerLoading)
+              const LinearProgressIndicator()
+            else if (repo.offerError != null)
+              Text(
+                repo.offerError!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              )
+            else if (offer == null)
+              const Text(
+                'This is a legacy Offer without versioned payable terms. It is not eligible for Payment Handling.',
+              )
+            else ...[
+              Text('Immutable version ${offer.version}'),
+              Text(offer.salaryRange),
+              Text('Issued ${offer.issuedAt.toLocal()}'),
+              if (repo.source is! ExactVersionCompensationOfferSource)
+                const Text(
+                  'Acceptance is unavailable while the separate hiring-membership workflow is active.',
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _timeline(BuildContext context) => WorkspaceCard(
     title: 'Application timeline',

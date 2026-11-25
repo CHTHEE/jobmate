@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../shared/theme/jobmate_theme.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import '../applications/browse_job_card.dart';
 import '../applications/job_marketplace_format.dart';
 import '../applications/module2_repository.dart';
@@ -21,180 +22,177 @@ class EmployerJobCard extends StatelessWidget {
     required this.job,
     required this.busy,
     required this.onEdit,
-    required this.onPreview,
-    required this.onPublish,
-    required this.onClose,
     required this.onApplicants,
     this.unseenApplicantCount = 0,
   });
   final Map<String, dynamic> job;
   final bool busy;
   final int unseenApplicantCount;
-  final VoidCallback onEdit, onPreview, onPublish, onClose, onApplicants;
+  final VoidCallback onEdit, onApplicants;
 
   @override
   Widget build(BuildContext context) {
     final display = BrowseJob(job, company: '');
     final status = display.text('status');
-    final statusColor = switch (status) {
-      'published' => JobMateTheme.darkTeal,
-      'draft' => const Color(0xFF92400E),
-      _ => JobMateTheme.body,
-    };
+    final title = job['title'] as String? ?? 'Untitled job';
+    final titleStyle = Theme.of(context).textTheme.titleMedium
+        ?.copyWith(fontWeight: FontWeight.w700, height: 1.25);
+    final statusColor = status == 'draft'
+        ? const Color(0xFF92400E)
+        : JobMateTheme.body;
     final deadlineMessage = status == 'published'
         ? display.unavailable()
         : null;
-    final applicantsButton = FilledButton.tonalIcon(
-      onPressed: busy ? null : onApplicants,
-      style: FilledButton.styleFrom(
-        backgroundColor: JobMateTheme.teal50,
-        foregroundColor: JobMateTheme.darkTeal,
-        minimumSize: const Size(48, 48),
-      ),
-      icon: const Icon(Icons.people_outline, size: 18),
-      label: const Text('View Applicants'),
-    );
-    final applicants = unseenApplicantCount > 0
-        ? Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              applicantsButton,
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: JobMateTheme.applicantNotification,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  unseenApplicantCount > 999
-                      ? '999+ new'
-                      : '$unseenApplicantCount new',
-                  semanticsLabel: unseenApplicantCount == 1
-                      ? '1 new application'
-                      : '$unseenApplicantCount new applications',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          )
-        : applicantsButton;
+    final employmentType = display.text('employment_type');
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      foregroundDecoration: BoxDecoration(
         border: Border.all(color: JobMateTheme.divider),
         borderRadius: BorderRadius.circular(16),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                LayoutBuilder(
-                  builder: (context, box) {
-                    final title = Text(
-                      job['title'] as String? ?? 'Untitled job',
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    );
-                    final badge = Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: .08),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight:
+                        MediaQuery.textScalerOf(context)
+                            .scale(titleStyle?.fontSize ?? 16) *
+                        2.5,
+                  ),
+                  child: Align(
+                    alignment: AlignmentDirectional.topStart,
+                    child: Tooltip(
+                      message: title,
+                      excludeFromSemantics: true,
                       child: Text(
-                        postingStatusLabel(status),
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: titleStyle,
                       ),
-                    );
-                    if (box.maxWidth <
-                        360 * MediaQuery.textScalerOf(context).scale(14) / 14) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [title, const SizedBox(height: 8), badge],
-                      );
-                    }
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: title),
-                        const SizedBox(width: 12),
-                        badge,
-                      ],
-                    );
-                  },
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Wrap(
-                  spacing: 14,
-                  runSpacing: 8,
+                  spacing: 8,
+                  runSpacing: 6,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    if (display.text('employment_type').isNotEmpty)
-                      EmploymentTypeBadge(display.text('employment_type')),
-                    if (display.text('location').isNotEmpty)
-                      JobListingMetadata(
-                        Icons.location_on_outlined,
-                        display.text('location'),
+                    if (employmentType.isNotEmpty)
+                      EmploymentTypeBadge(employmentType)
+                    else
+                      const Text('Employment type not set'),
+                    if (status != 'published')
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: .08),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          child: Text(
+                            postingStatusLabel(status),
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ),
-                    if (display.text('work_arrangement').isNotEmpty)
-                      JobListingMetadata(
-                        Icons.work_outline,
-                        jobLabel(display.text('work_arrangement')),
+                    if (unseenApplicantCount > 0)
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: JobMateTheme.applicantNotification,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          child: Text(
+                            unseenApplicantCount > 999
+                                ? '999+ new'
+                                : '$unseenApplicantCount new',
+                            semanticsLabel: unseenApplicantCount == 1
+                                ? '1 new application'
+                                : '$unseenApplicantCount new applications',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ),
-                    Text(
-                      marketplaceSalary(display),
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 16,
-                  runSpacing: 8,
+                const SizedBox(height: 12),
+                Text(
+                  marketplaceSalary(display),
+                  key: const ValueKey('posting-salary'),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                ResponsiveGrid(
+                  minItemWidth: 135,
+                  maxColumns: 2,
+                  spacing: 8,
+                  equalRowHeight: true,
                   children: [
-                    if (display.text('department').isNotEmpty)
-                      JobListingMetadata(
-                        Icons.business_center_outlined,
-                        display.text('department'),
+                    JobListingMetadata(
+                      Icons.location_on_outlined,
+                      _metadata(display.text('location'), 'Location not set'),
+                    ),
+                    JobListingMetadata(
+                      Icons.work_outline,
+                      _metadata(
+                        jobLabel(display.text('work_arrangement')),
+                        'Arrangement not set',
                       ),
+                    ),
+                    JobListingMetadata(
+                      Icons.business_center_outlined,
+                      _metadata(
+                        display.text('department'),
+                        'Department not set',
+                      ),
+                    ),
                     JobListingMetadata(
                       Icons.people_outline,
                       'Vacancies: ${job['vacancies'] ?? 'Not set'}',
                     ),
-                    if (job['application_deadline'] != null)
-                      JobListingMetadata(
-                        Icons.event_outlined,
-                        'Deadline: ${marketplaceDate(job['application_deadline'])}',
-                      ),
-                    if (job['published_at'] != null)
-                      JobListingMetadata(
-                        Icons.schedule,
-                        'Published: ${marketplaceDate(job['published_at'])}',
-                      )
-                    else if (job['created_at'] != null)
-                      JobListingMetadata(
-                        Icons.schedule,
-                        'Created: ${marketplaceDate(job['created_at'])}',
-                      ),
+                    JobListingMetadata(
+                      Icons.event_outlined,
+                      job['application_deadline'] == null
+                          ? 'Deadline not set'
+                          : 'Deadline: ${marketplaceDate(job['application_deadline'])}',
+                    ),
+                    JobListingMetadata(
+                      Icons.schedule,
+                      job['published_at'] != null
+                          ? 'Published: ${marketplaceDate(job['published_at'])}'
+                          : job['created_at'] != null
+                          ? 'Created: ${marketplaceDate(job['created_at'])}'
+                          : 'Date not available',
+                    ),
                   ],
                 ),
                 if (deadlineMessage != null)
@@ -212,69 +210,52 @@ class EmployerJobCard extends StatelessWidget {
             ),
           ),
           Container(
+            key: const ValueKey('posting-actions'),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: const BoxDecoration(
               color: JobMateTheme.background,
               border: Border(top: BorderSide(color: JobMateTheme.divider)),
             ),
-            child: LayoutBuilder(
-              builder: (context, box) {
-                final actions = [
-                  if (status == 'published') applicants,
-                  if (status == 'draft')
-                    FilledButton(
-                      onPressed: busy ? null : onPublish,
-                      child: const Text('Publish'),
-                    ),
-                  if (status == 'draft' || status == 'published')
-                    TextButton.icon(
-                      onPressed: busy ? null : onEdit,
-                      icon: const Icon(Icons.edit_outlined, size: 17),
-                      label: Text(status == 'draft' ? 'Edit Draft' : 'Edit'),
-                    ),
-                  TextButton.icon(
-                    onPressed: busy ? null : onPreview,
-                    icon: const Icon(Icons.visibility_outlined, size: 17),
-                    label: const Text('Preview'),
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              spacing: ResponsiveLayout.actionGap,
+              runSpacing: ResponsiveLayout.actionGap,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: busy ? null : onApplicants,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: JobMateTheme.teal50,
+                    foregroundColor: JobMateTheme.darkTeal,
+                    minimumSize: const Size(0, ResponsiveLayout.actionHeight),
                   ),
-                  if (status != 'published') applicants,
-                ];
-                final close = TextButton.icon(
-                  onPressed: busy ? null : onClose,
-                  icon: const Icon(Icons.close, size: 17),
-                  label: const Text('Close Job'),
-                );
-                if (status == 'published' &&
-                    box.maxWidth >=
-                        700 * MediaQuery.textScalerOf(context).scale(14) / 14) {
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: actions,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      close,
-                    ],
-                  );
-                }
-                return Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [...actions, if (status == 'published') close],
-                );
-              },
+                  icon: const Icon(Icons.people_outline, size: 18),
+                  label: const Text('View Applicants'),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('posting-edit'),
+                  onPressed: busy ? null : onEdit,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, ResponsiveLayout.actionHeight),
+                  ),
+                  icon: Icon(
+                    status == 'closed'
+                        ? Icons.visibility_outlined
+                        : Icons.edit_outlined,
+                    size: 18,
+                  ),
+                  label: Text(status == 'closed' ? 'View' : 'Edit'),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+  String _metadata(String value, String fallback) =>
+      value.isEmpty ? fallback : value;
 }
 
 class PostingSummary extends StatelessWidget {
@@ -318,7 +299,10 @@ class PostingSummary extends StatelessWidget {
                       Expanded(
                         child: Container(
                           key: ValueKey('posting-stat-${items[i].$1}'),
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             border: Border.all(color: JobMateTheme.divider),
@@ -350,7 +334,7 @@ class PostingSummary extends StatelessWidget {
                               Text(
                                 '${counts[items[i].$1] ?? 0}',
                                 style: const TextStyle(
-                                  fontSize: 24,
+                                  fontSize: 20,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),

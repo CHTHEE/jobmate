@@ -328,6 +328,7 @@ void main() {
         find.textContaining('No shifts match your search'),
         findsOneWidget,
       );
+      await tap(tester, find.byKey(const ValueKey('workspace-filters-toggle')));
       await tester.ensureVisible(find.text('Clear filters'));
       await tester.tap(find.text('Clear filters'));
       await tester.pumpAndSettle();
@@ -364,6 +365,7 @@ void main() {
           ..['assignment_status'] = 'active',
       ];
       await show(tester);
+      await tap(tester, find.byKey(const ValueKey('workspace-filters-toggle')));
       Future<void> choose(String label, String value) async {
         final filter = find.widgetWithText(
           DropdownButtonFormField<String>,
@@ -442,7 +444,7 @@ void main() {
       expect(
         find.descendant(
           of: card(10),
-          matching: find.widgetWithText(ShiftDetailPanel, 'Scheduled'),
+          matching: find.widgetWithText(ShiftDetailPanel, 'Scheduled shift'),
         ),
         findsOneWidget,
       );
@@ -455,6 +457,7 @@ void main() {
       await tester.enterText(search, 'no matching job');
       await tester.pumpAndSettle();
       expect(card(10), findsNothing);
+      await tap(tester, find.byKey(const ValueKey('workspace-filters-toggle')));
       await tester.ensureVisible(find.text('Clear filters'));
       await tester.tap(find.text('Clear filters'));
       await tester.pumpAndSettle();

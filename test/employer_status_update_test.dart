@@ -24,7 +24,7 @@ void main() {
     await source.changes.close();
   });
 
-  test('Only the six allowed transitions exist; offered and terminal states have none', () async {
+  test('Only supported transitions are available; offered permits a versioned revision', () async {
     final allowed = {
       MyApplicationStatus.submitted: [
         MyApplicationStatus.shortlisted,
@@ -38,6 +38,7 @@ void main() {
         MyApplicationStatus.offered,
         MyApplicationStatus.rejected,
       ],
+      MyApplicationStatus.offered: [MyApplicationStatus.offered],
     };
     for (final status in MyApplicationStatus.values) {
       source.rows = [applicantRow('mock-application', status: status.name)];

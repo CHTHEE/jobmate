@@ -6,6 +6,7 @@ import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/auth_style.dart';
 import '../../shared/widgets/design_primitives.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import 'dashboard_activity.dart';
 import 'job_seeker_dashboard.dart';
 
@@ -175,6 +176,11 @@ class DashboardContent extends StatelessWidget {
                     : 'Your hiring overview for ${company!['company_name'] ?? 'your company'}.'
               : 'Discover opportunities, track applications and plan your next step.',
           actions: [
+            if (onRetry != null)
+              OutlinedButton(
+                onPressed: onRetry,
+                child: const Text('Check for updates'),
+              ),
             if (role == 'job_seeker')
               FilledButton.icon(
                 onPressed: () => context.push(AppRoutes.browseJobs),
@@ -216,7 +222,6 @@ class DashboardContent extends StatelessWidget {
                 jobPostingsError ?? 'Posting counts load only when existing employer membership and company verification allow access.',
               ),
             ),
-          const SizedBox(height: 24),
         ],
         if (role == 'job_seeker') ...[
           Wrap(
@@ -254,130 +259,121 @@ class DashboardContent extends StatelessWidget {
           DashboardActivity(employer: role == 'employer'),
           const SizedBox(height: 28),
         ],
-        LayoutBuilder(
-          builder: (context, constraints) {
-            if (role == 'job_seeker') return verification;
-            if (role != 'employer') return summary;
-            return constraints.maxWidth >= 760
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: summary),
-                      const SizedBox(width: 20),
-                      Expanded(child: verification),
-                    ],
-                  )
-                : Column(
-                    children: [
-                      summary,
-                      const SizedBox(height: 20),
-                      verification,
-                    ],
-                  );
-          },
+        ResponsiveGrid(
+          minItemWidth: 360,
+          maxColumns: 2,
+          equalRowHeight: true,
+          children: [summary, if (role == 'employer') verification],
         ),
         if (role == 'employer') ...[
           const SizedBox(height: 20),
-          WorkspaceCard(
-            title: 'Job postings',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (companyError != null ||
-                    company?['verification_status'] != 'verified')
-                  const Text(
-                    'Job creation requires a verified company. Review your status in Company profile.',
-                  ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
+          ResponsiveGrid(
+            minItemWidth: 360,
+            maxColumns: 2,
+            equalRowHeight: true,
+            children: [
+              WorkspaceCard(
+                title: 'Job postings',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    OutlinedButton(
-                      onPressed: () => context.push(AppRoutes.jobPostings),
-                      child: const Text('My Job Postings'),
-                    ),
-                    FilledButton(
-                      onPressed:
-                          companyError == null &&
-                              company?['verification_status'] == 'verified' &&
-                              profile['status'] == 'active' &&
-                              ['owner', 'employer'].contains(memberRole)
-                          ? () => context.push(AppRoutes.createJob)
-                          : null,
-                      child: const Text('Create Job'),
+                    if (companyError != null ||
+                        company?['verification_status'] != 'verified')
+                      const Text(
+                        'Job creation requires a verified company. Review your status in Company profile.',
+                      ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        OutlinedButton(
+                          onPressed: () => context.push(AppRoutes.jobPostings),
+                          child: const Text('My Job Postings'),
+                        ),
+                        FilledButton(
+                          onPressed:
+                              companyError == null &&
+                                  company?['verification_status'] ==
+                                      'verified' &&
+                                  profile['status'] == 'active' &&
+                                  ['owner', 'employer'].contains(memberRole)
+                              ? () => context.push(AppRoutes.createJob)
+                              : null,
+                          child: const Text('Create Job'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          WorkspaceCard(
-            title: companyError != null
-                ? 'Company unavailable'
-                : company == null
-                ? 'Set up your company'
-                : company!['company_name'] as String? ?? 'Company profile',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (companyError != null) ...[
-                  Text(companyError!),
-                  const SizedBox(height: 16),
-                  OutlinedButton(
-                    onPressed: onRetry,
-                    child: const Text('Retry company summary'),
-                  ),
-                ] else if (company == null) ...[
-                  const Text(
-                    'Create your company profile and submit a supporting document through the existing onboarding process.',
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton(
-                    onPressed: onCompany,
-                    child: const Text('Set up company'),
-                  ),
-                ] else ...[
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      WorkspaceStatus(
-                        company!['verification_status'] as String? ?? '',
+              ),
+              WorkspaceCard(
+                title: companyError != null
+                    ? 'Company unavailable'
+                    : company == null
+                    ? 'Set up your company'
+                    : company!['company_name'] as String? ?? 'Company profile',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (companyError != null) ...[
+                      Text(companyError!),
+                      const SizedBox(height: 16),
+                      OutlinedButton(
+                        onPressed: onRetry,
+                        child: const Text('Retry company summary'),
                       ),
-                      Chip(
-                        label: Text(
-                          'Membership: ${workspaceLabel(memberRole)}',
-                        ),
+                    ] else if (company == null) ...[
+                      const Text(
+                        'Create your company profile and submit a supporting document through the existing onboarding process.',
+                      ),
+                      const SizedBox(height: 20),
+                      FilledButton(
+                        onPressed: onCompany,
+                        child: const Text('Set up company'),
+                      ),
+                    ] else ...[
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          WorkspaceStatus(
+                            company!['verification_status'] as String? ?? '',
+                          ),
+                          Chip(
+                            label: Text(
+                              'Membership: ${workspaceLabel(memberRole)}',
+                            ),
+                          ),
+                        ],
+                      ),
+                      WorkspaceInfo(
+                        'Industry',
+                        company!['industry'] as String? ?? '',
+                      ),
+                      WorkspaceInfo(
+                        'Location',
+                        company!['location'] as String? ?? '',
+                      ),
+                      Text(switch (company!['verification_status']) {
+                        'pending' => 'Your company is awaiting review. Changes remain locked during review.',
+                        'verified' => 'Company verification is complete. Your membership still determines available actions.',
+                        'rejected' =>
+                          memberRole == 'owner'
+                              ? 'Review the feedback before resubmitting your company.'
+                              : 'The company owner can review feedback and resubmit.',
+                        _ => 'Open the company profile for available actions.',
+                      }),
+                      const SizedBox(height: 20),
+                      OutlinedButton(
+                        onPressed: onCompany,
+                        child: const Text('View company profile'),
                       ),
                     ],
-                  ),
-                  WorkspaceInfo(
-                    'Industry',
-                    company!['industry'] as String? ?? '',
-                  ),
-                  WorkspaceInfo(
-                    'Location',
-                    company!['location'] as String? ?? '',
-                  ),
-                  Text(switch (company!['verification_status']) {
-                    'pending' => 'Your company is awaiting review. Changes remain locked during review.',
-                    'verified' => 'Company verification is complete. Your membership still determines available actions.',
-                    'rejected' =>
-                      memberRole == 'owner'
-                          ? 'Review the feedback before resubmitting your company.'
-                          : 'The company owner can review feedback and resubmit.',
-                    _ => 'Open the company profile for available actions.',
-                  }),
-                  const SizedBox(height: 20),
-                  OutlinedButton(
-                    onPressed: onCompany,
-                    child: const Text('View company profile'),
-                  ),
-                ],
-              ],
-            ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
 

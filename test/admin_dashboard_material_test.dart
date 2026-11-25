@@ -40,7 +40,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byTooltip('Notifications'), findsOneWidget);
-    expect(find.byTooltip('Refresh dashboard'), findsOneWidget);
+    final refresh = find.widgetWithText(OutlinedButton, 'Refresh dashboard');
+    expect(refresh, findsOneWidget);
+    final originalButton = tester.widget<OutlinedButton>(refresh);
+    expect(originalButton.onPressed, isNotNull);
+    await tester.ensureVisible(refresh);
+    await tester.tap(refresh);
+    await tester.pumpAndSettle();
+    expect(tester.widget<OutlinedButton>(refresh), isNot(same(originalButton)));
+    expect(
+      find.text('Sign in again to view administrator tools.'),
+      findsOneWidget,
+    );
     expect(find.textContaining('Admin - '), findsNothing);
     if (kIsWeb) {
       expect(

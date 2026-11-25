@@ -757,6 +757,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> toggleFilters(WidgetTester tester) async {
+    final toggle = find.byKey(const ValueKey('workspace-filters-toggle'));
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+  }
+
   Future<void> select(
     WidgetTester tester,
     String label,
@@ -804,6 +811,7 @@ void main() {
         tester.getTopLeft(find.text('Role N')).dy,
         lessThan(tester.getTopLeft(find.text('Role L')).dy),
       );
+      await toggleFilters(tester);
       await select(tester, 'Minimum match', '0', '25% and above');
       expect(find.text('Your job matches (1)'), findsOneWidget);
       expect(find.text('Other opportunities to explore (2)'), findsNothing);
@@ -838,6 +846,7 @@ void main() {
           ..addAll({'location': 'Serdang, Selangor', 'salary_visible': false}),
       );
       await show(tester);
+      await toggleFilters(tester);
       List<String?> items(String key) => tester
           .widget<DropdownButton<String>>(
             find.descendant(
@@ -878,6 +887,9 @@ void main() {
       await select(tester, 'Salary period', '', 'Monthly');
       expect(find.text('Flutter Engineer open'), findsOneWidget);
       expect(find.text('Flutter Engineer other'), findsNothing);
+      await tap(tester, 'Clear filters');
+      expect(find.text('Flutter Engineer other'), findsOneWidget);
+      expect(find.byKey(const ValueKey('Salary period:')), findsOneWidget);
     },
   );
 
@@ -1020,8 +1032,27 @@ void main() {
             _insightsResponse(jobs.map((job) => _insight(job.jobId)).toList()),
       );
       explanationSource = source;
+      var profileReads = 0;
+      readProfile = (_) async {
+        profileReads++;
+        return profile;
+      };
       await show(tester);
+      const employmentFilter = ValueKey('Employment type:');
+      expect(find.text('Filters'), findsOneWidget);
+      expect(find.byKey(employmentFilter), findsNothing);
+      final reads = (jobs.calls, applications.calls, profileReads);
+      await toggleFilters(tester);
+      expect(find.byKey(employmentFilter), findsOneWidget);
       await select(tester, 'Employment type', '', 'Part-time');
+      await toggleFilters(tester);
+      expect(find.text('Filters (1)'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('Employment type:part_time')),
+        findsNothing,
+      );
+      expect(find.text('Flutter Engineer second'), findsNothing);
+      expect((jobs.calls, applications.calls, profileReads), reads);
       expect(source.requests, isEmpty);
       await tap(tester, 'Load AI insights');
       expect(source.requests.single.map((job) => job.jobId), ['open']);
@@ -1042,6 +1073,7 @@ void main() {
         ),
         findsOneWidget,
       );
+      await toggleFilters(tester);
       await select(tester, 'Salary period', '', 'Monthly');
       expect(insightScore(), before);
       final pay = find.widgetWithText(TextFormField, 'Minimum pay (RM)');
@@ -1049,7 +1081,14 @@ void main() {
       await tester.enterText(pay, '2500');
       await tester.pumpAndSettle();
       expect(insightScore(), before);
-      final reads = (jobs.calls, applications.calls);
+      await select(tester, 'Sort', 'bestMatch', 'Newest');
+      await toggleFilters(tester);
+      expect(find.text('Filters (3)'), findsOneWidget);
+      expect(pay, findsNothing);
+      expect(find.text('Newest job matches first.'), findsOneWidget);
+      expect(insightScore(), before);
+      await toggleFilters(tester);
+      expect(find.byKey(const ValueKey('Sort:newest')), findsOneWidget);
       for (var i = 0; i < 2; i++) {
         await tap(tester, 'How is my match calculated?');
         expect(insightScore(), before);
@@ -1072,9 +1111,8 @@ void main() {
         );
         expect(find.text('AI insights loaded'), findsOneWidget);
       }
-      expect((jobs.calls, applications.calls), reads);
+      expect((jobs.calls, applications.calls, profileReads), reads);
       expect(source.requests, hasLength(1));
-      await select(tester, 'Sort', 'bestMatch', 'Newest');
       expect(find.text('AI recommendation insights'), findsOneWidget);
       expect(insightScore(), before);
       await select(tester, 'Location', '', 'Shah Alam');
@@ -1387,7 +1425,10 @@ void main() {
       expect(find.text('Improve your recommendations'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tap(tester, 'How is my match calculated?');
+      await toggleFilters(tester);
       if (width == 320) await select(tester, 'Location', '', location);
+      expect(tester.takeException(), isNull);
+      await toggleFilters(tester);
       expect(
         find.text(
           'Optional · Available for up to 5 recommended jobs at a time.',

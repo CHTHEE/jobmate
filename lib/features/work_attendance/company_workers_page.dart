@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/expandable_filter_bar.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import '../applications/module2_widgets.dart';
 import 'company_workers_repository.dart';
 import 'work_assignment_creation_repository.dart';
@@ -101,7 +103,7 @@ class _CompanyWorkersPageState extends State<CompanyWorkersPage> {
           ),
         ],
         child: WorkspaceContent(
-          maxWidth: 1100,
+          maxWidth: double.infinity,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -208,9 +210,16 @@ class _CompanyWorkersPageState extends State<CompanyWorkersPage> {
                       final search = TextField(
                         controller: _search,
                         onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Search workers or jobs',
-                          prefixIcon: Icon(Icons.search),
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _search.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: 'Clear search',
+                                  onPressed: () => setState(_search.clear),
+                                  icon: const Icon(Icons.close),
+                                ),
                         ),
                       );
                       final showJob = jobs.length > 1 || _job.isNotEmpty;
@@ -242,23 +251,21 @@ class _CompanyWorkersPageState extends State<CompanyWorkersPage> {
                           if (value != null) setState(() => _job = value);
                         },
                       );
-                      if (constraints.maxWidth >= 650) {
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(flex: 2, child: search),
-                            if (showJob) ...[
-                              const SizedBox(width: 12),
-                              Expanded(child: job),
-                            ],
-                          ],
-                        );
-                      }
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          search,
-                          if (showJob) ...[const SizedBox(height: 12), job],
+                      if (!showJob) return search;
+                      return ExpandableFilterBar(
+                        search: search,
+                        activeCount: _job.isEmpty ? 0 : 1,
+                        onClear: () => setState(() {
+                          _search.clear();
+                          _job = '';
+                        }),
+                        filters: [
+                          SizedBox(
+                            width: constraints.maxWidth
+                                .clamp(0, 300)
+                                .toDouble(),
+                            child: job,
+                          ),
                         ],
                       );
                     },
@@ -274,17 +281,6 @@ class _CompanyWorkersPageState extends State<CompanyWorkersPage> {
                         'Showing ${visible.length} of ${workers.length} hired workers',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
-                      TextButton.icon(
-                        onPressed: () => setState(() {
-                          _search.clear();
-                          _job = '';
-                        }),
-                        icon: const Icon(
-                          Icons.filter_alt_off_outlined,
-                          size: 18,
-                        ),
-                        label: const Text('Clear filters'),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -294,32 +290,19 @@ class _CompanyWorkersPageState extends State<CompanyWorkersPage> {
                       message:
                           'Try another worker name or job, or clear filters.',
                     ),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final columns = constraints.maxWidth >= 1000
-                          ? 3
-                          : constraints.maxWidth >= 650
-                          ? 2
-                          : 1;
-                      final width =
-                          (constraints.maxWidth - 16 * (columns - 1)) / columns;
-                      return Wrap(
-                        spacing: 16,
-                        runSpacing: 16,
-                        children: [
-                          for (final worker in visible)
-                            SizedBox(
-                              width: width,
-                              child: _WorkerProfileCard(
-                                key: ValueKey(worker.id),
-                                worker: worker,
-                                onViewAssignments: () =>
-                                    context.go(AppRoutes.workVerification),
-                              ),
-                            ),
-                        ],
-                      );
-                    },
+                  ResponsiveGrid(
+                    minItemWidth: 320,
+                    equalRowHeight: true,
+                    reserveEmptyColumns: true,
+                    children: [
+                      for (final worker in visible)
+                        _WorkerProfileCard(
+                          key: ValueKey(worker.id),
+                          worker: worker,
+                          onViewAssignments: () =>
+                              context.go(AppRoutes.workVerification),
+                        ),
+                    ],
                   ),
                 ],
               ],

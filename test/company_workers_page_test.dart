@@ -88,9 +88,15 @@ void main() {
     await tester.enterText(search, 'nobody');
     await tester.pumpAndSettle();
     expect(find.text('No matching workers'), findsOneWidget);
+    final filters = find.byKey(const ValueKey('workspace-filters-toggle'));
+    await tester.ensureVisible(filters);
+    await tester.tap(filters);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Clear filters'));
     await tester.tap(find.text('Clear filters'));
     await tester.pumpAndSettle();
+    expect(find.text('Alex Worker'), findsOneWidget);
+    expect(find.text('Blair Worker'), findsOneWidget);
     final job = find.widgetWithText(DropdownButtonFormField<String>, 'Job');
     await tester.ensureVisible(job);
     await tester.tap(job);
@@ -243,7 +249,7 @@ void main() {
     expect(find.text('Second job'), findsOneWidget);
     expect(find.text('Third job'), findsNothing);
     final reads = source.calls.length;
-      final reveal = find.text('+1 more');
+    final reveal = find.text('+1 more');
     await tester.ensureVisible(reveal);
     await tester.tap(reveal);
     await tester.pumpAndSettle();

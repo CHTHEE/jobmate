@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:jobmate/features/applications/my_applications_repository.dart';
 
-class TestMyApplicationsSource implements MyApplicationsSource {
+class TestMyApplicationsSource
+    implements MyApplicationsSource, ExactVersionCompensationOfferSource {
   String? actor = 'seeker-a';
   final changes = StreamController<String?>.broadcast(sync: true);
   List<Map<String, dynamic>> rows = [];
@@ -10,11 +11,32 @@ class TestMyApplicationsSource implements MyApplicationsSource {
   int calls = 0;
   final historyCalls = <String>[];
   final responses = <(String, String)>[];
+  final offerReads = <String>[];
+  final offerAcceptances = <(String, String, int)>[];
+  Map<String, dynamic>? offer;
+  Future<Map<String, dynamic>?> Function(String)? fetchOffer;
+  Future<void> Function(String, String, int)? sendOfferAcceptance;
   Future<String> Function(String, String)? sendResponse;
   @override
   Future<String> respond(String applicationId, String action) {
     responses.add((applicationId, action));
     return sendResponse!(applicationId, action);
+  }
+
+  @override
+  Future<Map<String, dynamic>?> currentCompensationOffer(String id) {
+    offerReads.add(id);
+    return fetchOffer?.call(id) ?? Future.value(offer);
+  }
+
+  @override
+  Future<void> acceptCompensationOffer(
+    String applicationId,
+    String offerId,
+    int offerVersion,
+  ) async {
+    offerAcceptances.add((applicationId, offerId, offerVersion));
+    await sendOfferAcceptance?.call(applicationId, offerId, offerVersion);
   }
 
   List<Map<String, dynamic>> historyRows = [];

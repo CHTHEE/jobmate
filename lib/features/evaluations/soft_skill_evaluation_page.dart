@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/design_primitives.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import 'soft_skill_evaluation_gateway.dart';
 
 const _coreSkills = <(String, String)>[
@@ -90,26 +92,25 @@ class _SoftSkillEvaluationsPageState extends State<SoftSkillEvaluationsPage> {
     title: widget.employer ? 'Worker evaluations' : 'Company evaluations',
     path: root,
     role: widget.employer ? 'employer' : 'job_seeker',
-    child: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1000),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: loading
-              ? const Center(child: CircularProgressIndicator())
-              : error != null
-              ? _MessageState(message: error!, retry: _load)
-              : widget.applicationId != null
-              ? _EvaluationForm(
-                  employer: widget.employer,
-                  applicationId: widget.applicationId!,
-                  direction: direction,
-                  root: root,
-                  row: form,
-                  gateway: gateway,
-                )
-              : _evaluationList(),
-        ),
+    child: ResponsiveContent(
+      maxWidth: 1000,
+      alignment: Alignment.topLeft,
+      child: Padding(
+        padding: ResponsiveLayout.pagePadding(context),
+        child: loading
+            ? const Center(child: CircularProgressIndicator())
+            : error != null
+            ? _MessageState(message: error!, retry: _load)
+            : widget.applicationId != null
+            ? _EvaluationForm(
+                employer: widget.employer,
+                applicationId: widget.applicationId!,
+                direction: direction,
+                root: root,
+                row: form,
+                gateway: gateway,
+              )
+            : _evaluationList(),
       ),
     ),
   );
@@ -121,13 +122,12 @@ class _SoftSkillEvaluationsPageState extends State<SoftSkillEvaluationsPage> {
     }).toList();
     return ListView(
       children: [
-        Text(
-          widget.employer
+        PageHeading(
+          title: widget.employer ? 'Worker evaluations' : 'Company evaluations',
+          description: widget.employer
               ? 'Evaluate a worker after the Job Engagement is closed.'
               : 'Share feedback about a Company after your Job Engagement is closed.',
-          style: Theme.of(context).textTheme.bodyLarge,
         ),
-        const SizedBox(height: 16),
         Wrap(
           spacing: 8,
           children: [

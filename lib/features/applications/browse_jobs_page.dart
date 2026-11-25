@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/expandable_filter_bar.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../jobs/job_display.dart';
@@ -39,7 +40,6 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
   final location = TextEditingController();
   String type = '', arrangement = '', sort = 'Newest';
   bool savedOnly = false;
-  bool filtersExpanded = false;
 
   @override
   void initState() {
@@ -105,7 +105,7 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
           ),
         ],
         child: WorkspaceContent(
-          maxWidth: 880,
+          maxWidth: double.infinity,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -113,101 +113,70 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                 title: 'Find your next opportunity',
                 description: 'Explore published jobs and find your next role.',
               ),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final keyword = TextField(
-                    controller: search,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Search title, company or keywords',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                  );
-                  final toggle = Semantics(
-                    expanded: filtersExpanded,
-                    child: OutlinedButton.icon(
-                      onPressed: () =>
-                          setState(() => filtersExpanded = !filtersExpanded),
-                      icon: Icon(
-                        filtersExpanded ? Icons.expand_less : Icons.tune,
-                      ),
-                      label: const Text('Filters'),
-                    ),
-                  );
-                  if (ResponsiveLayout.isCompactWidth(constraints.maxWidth)) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        keyword,
-                        const SizedBox(height: JobMateTheme.space8),
-                        Align(alignment: Alignment.centerRight, child: toggle),
-                      ],
-                    );
-                  }
-                  return Row(
-                    children: [
-                      Expanded(child: keyword),
-                      const SizedBox(width: JobMateTheme.space12),
-                      toggle,
-                    ],
-                  );
-                },
-              ),
-              if (filtersExpanded) ...[
-                const SizedBox(height: JobMateTheme.space12),
-                Wrap(
-                  spacing: JobMateTheme.space12,
-                  runSpacing: JobMateTheme.space12,
-                  children: [
-                    ModuleSelect(
-                      label: 'Employment type',
-                      value: type,
-                      options: {
-                        '': 'All types',
-                        for (final v in [
-                          'full_time',
-                          'part_time',
-                          'contract',
-                          'internship',
-                          'temporary',
-                        ])
-                          v: jobLabel(v),
-                      },
-                      onChanged: (v) => setState(() => type = v),
-                    ),
-                    ModuleSelect(
-                      label: 'Work arrangement',
-                      value: arrangement,
-                      options: {
-                        '': 'All arrangements',
-                        for (final v in ['on_site', 'hybrid', 'remote'])
-                          v: jobLabel(v),
-                      },
-                      onChanged: (v) => setState(() => arrangement = v),
-                    ),
-                    ResponsiveFilter(
-                      child: TextField(
-                        controller: location,
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(
-                          labelText: 'City or state',
-                          hintText: 'City or state',
-                        ),
-                      ),
-                    ),
-                    ResponsiveFilter(
-                      child: CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        title: const Text('Bookmarked jobs only'),
-                        value: savedOnly,
-                        onChanged: (value) =>
-                            setState(() => savedOnly = value ?? false),
-                      ),
-                    ),
-                  ],
+              ExpandableFilterBar(
+                search: TextField(
+                  controller: search,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Search title, company or keywords',
+                    prefixIcon: Icon(Icons.search),
+                  ),
                 ),
-              ],
+                activeCount: [
+                  type.isNotEmpty,
+                  arrangement.isNotEmpty,
+                  location.text.isNotEmpty,
+                  savedOnly,
+                ].where((active) => active).length,
+                filters: [
+                  ModuleSelect(
+                    label: 'Employment type',
+                    value: type,
+                    options: {
+                      '': 'All types',
+                      for (final v in [
+                        'full_time',
+                        'part_time',
+                        'contract',
+                        'internship',
+                        'temporary',
+                      ])
+                        v: jobLabel(v),
+                    },
+                    onChanged: (v) => setState(() => type = v),
+                  ),
+                  ModuleSelect(
+                    label: 'Work arrangement',
+                    value: arrangement,
+                    options: {
+                      '': 'All arrangements',
+                      for (final v in ['on_site', 'hybrid', 'remote'])
+                        v: jobLabel(v),
+                    },
+                    onChanged: (v) => setState(() => arrangement = v),
+                  ),
+                  ResponsiveFilter(
+                    child: TextField(
+                      controller: location,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'City or state',
+                        hintText: 'City or state',
+                      ),
+                    ),
+                  ),
+                  ResponsiveFilter(
+                    child: CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: const Text('Bookmarked jobs only'),
+                      value: savedOnly,
+                      onChanged: (value) =>
+                          setState(() => savedOnly = value ?? false),
+                    ),
+                  ),
+                ],
+              ),
               if (hasFilters) ...[
                 const SizedBox(height: JobMateTheme.space8),
                 Wrap(
@@ -284,22 +253,25 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                   action: repo.jobs.isEmpty ? repo.load : clear,
                   actionLabel: repo.jobs.isEmpty ? 'Refresh' : 'Clear filters',
                 ),
-              for (final job in jobs)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: BrowseJobCard(
-                    job: job,
-                    logo: PublishedCompanyLogo(
+              ResponsiveGrid(
+                equalRowHeight: true,
+                minItemWidth: 360,
+                children: [
+                  for (final job in jobs)
+                    BrowseJobCard(
                       job: job,
-                      repository: repo,
-                      size: 32,
+                      logo: PublishedCompanyLogo(
+                        job: job,
+                        repository: repo,
+                        size: 32,
+                      ),
+                      saved: repo.saved(job.id),
+                      onSave: () => repo.toggleSave(job.id),
+                      onDetails: () =>
+                          context.push('${AppRoutes.browseJobs}/${job.id}'),
                     ),
-                    saved: repo.saved(job.id),
-                    onSave: () => repo.toggleSave(job.id),
-                    onDetails: () =>
-                        context.push('${AppRoutes.browseJobs}/${job.id}'),
-                  ),
-                ),
+                ],
+              ),
             ],
           ),
         ),

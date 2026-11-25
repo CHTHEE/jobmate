@@ -16,7 +16,10 @@ void main() {
         .map((item) => item.$1);
     expect(paths.where((path) => path == AppRoutes.browseJobs), hasLength(1));
     expect(paths, isNot(contains(AppRoutes.search)));
-    expect(paths, containsAll([AppRoutes.recommendations, AppRoutes.applications]));
+    expect(
+      paths,
+      containsAll([AppRoutes.recommendations, AppRoutes.applications]),
+    );
   });
 
   test('employer keeps real verification and hides only attendance demo navigation', () {
@@ -29,33 +32,28 @@ void main() {
     expect(paths, contains(AppRoutes.employerPayments));
   });
 
-  test(
-    'Admin destinations follow assigned permissions and hide unavailable modules',
-    () {
-      final groups = adminWorkspaceDestinations({
-        'can_manage_user_accounts': true,
-        'can_manage_company_restrictions': false,
-        'can_manage_user_reports': true,
-        'can_manage_job_moderation': false,
-        'can_manage_disputes': false,
-        'can_review_companies': false,
-        'can_invite_admins': true,
-        'can_manage_admin_permissions': false,
-      });
-      final paths = groups.values
-          .expand((items) => items)
-          .map((item) => item.$1);
+  test('Admin destinations follow assigned permissions and hide unavailable modules', () {
+    final groups = adminWorkspaceDestinations({
+      'can_manage_user_accounts': true,
+      'can_manage_company_restrictions': false,
+      'can_manage_user_reports': true,
+      'can_manage_job_moderation': false,
+      'can_manage_disputes': false,
+      'can_review_companies': false,
+      'can_invite_admins': true,
+      'can_manage_admin_permissions': false,
+    });
+    final paths = groups.values.expand((items) => items).map((item) => item.$1);
 
-      expect(paths, contains(AppRoutes.adminUsers));
-      expect(paths, contains(AppRoutes.adminReports));
-      expect(paths, isNot(contains(AppRoutes.inviteAdmin)));
-      expect(paths, contains(AppRoutes.adminCompanies));
-      expect(paths, isNot(contains(AppRoutes.adminJobModeration)));
-      expect(paths, isNot(contains(AppRoutes.adminDisputes)));
-      expect(paths, isNot(contains(AppRoutes.companyReviews)));
-      expect(paths, contains(AppRoutes.adminPermissions));
-    },
-  );
+    expect(paths, contains(AppRoutes.adminUsers));
+    expect(paths, contains(AppRoutes.adminReports));
+    expect(paths, isNot(contains(AppRoutes.inviteAdmin)));
+    expect(paths, contains(AppRoutes.adminCompanies));
+    expect(paths, isNot(contains(AppRoutes.adminJobModeration)));
+    expect(paths, isNot(contains(AppRoutes.adminDisputes)));
+    expect(paths, isNot(contains(AppRoutes.companyReviews)));
+    expect(paths, contains(AppRoutes.adminPermissions));
+  });
 
   test('Superadmin gets the User Management destination by role', () {
     final groups = adminWorkspaceDestinations({
@@ -67,22 +65,24 @@ void main() {
     expect(paths, contains(AppRoutes.adminUsers));
   });
 
-  test('Administrator primary tabs are stable and nested company routes match', () {
-    expect(
-      workspacePrimaryDestinations('administrator').map((item) => item.$1),
-      [AppRoutes.home, AppRoutes.adminUsers, AppRoutes.adminPayments],
-    );
-    final destinations = adminWorkspaceDestinations({})
-        .values
-        .expand((items) => items);
-    expect(
-      selectedWorkspacePath(
-        '${AppRoutes.adminCompanies}/synthetic-company',
-        destinations,
-      ),
-      AppRoutes.adminCompanies,
-    );
-  });
+  test(
+    'Administrator primary tabs are stable and nested company routes match',
+    () {
+      expect(
+        workspacePrimaryDestinations('administrator').map((item) => item.$1),
+        [AppRoutes.home, AppRoutes.adminUsers, AppRoutes.adminPayments],
+      );
+      final destinations = adminWorkspaceDestinations({}).values
+          .expand((items) => items);
+      expect(
+        selectedWorkspacePath(
+          '${AppRoutes.adminCompanies}/synthetic-company',
+          destinations,
+        ),
+        AppRoutes.adminCompanies,
+      );
+    },
+  );
 
   testWidgets('Admin detail routes retain the same bottom navigation', (
     tester,
@@ -107,14 +107,13 @@ void main() {
     final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
     final labels = bar.destinations.map((destination) {
       if (destination is! NavigationDestination) {
-        fail('Expected NavigationDestination, found ${destination.runtimeType}.');
+        fail(
+          'Expected NavigationDestination, found ${destination.runtimeType}.',
+        );
       }
       return destination.label;
     }).toList();
-    expect(
-      labels,
-      ['Home', 'Users', 'Payments', 'Account', 'More'],
-    );
+    expect(labels, ['Home', 'Users', 'Payments', 'Account', 'More']);
     expect(bar.selectedIndex, 4);
     expect(find.byTooltip('Back'), findsOneWidget);
     expect(find.text('Company directory'), findsNothing);
@@ -204,11 +203,8 @@ void main() {
         ),
       );
       await openWorkspaceMenu(tester);
-      await scrollWorkspaceMenuTo(tester, 'Payments (sandbox)');
-      expect(
-        find.widgetWithText(ListTile, 'Payments (sandbox)'),
-        findsOneWidget,
-      );
+      await scrollWorkspaceMenuTo(tester, 'Payments');
+      expect(find.widgetWithText(ListTile, 'Payments'), findsOneWidget);
       for (final heading in ['COMMUNICATION', 'PROFILE', 'WORKERS']) {
         expect(find.text(heading), findsNothing);
       }

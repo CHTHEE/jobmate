@@ -459,6 +459,10 @@ void main() {
   testWidgets(
     'each supported recruitment action keeps confirmation, context, note validation and cancel',
     (tester) async {
+      source.data = EmployerPostingContext(source.data.access, [
+        for (final job in source.data.jobs)
+          {...job, 'employment_type': 'full_time', 'salary_period': 'monthly'},
+      ]);
       for (final pair in [
         (MyApplicationStatus.submitted, MyApplicationStatus.shortlisted),
         (MyApplicationStatus.shortlisted, MyApplicationStatus.interview),

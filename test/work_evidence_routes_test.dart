@@ -104,6 +104,22 @@ void main() {
         matching: find.text(label),
       );
 
+      Future<void> openEmployerJob(WidgetTester tester) async {
+        final jobId = assignment(company: true)['job_id'];
+        final manage = find.byKey(ValueKey('manage-work-$jobId'));
+        expect(manage, findsOneWidget);
+        expect(employerApplication(), findsNothing);
+        await tester.ensureVisible(manage);
+        await tester.tap(manage);
+        await tester.pumpAndSettle();
+        expect(employerApplication(), findsOneWidget);
+        final jobRoute = GoRouterState.of(
+          tester.element(employerApplication()),
+        );
+        expect(jobRoute.uri.path, root);
+        expect(jobRoute.uri.queryParameters, {'job': jobId});
+      }
+
       Future<void> expandEmployerApplication(WidgetTester tester) async {
         final show = employerGroupText('Show application shifts');
         expect(show, findsOneWidget);
@@ -112,6 +128,13 @@ void main() {
         await tester.tap(show);
         await tester.pumpAndSettle();
         expect(employerGroupText('Hide application shifts'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: employerApplication(),
+            matching: find.byKey(const ValueKey(id)),
+          ),
+          findsOneWidget,
+        );
       }
 
       testWidgets(
@@ -139,7 +162,10 @@ void main() {
           );
           await tester.pumpAndSettle();
           expect(router.routeInformationProvider.value.uri.path, root);
-          if (employer) await expandEmployerApplication(tester);
+          if (employer) {
+            await openEmployerJob(tester);
+            await expandEmployerApplication(tester);
+          }
           expect(
             employer
                 ? employerGroupText('Review Evidence')
@@ -158,7 +184,10 @@ void main() {
           await tester.pumpWidget(MaterialApp.router(routerConfig: router));
           await tester.pumpAndSettle();
           if (!employer) expect(find.text('Check in'), findsOneWidget);
-          if (employer) await expandEmployerApplication(tester);
+          if (employer) {
+            await openEmployerJob(tester);
+            await expandEmployerApplication(tester);
+          }
           final evidenceAction = employer
               ? employerGroupText('Review Evidence')
               : find.text('View Evidence');
@@ -178,9 +207,19 @@ void main() {
           expect(evidenceAction, findsOneWidget);
           if (employer) {
             expect(
+              GoRouterState.of(tester.element(employerApplication()))
+                  .uri
+                  .queryParameters['job'],
+              assignment(company: true)['job_id'],
+            );
+            expect(
               employerGroupText('Hide application shifts'),
               findsOneWidget,
             );
+            router.pop();
+            await tester.pumpAndSettle();
+            expect(find.text('Manage Work Assignments'), findsOneWidget);
+            expect(employerApplication(), findsNothing);
           }
           if (!employer) expect(find.text('Check in'), findsOneWidget);
           expect(source.checkIns, 0);

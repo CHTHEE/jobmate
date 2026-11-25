@@ -126,6 +126,7 @@ void main() {
         ),
         findsOneWidget,
       );
+      await tap(tester, find.byKey(const ValueKey('workspace-filters-toggle')));
       await choose(tester, 'Application status', 'Hired: 1');
       expect(find.text('No matching applicants'), findsOneWidget);
       await tap(tester, find.text('Clear filters'));
@@ -326,6 +327,7 @@ void main() {
         MyApplicationStatus.rejected,
         MyApplicationStatus.offered,
         MyApplicationStatus.rejected,
+        MyApplicationStatus.offered,
       ]);
     },
   );

@@ -10,6 +10,7 @@ import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/ai_service_notice.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
+import '../../shared/widgets/expandable_filter_bar.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../applications/browse_job_card.dart' show JobListingMetadata;
 import '../applications/job_details_page.dart';
@@ -285,6 +286,13 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
     );
     final scored = results.where((match) => match.score != null).toList();
     final unscored = results.where((match) => match.score == null).toList();
+    final activeFilters = [
+      selectedLocation.isNotEmpty,
+      type.isNotEmpty,
+      salaryPeriod.isNotEmpty,
+      salaryPeriod.isNotEmpty && validSalary,
+      minimumScore != '0',
+    ].where((active) => active).length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -308,86 +316,93 @@ class _RecommendationsPageState extends State<RecommendationsPage> {
               child: const Text('Complete your profile for better matches'),
             ),
           ),
-        Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(JobMateTheme.space16),
-            child: ResponsiveGrid(
-              spacing: JobMateTheme.space12,
-              minItemWidth: 150,
-              maxColumns: 5,
-              children: [
-                _RecommendationFilter(
-                  label: 'Location',
-                  value: selectedLocation,
-                  options: {
-                    '': 'All locations',
-                    for (final value in locations) value: value,
-                  },
-                  onChanged: (value) => setState(() => location = value),
-                ),
-                _RecommendationFilter(
-                  label: 'Employment type',
-                  value: type,
-                  options: {
-                    '': 'All types',
-                    for (final value in jobEmploymentTypes)
-                      value: jobLabel(value),
-                  },
-                  onChanged: (value) => setState(() => type = value),
-                ),
-                _RecommendationFilter(
-                  label: 'Salary period',
-                  value: salaryPeriod,
-                  options: {
-                    '': 'Any period',
-                    for (final value in jobSalaryPeriods)
-                      value: jobLabel(value),
-                  },
-                  onChanged: (value) => setState(() => salaryPeriod = value),
-                ),
-                if (salaryPeriod.isNotEmpty)
-                  TextFormField(
-                    controller: salaryController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Minimum pay (RM)',
-                      errorText: salaryInput.trim().isEmpty || validSalary
-                          ? null
-                          : 'Enter a valid amount',
-                    ),
-                    onChanged: (value) => setState(() => salaryInput = value),
+        ExpandableFilterBar(
+          activeCount: activeFilters,
+          onClear:
+              (results.isNotEmpty || matches.isEmpty) &&
+                  (activeFilters > 0 || sort != RecommendationSort.bestMatch)
+              ? clearFilters
+              : null,
+          filters: [
+            SizedBox(
+              width: double.infinity,
+              child: ResponsiveGrid(
+                spacing: JobMateTheme.space12,
+                minItemWidth: 150,
+                maxColumns: 5,
+                children: [
+                  _RecommendationFilter(
+                    label: 'Location',
+                    value: selectedLocation,
+                    options: {
+                      '': 'All locations',
+                      for (final value in locations) value: value,
+                    },
+                    onChanged: (value) => setState(() => location = value),
                   ),
-                _RecommendationFilter(
-                  label: 'Minimum match',
-                  value: minimumScore,
-                  options: const {
-                    '0': 'Any match',
-                    '25': '25% and above',
-                    '50': '50% and above',
-                    '70': '70% and above',
-                    '90': '90% and above',
-                  },
-                  onChanged: (value) => setState(() => minimumScore = value),
-                ),
-                _RecommendationFilter(
-                  label: 'Sort',
-                  value: selectedSort.name,
-                  options: {
-                    'bestMatch': 'Best Match',
-                    'newest': 'Newest',
-                    if (salaryPeriod.isNotEmpty)
-                      'salary': 'Highest disclosed minimum',
-                  },
-                  onChanged: (value) => setState(
-                    () => sort = RecommendationSort.values.byName(value),
+                  _RecommendationFilter(
+                    label: 'Employment type',
+                    value: type,
+                    options: {
+                      '': 'All types',
+                      for (final value in jobEmploymentTypes)
+                        value: jobLabel(value),
+                    },
+                    onChanged: (value) => setState(() => type = value),
                   ),
-                ),
-              ],
+                  _RecommendationFilter(
+                    label: 'Salary period',
+                    value: salaryPeriod,
+                    options: {
+                      '': 'Any period',
+                      for (final value in jobSalaryPeriods)
+                        value: jobLabel(value),
+                    },
+                    onChanged: (value) => setState(() => salaryPeriod = value),
+                  ),
+                  if (salaryPeriod.isNotEmpty)
+                    TextFormField(
+                      controller: salaryController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Minimum pay (RM)',
+                        errorText: salaryInput.trim().isEmpty || validSalary
+                            ? null
+                            : 'Enter a valid amount',
+                      ),
+                      onChanged: (value) => setState(() => salaryInput = value),
+                    ),
+                  _RecommendationFilter(
+                    label: 'Minimum match',
+                    value: minimumScore,
+                    options: const {
+                      '0': 'Any match',
+                      '25': '25% and above',
+                      '50': '50% and above',
+                      '70': '70% and above',
+                      '90': '90% and above',
+                    },
+                    onChanged: (value) => setState(() => minimumScore = value),
+                  ),
+                  _RecommendationFilter(
+                    label: 'Sort',
+                    value: selectedSort.name,
+                    options: {
+                      'bestMatch': 'Best Match',
+                      'newest': 'Newest',
+                      if (salaryPeriod.isNotEmpty)
+                        'salary': 'Highest disclosed minimum',
+                    },
+                    onChanged: (value) => setState(
+                      () => sort = RecommendationSort.values.byName(value),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
         const Padding(
           padding: EdgeInsets.only(top: JobMateTheme.space8),

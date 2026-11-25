@@ -24,18 +24,26 @@ void main() {
     expect(source.changes.hasListener, isFalse);
     await source.changes.close();
   });
-  test('exact response RPC and parameters use mock HTTP only', () async {
+  test('legacy acceptance checks for a versioned offer first', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));
+    final requests = <(String, String, dynamic)>[];
     server.listen((request) async {
-      expect(request.uri.path, '/rest/v1/rpc/respond_to_job_application');
-      expect(request.method, 'POST');
-      expect(jsonDecode(await utf8.decoder.bind(request).join()), {
-        'p_application_id': 'test-application',
-        'p_action': 'accept_offer',
-      });
+      requests.add((
+        request.method,
+        request.uri.path,
+        jsonDecode(await utf8.decoder.bind(request).join()),
+      ));
       request.response.headers.contentType = ContentType.json;
-      request.response.write(jsonEncode('hired'));
+      request.response.write(
+        jsonEncode(
+          request.uri.path.endsWith(
+                '/get_my_current_application_compensation_offer_v1',
+              )
+              ? null
+              : 'hired',
+        ),
+      );
       await request.response.close();
     });
     final client = SupabaseClient(
@@ -50,6 +58,70 @@ void main() {
       source.respond('test-application', 'hire'),
       throwsStateError,
     );
+    expect(requests.map((request) => [request.$1, request.$2, request.$3]), [
+      [
+        'POST',
+        '/rest/v1/rpc/get_my_current_application_compensation_offer_v1',
+        {'p_application_id': 'test-application'},
+      ],
+      [
+        'POST',
+        '/rest/v1/rpc/respond_to_job_application',
+        {'p_application_id': 'test-application', 'p_action': 'accept_offer'},
+      ],
+    ]);
+  });
+
+  test('exact-version acceptance sends the displayed identity and rejects a mismatched acknowledgement', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    const appId = '11111111-1111-4111-8111-111111111111';
+    const offerId = '22222222-2222-4222-8222-222222222222';
+    final requests = <List<Object?>>[];
+    var acknowledgedVersion = 2;
+    server.listen((request) async {
+      requests.add([
+        request.method,
+        request.uri.path,
+        jsonDecode(await utf8.decoder.bind(request).join()),
+      ]);
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(
+        jsonEncode({
+          'application_id': appId,
+          'offer_id': offerId,
+          'offer_version': acknowledgedVersion,
+          'status': 'hired',
+          'accepted': true,
+        }),
+      );
+      await request.response.close();
+    });
+    final client = SupabaseClient(
+      'http://127.0.0.1:${server.port}',
+      'test-key',
+      authOptions: const AuthClientOptions(autoRefreshToken: false),
+    );
+    addTearDown(client.dispose);
+    final source = SupabaseMyApplicationsSource(client);
+    await source.acceptCompensationOffer(appId, offerId, 2);
+    acknowledgedVersion = 3;
+    await expectLater(
+      source.acceptCompensationOffer(appId, offerId, 2),
+      throwsFormatException,
+    );
+    expect(requests, [
+      for (var attempt = 0; attempt < 2; attempt++)
+        [
+          'POST',
+          '/rest/v1/rpc/accept_application_compensation_offer_v1',
+          {
+            'p_application_id': appId,
+            'p_offer_id': offerId,
+            'p_offer_version': 2,
+          },
+        ],
+    ]);
   });
   late TestMyApplicationsSource source;
   late MyApplicationDetailsRepository repo;

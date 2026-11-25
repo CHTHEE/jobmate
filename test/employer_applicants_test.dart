@@ -203,6 +203,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Alex Thee'), findsNothing);
     expect(find.text('Other applicant'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('workspace-filters-toggle')));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Clear filters'));
     await tester.tap(find.text('Clear filters'));
     await tester.pumpAndSettle();

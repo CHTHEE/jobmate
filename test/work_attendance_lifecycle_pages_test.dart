@@ -296,6 +296,7 @@ void main() {
       expect(find.text('Check out'), findsNothing);
       expect(find.text('Request engagement closure'), findsNothing);
       expect(find.text('Submit Evidence'), findsNothing);
+      await tap(tester, find.byKey(const ValueKey('workspace-filters-toggle')));
       await tap(tester, find.widgetWithText(ChoiceChip, 'Issues'));
       expect(find.byKey(const ValueKey(id)), findsOneWidget);
       expect(find.byKey(const ValueKey(other)), findsNothing);
@@ -449,6 +450,7 @@ void main() {
             w is DropdownButtonFormField<String> &&
             w.decoration.labelText == 'Shift status',
       );
+      await tap(tester, find.byKey(const ValueKey('workspace-filters-toggle')));
       await tap(tester, dropdown);
       await tap(tester, find.text('Attendance Issues').last);
       await tap(tester, find.text('Show application shifts'));
@@ -519,9 +521,9 @@ void main() {
       await tap(tester, find.byTooltip('Show shift details'));
       expect(find.text('View workplace on map'), findsOneWidget);
       for (final label in [
-        'Scheduled',
-        'Check-in',
-        'Check-out',
+        'Scheduled shift',
+        'Effective check-in',
+        'Effective checkout',
         'Workplace & GPS',
         'Work Evidence',
       ]) {

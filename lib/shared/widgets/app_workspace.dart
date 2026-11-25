@@ -404,51 +404,25 @@ class AppWorkspace extends StatelessWidget {
                               icon: const Icon(Icons.arrow_back),
                             )
                           : null)),
-            title: kIsWeb
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Tooltip(
-                        message: 'Go to dashboard',
-                        child: InkWell(
-                          onTap: navigationLocked
-                              ? null
-                              : () => navigate(AppRoutes.home),
-                          borderRadius: BorderRadius.circular(8),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: MediaQuery.sizeOf(context).width >= 600
-                                ? const SizedBox(
-                                    width: 146,
-                                    child: AuthWordmark(compact: true),
-                                  )
-                                : const Icon(
-                                    Icons.work_outline_rounded,
-                                    color: AuthStyle.teal,
-                                  ),
-                          ),
+            title: Tooltip(
+              message: 'Go to dashboard',
+              child: InkWell(
+                onTap: navigationLocked ? null : () => navigate(AppRoutes.home),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: constraints.maxWidth >= 600
+                      ? const SizedBox(
+                          width: 146,
+                          child: AuthWordmark(compact: true),
+                        )
+                      : const Icon(
+                          Icons.work_outline_rounded,
+                          color: AuthStyle.teal,
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child:
-                            titleWidget ??
-                            Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                      ),
-                    ],
-                  )
-                : titleWidget ??
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
+                ),
+              ),
+            ),
             actions: [
               ...headerActions,
               if (!showBottomBar &&
@@ -631,7 +605,8 @@ String _primaryLabel(String path) => switch (path) {
   AppRoutes.home => 'Home',
   AppRoutes.browseJobs => 'Jobs',
   AppRoutes.jobPostings => 'Posts',
-  AppRoutes.applications || AppRoutes.applicants => 'Applications',
+  AppRoutes.applications => 'Applications',
+  AppRoutes.workVerification => 'Work',
   AppRoutes.adminUsers => 'Users',
   AppRoutes.adminPayments => 'Payments',
   _ => 'Profile',
@@ -680,7 +655,7 @@ class _WorkspaceMenuState extends State<_WorkspaceMenu> {
 
   Widget destination(WorkspaceDestination item) {
     final unseen = widget.applicantUnseen;
-    if (item.$1 != AppRoutes.applicants || unseen == null) {
+    if (item.$1 != AppRoutes.jobPostings || unseen == null) {
       return _destinationTile(item);
     }
     return ListenableBuilder(
@@ -866,14 +841,38 @@ class _MobileAccountAvatarState extends State<_MobileAccountAvatar> {
 }
 
 class WorkspaceContent extends StatelessWidget {
-  const WorkspaceContent({super.key, required this.child, this.maxWidth = 672});
+  const WorkspaceContent({
+    super.key,
+    required this.child,
+    this.maxWidth = 672,
+    this.title,
+  });
   final Widget child;
   final double maxWidth;
+  final String? title;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) => SingleChildScrollView(
       padding: ResponsiveLayout.pagePaddingForWidth(constraints.maxWidth),
-      child: ResponsiveContent(maxWidth: maxWidth, child: child),
+      child: ResponsiveContent(
+        maxWidth: maxWidth,
+        alignment: AlignmentDirectional.topStart.resolve(
+          Directionality.of(context),
+        ),
+        child: title == null
+            ? child
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    title!,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 16),
+                  child,
+                ],
+              ),
+      ),
     ),
   );
 }

@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/expandable_filter_bar.dart';
 import 'dispute_gateway.dart';
 import 'dispute_submit_dialog.dart';
 
@@ -1039,25 +1040,27 @@ class _DisputePageState extends State<DisputePage> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          TextField(
-            controller: _searchController,
-            textInputAction: TextInputAction.search,
-            decoration: const InputDecoration(
-              labelText: 'Search Dispute, Incident or Related Group ID',
-              prefixIcon: Icon(Icons.search),
+          ExpandableFilterBar(
+            search: TextField(
+              controller: _searchController,
+              textInputAction: TextInputAction.search,
+              decoration: const InputDecoration(
+                labelText: 'Search Dispute, Incident or Related Group ID',
+                prefixIcon: Icon(Icons.search),
+              ),
+              onSubmitted: (_) => _applyGroupedFilters(),
             ),
-            onSubmitted: (_) => _applyGroupedFilters(),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
+            activeCount: [
+              categoryFilter,
+              statusFilter,
+            ].where((value) => value != null).length,
+            onClear: _clearGroupedFilters,
+            filters: [
               SizedBox(
                 width: 210,
                 child: DropdownButtonFormField<String?>(
                   isExpanded: true,
+                  key: ValueKey(categoryFilter),
                   initialValue: categoryFilter,
                   decoration: const InputDecoration(labelText: 'Category'),
                   items: const [
@@ -1082,6 +1085,7 @@ class _DisputePageState extends State<DisputePage> {
                 width: 210,
                 child: DropdownButtonFormField<String?>(
                   isExpanded: true,
+                  key: ValueKey(('status', statusFilter)),
                   initialValue: statusFilter,
                   decoration: const InputDecoration(labelText: 'Status'),
                   items: const [
@@ -1110,16 +1114,16 @@ class _DisputePageState extends State<DisputePage> {
                   }),
                 ),
               ),
-              FilledButton.icon(
-                onPressed: _applyGroupedFilters,
-                icon: const Icon(Icons.search),
-                label: const Text('Search'),
-              ),
-              TextButton(
-                onPressed: _clearGroupedFilters,
-                child: const Text('Clear'),
-              ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: FilledButton.icon(
+              onPressed: _applyGroupedFilters,
+              icon: const Icon(Icons.search),
+              label: const Text('Search'),
+            ),
           ),
         ],
       ),

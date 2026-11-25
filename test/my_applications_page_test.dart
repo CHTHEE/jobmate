@@ -119,7 +119,11 @@ void main() {
           value,
         );
       }
-      await tester.tap(find.widgetWithText(ChoiceChip, 'Completed'));
+      await tester.tap(find.byKey(const ValueKey('workspace-filters-toggle')));
+      await tester.pumpAndSettle();
+      final completed = find.widgetWithText(ChoiceChip, 'Completed');
+      await tester.ensureVisible(completed);
+      await tester.tap(completed);
       await tester.pumpAndSettle();
       expect(find.text('Part-Time Cafe Crew'), findsNothing);
       expect(find.text('Declined'), findsOneWidget);

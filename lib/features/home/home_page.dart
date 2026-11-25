@@ -69,22 +69,13 @@ class _HomePageState extends State<HomePage> {
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : WorkspaceContent(
-                maxWidth: _accountRole == 'job_seeker'
-                    ? 960
-                    : _accountRole == 'employer'
-                    ? 768
-                    : 672,
+                maxWidth:
+                    _accountRole == 'job_seeker' || _accountRole == 'employer'
+                    ? double.infinity
+                    : 960,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (_accountRole != 'job_seeker')
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: _loadAccountRole,
-                          child: const Text('Check for updates'),
-                        ),
-                      ),
                     if (_loadError != null)
                       WorkspaceCard(
                         title: 'Workspace unavailable',

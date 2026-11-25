@@ -5,6 +5,7 @@ import '../../shared/navigation/app_routes.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import '../applications/module2_repository.dart';
 
 /// A compact overview. Application records below belong to the demo session.
@@ -49,21 +50,30 @@ class JobSeekerDashboard extends StatelessWidget {
           ),
           const SizedBox(height: 24),
         ],
-        const _AppliedCompanies(),
-        const SizedBox(height: 24),
-        const WorkspaceCard(
-          title: 'Evaluations from others',
-          child: Row(
-            children: [
-              Icon(Icons.rate_review_outlined, color: JobMateTheme.darkTeal),
-              SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Evaluations will appear here when this feature is available.',
-                ),
+        const ResponsiveGrid(
+          minItemWidth: 340,
+          maxColumns: 2,
+          equalRowHeight: true,
+          children: [
+            _AppliedCompanies(),
+            WorkspaceCard(
+              title: 'Evaluations from others',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.rate_review_outlined,
+                    color: JobMateTheme.darkTeal,
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Evaluations will appear here when this feature is available.',
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );

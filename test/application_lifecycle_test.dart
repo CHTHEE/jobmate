@@ -41,7 +41,9 @@ void main() {
         employer.rows = [applicantRow(id, status: 'offered')];
         await details.load();
         await applicants.load();
-        expect(applicants.applicants.single.employerNext, isEmpty);
+        expect(applicants.applicants.single.employerNext, [
+          MyApplicationStatus.offered,
+        ]);
         worker.sendResponse = (applicationId, wireAction) async {
           expect(applicationId, id);
           expect(wireAction, action.wireName);

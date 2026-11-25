@@ -15,6 +15,7 @@ import '../../shared/widgets/responsive_layout.dart';
 import '../applications/job_marketplace_format.dart';
 import '../applications/module2_repository.dart' show BrowseJob;
 import 'job_form_widgets.dart';
+import 'job_form_result.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import 'job_postings_repository.dart';
 import 'job_preview.dart';
@@ -31,10 +32,12 @@ class JobFormPage extends StatefulWidget {
     this.jobId,
     this.repository,
     this.pickWorkplace = showWorkplacePicker,
+    this.dialog = false,
   });
   final String? jobId;
   final JobPostingsRepository? repository;
   final WorkplacePicker pickWorkplace;
+  final bool dialog;
   @override
   State<JobFormPage> createState() => JobFormPageState();
 }
@@ -354,6 +357,7 @@ class JobFormPageState extends State<JobFormPage> {
           (savedJob?['latitude'] != null || savedJob?['longitude'] != null);
       final pinConfirmedForNewAddress =
           pin != null && _address != savedJob?['location'];
+      final existingJobId = jobId;
       final saved = await repo.save(
         {
           ...values(),
@@ -393,12 +397,85 @@ class JobFormPageState extends State<JobFormPage> {
         ),
       );
       if (GoRouterState.of(context).extra == 'job-list' && context.canPop()) {
-        context.pop(status);
+        context.pop(
+          JobFormResult(
+            existingJobId == null
+                ? JobFormChange.created
+                : JobFormChange.updated,
+            saved,
+          ),
+        );
       } else {
         context.pushReplacement('${AppRoutes.jobPostings}?status=$status');
       }
     } catch (e) {
       if (mounted) setState(() => error = jobError(e));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _closeJob() async {
+    final currentJobId = jobId;
+    final companyId = access?.company?['company_id']?.toString();
+    if (busy ||
+        status != 'published' ||
+        currentJobId == null ||
+        companyId == null) {
+      return;
+    }
+    final changed = _savedSnapshot != null && _snapshot != _savedSnapshot;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Close this job?'),
+        content: Text(
+          changed
+              ? 'Closed jobs cannot be edited or reopened. Your unsaved form changes will not be saved.'
+              : 'Closed jobs cannot be edited or reopened.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep Job Open'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Close Job'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await repo.close(currentJobId);
+      final closed = (await repo.list(companyId))
+          .where((row) => row['job_id'].toString() == currentJobId)
+          .firstOrNull;
+      if (closed == null || closed['status'] != 'closed') {
+        throw StateError(
+          'The job was closed, but its latest status could not be loaded. Refresh Job Postings before continuing.',
+        );
+      }
+      if (!mounted) return;
+      _savedSnapshot = _snapshot;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Job closed successfully')));
+      if (GoRouterState.of(context).extra == 'job-list' && context.canPop()) {
+        context.pop(JobFormResult(JobFormChange.closed, closed));
+      } else {
+        context.go('${AppRoutes.jobPostings}?status=closed');
+      }
+    } catch (failure) {
+      if (mounted) setState(() => error = jobError(failure));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -514,7 +591,12 @@ class JobFormPageState extends State<JobFormPage> {
       message: 'Formatting your job description...',
       description: 'AI is organizing your content into Role Overview, Responsibilities, Requirements and Benefits.',
       note: 'This may take a few moments.',
-      child: _buildWorkspace(),
+      child: widget.dialog
+          ? Theme(
+              data: JobMateTheme.apply(Theme.of(context)),
+              child: _buildDialog(),
+            )
+          : _buildWorkspace(),
     ),
   );
 
@@ -708,69 +790,424 @@ class JobFormPageState extends State<JobFormPage> {
 
   Widget _selection(String key) => JobLabeledField(
     label: requiredLabel(jobLabel(key)),
-    child: key == 'employment_type'
-        ? FormField<String>(
-            key: fieldKeys.putIfAbsent(
-              key,
-              () => GlobalKey<FormFieldState<String>>(),
-            ),
-            initialValue: selected[key],
-            validator: (value) => validate(key, value ?? ''),
-            builder: (state) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final value in {...options[key]!, selected[key]!})
-                      ChoiceChip(
-                        label: Text(jobLabel(value)),
-                        selected: selected[key] == value,
-                        onSelected: busy || status == 'closed'
-                            ? null
-                            : (_) {
-                                state.didChange(value);
-                                setState(() => selected[key] = value);
-                              },
-                      ),
-                  ],
-                ),
-                if (state.errorText != null)
-                  Text(
-                    state.errorText!,
-                    style: const TextStyle(color: JobMateTheme.error),
-                  ),
-              ],
-            ),
-          )
-        : Semantics(
-            label: '${jobLabel(key)}, required before publishing',
-            child: DropdownButtonFormField<String>(
-              key: fieldKeys.putIfAbsent(
-                key,
-                () => GlobalKey<FormFieldState<String>>(),
-              ),
-              initialValue: selected[key],
-              isExpanded: true,
-              validator: (value) => validate(key, value ?? ''),
-              decoration: InputDecoration(
-                helperMaxLines: 4,
-                errorMaxLines: 4,
-                helperText: key == 'work_arrangement'
-                    ? 'On-site: at the workplace. Hybrid: workplace and remote. Remote: off-site.'
-                    : 'How often the salary amount is paid.',
-              ),
-              items: [
-                for (final value in {...options[key]!, selected[key]!})
-                  DropdownMenuItem(value: value, child: Text(jobLabel(value))),
-              ],
-              onChanged: busy || status == 'closed'
-                  ? null
-                  : (value) => setState(() => selected[key] = value!),
-            ),
-          ),
+    child: Semantics(
+      label: '${jobLabel(key)}, required before publishing',
+      child: DropdownButtonFormField<String>(
+        key: fieldKeys.putIfAbsent(
+          key,
+          () => GlobalKey<FormFieldState<String>>(),
+        ),
+        initialValue: selected[key],
+        isExpanded: true,
+        validator: (value) => validate(key, value ?? ''),
+        decoration: InputDecoration(
+          helperMaxLines: 4,
+          errorMaxLines: 4,
+          helperText: switch (key) {
+            'work_arrangement' => 'On-site: at the workplace. Hybrid: workplace and remote. Remote: off-site.',
+            'salary_period' => 'How often the salary amount is paid.',
+            _ => null,
+          },
+        ),
+        items: [
+          for (final value in {...options[key]!, selected[key]!})
+            DropdownMenuItem(value: value, child: Text(jobLabel(value))),
+        ],
+        onChanged: busy || status == 'closed'
+            ? null
+            : (value) => setState(() => selected[key] = value!),
+      ),
+    ),
   );
+
+  String get _formTitle => jobId == null
+      ? 'Create Job Posting'
+      : status == 'closed'
+      ? 'Job details'
+      : 'Edit Job Posting';
+
+  Widget _buildDialog() {
+    final compact = ResponsiveLayout.isCompact(context);
+    final pane = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _formTitle,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Close job form',
+                onPressed: busy ? null : _backToPostings,
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: loading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                  padding: EdgeInsets.all(compact ? 16 : 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: _formContent(),
+                  ),
+                ),
+        ),
+        if (!loading && access?.allowed == true) ...[
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: _buildActions(),
+          ),
+        ],
+      ],
+    );
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !busy) _backToPostings();
+      },
+      child: compact
+          ? Dialog.fullscreen(child: SafeArea(child: pane))
+          : Dialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 20,
+              ),
+              constraints: const BoxConstraints(maxWidth: 1000, maxHeight: 900),
+              clipBehavior: Clip.antiAlias,
+              child: pane,
+            ),
+    );
+  }
+
+  Widget _buildActions() => LayoutBuilder(
+    builder: (context, box) {
+      final close = status == 'published'
+          ? TextButton.icon(
+              onPressed: busy ? null : _closeJob,
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              icon: const Icon(Icons.close, size: 18),
+              label: const Text('Close Job'),
+            )
+          : null;
+      final draft = status == 'draft'
+          ? OutlinedButton(
+              onPressed: busy ? null : () => save(false),
+              child: const Text('Save Draft'),
+            )
+          : null;
+      final preview = TextButton.icon(
+        onPressed: busy
+            ? null
+            : () => showDialog<void>(
+                context: context,
+                builder: (_) => JobPreview(
+                  logo: access!.logo,
+                  job: {
+                    ...?savedJob,
+                    ...values(),
+                    'latitude': _pin?.latitude,
+                    'longitude': _pin?.longitude,
+                  },
+                  company: access!.company!['company_name'] as String,
+                ),
+              ),
+        icon: const Icon(Icons.visibility_outlined, size: 18),
+        label: Text(status == 'closed' ? 'Preview' : 'Preview unsaved changes'),
+      );
+      final cancel = OutlinedButton(
+        onPressed: busy ? null : _backToPostings,
+        child: Text(status == 'closed' ? 'Back' : 'Cancel'),
+      );
+      final primary = status == 'closed'
+          ? null
+          : FilledButton(
+              onPressed: busy ? null : () => save(true),
+              child: Text(
+                status == 'published' ? 'Save Changes' : 'Publish Job',
+              ),
+            );
+      if (box.maxWidth <
+          900 * MediaQuery.textScalerOf(context).scale(14) / 14) {
+        return Wrap(
+          spacing: 12,
+          runSpacing: 10,
+          children: [?close, ?draft, preview, cancel, ?primary],
+        );
+      }
+      return Row(
+        children: [
+          ?close,
+          if (close != null) const SizedBox(width: 12),
+          ?draft,
+          const SizedBox(width: 12),
+          const Spacer(),
+          preview,
+          const SizedBox(width: 12),
+          cancel,
+          const SizedBox(width: 12),
+          ?primary,
+        ],
+      );
+    },
+  );
+
+  List<Widget> _formContent() => [
+    if (error != null) ...[
+      Text(error!, style: const TextStyle(color: JobMateTheme.error)),
+      TextButton(onPressed: busy ? null : load, child: const Text('Reload')),
+    ],
+    if (access != null && !access!.allowed)
+      WorkspaceCard(
+        title: 'Job creation unavailable',
+        child: Column(
+          children: [
+            Text(access!.message!),
+            TextButton(
+              onPressed: () => context.push(AppRoutes.company),
+              child: const Text('Company profile'),
+            ),
+            const FilledButton(onPressed: null, child: Text('Create Job')),
+          ],
+        ),
+      ),
+    if (access?.allowed == true)
+      Form(
+        key: form,
+        autovalidateMode: validationActivated
+            ? AutovalidateMode.always
+            : AutovalidateMode.disabled,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            JobFormSection(
+              title: 'Hiring company',
+              icon: Icons.business_outlined,
+              compact: widget.dialog,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      if (access!.logo == null) ...[
+                        const CircleAvatar(
+                          child: Icon(Icons.business_outlined),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        child: CompanyIdentity(
+                          name: access!.company!['company_name'] as String,
+                          logo: access!.logo,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (access!.company!['verification_status'] == 'verified')
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.verified_outlined,
+                            size: 17,
+                            color: JobMateTheme.darkTeal,
+                          ),
+                          SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'Verified company',
+                              style: TextStyle(color: JobMateTheme.darkTeal),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Your hiring company is selected automatically from your membership and cannot be changed here.',
+                    style: TextStyle(color: JobMateTheme.body),
+                  ),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Fields marked * are required before publishing. Drafts may be incomplete.',
+              ),
+            ),
+            JobFormSection(
+              title: 'Basic Information',
+              icon: Icons.work_outline,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ResponsiveGrid(
+                    minItemWidth: 225,
+                    maxColumns: 2,
+                    children: [
+                      _textInput('title'),
+                      _textInput('department'),
+                      _selection('employment_type'),
+                      _selection('work_arrangement'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            JobFormSection(
+              title: 'Compensation',
+              icon: Icons.payments_outlined,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ResponsiveGrid(
+                    minItemWidth: 200,
+                    maxColumns: 3,
+                    children: [
+                      _textInput('salary_min'),
+                      _textInput('salary_max'),
+                      _selection('salary_period'),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Show salary on posting'),
+                    subtitle: const Text(
+                      'Turn off to hide salary amounts from job seekers.',
+                    ),
+                    value: salaryVisible,
+                    onChanged: busy || status == 'closed'
+                        ? null
+                        : (value) => setState(() => salaryVisible = value),
+                  ),
+                  ListenableBuilder(
+                    listenable: Listenable.merge([
+                      fields['salary_min']!,
+                      fields['salary_max']!,
+                    ]),
+                    builder: (context, _) => Container(
+                      key: const ValueKey('salary-display-preview'),
+                      padding: const EdgeInsets.all(12),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: JobMateTheme.teal50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        salaryVisible
+                            ? 'Salary preview: ${marketplaceSalary(BrowseJob(values(), company: ''))}'
+                            : 'Salary preview: Hidden from job seekers',
+                        style: const TextStyle(
+                          color: JobMateTheme.darkTeal,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            JobFormSection(
+              title: 'Schedule & Location',
+              icon: Icons.location_on_outlined,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ResponsiveGrid(
+                    minItemWidth: 260,
+                    maxColumns: 2,
+                    children: [
+                      _textInput('vacancies'),
+                      _textInput('application_deadline'),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _textInput('location'),
+                  if (!_remote)
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: fields['location']!,
+                      builder: (_, _, _) => _workplaceMapField(),
+                    ),
+                ],
+              ),
+            ),
+            JobFormSection(
+              title: 'Job Description & AI Formatting',
+              icon: Icons.auto_awesome_outlined,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'AI formats your description into structured job details. Your original description stays unchanged.',
+                  ),
+                  const SizedBox(height: 12),
+                  _textInput('original_description'),
+                  const ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    title: Text('View example description'),
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.only(bottom: 16),
+                        child: Text(
+                          'We are looking for part-time café crew at our café in Shah Alam. You will take orders, serve drinks and light meals, handle payments and keep the counter and tables clean. You should communicate politely with customers and work well in a team. No café experience is needed; training is provided. This is an on-site role with weekend shifts, around 16 hours per week. Staff receive a meal during each shift and a staff discount.',
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (aiFormatting) const LinearProgressIndicator(),
+                  if (aiError != null)
+                    Text(
+                      aiError!,
+                      style: const TextStyle(color: JobMateTheme.error),
+                    ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Structured details',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const Text(
+                    'Review and edit these details before publishing.',
+                    style: TextStyle(color: JobMateTheme.body),
+                  ),
+                  const SizedBox(height: 12),
+                  _textInput('role_overview'),
+                  const SizedBox(height: 16),
+                  _textInput('responsibilities'),
+                ],
+              ),
+            ),
+            JobFormSection(
+              title: 'Requirements & Benefits',
+              icon: Icons.fact_check_outlined,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _textInput('requirements'),
+                  const SizedBox(height: 16),
+                  _textInput('benefits'),
+                ],
+              ),
+            ),
+            if (busy && (aiFormatting || !aiConfirmationPending))
+              const LinearProgressIndicator(),
+          ],
+        ),
+      ),
+  ];
 
   Widget _buildWorkspace() => AppWorkspace(
     title: jobId == null
@@ -812,347 +1249,27 @@ class JobFormPageState extends State<JobFormPage> {
                       ? 'Review your posting and use Save Changes to update it.'
                       : 'Build your posting, save a draft or publish when ready.',
                 ),
-                if (error != null) ...[
-                  Text(
-                    error!,
-                    style: const TextStyle(color: JobMateTheme.error),
-                  ),
-                  TextButton(
-                    onPressed: busy ? null : load,
-                    child: const Text('Reload'),
-                  ),
-                ],
-                if (access != null && !access!.allowed)
-                  WorkspaceCard(
-                    title: 'Job creation unavailable',
-                    child: Column(
-                      children: [
-                        Text(access!.message!),
-                        TextButton(
-                          onPressed: () => context.push(AppRoutes.company),
-                          child: const Text('Company profile'),
-                        ),
-                        const FilledButton(
-                          onPressed: null,
-                          child: Text('Create Job'),
-                        ),
-                      ],
-                    ),
-                  ),
+                ..._formContent(),
                 if (access?.allowed == true)
-                  Form(
-                    key: form,
-                    autovalidateMode: validationActivated
-                        ? AutovalidateMode.always
-                        : AutovalidateMode.disabled,
+                  JobFormSection(
+                    title: status == 'published'
+                        ? 'Update your posting'
+                        : status == 'closed'
+                        ? 'Review posting'
+                        : 'Ready to publish?',
+                    icon: Icons.check_circle_outline,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        JobFormSection(
-                          title: 'Hiring company',
-                          icon: Icons.business_outlined,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  if (access!.logo == null) ...[
-                                    const CircleAvatar(
-                                      child: Icon(Icons.business_outlined),
-                                    ),
-                                    const SizedBox(width: 12),
-                                  ],
-                                  Expanded(
-                                    child: CompanyIdentity(
-                                      name:
-                                          access!.company!['company_name']
-                                              as String,
-                                      logo: access!.logo,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (access!.company!['verification_status'] ==
-                                  'verified')
-                                const Padding(
-                                  padding: EdgeInsets.only(top: 8),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.verified_outlined,
-                                        size: 17,
-                                        color: JobMateTheme.darkTeal,
-                                      ),
-                                      SizedBox(width: 6),
-                                      Flexible(
-                                        child: Text(
-                                          'Verified company',
-                                          style: TextStyle(
-                                            color: JobMateTheme.darkTeal,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Your hiring company is selected automatically from your membership and cannot be changed here.',
-                                style: TextStyle(color: JobMateTheme.body),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 12),
-                          child: Text(
-                            'Fields marked * are required before publishing. Drafts may be incomplete.',
-                          ),
-                        ),
-                        JobFormSection(
-                          title: 'Basic Information',
-                          icon: Icons.work_outline,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _textInput('title'),
-                              const SizedBox(height: 16),
-                              _textInput('department'),
-                              const SizedBox(height: 16),
-                              _selection('employment_type'),
-                            ],
-                          ),
-                        ),
-                        JobFormSection(
-                          title: 'Compensation',
-                          icon: Icons.payments_outlined,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              ResponsiveGrid(
-                                minItemWidth: 200,
-                                maxColumns: 3,
-                                children: [
-                                  _textInput('salary_min'),
-                                  _textInput('salary_max'),
-                                  _selection('salary_period'),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              _textInput('vacancies'),
-                              SwitchListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: const Text('Show salary on posting'),
-                                subtitle: const Text(
-                                  'Turn off to hide salary amounts from job seekers.',
-                                ),
-                                value: salaryVisible,
-                                onChanged: busy || status == 'closed'
-                                    ? null
-                                    : (value) =>
-                                          setState(() => salaryVisible = value),
-                              ),
-                              ListenableBuilder(
-                                listenable: Listenable.merge([
-                                  fields['salary_min']!,
-                                  fields['salary_max']!,
-                                ]),
-                                builder: (context, _) => Container(
-                                  key: const ValueKey('salary-display-preview'),
-                                  padding: const EdgeInsets.all(12),
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: JobMateTheme.teal50,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    salaryVisible
-                                        ? 'Salary preview: ${marketplaceSalary(BrowseJob(values(), company: ''))}'
-                                        : 'Salary preview: Hidden from job seekers',
-                                    style: const TextStyle(
-                                      color: JobMateTheme.darkTeal,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        JobFormSection(
-                          title: 'Schedule & Location',
-                          icon: Icons.location_on_outlined,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              ResponsiveGrid(
-                                minItemWidth: 260,
-                                maxColumns: 2,
-                                children: [
-                                  _textInput('application_deadline'),
-                                  _selection('work_arrangement'),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              _textInput('location'),
-                              if (!_remote)
-                                ValueListenableBuilder<TextEditingValue>(
-                                  valueListenable: fields['location']!,
-                                  builder: (_, _, _) => _workplaceMapField(),
-                                ),
-                            ],
-                          ),
-                        ),
-                        JobFormSection(
-                          title: 'Job Description & AI Formatting',
-                          icon: Icons.auto_awesome_outlined,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Text(
-                                'AI formats your description into structured job details. Your original description stays unchanged.',
-                              ),
-                              const SizedBox(height: 12),
-                              _textInput('original_description'),
-                              const ExpansionTile(
-                                tilePadding: EdgeInsets.zero,
-                                title: Text('View example description'),
-                                children: [
-                                  Padding(
-                                    padding: EdgeInsets.only(bottom: 16),
-                                    child: Text(
-                                      'We are looking for part-time café crew at our café in Shah Alam. You will take orders, serve drinks and light meals, handle payments and keep the counter and tables clean. You should communicate politely with customers and work well in a team. No café experience is needed; training is provided. This is an on-site role with weekend shifts, around 16 hours per week. Staff receive a meal during each shift and a staff discount.',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (aiFormatting) const LinearProgressIndicator(),
-                              if (aiError != null)
-                                Text(
-                                  aiError!,
-                                  style: const TextStyle(
-                                    color: JobMateTheme.error,
-                                  ),
-                                ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'Structured details',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                              const Text(
-                                'Review and edit these details before publishing.',
-                                style: TextStyle(color: JobMateTheme.body),
-                              ),
-                              const SizedBox(height: 12),
-                              _textInput('role_overview'),
-                              const SizedBox(height: 16),
-                              _textInput('responsibilities'),
-                            ],
-                          ),
-                        ),
-                        JobFormSection(
-                          title: 'Requirements & Benefits',
-                          icon: Icons.fact_check_outlined,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _textInput('requirements'),
-                              const SizedBox(height: 16),
-                              _textInput('benefits'),
-                            ],
-                          ),
-                        ),
-                        JobFormSection(
-                          title: status == 'published'
-                              ? 'Update your posting'
+                        Text(
+                          status == 'published'
+                              ? 'Preview your edits, then choose Save Changes.'
                               : status == 'closed'
-                              ? 'Review posting'
-                              : 'Ready to publish?',
-                          icon: Icons.check_circle_outline,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                status == 'published'
-                                    ? 'Preview your edits, then choose Save Changes.'
-                                    : status == 'closed'
-                                    ? 'Closed postings are read-only.'
-                                    : 'Save an incomplete draft or review all required fields before publishing.',
-                              ),
-                              const SizedBox(height: 12),
-                              LayoutBuilder(
-                                builder: (context, box) {
-                                  final draft = status == 'draft'
-                                      ? OutlinedButton(
-                                          onPressed: busy
-                                              ? null
-                                              : () => save(false),
-                                          child: const Text('Save Draft'),
-                                        )
-                                      : null;
-                                  final preview = TextButton.icon(
-                                    onPressed: busy
-                                        ? null
-                                        : () => showDialog<void>(
-                                            context: context,
-                                            builder: (_) => JobPreview(
-                                              logo: access!.logo,
-                                              job: {
-                                                ...?savedJob,
-                                                ...values(),
-                                                'latitude': _pin?.latitude,
-                                                'longitude': _pin?.longitude,
-                                              },
-                                              company:
-                                                  access!.company!['company_name']
-                                                      as String,
-                                            ),
-                                          ),
-                                    icon: const Icon(
-                                      Icons.visibility_outlined,
-                                      size: 18,
-                                    ),
-                                    label: const Text('Preview'),
-                                  );
-                                  final primary = status == 'closed'
-                                      ? null
-                                      : FilledButton(
-                                          onPressed: busy
-                                              ? null
-                                              : () => save(true),
-                                          child: Text(
-                                            status == 'published'
-                                                ? 'Save Changes'
-                                                : 'Publish Job',
-                                          ),
-                                        );
-                                  if (box.maxWidth <
-                                      560 *
-                                          MediaQuery.textScalerOf(context)
-                                              .scale(14) /
-                                          14) {
-                                    return Wrap(
-                                      spacing: 12,
-                                      runSpacing: 10,
-                                      children: [?draft, preview, ?primary],
-                                    );
-                                  }
-                                  return Row(
-                                    children: [
-                                      ?draft,
-                                      const SizedBox(width: 12),
-                                      preview,
-                                      const Spacer(),
-                                      ?primary,
-                                    ],
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
+                              ? 'Closed postings are read-only.'
+                              : 'Save an incomplete draft or review all required fields before publishing.',
                         ),
-                        if (busy && (aiFormatting || !aiConfirmationPending))
-                          const LinearProgressIndicator(),
+                        const SizedBox(height: 12),
+                        _buildActions(),
                       ],
                     ),
                   ),

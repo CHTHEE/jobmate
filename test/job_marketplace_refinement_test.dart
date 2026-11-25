@@ -324,30 +324,37 @@ void main() {
       expect(find.text('1 results'), findsOneWidget);
       await tester.tap(find.text('Clear filters'));
       await tester.pump();
-      await tester.tap(find.text('Filters'));
-      await tester.pump();
+      final toggle = find.byKey(const ValueKey('workspace-filters-toggle'));
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
       expect(find.text('Saved this session'), findsNothing);
       expect(find.text('Bookmarked jobs only'), findsOneWidget);
-      await tester.tap(find.byType(DropdownButtonFormField<String>).first);
+      final employment = find.byKey(const ValueKey('Employment type:'));
+      await tester.ensureVisible(employment);
+      await tester.tap(employment);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Part-time').last);
       await tester.pumpAndSettle();
       expect(find.text('1 results'), findsOneWidget);
-      await tester.tap(find.text('Filters'));
-      await tester.pump();
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
       expect(find.text('Part-time'), findsWidgets);
       await tester.tap(find.byTooltip('Save job (this session)'));
       await tester.pump();
       await tester.tap(find.text('Clear filters'));
       await tester.pump();
       expect(find.text('2 results'), findsOneWidget);
-      await tester.tap(find.text('Filters'));
-      await tester.pump();
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Bookmarked jobs only'));
       await tester.tap(find.text('Bookmarked jobs only'));
       await tester.pump();
       expect(find.text('1 results'), findsOneWidget);
-      await tester.tap(find.text('Filters'));
-      await tester.pump();
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
       expect(find.text('Bookmarked jobs only'), findsNothing);
       expect(find.text('1 results'), findsOneWidget);
       await tester.tap(find.text('Clear filters'));
@@ -356,9 +363,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Title').last);
       await tester.pumpAndSettle();
+      final accountant = tester.getTopLeft(find.text('Accountant'));
+      final developer = tester.getTopLeft(find.text('Flutter Developer'));
       expect(
-        tester.getTopLeft(find.text('Accountant')).dy,
-        lessThan(tester.getTopLeft(find.text('Flutter Developer')).dy),
+        accountant.dy == developer.dy
+            ? accountant.dx < developer.dx
+            : accountant.dy < developer.dy,
+        isTrue,
       );
       await tester.tap(find.text('View Details').first);
       await tester.pumpAndSettle();

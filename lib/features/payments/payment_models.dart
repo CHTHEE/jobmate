@@ -19,6 +19,20 @@ enum SandboxPaymentStatus {
 String formatPaymentMinor(int units, [String currency = 'MYR']) =>
     '$currency ${units ~/ 100}.${(units % 100).toString().padLeft(2, '0')}';
 
+int parsePaymentMoney(String input) {
+  final value = input.trim();
+  if (!RegExp(r'^(0|[1-9][0-9]{0,9})(\.\d{1,2})?$').hasMatch(value)) {
+    throw const FormatException('Enter a MYR amount with at most two decimals.');
+  }
+  final parts = value.split('.');
+  final sen = int.parse(parts.first) * 100 +
+      (parts.length == 1 ? 0 : int.parse(parts[1].padRight(2, '0')));
+  if (sen > 999999999999) {
+    throw const FormatException('MYR amount is too large.');
+  }
+  return sen;
+}
+
 class PaymentAmount {
   PaymentAmount(this.minorUnits, this.currency) {
     if (minorUnits <= 0 || minorUnits > 999999999999 || currency != 'MYR') {

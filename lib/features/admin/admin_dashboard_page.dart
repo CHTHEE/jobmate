@@ -184,15 +184,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       role: 'administrator',
       showAccountMenu: true,
       navigationGroups: groups,
-      actions: [
-        IconButton(
-          tooltip: 'Refresh dashboard',
-          onPressed: _loadingAccess ? null : _loadAccess,
-          icon: const Icon(Icons.refresh_outlined),
-        ),
-      ],
       child: WorkspaceContent(
-        maxWidth: 1280,
+        maxWidth: double.infinity,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -200,6 +193,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               title: 'Platform overview',
               description: 'Manage accounts, review companies and keep JobMate running smoothly.',
               eyebrow: 'Administration',
+              actions: [
+                OutlinedButton.icon(
+                  onPressed: _loadingAccess ? null : _loadAccess,
+                  icon: const Icon(Icons.refresh_outlined, size: 18),
+                  label: const Text('Refresh dashboard'),
+                ),
+              ],
             ),
             if (_error != null) _buildError(context),
             _buildOverview(context),
@@ -279,6 +279,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
     return ResponsiveGrid(
       minItemWidth: 240,
+      equalRowHeight: true,
       children: [
         for (final item in cards)
           _OverviewCard(item: item, loading: _loadingAccess),

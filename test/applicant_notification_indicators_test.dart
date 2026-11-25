@@ -94,7 +94,7 @@ void main() {
       }
 
       await openMenu();
-      expect(menuText('View Applicants'), findsOneWidget);
+      expect(menuText('My Job Postings'), findsOneWidget);
       expect(find.byKey(dot), findsNothing);
       expect(inCard(first, '1 new'), findsNothing);
 
@@ -108,7 +108,7 @@ void main() {
       expect(reads, 2);
       expect(find.byKey(dot), findsOneWidget);
       expect(
-        find.bySemanticsLabel(RegExp('View Applicants, new applications')),
+        find.bySemanticsLabel(RegExp('My Job Postings, new applications')),
         findsOneWidget,
       );
       if (!kIsWeb || width < 1000) {
@@ -135,11 +135,7 @@ void main() {
       expect(inCard(second, '999+ new'), findsNothing);
       await openMenu();
       expect(find.byKey(dot), findsNothing);
-      final destination = menuText('View Applicants');
-      await tester.ensureVisible(destination);
-      await tester.tap(destination);
-      await tester.pumpAndSettle();
-      expect(find.text('All applicants'), findsOneWidget);
+      expect(menuText('My Job Postings'), findsOneWidget);
       expect(tester.takeException(), isNull);
       semantics.dispose();
     });

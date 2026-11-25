@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -33,9 +34,8 @@ void main() {
                 'Messages': AppRoutes.messages,
               }
             : {
-                'Work Verification': AppRoutes.workVerification,
+                if (kIsWeb) 'Work Verification': AppRoutes.workVerification,
                 'Messages': AppRoutes.employerMessages,
-                'Location Picker (demo)': AppRoutes.jobLocationDemo,
               };
         await tester.pumpWidget(
           MaterialApp(
@@ -49,6 +49,11 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        if (role == 'employer' && !kIsWeb) {
+          await tester.tap(find.widgetWithText(NavigationBar, 'Work'));
+          await tester.pumpAndSettle();
+          expect(destination, AppRoutes.workVerification);
+        }
         for (final entry in entries.entries) {
           await openWorkspaceMenu(tester);
           final tile = find.widgetWithText(ListTile, entry.key);

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'compensation_offer.dart';
+
 enum MyApplicationStatus {
   submitted('Applied'),
   shortlisted('Shortlisted'),
@@ -95,9 +97,26 @@ abstract class MyApplicationsSource {
   Future<List<Map<String, dynamic>>> list();
   Future<List<Map<String, dynamic>>> history(String applicationId);
   Future<String> respond(String applicationId, String action);
+  Future<Map<String, dynamic>?> currentCompensationOffer(String applicationId);
+  Future<void> acceptCompensationOffer(
+    String applicationId,
+    String offerId,
+    int offerVersion,
+  );
 }
 
-class SupabaseMyApplicationsSource implements MyApplicationsSource {
+/// Marker for transports that send the exact versioned Offer identity.
+/// Wrappers with additional acceptance side effects must opt in explicitly.
+abstract interface class ExactVersionCompensationOfferSource {
+  Future<void> acceptCompensationOffer(
+    String applicationId,
+    String offerId,
+    int offerVersion,
+  );
+}
+
+class SupabaseMyApplicationsSource
+    implements MyApplicationsSource, ExactVersionCompensationOfferSource {
   SupabaseMyApplicationsSource(this.client);
   final SupabaseClient client;
   @override
@@ -107,6 +126,18 @@ class SupabaseMyApplicationsSource implements MyApplicationsSource {
     )) {
       throw StateError('This application action is unavailable.');
     }
+    if (action == ApplicationResponseAction.acceptOffer.wireName) {
+      final actor = userId;
+      final versionedOffer = await currentCompensationOffer(applicationId);
+      if (userId != actor) {
+        throw StateError('Your session changed. Refresh the application.');
+      }
+      if (versionedOffer != null) {
+        throw StateError(
+          'Accept this Offer using its exact displayed version.',
+        );
+      }
+    }
     final result = await client.rpc(
       'respond_to_job_application',
       params: {'p_application_id': applicationId, 'p_action': action},
@@ -115,6 +146,45 @@ class SupabaseMyApplicationsSource implements MyApplicationsSource {
       throw const FormatException('Invalid application response.');
     }
     return result;
+  }
+
+  @override
+  Future<Map<String, dynamic>?> currentCompensationOffer(
+    String applicationId,
+  ) async {
+    final result = await client.rpc(
+      'get_my_current_application_compensation_offer_v1',
+      params: {'p_application_id': applicationId},
+    );
+    if (result == null) return null;
+    if (result is! Map) {
+      throw const FormatException('Invalid compensation offer response.');
+    }
+    return Map<String, dynamic>.from(result);
+  }
+
+  @override
+  Future<void> acceptCompensationOffer(
+    String applicationId,
+    String offerId,
+    int offerVersion,
+  ) async {
+    final result = await client.rpc(
+      'accept_application_compensation_offer_v1',
+      params: {
+        'p_application_id': applicationId,
+        'p_offer_id': offerId,
+        'p_offer_version': offerVersion,
+      },
+    );
+    if (result is! Map ||
+        result['application_id'] != applicationId ||
+        result['offer_id'] != offerId ||
+        result['offer_version'] != offerVersion ||
+        result['status'] != 'hired' ||
+        result['accepted'] != true) {
+      throw const FormatException('Invalid compensation acceptance response.');
+    }
   }
 
   @override
@@ -169,8 +239,11 @@ class ApplicationHistoryEvent {
 /// Per-route details: ownership is established from the seeker's RPC list before
 /// requesting history, including on direct URLs and after an account switch.
 class MyApplicationDetailsRepository extends ChangeNotifier {
-  MyApplicationDetailsRepository(this.source, this.applicationId)
-    : _actor = source.userId {
+  MyApplicationDetailsRepository(
+    this.source,
+    this.applicationId, {
+    this.compensationOffersEnabled = p03CompensationOffersEnabled,
+  }) : _actor = source.userId {
     _subscription = source.accountChanges.listen((id) {
       if (id == _actor) return;
       _clear();
@@ -178,6 +251,7 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
     });
   }
   final MyApplicationsSource source;
+  final bool compensationOffersEnabled;
   final String applicationId;
   late final StreamSubscription<String?> _subscription;
   String? _actor;
@@ -186,6 +260,17 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
   bool loading = true, historyLoading = false;
   bool responding = false;
   String? responseError;
+  bool offerLoading = false;
+  String? offerError;
+  CompensationOffer? _compensationOffer;
+  CompensationOffer? get compensationOffer =>
+      source.userId == _actor ? _compensationOffer : null;
+  bool get canAcceptOffer =>
+      !offerLoading &&
+      offerError == null &&
+      (compensationOffer == null ||
+          compensationOffersEnabled &&
+              source is ExactVersionCompensationOfferSource);
   int _sessionVersion = 0;
   int get sessionVersion => _sessionVersion;
 
@@ -215,6 +300,9 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
     _actor = source.userId;
     _application = null;
     _history = [];
+    _compensationOffer = null;
+    offerLoading = false;
+    offerError = null;
     loading = false;
     historyLoading = false;
     historyError = null;
@@ -234,6 +322,9 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
     final actor = _actor;
     _application = null;
     _history = [];
+    _compensationOffer = null;
+    offerLoading = false;
+    offerError = null;
     loading = true;
     historyLoading = false;
     error = null;
@@ -248,13 +339,57 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
           .firstOrNull;
       _application = row == null ? null : MyJobApplication(row);
       loading = false;
-      notifyListeners();
+      await loadCompensationOffer();
       if (_application != null) await loadHistory();
     } catch (_) {
       if (!_current(generation, actor)) return;
       loading = false;
       error = 'Unable to load this application. Please retry.';
       notifyListeners();
+    }
+  }
+
+  Future<void> loadCompensationOffer() async {
+    if (_disposed) return;
+    final selected = application;
+    _compensationOffer = null;
+    offerError = null;
+    // Pending offers still need classification when versioned actions are off.
+    if (selected?.status != MyApplicationStatus.offered &&
+        !(compensationOffersEnabled &&
+            selected?.status == MyApplicationStatus.hired)) {
+      offerLoading = false;
+      notifyListeners();
+      return;
+    }
+    final status = selected!.status;
+    final generation = _generation, actor = _actor;
+    offerLoading = true;
+    notifyListeners();
+    try {
+      final row = await source.currentCompensationOffer(applicationId);
+      if (!_current(generation, actor)) return;
+      if (row != null) {
+        final offer = CompensationOffer.fromJson(row);
+        if (offer.applicationId != applicationId ||
+            status == MyApplicationStatus.offered &&
+                (!offer.isCurrent || offer.isAccepted) ||
+            status == MyApplicationStatus.hired && !offer.isAccepted) {
+          throw const FormatException(
+            'Offer does not match this application state.',
+          );
+        }
+        _compensationOffer = offer;
+      }
+    } catch (_) {
+      if (!_current(generation, actor)) return;
+      offerError =
+          'Unable to verify the current Offer. Refresh before responding.';
+    } finally {
+      if (_current(generation, actor)) {
+        offerLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -266,6 +401,7 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
     if (!currentSession(version) ||
         responding ||
         loading ||
+        choice == ApplicationResponseAction.acceptOffer && !canAcceptOffer ||
         application?.id != selected.id ||
         application?.status != selected.status ||
         choice == null ||
@@ -279,7 +415,24 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
     try {
       // Display status from the subsequent owned application read; the RPC
       // contract does not prescribe the contents of its text acknowledgement.
-      await source.respond(applicationId, action);
+      if (choice == ApplicationResponseAction.acceptOffer &&
+          compensationOffersEnabled &&
+          _compensationOffer != null) {
+        if (source is! ExactVersionCompensationOfferSource) {
+          throw StateError(
+            'Exact-version acceptance is unavailable with this hiring workflow.',
+          );
+        }
+        final offer = _compensationOffer!;
+        await (source as ExactVersionCompensationOfferSource)
+            .acceptCompensationOffer(
+              applicationId,
+              offer.offerId,
+              offer.version,
+            );
+      } else {
+        await source.respond(applicationId, action);
+      }
     } catch (error) {
       failure = error;
     }

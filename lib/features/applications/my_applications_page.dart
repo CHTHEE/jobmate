@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/expandable_filter_bar.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import '../jobs/job_display.dart';
 import '../chat/chat_application_button.dart';
 import 'module2_widgets.dart';
@@ -72,7 +74,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
           ),
         ],
         child: WorkspaceContent(
-          maxWidth: 880,
+          maxWidth: double.infinity,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -101,63 +103,50 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                       .length,
                 ),
                 const SizedBox(height: 16),
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          children: [
-                            for (final value in ['All', 'Active', 'Completed'])
-                              ChoiceChip(
-                                label: Text(value),
-                                selected: tab == value,
-                                onSelected: (_) => setState(() => tab = value),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: search,
-                          onChanged: (_) => setState(() {}),
-                          decoration: const InputDecoration(
-                            labelText: 'Search job or company',
-                            prefixIcon: Icon(Icons.search),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 16,
-                          children: [
-                            ModuleSelect(
-                              label: 'Application status',
-                              value: status,
-                              options: {
-                                '': 'All statuses',
-                                for (final s in MyApplicationStatus.values)
-                                  s.name: s.label,
-                              },
-                              onChanged: (v) => setState(() => status = v),
-                            ),
-                            ModuleSelect(
-                              label: 'Sort',
-                              value: sort,
-                              options: {'Newest': 'Newest', 'Oldest': 'Oldest'},
-                              onChanged: (v) => setState(() => sort = v),
-                            ),
-                            TextButton(
-                              onPressed: clear,
-                              child: const Text('Clear filters'),
-                            ),
-                          ],
-                        ),
-                      ],
+                ExpandableFilterBar(
+                  search: TextField(
+                    controller: search,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Search job or company',
+                      prefixIcon: Icon(Icons.search),
                     ),
                   ),
+                  activeCount: [
+                    tab != 'All',
+                    status.isNotEmpty,
+                    sort != 'Newest',
+                  ].where((value) => value).length,
+                  onClear: clear,
+                  filters: [
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final value in ['All', 'Active', 'Completed'])
+                          ChoiceChip(
+                            label: Text(value),
+                            selected: tab == value,
+                            onSelected: (_) => setState(() => tab = value),
+                          ),
+                      ],
+                    ),
+                    ModuleSelect(
+                      label: 'Application status',
+                      value: status,
+                      options: {
+                        '': 'All statuses',
+                        for (final s in MyApplicationStatus.values)
+                          s.name: s.label,
+                      },
+                      onChanged: (v) => setState(() => status = v),
+                    ),
+                    ModuleSelect(
+                      label: 'Sort',
+                      value: sort,
+                      options: {'Newest': 'Newest', 'Oldest': 'Oldest'},
+                      onChanged: (v) => setState(() => sort = v),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 Wrap(
@@ -192,20 +181,24 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                         ? 'Browse Jobs'
                         : 'Clear filters',
                   ),
-                for (final application in rows)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: _ApplicationCard(
-                      key: ValueKey(application.id),
-                      application: application,
-                      onApplication: () => navigate(
-                        '${AppRoutes.applications}/${application.id}',
+                ResponsiveGrid(
+                  minItemWidth: 390,
+                  maxColumns: 3,
+                  equalRowHeight: true,
+                  children: [
+                    for (final application in rows)
+                      _ApplicationCard(
+                        key: ValueKey(application.id),
+                        application: application,
+                        onApplication: () => navigate(
+                          '${AppRoutes.applications}/${application.id}',
+                        ),
+                        onJob: () => navigate(
+                          '${AppRoutes.browseJobs}/${application.jobId}',
+                        ),
                       ),
-                      onJob: () => navigate(
-                        '${AppRoutes.browseJobs}/${application.jobId}',
-                      ),
-                    ),
-                  ),
+                  ],
+                ),
               ],
             ],
           ),
@@ -388,6 +381,7 @@ class _ApplicationCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(

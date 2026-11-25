@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/navigation/workspace_destinations.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/expandable_filter_bar.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import 'job_moderation_gateway.dart';
@@ -165,12 +166,10 @@ class _JobModerationPageState extends State<JobModerationPage> {
         ),
         _integrationNotice(),
         const SizedBox(height: 16),
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 12,
-          runSpacing: 12,
-          children: [
+        ExpandableFilterBar(
+          activeCount: _filter == null ? 0 : 1,
+          onClear: _loading ? null : () => _changeFilter(null),
+          filters: [
             ResponsiveFilter(
               width: 240,
               child: DropdownButtonFormField<String?>(
@@ -199,12 +198,15 @@ class _JobModerationPageState extends State<JobModerationPage> {
                 onChanged: _loading ? null : _changeFilter,
               ),
             ),
-            TextButton.icon(
-              onPressed: _loading ? null : _load,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Refresh'),
-            ),
           ],
+        ),
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: TextButton.icon(
+            onPressed: _loading ? null : _load,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Refresh'),
+          ),
         ),
         if (_error != null) _errorPanel(),
         if (_jobs.isEmpty && !_loading && _error == null)

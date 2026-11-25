@@ -8,6 +8,14 @@ import 'package:jobmate/features/jobs/job_preview.dart';
 import 'job_postings_test.dart'
     show TestJobs, completeJob, field, inputLabel, testRouter;
 
+Finder selectField(String label) => find.descendant(
+  of: find.ancestor(
+    of: find.text('$label *', findRichText: true),
+    matching: find.byType(JobLabeledField),
+  ),
+  matching: find.byType(DropdownButton<String>),
+);
+
 void main() {
   Future<void> tap(WidgetTester tester, Finder finder) async {
     await tester.ensureVisible(finder);
@@ -21,7 +29,7 @@ void main() {
   );
 
   testWidgets(
-    'external labels and real verification; employment chips persist incomplete draft',
+    'external labels and real verification; employment dropdown persists incomplete draft',
     (tester) async {
       final repo = TestJobs()
         ..access = const JobAccess({
@@ -41,22 +49,25 @@ void main() {
         isNull,
       );
       expect(find.text('Job title *', findRichText: true), findsOneWidget);
-      for (final label in [
-        'Full-time',
-        'Part-time',
-        'Contract',
-        'Internship',
-        'Temporary',
-      ]) {
-        expect(find.widgetWithText(ChoiceChip, label), findsOneWidget);
-      }
-      field(tester, 'Job title').text = 'An incomplete internship draft';
-      await tap(tester, find.widgetWithText(ChoiceChip, 'Internship'));
+      final employment = selectField('Employment type');
       expect(
         tester
-            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Internship'))
-            .selected,
-        isTrue,
+            .widget<DropdownButton<String>>(employment)
+            .items!
+            .map((item) => (item.child as Text).data),
+        ['Full-time', 'Part-time', 'Contract', 'Internship', 'Temporary'],
+      );
+      field(tester, 'Job title').text = 'An incomplete internship draft';
+      await tap(tester, employment);
+      await tap(
+        tester,
+        find.widgetWithText(DropdownMenuItem<String>, 'Internship').last,
+      );
+      expect(
+        tester
+            .widget<DropdownButton<String>>(selectField('Employment type'))
+            .value,
+        'internship',
       );
       await tap(tester, find.text('Save Draft'));
       expect(repo.saved?['employment_type'], 'internship');
@@ -90,13 +101,7 @@ void main() {
         find.text('Salary preview: RM 1,500–1,600 / month'),
         findsOneWidget,
       );
-      await tap(
-        tester,
-        find.descendant(
-          of: find.byType(DropdownButtonFormField<String>).first,
-          matching: find.byType(DropdownButton<String>),
-        ),
-      );
+      await tap(tester, selectField('Salary period'));
       await tap(tester, find.text('Hourly').last);
       expect(
         find.text('Salary preview: RM 1,500–1,600 / hour'),
@@ -114,7 +119,10 @@ void main() {
         matching: find.byType(JobFormSection),
       );
       expect(
-        find.descendant(of: vacancies, matching: find.text('Compensation')),
+        find.descendant(
+          of: vacancies,
+          matching: find.text('Schedule & Location'),
+        ),
         findsOneWidget,
       );
     },
@@ -141,22 +149,22 @@ void main() {
       expect(field(tester, 'Job title').text, 'Complete role');
       expect(
         tester
-            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Internship'))
-            .selected,
-        isTrue,
+            .widget<DropdownButton<String>>(selectField('Employment type'))
+            .value,
+        'internship',
       );
       expect(find.text('Save Draft'), findsNothing);
       expect(find.text('Publish Job'), findsNothing);
       expect(find.text('Save Changes'), findsOneWidget);
       expect(
-        find.text('Review your posting and use Save Changes to update it.'),
+        find.text('Preview your edits, then choose Save Changes.'),
         findsOneWidget,
       );
       field(tester, 'Job title').text = 'Unsaved changed title';
       field(tester, 'Original description').text =
           'Original text remains distinct from generated details.';
       await tap(tester, find.byType(SwitchListTile));
-      await tap(tester, find.text('Preview'));
+      await tap(tester, find.text('Preview unsaved changes'));
       final preview = find.byType(JobPreview);
       expect(
         find.descendant(
@@ -256,7 +264,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: 'form width $width');
-        await tap(tester, find.text('Preview'));
+        await tap(tester, find.text('Preview unsaved changes'));
         expect(find.byType(JobPreview), findsOneWidget);
         final scrollbar = tester.widget<Scrollbar>(
           find.descendant(

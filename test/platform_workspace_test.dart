@@ -163,7 +163,7 @@ void main() {
         .expand((items) => items);
     expect(
       selectedWorkspacePath('/job-postings/create?status=draft', all),
-      AppRoutes.createJob,
+      AppRoutes.jobPostings,
     );
     expect(
       selectedWorkspacePath('/job-postings/abc/edit', all),

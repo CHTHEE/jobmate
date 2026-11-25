@@ -12,6 +12,8 @@ import 'package:jobmate/shared/widgets/app_workspace.dart';
 import 'package:jobmate/shared/widgets/design_primitives.dart';
 import 'package:jobmate/features/jobs/job_postings_page.dart';
 import 'package:jobmate/features/jobs/job_form_page.dart';
+import 'package:jobmate/features/jobs/job_form_route.dart';
+import 'package:jobmate/features/jobs/job_preview.dart';
 import 'package:jobmate/features/home/dashboard_content.dart';
 
 import 'job_postings_test.dart' as fixtures;
@@ -124,7 +126,11 @@ void main() {
           ),
         };
         final router = GoRouter(
-          routes: [GoRoute(path: '/', builder: (_, _) => root)],
+          routes: [
+            GoRoute(path: '/', builder: (_, _) => root),
+            if (screen == 'jobs')
+              jobFormRoute('/job-postings/:jobId/edit', repository: repo),
+          ],
         );
         addTearDown(router.dispose);
         await tester.pumpWidget(
@@ -143,7 +149,8 @@ void main() {
           find.byType(WorkspaceContent),
         );
         expect(content.maxWidth, switch (screen) {
-          'jobs' || 'create' => 880,
+          'jobs' => double.infinity,
+          'create' => 880,
           'employer-home' => 768,
           _ => 672,
         });
@@ -198,9 +205,15 @@ void main() {
           );
         }
         if (screen == 'jobs') {
-          await tester.ensureVisible(find.text('Preview').first);
-          await tester.tap(find.text('Preview').first);
+          final edit = find.widgetWithText(OutlinedButton, 'Edit').first;
+          await tester.ensureVisible(edit);
+          await tester.tap(edit);
           await tester.pumpAndSettle();
+          final preview = find.text('Preview unsaved changes');
+          await tester.ensureVisible(preview);
+          await tester.tap(preview);
+          await tester.pumpAndSettle();
+          expect(find.byType(JobPreview), findsOneWidget);
           await capture(tester, key, 'preview-${width.toInt()}');
         }
         await tester.pumpWidget(const SizedBox());

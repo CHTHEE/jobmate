@@ -69,7 +69,7 @@ class PageHeading extends StatelessWidget {
   final double fontSize;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 20),
+    padding: const EdgeInsets.only(bottom: 16),
     child: LayoutBuilder(
       builder: (context, box) {
         final heading = Column(
@@ -101,28 +101,30 @@ class PageHeading extends StatelessWidget {
             ],
           ],
         );
-        if (ResponsiveLayout.isCompactWidth(box.maxWidth)) {
+        if (actions.isEmpty) return heading;
+        final actionGroup = Wrap(
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: ResponsiveLayout.actionGap,
+          runSpacing: ResponsiveLayout.actionGap,
+          children: actions,
+        );
+        final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+        if (box.maxWidth < ResponsiveLayout.compactBreakpoint * textScale) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              heading,
-              if (actions.isNotEmpty) ...[
-                const SizedBox(height: 20),
-                Wrap(spacing: 12, runSpacing: 12, children: actions),
-              ],
-            ],
+            children: [heading, const SizedBox(height: 12), actionGroup],
           );
         }
         return Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(child: heading),
-            if (actions.isNotEmpty) ...[
-              const SizedBox(width: 24),
-              Flexible(
-                child: Wrap(spacing: 12, runSpacing: 12, children: actions),
-              ),
-            ],
+            const SizedBox(width: 24),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: box.maxWidth * .55),
+              child: actionGroup,
+            ),
           ],
         );
       },
@@ -216,8 +218,12 @@ class StatGrid extends StatelessWidget {
   const StatGrid({super.key, required this.children});
   final List<Widget> children;
   @override
-  Widget build(BuildContext context) =>
-      ResponsiveGrid(minItemWidth: 140, maxColumns: 4, children: children);
+  Widget build(BuildContext context) => ResponsiveGrid(
+    minItemWidth: 140,
+    maxColumns: 4,
+    equalRowHeight: true,
+    children: children,
+  );
 }
 
 class BrandPanel extends StatelessWidget {

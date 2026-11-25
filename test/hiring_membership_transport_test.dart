@@ -12,6 +12,7 @@ void main() {
   late SupabaseAtomicHiringMembershipGateway gateway;
   late List<(String, dynamic)> requests;
   late Object? response;
+  Object? currentOffer;
   late int status;
   late Completer<void> received;
   Completer<void>? hold;
@@ -27,6 +28,7 @@ void main() {
   setUp(() async {
     requests = [];
     response = 'hired';
+    currentOffer = null;
     status = 200;
     received = Completer<void>();
     hold = null;
@@ -43,7 +45,15 @@ void main() {
       request.response
         ..statusCode = status
         ..headers.contentType = ContentType.json
-        ..write(jsonEncode(response));
+        ..write(
+          jsonEncode(
+            request.uri.path.endsWith(
+                  '/get_my_current_application_compensation_offer_v1',
+                )
+                ? currentOffer
+                : response,
+          ),
+        );
       await request.response.close();
     });
     client = SupabaseClient(
@@ -118,20 +128,43 @@ void main() {
     );
   });
 
+  test('approved composition checks for a versioned offer before one legacy acceptance', () async {
+    await signIn('worker-a');
+    final source = HiringMembershipApplicationsSource.forApprovedBackend(
+      client,
+    );
+    expect(source.userId, gateway.userId);
+    expect(await source.respond('application-a', 'accept_offer'), 'hired');
+    expect(requests.map((request) => [request.$1, request.$2]), [
+      [
+        '/rest/v1/rpc/get_my_current_application_compensation_offer_v1',
+        {'p_application_id': 'application-a'},
+      ],
+      [
+        '/rest/v1/rpc/respond_to_job_application',
+        {'p_application_id': 'application-a', 'p_action': 'accept_offer'},
+      ],
+    ]);
+  });
+
   test(
-    'approved composition shares the client and makes one acceptance call',
+    'approved composition refuses legacy acceptance of a versioned offer',
     () async {
       await signIn('worker-a');
+      currentOffer = {'offer_version': 2};
       final source = HiringMembershipApplicationsSource.forApprovedBackend(
         client,
       );
-      expect(source.userId, gateway.userId);
-      expect(await source.respond('application-a', 'accept_offer'), 'hired');
-      expect(requests, hasLength(1));
-      expect(requests.single.$2, {
-        'p_application_id': 'application-a',
-        'p_action': 'accept_offer',
-      });
+      await expectLater(
+        source.respond('application-a', 'accept_offer'),
+        throwsStateError,
+      );
+      expect(requests.map((request) => [request.$1, request.$2]), [
+        [
+          '/rest/v1/rpc/get_my_current_application_compensation_offer_v1',
+          {'p_application_id': 'application-a'},
+        ],
+      ]);
     },
   );
 

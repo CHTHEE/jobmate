@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jobmate/features/jobs/employer_job_card.dart';
+import 'package:jobmate/features/jobs/job_form_route.dart';
+import 'package:jobmate/features/jobs/job_form_page.dart';
 import 'package:jobmate/features/jobs/job_postings_page.dart';
 import 'package:jobmate/features/jobs/job_preview.dart';
 import 'package:jobmate/shared/theme/jobmate_theme.dart';
 
-import 'job_postings_test.dart' show TestJobs, completeJob;
+import 'job_postings_test.dart' show TestJobs, completeJob, openPostingFilters;
 
 Map<String, dynamic> posting(String id, String status) => {
   ...completeJob(),
@@ -53,6 +55,7 @@ void main() {
         MaterialApp(home: JobPostingsPage(repository: repo)),
       );
       await tester.pumpAndSettle();
+      await openPostingFilters(tester);
       expect(
         tester
             .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'All (3)'))
@@ -115,6 +118,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await openPostingFilters(tester);
       expect(
         tester
             .widget<ChoiceChip>(
@@ -182,15 +186,7 @@ void main() {
               ),
             ),
           ),
-          GoRoute(
-            path: '/job-postings/:id/edit',
-            builder: (context, state) => Scaffold(
-              body: TextButton(
-                onPressed: () => context.pop('published'),
-                child: Text('Edit ${state.pathParameters['id']}'),
-              ),
-            ),
-          ),
+          jobFormRoute('/job-postings/:jobId/edit', repository: repo),
           GoRoute(
             path: '/job-postings/create',
             builder: (_, _) => const Scaffold(body: Text('Create destination')),
@@ -209,22 +205,15 @@ void main() {
       await tester.ensureVisible(find.text('Edit'));
       await tester.tap(find.text('Edit'));
       await tester.pumpAndSettle();
-      expect(find.text('Edit live'), findsOneWidget);
-      await tester.tap(find.text('Edit live'));
-      await tester.pumpAndSettle();
       expect(
-        tester
-            .widget<ChoiceChip>(
-              find.widgetWithText(ChoiceChip, 'Published (1)'),
-            )
-            .selected,
-        isTrue,
+        tester.widget<JobFormPage>(find.byType(JobFormPage)).jobId,
+        'live',
       );
-      await tester.ensureVisible(find.text('Preview'));
-      await tester.tap(find.text('Preview'));
+      await tester.ensureVisible(find.text('Preview unsaved changes'));
+      await tester.tap(find.text('Preview unsaved changes'));
       await tester.pumpAndSettle();
       expect(find.byType(JobPreview), findsOneWidget);
-      router.pop();
+      await tester.tap(find.byTooltip('Close preview'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Close Job'));
       await tester.tap(find.text('Close Job'));
@@ -233,9 +222,11 @@ void main() {
         find.text('Closed jobs cannot be edited or reopened.'),
         findsOneWidget,
       );
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Keep Job Open'));
       await tester.pumpAndSettle();
       expect(repo.records.single['status'], 'published');
+      await tester.tap(find.byTooltip('Close job form'));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Post Job'));
       await tester.tap(find.text('Post Job'));
       await tester.pumpAndSettle();
@@ -263,55 +254,32 @@ void main() {
                   },
                   busy: false,
                   onEdit: () => calls.add('edit'),
-                  onPreview: () => calls.add('preview'),
-                  onPublish: () => calls.add('publish'),
-                  onClose: () => calls.add('close'),
                   onApplicants: () => calls.add('applicants'),
                 ),
               ),
             ),
           ),
         );
-        expect(find.text(postingStatusLabel(status)), findsOneWidget);
+        expect(
+          find.text(postingStatusLabel(status)),
+          status == 'published' ? findsNothing : findsOneWidget,
+        );
         expect(find.text('RM 1,500–1,600 / month'), findsOneWidget);
         expect(find.text('Deadline: 15 Nov 2020'), findsOneWidget);
         expect(
           find.text('Application deadline has passed.'),
           status == 'published' ? findsOneWidget : findsNothing,
         );
-        expect(
-          find.text('Publish'),
-          status == 'draft' ? findsOneWidget : findsNothing,
-        );
-        expect(
-          find.text('Close Job'),
-          status == 'published' ? findsOneWidget : findsNothing,
-        );
-        expect(
-          find.text('Edit'),
-          status == 'published' ? findsOneWidget : findsNothing,
-        );
-        expect(
-          find.text('Edit Draft'),
-          status == 'draft' ? findsOneWidget : findsNothing,
-        );
         for (final label in [
           'View Applicants',
-          'Preview',
-          if (status == 'draft') 'Publish',
-          if (status == 'draft') 'Edit Draft',
-          if (status == 'published') 'Edit',
-          if (status == 'published') 'Close Job',
+          status == 'closed' ? 'View' : 'Edit',
         ]) {
           await tester.ensureVisible(find.text(label));
           await tester.tap(find.text(label));
         }
       }
       expect(calls.where((value) => value == 'applicants').length, 3);
-      expect(calls.where((value) => value == 'preview').length, 3);
-      expect(calls.where((value) => value == 'edit').length, 2);
-      expect(calls.where((value) => value == 'publish').length, 1);
-      expect(calls.where((value) => value == 'close').length, 1);
+      expect(calls.where((value) => value == 'edit').length, 3);
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -323,9 +291,6 @@ void main() {
               },
               busy: true,
               onEdit: () {},
-              onPreview: () {},
-              onPublish: () {},
-              onClose: () {},
               onApplicants: () {},
             ),
           ),
@@ -382,7 +347,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.byType(EmployerJobCard), findsNWidgets(3));
-        await tester.ensureVisible(find.text('Preview').last);
+        await tester.ensureVisible(find.text('View Applicants').last);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: 'width $width');
       }
