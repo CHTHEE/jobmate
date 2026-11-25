@@ -36,9 +36,16 @@ class JobFacts extends StatelessWidget {
 }
 
 class JobDetailsPage extends StatefulWidget {
-  const JobDetailsPage({super.key, required this.jobId, this.repository});
+  const JobDetailsPage({
+    super.key,
+    required this.jobId,
+    this.repository,
+    this.openApply = false,
+  });
+  static const applyIntent = 'open-job-application';
   final String jobId;
   final Module2Repository? repository;
+  final bool openApply;
   @override
   State<JobDetailsPage> createState() => _JobDetailsPageState();
 }
@@ -51,6 +58,7 @@ class _JobDetailsPageState extends State<JobDetailsPage>
   );
   Listenable? _routerChanges;
   bool _wasCurrent = true, _applying = false;
+  String? _applyRequestActor;
   String? _submittedId, _submittedActor;
 
   Future<void> _reload() async {
@@ -85,6 +93,7 @@ class _JobDetailsPageState extends State<JobDetailsPage>
 
   Future<void> apply(BrowseJob job) async {
     if (_applying ||
+        job.unavailable() != null ||
         applications.loading ||
         !applications.loaded ||
         applications.error != null ||
@@ -140,6 +149,7 @@ class _JobDetailsPageState extends State<JobDetailsPage>
   @override
   void initState() {
     super.initState();
+    if (widget.openApply) _applyRequestActor = repo.source.userId;
     WidgetsBinding.instance.addObserver(this);
     refresh();
   }
@@ -148,6 +158,7 @@ class _JobDetailsPageState extends State<JobDetailsPage>
   void didUpdateWidget(covariant JobDetailsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.jobId != widget.jobId) {
+      _applyRequestActor = widget.openApply ? repo.source.userId : null;
       _submittedId = null;
       refresh();
     }
@@ -178,6 +189,28 @@ class _JobDetailsPageState extends State<JobDetailsPage>
         final checking =
             applications.loading ||
             (!applications.loaded && applications.error == null);
+        final requestedActor = _applyRequestActor;
+        if (requestedActor != null && requestedActor != repo.source.userId) {
+          _applyRequestActor = null;
+        } else if (requestedActor != null &&
+            repo.loaded &&
+            applications.loaded &&
+            requestedActor == applications.source.userId) {
+          _applyRequestActor = null;
+          if (job != null &&
+              applicationId == null &&
+              job.unavailable() == null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted &&
+                  requestedActor == repo.source.userId &&
+                  widget.jobId == job.id &&
+                  identical(repo.job(job.id), job) &&
+                  (ModalRoute.of(context)?.isCurrent ?? true)) {
+                apply(job);
+              }
+            });
+          }
+        }
         return AppWorkspace(
           title: 'Job Details',
           leading: kIsWeb

@@ -143,16 +143,28 @@ class SupabasePublishedJobsSource implements PublishedJobsSource {
       'RPC list_published_jobs project=${Uri.parse(client.rest.url).host}',
     );
     final rpc = client.rpc<List<dynamic>>('list_published_jobs');
+    final ordered = rpc.order('job_id', ascending: true);
     final List<dynamic> rows;
-    int? total;
+    final int total;
     try {
-      final response = await rpc.count(CountOption.exact);
+      final response = await ordered.count(CountOption.exact);
       rows = response.data;
       total = response.count;
     } on TypeError {
       // PostgREST's Dart count parser requires a readable Content-Range total.
       // Keep ordinary browsing available if the header is absent.
       return (rows: _publishedRows(await rpc), total: null);
+    }
+    final complete = _publishedRows(rows);
+    final ids = complete.map((row) => row['job_id']).toSet();
+    while (complete.isNotEmpty && complete.length < total) {
+      final page = _publishedRows(
+        await ordered.range(complete.length, complete.length + 199),
+      );
+      // An empty page or duplicate indicates an incomplete or changing feed.
+      // Keep the rows obtained and let catalogueComplete reflect the gap.
+      if (page.isEmpty || page.any((row) => !ids.add(row['job_id']))) break;
+      complete.addAll(page);
     }
     if (kDebugMode) {
       for (var index = 0; index < rows.length; index++) {
@@ -168,7 +180,7 @@ class SupabasePublishedJobsSource implements PublishedJobsSource {
         );
       }
     }
-    return (rows: _publishedRows(rows), total: total);
+    return (rows: complete, total: total);
   }
 }
 

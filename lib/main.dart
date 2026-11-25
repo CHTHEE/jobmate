@@ -28,6 +28,7 @@ import 'features/applications/job_details_page.dart';
 import 'features/applications/applications_page.dart';
 import 'features/demo_work/phase3_store.dart';
 import 'features/recommendations/recommendations_page.dart';
+import 'features/recommendations/supabase_recommendation_explanation_source.dart';
 import 'features/attendance/attendance_pages.dart';
 import 'features/work_attendance/company_workers_page.dart';
 import 'features/work_attendance/work_attendance_routes.dart';
@@ -93,6 +94,9 @@ Future<void> _initializeApp() async {
 
 GoRouter _createRouter() {
   configureAppNavigation();
+  final buildRecommendations = createRecommendationsDestination(
+    Supabase.instance.client,
+  );
   return GoRouter(
     initialLocation: AppRoutes.home,
     refreshListenable: _authRouterRefresh,
@@ -324,11 +328,7 @@ GoRouter _createRouter() {
         (_, state) =>
             UserReportsPage(reportId: state.pathParameters['reportId']),
       ),
-      _appRoute(
-        AppRoutes.recommendations,
-        (_, _) =>
-            const Module2Gate(role: 'job_seeker', child: RecommendationsPage()),
-      ),
+      _appRoute(AppRoutes.recommendations, (_, _) => buildRecommendations()),
       workAttendanceRoute(history: true),
       workAttendanceRoute(),
       workVerificationRoute(),
@@ -424,7 +424,10 @@ GoRouter _createRouter() {
         '${AppRoutes.browseJobs}/:jobId',
         (_, state) => Module2Gate(
           role: 'job_seeker',
-          child: JobDetailsPage(jobId: state.pathParameters['jobId']!),
+          child: JobDetailsPage(
+            jobId: state.pathParameters['jobId']!,
+            openApply: state.extra == JobDetailsPage.applyIntent,
+          ),
         ),
       ),
       _appRoute(
@@ -552,6 +555,23 @@ GoRouter _createRouter() {
         (context, state) => const NotificationsPage(),
       ),
     ],
+  );
+}
+
+@visibleForTesting
+Widget Function() createRecommendationsDestination(SupabaseClient client) {
+  const enabled = bool.fromEnvironment(
+    'JOBMATE_RECOMMENDATION_AI_NOTES',
+    defaultValue: true,
+  );
+  if (!enabled) {
+    return () =>
+        const Module2Gate(role: 'job_seeker', child: RecommendationsPage());
+  }
+  final source = SupabaseRecommendationExplanationSource(client);
+  return () => Module2Gate(
+    role: 'job_seeker',
+    child: RecommendationsPage(explanationSource: source),
   );
 }
 

@@ -58,7 +58,7 @@ class DashboardActivity extends StatelessWidget {
                   : 'Find work that fits you',
               description: employer
                   ? 'Preview applicant management and worker attendance separately from your real job posting workflow.'
-                  : 'Explore skill-based demo recommendations, discover workplaces and keep your applications together.',
+                  : 'Explore job recommendations, discover workplaces and keep your applications together.',
               icon: employer
                   ? Icons.people_outline
                   : Icons.auto_awesome_outlined,
@@ -75,7 +75,7 @@ class DashboardActivity extends StatelessWidget {
                     child: Text(
                       employer
                           ? 'View Sample Applicants'
-                          : 'Explore For You (demo)',
+                          : 'Explore For You',
                     ),
                   ),
                   OutlinedButton(

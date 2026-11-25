@@ -97,7 +97,10 @@ class SupabaseJobSeekerProfileRepository implements JobSeekerProfileRepository {
   }
 
   @override
-  Future<JobSeekerProfileData> load(String userId) async {
+  Future<JobSeekerProfileData> load(
+    String userId, {
+    bool matchingOnly = false,
+  }) async {
     _checkOwner(userId);
     final profileFuture = client
         .from('job_seeker_profiles')
@@ -109,6 +112,27 @@ class SupabaseJobSeekerProfileRepository implements JobSeekerProfileRepository {
         .select('skill_id,skill_name,proficiency')
         .eq('user_id', userId)
         .order('skill_name');
+    final experienceFuture = client
+        .from('job_seeker_work_experiences')
+        .select(
+          'experience_id,employer_name,job_title,location,started_on,ended_on,'
+          'is_current,description',
+        )
+        .eq('user_id', userId)
+        .order('started_on', ascending: false, nullsFirst: false);
+    if (matchingOnly) {
+      final results = await Future.wait<Object?>([
+        profileFuture,
+        skillsFuture,
+        experienceFuture,
+      ]);
+      _checkOwner(userId);
+      return {
+        'about': [if (results[0] case final Map<String, dynamic> row) row],
+        'skills': _rows(results[1]),
+        'experience': _rows(results[2]),
+      };
+    }
     final certificationsFuture = client
         .from('job_seeker_certifications')
         .select(
@@ -122,14 +146,6 @@ class SupabaseJobSeekerProfileRepository implements JobSeekerProfileRepository {
         .select(
           'education_id,institution,qualification,field_of_study,started_on,'
           'completed_on,is_current,description',
-        )
-        .eq('user_id', userId)
-        .order('started_on', ascending: false, nullsFirst: false);
-    final experienceFuture = client
-        .from('job_seeker_work_experiences')
-        .select(
-          'experience_id,employer_name,job_title,location,started_on,ended_on,'
-          'is_current,description',
         )
         .eq('user_id', userId)
         .order('started_on', ascending: false, nullsFirst: false);

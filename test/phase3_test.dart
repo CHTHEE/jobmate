@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:jobmate/features/recommendations/recommendations_page.dart';
 import 'package:jobmate/features/attendance/attendance_pages.dart';
 import 'package:jobmate/features/location/location_pages.dart';
 import 'package:jobmate/features/demo_work/local_attachment.dart';
@@ -28,7 +27,7 @@ void main() {
         String? destination;
         final entries = role == 'job_seeker'
             ? {
-                'For You (demo)': AppRoutes.recommendations,
+                'For You': AppRoutes.recommendations,
                 'Nearby Jobs': AppRoutes.nearbyJobs,
                 'My Work Shifts': AppRoutes.workAttendance,
                 'Messages': AppRoutes.messages,
@@ -62,23 +61,6 @@ void main() {
       });
     }
   }
-  test(
-    'Recommendations use deterministic sample skills and documented weights',
-    () {
-      final repo = Module2Repository();
-      addTearDown(repo.dispose);
-      final retail = DemoMatch(repo.job('demo-job-1')!);
-      expect(retail.score, 100);
-      expect(retail.label, 'Excellent');
-      expect(retail.missing, isEmpty);
-      final intern = DemoMatch(repo.job('demo-job-2')!);
-      expect(intern.score, 35);
-      expect(intern.label, 'Fair');
-      expect(intern.missing, containsAll(['dart', 'flutter']));
-      expect(DemoMatch(repo.job('demo-job-2')!).score, intern.score);
-      expect(repo.job('demo-job-2')!.fields.containsKey('salary_min'), isFalse);
-    },
-  );
   test(
     'Attendance guards, evidence and employer review share the same records',
     () {
@@ -204,7 +186,6 @@ void main() {
   );
   for (final width in [320.0, 768.0, 1440.0]) {
     for (final page in [
-      'Recommendations',
       'Today',
       'Evidence',
       'History',
@@ -226,7 +207,6 @@ void main() {
         addTearDown(store.dispose);
         addTearDown(jobs.dispose);
         final child = switch (page) {
-          'Recommendations' => RecommendationsPage(repository: jobs),
           'Today' => AttendancePage(store: store),
           'Evidence' => EvidencePage(store: store),
           'History' => AttendanceListPage(store: store),

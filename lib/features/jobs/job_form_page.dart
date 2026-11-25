@@ -62,15 +62,9 @@ class JobFormPageState extends State<JobFormPage> {
       key: TextEditingController(),
   };
   static const options = {
-    'employment_type': [
-      'full_time',
-      'part_time',
-      'contract',
-      'internship',
-      'temporary',
-    ],
+    'employment_type': jobEmploymentTypes,
     'work_arrangement': ['on_site', 'hybrid', 'remote'],
-    'salary_period': ['hourly', 'daily', 'monthly', 'yearly'],
+    'salary_period': jobSalaryPeriods,
   };
   final selected = {
     'employment_type': 'full_time',

@@ -1,3 +1,12 @@
+const jobEmploymentTypes = [
+  'full_time',
+  'part_time',
+  'contract',
+  'internship',
+  'temporary',
+];
+const jobSalaryPeriods = ['hourly', 'daily', 'monthly', 'yearly'];
+
 String jobLabel(String key) =>
     const {
       'title': 'Job title',

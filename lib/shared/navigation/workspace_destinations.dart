@@ -81,7 +81,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
         (AppRoutes.browseJobs, 'Browse Jobs', Icons.search),
         (
           AppRoutes.recommendations,
-          'For You (demo)',
+          'For You',
           Icons.auto_awesome_outlined,
         ),
         (AppRoutes.nearbyJobs, 'Nearby Jobs', Icons.map_outlined),

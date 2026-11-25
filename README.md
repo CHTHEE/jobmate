@@ -1006,16 +1006,14 @@ live Supabase/AI behavior still require separate verification.
 
 ### Phase 3 — Modules 3, 4, 5 and 10
 
-All screens below use **DEMO data only**, except the existing authentication and
-active-role check reused from `Module2Gate`. No new Supabase job/profile reads,
-mutations, uploads, AI calls, GPS calls, notifications or Realtime subscriptions
-are introduced. Existing login, company verification/logo, employer posting and
-Gemini formatting paths remain unchanged. No Dashboard steps are required.
+This table records the original preview routes and their current entry points.
+For You uses the real Phase 1A data flow described below. Demo routes continue
+to use fixture records behind their existing account gates.
 
 | Figma screen | Route / entry | Implemented presentation |
 | --- | --- | --- |
-| JS-05 | `/recommendations` | For You, transparency banner, deterministic match rings/labels, skill overlap/gaps, explanation, city/type/category/minimum-score filters and score/title sorting |
-| JS-06 | Apply on a recommendation | Existing Module 2 responsive Apply form, same saves, application checks and session repository |
+| JS-05 | `/recommendations` | Real For You with estimated fit, matching skills, supported skill gaps, filters and sorting |
+| JS-06 | Apply on a recommendation | Job Details opens the existing responsive Apply form after its application checks |
 | JS-12 | `/attendance` | Sample active assignment, schedule, simulated location check, device clock, elapsed time and check-in/out |
 | JS-13 | Check In / Check Out | Explicit confirmation; duplicate/invalid transitions rejected |
 | JS-14 | `/attendance/evidence` | Required work description and 1–5 local PNG/JPEG/PDF files, picker, thumbnails/metadata preview, removal, draft retention, validation and demo submission |
@@ -1059,16 +1057,33 @@ Report printing opens a local escaped HTML document with print CSS and the
 browser's Print / Save as PDF action; blocked popups can be retried. Native
 printing/PDF export is unavailable and labeled accordingly.
 
-Recommendation scoring is deterministic: 70 × matched sample skills / required
-sample skills, plus 20 for the sample Shah Alam preference, plus 10 for part-time,
-rounded to a whole percentage. Sample skills are communication, willingness to
-learn and retail. Requirements are the demo job's skill-like requirements plus a
-documented category illustration (retail, Dart/Flutter, customer service or event
-setup); this is not an inferred production job-skills contract. Labels consistently
-use Excellent ≥90, Strong ≥75, Good ≥60, otherwise Fair. No protected attributes,
-real profile, work history or actual AI service is involved. Save and Apply reuse
-the Module 2 repository; existing application status mapping remains unchanged.
-No company rating/trust score is invented.
+#### For You Phase 1A
+
+`/recommendations` uses the existing published-job feed, the signed-in seeker's
+profile and caller-scoped application list. It excludes expired and already
+applied jobs. A failed read shows a retry state. Save Job uses the same
+session-only list as Browse Jobs.
+
+For You uses a two-column recommendation grid when the workspace has room
+and a single column on smaller screens. A percentage and progress bar appear
+when the match has enough evidence. Matching skills and the rule-based
+explanation remain visible when optional AI insights are unavailable.
+**Load AI insights** makes one explicit request per page visit.
+Supported guidance appears in a separate callout on each job card.
+
+Estimated Match uses 50% skill overlap, 30% headline, bio and work-experience
+keyword overlap, 10% selected employment type and 10% selected location.
+Available category weights are normalized to 100%. A score requires two
+comparable explicit skills, or a comparable posting overview and background
+with an independent skill or preference signal. Skills are
+compared using normalized whole phrases. Skill gaps use explicitly labeled
+skill lists in posting requirements. Profile proficiency is loaded but carries
+no weight because postings lack a comparable proficiency scale. The estimate
+describes fit. Salary comparison uses the disclosed minimum within the selected
+pay period. Preferences and recommendations are computed on demand.
+
+Phase 1A uses Flutter and the existing Supabase read contracts. Phase 1B
+verifies runtime behavior in Shared before Gemini explanations are added.
 
 Chat is between fictional role personas, not signed-in accounts. Enter sends and
 Shift+Enter inserts a newline; an explicit Send button supports touch. Attachment
@@ -1093,16 +1108,316 @@ fake online/GPS/legal-verification claims and reputation scores are omitted.
 Real feature logic takes precedence over prototype simulation. Existing fallback
 fonts and teal/slate/white Material styling are reused without dependencies.
 
-#### FUTURE BACKEND INTEGRATION — Module 3
+#### AI recommendation insights
 
-Needs agreed logical storage/contracts for recommendation runs, per-job scores,
-input snapshots, explanations and skill gaps; candidate-owned access and safe
-published-job reads with server-enforced salary privacy. Decide profile/skills
-consent, retention, model/provider, versioning, bias evaluation, cost/rate limits
-and fallback ranking. A separate authorized server-side recommendation service or
-Edge Function may call an approved AI provider. It must not repurpose or change
-the working `format-job-description` Gemini contract. No new secrets or endpoints
-are configured here; physical table/function names require schema review.
+`JOBMATE_RECOMMENDATION_AI_NOTES` defaults to `true` in Flutter. Run
+`flutter run -d chrome` to show **Load AI insights** for eligible results on
+For You. Flutter requests insights only when the Job Seeker clicks the button.
+To hide the control and disable requests from the app, run
+`flutter run -d chrome --dart-define=JOBMATE_RECOMMENDATION_AI_NOTES=false`.
+The `recommendation-insights` Gemini provider is disabled by default on the
+server and its tests use mocked HTTP.
+Run them with
+`node --test --test-isolation=none supabase/functions/recommendation-insights/index.test.mjs`.
+
+The adapter sends `{"job_ids":[...],"insights_version":1}` with one to five
+job IDs to JobMate's Edge Function. The handler verifies the bearer and
+active Job Seeker role, then checks the caller's published feed and application
+list. Filtered RPC responses need an exact count so incomplete reads fail
+closed. The closing date remains inclusive, using Kuala Lumpur time on the
+server. Gemini receives only request-local aliases, allowlisted public employment
+types and work arrangements, plus the fixed `insights-v1` instructions,
+hypothetical scenarios and template catalog. Every job receives the same
+three hypothetical scenarios. Real IDs, scores, skills, profile and preference
+evidence, application history, and raw job text stay inside JobMate.
+
+Gemini returns `{"insights":[...]}` with one row per alias. Each row contains
+`job_id` and `strong`, `partial`, and `limited` choices with `why`,
+`consider`, and `next` template IDs. The ID `"0"` omits a section. Edge maps
+aliases back to JobMate job IDs and adds `insights_version: 1`. Flutter checks
+the version, plan, and each template's local evidence before rendering. Its
+presentation bands are strong at 70% or above, partial for any lower numeric
+score including 0%, and limited only for a null score. The scoring formula
+and ranking remain unchanged.
+
+The team confirmed the live `recommendation-insights-v1` baseline in Shared on
+24 November 2026. The browser received OPTIONS 204 and POST 200 with an upstream
+processing time of 2,006 ms. For You showed **AI insights loaded** and personalized
+sections, with the estimated match, skill chips and existing job actions still
+available.
+
+The team also confirmed Phase 3C wording in Chrome on 24 November 2026. The
+`recommendation-insights` function returned OPTIONS 204 and POST 200, with a
+2.40-second POST in Chrome. The Software Developer Intern card at BCD123 showed
+the 32% estimated match, Git and JavaScript overlap, and the matched Full-time
+preference. It displayed all three insight sections, including the local project
+tip labelled **JobMate suggestion**. This acceptance covers that Chrome scenario.
+
+Phase 3D uses a mint callout with icons, structured evidence emphasis and a
+quieter deterministic explanation when scored AI insights are visible. The
+visual checks use mocked data; Android device acceptance is pending.
+
+Phase 3E separates **Your job matches** (including a genuine 0% match) from
+**Other opportunities to explore**. Both Browse Jobs and For You use the same
+caller-scoped published feed. For You additionally excludes jobs with a past or
+missing deadline and jobs in the seeker's loaded application history. Browse Jobs
+can show expired listings as unavailable. Publication, company and moderation
+visibility depend on the feed RPC. The client follows up when a readable exact
+total shows more published rows exist. A missing count, an internal RPC limit,
+or limits on the unfiltered application-history read still need Shared evidence
+to confirm completeness. The prior six Shared checks covered filtered fixtures.
+
+Employment filters use Full-time, Part-time, Contract, Internship and Temporary.
+Salary periods use Hourly, Daily, Monthly and Yearly. Any period includes jobs
+with undisclosed pay; a selected period requires disclosed pay in that period.
+Location uses the exact published label, so `Selangor` and `Serdang, Selangor`
+are separate options. Any match includes unscored jobs; 25%, 50%, 70% and 90%
+thresholds require a computed score. Best Match uses score, newest publication
+and job ID; Newest and unscored results use publication date and job ID.
+The location and employment dropdowns also feed the existing 10-point preference
+comparisons. They affect the weighted average alongside comparable skills (50)
+and background keywords (30). Only comparable components contribute to the
+denominator, and the result rounds to a whole percentage. The observed 9% to
+32% change is consistent with background-only scoring corroborated by prose
+skills, plus the full 10-point employment match once selected. The exact input
+counts for that live fixture were not recorded. Saved preference inputs separate
+from visibility filters would require separate approval because the score
+behaviour would change.
+
+Phase 3I adds **How is my match calculated?** above the For You filters. The
+panel starts collapsed and explains the base weights, normalization over
+comparable factors, limited evidence and ways to keep profile details current.
+Opening or closing it keeps the selected filters, scores and loaded AI guidance
+in place. For manual acceptance, open For You in Chrome and on Android, expand
+and collapse the panel, and repeat after setting a salary period and loading
+AI insights. Confirm that the minimum pay field and results are preserved and
+the toggle sends no new insight request. Check wrapping with larger text on
+Android and at narrow Chrome widths.
+
+The For You page explains the optional **Load AI insights** action below the
+filters. One successful request per page visit covers up to five visible scored
+jobs with supported posting facts. The success notice explains that filters do
+not require reloading insights for covered jobs. Cached plans are rendered with
+current match evidence, and newly revealed uncovered jobs keep their normal
+cards. Temporary failures retain the existing notice and offer manual retry after a 30-second
+account cooldown, which also applies when leaving and reopening For You. The
+deployed endpoint sends no `Retry-After`, and the Flutter SDK does not expose it.
+The client keeps deterministic results visible for unavailable or invalid responses.
+The team confirmed the Phase 3E sections, canonical filters, filtered empty
+state, reset, 9% to 32% preference change, fallback and retry countdown in
+Chrome. A later one-job POST returned 504 after about 5.49 seconds. The manual
+retry returned 502 with `provider_unavailable` from `recommendation-insights-v1`
+and 3,403 ms upstream service time. That category does not identify which
+provider call or validation step failed. An RPC error or invalid exact count
+returns 503 unless the handler deadline expires. The client uses an unavailable
+state for 503, which also covers disabled or misconfigured service.
+
+The team reported successful live Chrome runs of both AI features and verified
+that, for the tested job, Monthly kept the match at 9%, Full-time raised it to
+32%, and adding Selangor raised it to 46%. Newest kept 46%, Hourly hid the job,
+and Clear filters restored 9%. Covered insights adapted locally without
+another request. These observations precede the Phase 3H presentation changes.
+
+Flutter now adds concrete matching skills, shared keywords, selected preference
+matches and estimated-match context to supported template choices. A missing or
+unsupported next-step template can receive a separately labelled **JobMate
+suggestion** when matching skills support one and another AI-selected section
+is displayed. If the AI request fails, the existing deterministic card explanation
+remains visible. The request and Edge contract are unchanged.
+
+The provider uses the Gemini v1 Interactions endpoint. It sends the configured
+model, `store: false`, a JSON string containing the fixed instructions and
+allowlisted job facts, and a structured JSON response schema. The legacy path
+retains 512 output tokens. V1 uses compact template IDs and a 1,024-token cap
+for up to five rows. Phase 3F removes duplicate scenario constraints from the
+prompt, retains them in the schema and validator, and explicitly uses minimal
+thinking for the documented `gemini-3.5-flash-lite` model. It keeps the current
+model selection and one attempt. The local Phase 3F budgets are 12 seconds for
+Gemini (including reading its body), 16 seconds for the Edge handler, and 20
+seconds for Flutter. The margins leave room for Auth, RPC reads, validation,
+and client transport.
+
+The team confirmed the manual Phase 3F deployment in Chrome. The deployed
+`recommendation-insights-v1-reliability` returned HTTP 502 with `provider_http`
+and upstream 503. Deterministic matches and the cooldown remained usable.
+
+For a future approved update, use `recommendation-insights` in the Supabase
+Dashboard editor. Paste only
+[`supabase/functions/recommendation-insights/index.ts`](supabase/functions/recommendation-insights/index.ts)
+and keep Verify JWT enabled. The existing `explain-job-recommendations` stays
+available for older builds. Its four-file bundle under
+`tools/recommendations/dashboard-deployment/` belongs to that older slug.
+The single `index.ts` above is both the source and the Dashboard package for
+`recommendation-insights`. No new secrets are required.
+
+For a failure, inspect the recommendation POST in Chrome DevTools
+under **Network → Headers → Response Headers**. The diagnostic build emits
+`X-JobMate-Recommendation-Revision: recommendation-insights-v1-reliability`. A missing or
+different marker leaves the active deployment or response path unconfirmed.
+A 400 `invalid_shortlist` also includes `X-JobMate-Recommendation-Rejection`
+with one fixed category: `body_read` (missing, unreadable or over 1 KiB),
+`json_parse` (invalid UTF-8 or JSON), `request_fields`, `request_version`,
+`shortlist_shape`, `job_uuid`, or `duplicate_jobs`. For 502, the header
+distinguishes `provider_http` (with numeric
+`X-JobMate-Recommendation-Upstream-Status`), `provider_transport`,
+`provider_incomplete`, `provider_response_json`, `provider_response_shape`,
+`provider_response_too_large`, `provider_output_json`, `provider_output_shape`,
+`provider_alias_invalid`, `provider_template_invalid`, and internal provider
+errors. A 504 distinguishes `provider_timeout` from `handler_timeout`. An
+upstream 429 retains the outer 429 and includes the upstream status; the
+function's own limit has no upstream status. Share only the status, the fixed
+`error` field, and these diagnostic response headers.
+
+After deployment approval, enabling the server provider requires all three
+server-side settings:
+
+- `JOBMATE_RECOMMENDATION_GEMINI_ENABLED=true`
+- `JOBMATE_RECOMMENDATION_GEMINI_MODEL` set to the explicitly approved model ID
+- `GEMINI_API_KEY` available as a Supabase Edge Function secret
+
+Set the optional `JOBMATE_RECOMMENDATION_GEMINI_DEMO_USER_ID` to restrict
+access to one Supabase Auth user UUID. Other authenticated users receive
+forbidden. A malformed or empty value returns unavailable. If the setting is
+absent, all eligible active Job Seekers can use the enabled provider. Broader
+activation requires team approval and an agreed shared Gemini quota budget.
+
+There is no default model or automatic model fallback. The formatter's model
+and free-tier eligibility do not establish recommendation access. Omit the
+enable setting or set it to `false` to keep the provider off.
+
+Before deployment, approve the cutoff time zone with the posting owner.
+The Shared fixture verification below covers both filtered RPC projections
+and exact count headers for the tested requests. Approve the Web origin,
+free-tier model, server-side credential reuse and shared quota budget with
+the deployment owners. The
+local handler limits authorized attempts to one per user per 30 seconds and ten
+per minute per instance. A shared quota needs a separately approved deployment
+plan. Verify v1 structured output and the exact payload with synthetic data
+before enabling the server provider. The existing employer formatter is separate.
+
+#### Isolated Gemini recommendation smoke check
+
+`node tools/recommendations/gemini-smoke.mjs --offline` uses mocked Gemini
+responses and in-memory Supabase fixtures. It checks the actual provider
+request, completed interaction parsing, alias mapping, approved sentences,
+and timeout handling without network access.
+
+Only after separate approval, run the following in a fresh PowerShell window
+at the repository root. Use the approved Gemini project key. The live mode
+makes one request to Gemini for `gemini-3.5-flash-lite` and does not use
+Shared Supabase or an Edge deployment. It prints outcome codes and HTTP
+statuses, without the response body or credentials.
+
+```powershell
+try {
+  $env:JOBMATE_GEMINI_SMOKE_KEY = [System.Net.NetworkCredential]::new(
+    '', (Read-Host 'Approved Gemini API key' -AsSecureString)
+  ).Password
+  node tools/recommendations/gemini-smoke.mjs --run-live
+} finally {
+  Remove-Item Env:JOBMATE_GEMINI_SMOKE_KEY -ErrorAction SilentlyContinue
+}
+```
+
+Success means the production parser and validator accepted both notes and
+mapped them back to their synthetic fixtures. A live timeout means the
+provider call did not finish within four seconds. The deliberately stalled
+timeout case is covered offline to keep the live check to one request.
+The check does not establish Shared RPC compatibility or free-tier quota.
+
+#### Shared recommendation RPC verification
+
+The team reported that all six authenticated Shared fixture checks passed for
+the eligible and previously applied jobs, including the eligible job's empty
+application lookup (`*/0`). This verifies the RPC HTTP contract for those
+fixtures.
+
+For the reported Browse Jobs 11 versus For You 3 discrepancy, reconcile the
+feed and history after separate approval using the same active account and a
+fresh load of both pages. Clear both sets of filters before comparing.
+
+1. Inspect the unfiltered `list_published_jobs` response and its response
+   `Content-Range`. For a separately approved RPC check, use
+   `select=job_id,application_deadline`, `order=job_id.asc` and
+   `Prefer: count=exact`. Collect pages with `offset` and `limit` in memory
+   until the distinct job count agrees with the total. Compare against the
+   Browse count and the published-feed reads made on For You. Both are backed
+   by the same RPC; the client fetches further pages only when it gets a readable
+   exact total and stops on an empty or overlapping page.
+2. Verify the unfiltered `list_my_job_applications` total and pages the same
+   way, using `select=application_id,job_id` and `order=application_id.asc`.
+   Keep IDs local and use the job IDs as a set. Count all statuses, which
+   matches the client exclusion rule. The app currently reads history in one
+   call without an exact count. Ask the RPC owners to confirm whether the
+   deployed definitions apply internal limits or status filters. Both calls
+   are read-only `POST /rest/v1/rpc/<name>` with `{}` and the existing Job Seeker
+   session. The count is for the returned RPC relation, which can have its own
+   internal cap.
+3. Assign each distinct published job to exactly one bucket. For missing jobs,
+   use this precedence: missing or invalid deadline, expired deadline, previously
+   applied, other verified exclusion, unexplained. Assign visible jobs to scored
+   or unscored. Record rule conflicts separately and never count the same ID
+   twice. Match the Flutter deadline rule using the device date; compare Kuala
+   Lumpur time for deadline-day cases. Verify future-deadline roles against the
+   local set of previously applied job IDs before attributing their absence to
+   applications.
+4. Share only aggregate counts by reason and sanitized response count headers.
+   Keep job IDs, application IDs, headers with credentials, and response bodies
+   out of screenshots and shared logs. If either exact total or source limit
+   is unknown, record the reconciliation as incomplete.
+
+For the existing signed-in localhost Flutter Chrome session, open My
+Applications and run
+[`verify-shared-rpcs-from-chrome.js`](tools/recommendations/verify-shared-rpcs-from-chrome.js)
+once in DevTools Sources → Snippets after approval. Click **Refresh
+applications** within 30 seconds. The snippet uses that request's credentials
+in memory, restores the original browser fetch, and reports six read-only
+results. Check for six `pass: true` entries, including `*/0` for the eligible
+job's application lookup. If JavaScript cannot read the count header, inspect
+only the **Response Headers** in the Network panel, or use the CLI harness
+below. Do not copy request headers or export a HAR.
+
+Run the following only after Shared access is separately approved. Use a fresh
+PowerShell window, the approved project's direct HTTPS `*.supabase.co` URL,
+its publishable or legacy anon key, and a current access token from an existing
+active Job Seeker session. Use an eligible published job with no prior
+application and a different job that the same seeker previously applied to.
+The applied job may be absent from the current published feed. Use existing
+records and open the shell at the repository root.
+
+```powershell
+$env:JOBMATE_VERIFY_SUPABASE_URL = Read-Host 'Approved Shared project URL'
+$eligibleJob = Read-Host 'Eligible job UUID with zero applications by this seeker'
+$appliedJob = Read-Host 'Previously applied job UUID for this seeker'
+try {
+  $env:JOBMATE_VERIFY_PUBLIC_KEY = [System.Net.NetworkCredential]::new(
+    '', (Read-Host 'Publishable or anon key' -AsSecureString)
+  ).Password
+  $env:JOBMATE_VERIFY_USER_JWT = [System.Net.NetworkCredential]::new(
+    '', (Read-Host 'Existing Job Seeker access token' -AsSecureString)
+  ).Password
+  node tools/recommendations/verify-shared-rpcs.mjs --run-shared $eligibleJob $appliedJob
+} finally {
+  Remove-Item Env:JOBMATE_VERIFY_SUPABASE_URL, Env:JOBMATE_VERIFY_PUBLIC_KEY, Env:JOBMATE_VERIFY_USER_JWT -ErrorAction SilentlyContinue
+}
+```
+
+The harness sends the two existing read RPCs with the Edge handler's filtered
+projections and exact count preference, for each fixture alone and together.
+Output includes HTTP status, the numeric or wildcard `Content-Range` as sent,
+and rows labeled `eligible` or `applied` in place of real IDs. Error bodies,
+credentials and application details are withheld. A passing empty lookup has
+`rowCount: 0`, `contentRange: "*/0"`, and `countMatchesHandler: true`.
+Exit code 1 means a request or compatibility check failed. Exit code 2 means
+the run flag, fixture IDs, or environment inputs failed validation. Close the
+fresh shell after the check and keep the access token out of command history.
+
+The separately approved
+[`recommendation_rpc_definitions.sql`](supabase/inspections/recommendation_rpc_definitions.sql)
+query reads function definitions from the catalog without invoking the RPCs.
+Use it to review internal filters, limits, and called helpers. An exact
+PostgREST count cannot reveal rows the function already removed. This harness
+also does not verify salary masking because the Edge projection omits salary.
 
 #### FUTURE BACKEND INTEGRATION — Module 4
 

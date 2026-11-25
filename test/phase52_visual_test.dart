@@ -44,6 +44,11 @@ void main() {
         ..addFont(rootBundle.load('assets/fonts/${entry.value}'));
       await loader.load();
     }
+    final lucide = FontLoader('packages/lucide_icons_flutter/Lucide')
+      ..addFont(
+        rootBundle.load('packages/lucide_icons_flutter/assets/lucide.ttf'),
+      );
+    await lucide.load();
     var directory = File(Platform.resolvedExecutable).parent;
     for (var depth = 0; depth < 9; depth++) {
       final font = File(
@@ -138,7 +143,10 @@ void main() {
             applicationId: jobs.applications.last.id,
             repository: jobs,
           ),
-          'recommendations' => RecommendationsPage(repository: jobs),
+          'recommendations' => RecommendationsPage(
+            repository: jobs,
+            loadProfile: (_) async => const {},
+          ),
           'attendance' => AttendancePage(store: work),
           'evidence' => EvidencePage(store: work),
           'attendance-review' => AttendanceListPage(
@@ -214,6 +222,9 @@ void main() {
           expect(find.text('Evaluation'), findsOneWidget);
           expect(find.text('Working Performance'), findsOneWidget);
           expect(find.text('4.25 / 5'), findsOneWidget);
+          expect(find.text('DEMO / PREVIEW'), findsNothing);
+        } else if (screen == 'recommendations') {
+          expect(find.text('Limited matching evidence'), findsWidgets);
           expect(find.text('DEMO / PREVIEW'), findsNothing);
         } else if (![
           'settings',
