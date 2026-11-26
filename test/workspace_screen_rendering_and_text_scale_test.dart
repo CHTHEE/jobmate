@@ -30,6 +30,7 @@ import 'package:jobmate/features/phase4/admin_preview_pages.dart';
 import 'package:jobmate/features/phase4/account_settings_page.dart';
 
 import 'fixtures/reputation_gateway_fixture.dart';
+import 'fixtures/payment_simulation_gateway_fixture.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -187,6 +188,7 @@ void main() {
           'admin-reports' => AdminPreviewPage(section: 'Reports', store: data),
           _ => AccountSettingsPage(
             store: data,
+            paymentGateway: const PaymentSimulationGatewayFixture(),
             loadAccount: () async => {
               'name': 'Review account',
               'email': 'fixture@example.com',
@@ -219,9 +221,13 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         if (screen == 'reputation') {
-          expect(find.text('Evaluation'), findsOneWidget);
-          expect(find.text('Working Performance'), findsOneWidget);
+          expect(find.text('Evaluation Rating'), findsOneWidget);
+          expect(find.text('Verified Work'), findsOneWidget);
           expect(find.text('4.25 / 5'), findsOneWidget);
+          expect(find.text('2 rated applications'), findsOneWidget);
+          expect(find.text('3 published evaluations'), findsOneWidget);
+          expect(find.text('4'), findsOneWidget);
+          expect(find.text('Verified completed shifts'), findsOneWidget);
           expect(find.text('DEMO / PREVIEW'), findsNothing);
         } else if (screen == 'recommendations') {
           expect(find.text('Limited matching evidence'), findsWidgets);

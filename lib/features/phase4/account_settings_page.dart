@@ -7,6 +7,9 @@ import '../../shared/widgets/app_workspace.dart';
 import '../applications/module2_widgets.dart';
 import '../demo_work/demo_widgets.dart';
 import '../demo_work/local_attachment.dart';
+import '../payments/payment_feature_gate.dart';
+import '../payments/payment_recipient_settings.dart';
+import '../payments/payment_simulation_gateway.dart';
 import 'phase4_store.dart';
 
 class AccountSettingsPage extends StatefulWidget {
@@ -16,16 +19,21 @@ class AccountSettingsPage extends StatefulWidget {
     this.store,
     this.loadAccount,
     this.signOut,
+    this.paymentGateway,
   });
   final String role;
   final Phase4Store? store;
   final Future<Map<String, dynamic>> Function()? loadAccount;
   final Future<void> Function()? signOut;
+  final PaymentSimulationGateway? paymentGateway;
   @override
   State<AccountSettingsPage> createState() => _AccountSettingsPageState();
 }
 
 class _AccountSettingsPageState extends State<AccountSettingsPage> {
+  late final _paymentGateway =
+      widget.paymentGateway ??
+      SupabasePaymentSimulationGateway(Supabase.instance.client);
   late final store = widget.store ?? Phase4Store.session;
   late Future<Map<String, dynamic>> account = load();
   bool busy = false;
@@ -160,6 +168,11 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                 ),
               ),
               const SizedBox(height: 20),
+              if (paymentRecipientSimulationEnabled &&
+                  widget.role == 'job_seeker') ...[
+                PaymentRecipientSettings(gateway: _paymentGateway),
+                const SizedBox(height: 20),
+              ],
               WorkspaceCard(
                 title: 'Password & security',
                 child: Column(

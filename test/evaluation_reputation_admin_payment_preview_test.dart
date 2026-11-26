@@ -12,6 +12,7 @@ import 'package:jobmate/features/phase4/account_settings_page.dart';
 import 'package:jobmate/shared/theme/jobmate_theme.dart';
 
 import 'fixtures/reputation_gateway_fixture.dart';
+import 'fixtures/payment_simulation_gateway_fixture.dart';
 
 Future<Map<String, dynamic>> accountFixture() async => {
   'name': 'Account under test',
@@ -318,6 +319,7 @@ void main() {
           'Seeker Settings' => AccountSettingsPage(
             store: store,
             loadAccount: accountFixture,
+            paymentGateway: const PaymentSimulationGatewayFixture(),
           ),
           'Employer Settings' => AccountSettingsPage(
             role: 'employer',
@@ -345,13 +347,33 @@ void main() {
           expect(find.text('Profile completion: 50%'), findsOneWidget);
         } else if (screen == 'Worker Reputation') {
           expect(find.text('My Reputation'), findsWidgets);
-          expect(find.text('Evaluation'), findsOneWidget);
-          expect(find.text('Working Performance'), findsOneWidget);
+          expect(find.text('Evaluation Rating'), findsOneWidget);
+          expect(find.text('Verified Work'), findsOneWidget);
           expect(find.text('4.25 / 5'), findsOneWidget);
+          expect(find.text('2 rated applications'), findsOneWidget);
+          expect(find.text('3 published evaluations'), findsOneWidget);
+          expect(find.text('4'), findsOneWidget);
+          expect(find.text('Verified completed shifts'), findsOneWidget);
         } else if (screen == 'Company Reputation') {
           expect(find.text('Synthetic Company'), findsOneWidget);
           expect(find.text('4.50 / 5'), findsOneWidget);
-          expect(find.text('Criteria breakdown'), findsOneWidget);
+          expect(find.text('Evaluation Rating'), findsOneWidget);
+          expect(find.text('2 rated applications'), findsOneWidget);
+          expect(find.text('2 published evaluations'), findsOneWidget);
+          final breakdown = find.widgetWithText(
+            ExpansionTile,
+            'View rating breakdown',
+          );
+          expect(breakdown, findsOneWidget);
+          expect(find.text('Communication (2 applications)'), findsNothing);
+          await tester.ensureVisible(breakdown);
+          await tester.tap(find.text('View rating breakdown'));
+          await tester.pumpAndSettle();
+          expect(find.text('Communication (2 applications)'), findsOneWidget);
+          expect(
+            find.descendant(of: breakdown, matching: find.text('4.50 / 5')),
+            findsOneWidget,
+          );
         } else {
           expect(find.text('DEMO / PREVIEW'), findsOneWidget);
         }
@@ -389,11 +411,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Evaluation'), findsOneWidget);
-      expect(find.text('Working Performance'), findsOneWidget);
+      expect(find.text('Evaluation Rating'), findsOneWidget);
+      expect(find.text('Verified Work'), findsOneWidget);
       expect(find.text('4.25 / 5'), findsOneWidget);
+      expect(find.text('2 rated applications'), findsOneWidget);
+      expect(find.text('3 published evaluations'), findsOneWidget);
       expect(find.text('4'), findsOneWidget);
-      expect(find.text('completed and verified Shifts'), findsOneWidget);
+      expect(find.text('Verified completed shifts'), findsOneWidget);
       expect(find.byType(SwitchListTile), findsNothing);
       expect(find.text('Refresh reputation'), findsNothing);
       expect(tester.takeException(), isNull);

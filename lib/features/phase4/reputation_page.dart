@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
@@ -30,17 +31,12 @@ class ReputationPage extends StatelessWidget {
     path: employer ? AppRoutes.employerReputation : AppRoutes.reputation,
     role: employer ? 'employer' : 'job_seeker',
     child: WorkspaceContent(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          PageHeading(
-            title: employer ? 'Company Reputation' : 'My Reputation',
-            description: employer
-                ? 'Published evaluations for Companies you currently manage.'
-                : 'Published evaluations and verified completed work for your account.',
-          ),
-          ReputationContent(employer: employer, store: store, gateway: gateway),
-        ],
+      maxWidth: 1280,
+      child: ReputationContent(
+        employer: employer,
+        store: store,
+        gateway: gateway,
+        showPageHeading: true,
       ),
     ),
   );
@@ -53,6 +49,7 @@ class ReputationContent extends StatefulWidget {
     this.employer = false,
     this.store,
     this.interactive = true,
+    this.showPageHeading = false,
     this.gateway,
     this.sessionSource,
   });
@@ -60,6 +57,7 @@ class ReputationContent extends StatefulWidget {
   final bool employer;
   final Phase4Store? store;
   final bool interactive;
+  final bool showPageHeading;
   final ReputationGateway? gateway;
   final ReputationSessionSource? sessionSource;
 
@@ -190,23 +188,28 @@ class _ReputationContentState extends State<ReputationContent> {
           row: snapshot.data! as Map<String, dynamic>,
         );
       }
+      final refresh = TextButton.icon(
+        onPressed:
+            !_sessionInvalid && snapshot.connectionState == ConnectionState.done
+            ? _retry
+            : null,
+        icon: const Icon(Icons.refresh),
+        label: const Text('Refresh reputation'),
+      );
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (widget.interactive)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed:
-                    !_sessionInvalid &&
-                        snapshot.connectionState == ConnectionState.done
-                    ? _retry
-                    : null,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Refresh reputation'),
-              ),
-            ),
+          if (widget.showPageHeading)
+            PageHeading(
+              title: widget.employer ? 'Company Reputation' : 'My Reputation',
+              description: widget.employer
+                  ? 'Published worker feedback for the companies you manage.'
+                  : 'Published company feedback and your verified work.',
+              actions: [if (widget.interactive) refresh],
+            )
+          else if (widget.interactive)
+            Align(alignment: Alignment.centerRight, child: refresh),
           if (!_sessionInvalid && snapshot.hasError)
             Align(
               alignment: Alignment.centerLeft,
@@ -217,6 +220,50 @@ class _ReputationContentState extends State<ReputationContent> {
               ),
             ),
           body,
+          if (widget.interactive &&
+              !_sessionInvalid &&
+              snapshot.connectionState == ConnectionState.done &&
+              !snapshot.hasError)
+            Wrap(
+              spacing: 12,
+              children: [
+                if (widget.showPageHeading)
+                  TextButton.icon(
+                    onPressed: () {
+                      final route = widget.employer
+                          ? AppRoutes.employerSoftSkillEvaluations
+                          : AppRoutes.softSkillEvaluations;
+                      context.go('$route?view=received');
+                    },
+                    icon: const Icon(Icons.rate_review_outlined),
+                    label: const Text('View received evaluations'),
+                  ),
+                TextButton.icon(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('How ratings are calculated'),
+                      content: const SingleChildScrollView(
+                        child: Text(
+                          'Reputation uses eligible received evaluations published after both sides submit. Each rated application has equal weight. '
+                          'Only observed core skills count. Additional criteria and Not Observed responses are excluded from the core rating. '
+                          'Unresolved disputes can exclude evaluations and verified shifts. Attendance and punctuality are not scored. '
+                          'Company feedback belongs to the company and is not assigned to individual members.',
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Close'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  icon: const Icon(Icons.info_outline),
+                  label: const Text('How ratings work'),
+                ),
+              ],
+            ),
         ],
       );
     },
@@ -236,9 +283,6 @@ class _ReputationContentState extends State<ReputationContent> {
           CompanyReputationSummary(row: row),
           const SizedBox(height: 12),
         ],
-        const Text(
-          'Company feedback belongs to the Company; it is not assigned to individual members.',
-        ),
       ],
     );
   }

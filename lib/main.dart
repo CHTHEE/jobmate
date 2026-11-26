@@ -204,9 +204,12 @@ GoRouter _createRouter() {
       ),
       _appRoute(
         AppRoutes.softSkillEvaluations,
-        (_, _) => const Module2Gate(
+        (_, state) => Module2Gate(
           role: 'job_seeker',
-          child: SoftSkillEvaluationsPage(employer: false),
+          child: SoftSkillEvaluationsPage(
+            employer: false,
+            showReceived: state.uri.queryParameters['view'] == 'received',
+          ),
         ),
       ),
       _appRoute(
@@ -221,9 +224,12 @@ GoRouter _createRouter() {
       ),
       _appRoute(
         AppRoutes.employerSoftSkillEvaluations,
-        (_, _) => const Module2Gate(
+        (_, state) => Module2Gate(
           role: 'employer',
-          child: SoftSkillEvaluationsPage(employer: true),
+          child: SoftSkillEvaluationsPage(
+            employer: true,
+            showReceived: state.uri.queryParameters['view'] == 'received',
+          ),
         ),
       ),
       _appRoute(
