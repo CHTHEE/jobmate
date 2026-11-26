@@ -9,7 +9,10 @@ import '../../shared/widgets/expandable_filter_bar.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../applications/module2_widgets.dart';
 import 'application_payment_repository.dart';
+import 'payment_feature_gate.dart';
 import 'payment_models.dart';
+import 'payment_simulation_gateway.dart';
+import 'payment_simulation_pages.dart';
 
 class ApplicationPaymentPage extends StatefulWidget {
   const ApplicationPaymentPage({
@@ -35,6 +38,10 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
         SupabaseApplicationPaymentSource(Supabase.instance.client),
       );
   bool _working = false;
+  SimulationAttempt? _pendingSimulation;
+  late final _simulation = SupabasePaymentSimulationGateway(
+    Supabase.instance.client,
+  );
   final _search = TextEditingController();
   String _statusFilter = '';
 
@@ -158,6 +165,85 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
       accept ? 'Final Base Salary confirmed.' : 'Salary proposal rejected.',
       actor,
     );
+  }
+
+  Future<void> _checkout(ApplicationPaymentSummary row) async {
+    final actor = _repository.source.userId;
+    if (_working || actor == null) return;
+    setState(() => _working = true);
+    SimulationAttempt? previous;
+    try {
+      while (mounted && _simulation.actor == actor) {
+        final pending = _pendingSimulation;
+        final resume =
+            pending?.actor == actor &&
+            pending?.settlement.applicationId == row.applicationId;
+        final attempt = resume
+            ? pending
+            : await _reviewDialog<SimulationAttempt>(
+                builder: (_) => SimulationCheckout(
+                  gateway: _simulation,
+                  actor: actor,
+                  row: row,
+                  previous: previous,
+                ),
+              );
+        if (!mounted || attempt == null || _simulation.actor != actor) return;
+        final returnToCheckout =
+            await Navigator.of(context, rootNavigator: true).push<bool>(
+              MaterialPageRoute(
+                fullscreenDialog: true,
+                builder: (_) => SimulatedPaymentProcessingPage(
+                  gateway: _simulation,
+                  attempt: attempt,
+                  loadSettlements: _repository.source.list,
+                  resume: resume,
+                  onDispatch: () {
+                    if (mounted) _pendingSimulation = attempt;
+                  },
+                  onResolved: () {
+                    if (mounted) _pendingSimulation = null;
+                  },
+                ),
+              ),
+            );
+        if (returnToCheckout != true) {
+          if (mounted && _simulation.actor == actor) await _repository.load();
+          return;
+        }
+        previous = attempt;
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _viewReceipt(ApplicationPaymentSummary row) async {
+    final actor = _repository.source.userId;
+    if (_working || actor == null) return;
+    setState(() => _working = true);
+    try {
+      final receipt = await _simulation.receipt(actor, row);
+      if (!mounted || _simulation.actor != actor || receipt == null) return;
+      await Navigator.of(context, rootNavigator: true).push<void>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => SimulatedPaymentReceiptPage(
+            gateway: _simulation,
+            actor: actor,
+            row: row,
+            receipt: receipt,
+            justRecorded: false,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted && _simulation.actor == actor) {
+        _show('Could not load the receipt. Refresh this settlement and retry.');
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
   }
 
   Future<void> _recordDemoPayment(ApplicationPaymentSummary row) async {
@@ -695,21 +781,38 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
                 ),
               ],
               if (_isEmployer && row.canRecordDemoPayment)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text(
-                      'The deployed settlement contract does not yet store a payment method or recipient account. This action records only a simulated payment status and optional bonus.',
-                    ),
-                    const SizedBox(height: 10),
-                    FilledButton.icon(
-                      onPressed: _working || _repository.loading
-                          ? null
-                          : () => _recordDemoPayment(row),
-                      icon: const Icon(Icons.play_circle_outline),
-                      label: const Text('Save Demo Payment — Simulated'),
-                    ),
-                  ],
+                if (paymentRecipientSimulationEnabled)
+                  FilledButton.icon(
+                    onPressed: _working || _repository.loading
+                        ? null
+                        : () => _checkout(row),
+                    icon: const Icon(Icons.payment_outlined),
+                    label: const Text('Open simulated checkout'),
+                  )
+                else
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'The deployed settlement contract does not yet store a payment method or recipient account. This action records only a simulated payment status and optional bonus.',
+                      ),
+                      const SizedBox(height: 10),
+                      FilledButton.icon(
+                        onPressed: _working || _repository.loading
+                            ? null
+                            : () => _recordDemoPayment(row),
+                        icon: const Icon(Icons.play_circle_outline),
+                        label: const Text('Save Demo Payment — Simulated'),
+                      ),
+                    ],
+                  ),
+              if (paymentRecipientSimulationEnabled && row.paymentId != null)
+                OutlinedButton.icon(
+                  onPressed: _working || _repository.loading
+                      ? null
+                      : () => _viewReceipt(row),
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  label: const Text('View simulated receipt'),
                 ),
               const SizedBox(height: 12),
               ExpansionTile(

@@ -11,3 +11,11 @@ const paymentHandlingEnabled = bool.fromEnvironment(
 const paymentHandlingDemoEnabled =
     kDebugMode &&
     bool.fromEnvironment('JOBMATE_PAYMENT_HANDLING_DEMO', defaultValue: false);
+
+/// Enables the deployed Bank Transfer and TNG simulation.
+const paymentRecipientSimulationEnabled =
+    paymentHandlingEnabled &&
+    bool.fromEnvironment(
+      'JOBMATE_PAYMENT_RECIPIENT_SIMULATION',
+      defaultValue: true,
+    );
