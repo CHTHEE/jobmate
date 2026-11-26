@@ -144,8 +144,10 @@ reply. Logs and fixture PNGs stay under ignored `build/`.
 
 Results for this pass:
 
-- Full suite: 497 passed, one existing failure in the obsolete counter smoke
-  test (`test/widget_test.dart` expects a counter in the routed JobMate app).
+- Full suite at the time of this review: 497 passed, with one failure in the
+  then-existing counter smoke test. The file later became a standalone scaffold
+  check and was removed in housekeeping. Application startup coverage lives in
+  [app_startup_test.dart](../test/app_startup_test.dart).
 - Latest focused regressions: 121 platform/registration/Module 2/payment-preview
   cases and 42 Admin/workspace/responsive-navigation cases passed.
 - `flutter analyze`: no errors; three existing diagnostics remain (two deprecated

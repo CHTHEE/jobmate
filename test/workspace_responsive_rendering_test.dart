@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jobmate/shared/theme/jobmate_theme.dart';
 import 'package:jobmate/shared/widgets/app_workspace.dart';
-import 'package:jobmate/shared/widgets/design_primitives.dart';
+import 'package:jobmate/shared/widgets/responsive_layout.dart';
 import 'package:jobmate/features/jobs/job_postings_page.dart';
 import 'package:jobmate/features/jobs/job_form_page.dart';
 import 'package:jobmate/features/jobs/job_form_route.dart';
@@ -194,15 +194,29 @@ void main() {
           }
         }
         if (screen == 'employer-home') {
-          final tiles = tester.widgetList<StatTile>(find.byType(StatTile));
-          expect(
-            tiles.where((t) => t.label == 'Total Jobs').single.value,
-            '${repo.records.length}',
-          );
-          expect(
-            tiles.where((t) => t.label == 'Published').single.value,
-            '${repo.records.where((j) => j['status'] == 'published').length}',
-          );
+          expect(find.text('Job posting statistics'), findsOneWidget);
+          final grid = find
+              .ancestor(
+                of: find.text('Total Jobs'),
+                matching: find.byType(ResponsiveGrid),
+              )
+              .first;
+          for (final (label, count) in [
+            ('Total Jobs', 6),
+            ('Published', 3),
+            ('Draft', 2),
+            ('Closed', 1),
+          ]) {
+            final card = find.ancestor(
+              of: find.descendant(of: grid, matching: find.text(label)),
+              matching: find.byType(Card),
+            );
+            expect(card, findsOneWidget);
+            expect(
+              find.descendant(of: card, matching: find.text('$count')),
+              findsOneWidget,
+            );
+          }
         }
         if (screen == 'jobs') {
           final edit = find.widgetWithText(OutlinedButton, 'Edit').first;

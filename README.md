@@ -1,5 +1,8 @@
 # JobMate
 
+See the [documentation index](docs/README.md) for setup, feature guides,
+verification, deployment references, and design history.
+
 Chat's active attachment design is a Supabase-only **basic university demo**:
 JPG/JPEG, PNG, PDF, DOCX and XLSX up to 5 MiB, private Storage and trusted Edge
 file-type/content validation. It provides **no antivirus protection** and requires
@@ -96,13 +99,15 @@ unavailable. The read-only details migration requires the existing JobMate
 baseline followed by Phase 2B and Phase 2D; it adds no management authority.
 Neither migration has been deployed or database-tested here.
 Existing administrator permission controls fall back to their previous RPC.
-See [Phase 2B tests and integration dependencies](supabase/diagnostics/phase2b_user_management_test_plan.md).
+The Phase 2B test plan and integration dependencies reference
+`supabase/diagnostics/phase2b_user_management_test_plan.md`, which is unavailable in this checkout.
 Suspension and reactivation both require a reason. A separate prepared Phase
 2B.1 migration adds a read-only, caller-scoped assignment summary for suspended
 Job Seekers; the suspended account page can display it after that migration is
-reviewed with the assignment owner, tested and applied. See the
-[suspension enforcement matrix](supabase/diagnostics/phase2b1_suspension_enforcement_matrix.md).
-The [Phase 2B.1 release review](supabase/diagnostics/phase2b1_release_review.md)
+reviewed with the assignment owner, tested and applied. The suspension enforcement matrix
+(`supabase/diagnostics/phase2b1_suspension_enforcement_matrix.md`) and Phase 2B.1 release review
+(`supabase/diagnostics/phase2b1_release_review.md`) are unavailable in this checkout.
+The release review
 records the live Phase 2A fingerprint result, teammate decisions and disposable
 database, real-JWT and Storage test setup. None of those database/API tests has
 been executed by the coding agent.
@@ -126,7 +131,8 @@ state until the migration is reviewed and applied in an isolated test project.
 The existing preview dispute pages remain explicitly labelled demos. The new
 module selects authorized applications/assignments, supports private case-scoped
 PDF/image evidence and does not change work, application or payment state.
-See [the dispute design and integration dependencies](supabase/diagnostics/phase2c_dispute_design.md).
+The dispute design and integration dependencies reference
+`supabase/diagnostics/phase2c_dispute_design.md`, which is unavailable in this checkout.
 Phase 2C.2 end-to-end integration testing is paused while Job Posting/Application,
 Recommendation, and Attendance/Work Verification modules are still in development.
 The Dispute module is not considered complete or production-ready.
@@ -149,8 +155,8 @@ Job Posting/Application, Recommendations, Attendance/Work Verification,
 Company profile/logo, and payment paths remains pending agreement and integration
 with those module owners. Existing jobs, applications, assignments, evidence,
 and payment history are not changed by this migration or UI.
-`supabase/diagnostics/phase2d_company_restriction_test.sql` is a rollback-only
-SQL test for a disposable project. It expects synthetic users at
+`supabase/diagnostics/phase2d_company_restriction_test.sql` is unavailable in this checkout.
+It is a rollback-only SQL test for a disposable project and expects synthetic users at
 `phase2d-manager@example.invalid`, `phase2d-unpermitted@example.invalid`,
 `phase2d-superadmin@example.invalid`, and
 `phase2d-target-admin@example.invalid`, plus an owner membership in the uniquely
@@ -218,13 +224,13 @@ matching recovery script. Its preflight and catalog assertions are in
 `hidden_salary_security_real_client_test.mjs`. These files are prepared only:
 no database ACL has been changed and no authenticated-client test has run.
 
-`supabase/diagnostics/phase2f_job_moderation_test.sql` is a rollback-only test
-for a disposable database with synthetic Auth users and fixture jobs. The test
+`supabase/diagnostics/phase2f_job_moderation_test.sql` is unavailable in this checkout.
+It is a rollback-only test for a disposable database with synthetic Auth users and fixture jobs. The test
 has not been executed against Supabase. The real Flutter pages use the
 Supabase RPC gateway; widget tests use a fake gateway and verify presentation,
 reason entry, and empty/error states only. A User Report target for a specific
-Job Posting remains an integration dependency; see
-[`phase2f_user_reports_job_target_contract.md`](supabase/diagnostics/phase2f_user_reports_job_target_contract.md).
+Job Posting remains an integration dependency. Its contract document,
+`supabase/diagnostics/phase2f_user_reports_job_target_contract.md`, is unavailable in this checkout.
 
 ### Admin access consolidation (prepared, not deployed)
 
@@ -1027,10 +1033,10 @@ submission and transitions. Notification/assignment integration belongs to later
 scoped work. **No tables, policies, migrations, buckets, Edge Functions, secrets or
 Dashboard changes are created or required by this UI demo.**
 
-Focused coverage is in `test/module2_test.dart`: filtering/sorting, salary
+Focused coverage is in `test/job_marketplace_application_workflow_test.dart`: filtering/sorting, salary
 projection, status mapping/invalid transitions, duplicates, expiry, cross-role
 state/history, reset, access states, responsive pages/modals, internal-note
-visibility and direct-route fallback. Run `flutter test test/module2_test.dart
+visibility and direct-route fallback. Run `flutter test test/job_marketplace_application_workflow_test.dart
 test/workspace_test.dart test/job_postings_test.dart`. Platform acceptance and
 live Supabase/AI behavior still require separate verification.
 
@@ -1487,7 +1493,7 @@ Android foreground approximate/precise permissions require explicit request and
 denial handling. No background tracking is implied. No keys, permissions,
 Supabase configuration or Dashboard steps are introduced in Phase 3.
 
-Phase 3 tests are in `test/phase3_test.dart`: deterministic scores, attendance and
+Phase 3 tests are in `test/demo_work_chat_location_navigation_test.dart`: deterministic scores, attendance and
 evidence transitions, flag validation, escaped report HTML, shared chat state,
 grid/radius semantics, reset and responsive screen coverage at 320/768/1440 px.
 Run with the existing Module 2/workspace/job-posting regression suites. Automated
@@ -1729,7 +1735,7 @@ the actual backend, not inferred from the React prototype.
 No tables, migrations, SQL, RLS, buckets, Edge Functions, secrets, API providers
 or Dashboard configuration are created/changed in Phase 4. Existing Gemini job
 formatting and all employer job posting behavior remain unchanged. All new phase
-code is additive under `lib/features/phase4/`; tests are in `test/phase4_test.dart`.
+code is additive under `lib/features/phase4/`; tests are in `test/evaluation_reputation_admin_payment_preview_test.dart`.
 Existing real admin directory search/details were not redesigned; missing sample
 search/details/moderation controls live in the distinctly named sandbox. Real
 extended-profile/company-edit integration, production scores/evaluations/payments/
@@ -1900,14 +1906,14 @@ keyboard-open forms and native pickers remain unverified in this pass.
   `lib/features/company/create_company_page.dart`.
 - Shared demo presentation: `lib/features/demo_work/demo_widgets.dart`.
 - Verification: `test/workspace_test.dart`, `test/job_postings_test.dart`,
-  `test/phase5_visual_test.dart` (four additional tablet scenarios).
+  `test/workspace_responsive_rendering_test.dart` (four additional tablet scenarios).
 - Assets/documentation: `pubspec.yaml`, five `.ttf` files, three OFL license files,
   `assets/fonts/README.md`, and this README. No dependency additions.
 
 ## Phase 5.2 — UI consistency and application integration preparation
 
 The improved Phase 5.1 employer dashboard/posting/form design is preserved. The
-existing uncommitted working tree was retained. See [the 71-screen audit](PHASE52_SCREEN_AUDIT.md)
+existing uncommitted working tree was retained. See [the 71-screen audit](docs/archive/phase52_screen_audit.md)
 for every AUTH/ACC/JS/EMP/ADM/RPT ID, implementation, role entry, real/demo boundary
 and remaining visual differences. Presence of a route is not a completion claim.
 
@@ -1951,7 +1957,7 @@ readiness is not backend readiness.
 
 ### Validation and remaining differences
 
-`test/phase52_visual_test.dart` adds 50 render/interaction scenarios: 25 representative
+`test/workspace_screen_rendering_and_text_scale_test.dart` covers 50 render/interaction scenarios: 25 representative
 screens at 390px and 1440px using bundled fonts. It checks rendering exceptions and
 demo labels, plus worker search/reputation interaction. PNGs are generated under
 ignored `build/phase52-review/`. Representative images were visually inspected;
@@ -2373,8 +2379,9 @@ error with Retry rather than fabricated ratings. The additive candidate creates
 two scoped public read RPCs and one private release helper, preserving existing
 Phase A/B/C definitions, RLS and legacy Shift Evaluations. The user reports a
 successful SQL postflight and basic Flutter manual checks; isolated authorization
-regression remains unexecuted by the coding agent. See
-[the cross-party implementation and manual SQL sequence](docs/reputation/cross_party_reputation.md).
+regression remains unexecuted by the coding agent. The cross-party implementation
+and manual SQL sequence (`docs/reputation/cross_party_reputation.md`) are unavailable
+in this checkout.
 No internal Trust Score or Payment/Attendance scoring is implemented by this
 change. Earlier demo descriptions elsewhere document historical UI stages.
 
@@ -2406,9 +2413,11 @@ only the prepared internal incident D evidence and mediation relink guard needed
 for an approved correction. It adds no public score RPC, Flutter UI or mutable
 score table. Read-only preflight/postflight and
 an isolated-only rollback regression are prepared; no SQL execution is implied.
-See [the internal Trust engine contract and missing policies](docs/reputation/job_seeker_trust_score.md).
-The [Dashboard-only isolated Trust/Dispute runtime procedure](docs/reputation/trust_dispute_isolated_runtime_verification.md)
+The internal Trust engine contract and missing policies are documented in
+`docs/reputation/job_seeker_trust_score.md`. The Dashboard-only isolated
+Trust/Dispute procedure in `docs/reputation/trust_dispute_isolated_runtime_verification.md`
 records the exact candidate order, required baseline and unexecuted test gates.
+Both documents are unavailable in this checkout.
 
 ### Phase A/B/C authenticated Local integration (prepared only)
 
@@ -2421,10 +2430,10 @@ schema is already installed. The runner checks function fingerprints/security,
 RLS, constraints, skills and trigger contracts; it does not install SQL. It
 creates synthetic Auth/business fixtures and destroys the dedicated project
 data volumes afterwards because closure and evaluation audit records are
-immutable. See
-[`reputation_phase_abc_local_integration.md`](supabase/diagnostics/reputation_phase_abc_local_integration.md)
-for isolation requirements, cleanup limitations and the exact PowerShell
-command. This integration has not been executed; an empty Supabase install or
+immutable. The isolation requirements, cleanup limitations and exact PowerShell
+command are documented in `supabase/diagnostics/reputation_phase_abc_local_integration.md`,
+which is unavailable in this checkout. The test and runner paths above are also
+unavailable locally. This integration has not been executed; an empty Supabase install or
 the existing shared development database is not an acceptable target.
 
 ### Details requiring team confirmation

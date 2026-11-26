@@ -269,7 +269,10 @@ points type-check. The final Payment/workspace/Admin-sidebar Flutter run passes
 36 tests, including all 15 new Payment tests. Web build passes. Analysis has the
 same eight pre-existing diagnostics. The broader Flutter run reports 409 passes
 and two existing failures: registration's stale UI lookup and the default Counter
-smoke test in widget_test.dart; neither was changed by this payment work.
+smoke test then in `test/widget_test.dart`. Neither was changed by this payment
+work. The file later became a standalone scaffold check and was removed in
+housekeeping. Application startup coverage lives in
+[`app_startup_test.dart`](../test/app_startup_test.dart).
 The subsequent server configuration step adds 10 fixture-only tests (29 Backend
 tests total), all passing. Configuration and both entry points type-check; Flutter
 analysis still reports the same eight existing diagnostics. Actual secret values

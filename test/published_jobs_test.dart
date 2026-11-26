@@ -12,7 +12,7 @@ import 'fixtures/my_applications_source.dart';
 
 import 'package:jobmate/features/applications/job_application_form.dart';
 
-import 'module2_test.dart' show demoRouter;
+import 'job_marketplace_application_workflow_test.dart' show demoRouter;
 
 Map<String, dynamic> publishedRow(String id, {bool visible = false}) => {
   'job_id': id,

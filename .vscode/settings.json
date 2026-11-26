@@ -1,6 +1,5 @@
 {
   "deno.enablePaths": [
     "./supabase/functions"
-  ],
-  "cmake.sourceDirectory": "C:/Users/LAPTOP/jobmate/linux"
+  ]
 }
