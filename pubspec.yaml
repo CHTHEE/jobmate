@@ -45,6 +45,9 @@ dependencies:
   geolocator: ^14.1.2
   maplibre_gl: 0.28.0
   lucide_icons_flutter: 4.0.3
+  pdf: ^3.13.1
+  printing: ^5.15.1
+  web: ^1.1.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -92,6 +95,12 @@ flutter:
           weight: 500
   assets:
     - .env
+    - assets/fonts/Outfit-Regular.ttf
+    - assets/fonts/Outfit-SemiBold.ttf
+    - assets/fonts/outfit-OFL.txt
+    - assets/fonts/dmserifdisplay-OFL.txt
+    - assets/fonts/NotoSansSC-Variable.ttf
+    - assets/fonts/notosanssc-OFL.txt
 
   # To add assets to your application, add an assets section, like this:
   # assets:

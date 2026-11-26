@@ -846,19 +846,21 @@ class WorkspaceContent extends StatelessWidget {
     required this.child,
     this.maxWidth = 672,
     this.title,
+    this.centered = false,
   });
   final Widget child;
   final double maxWidth;
   final String? title;
+  final bool centered;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) => SingleChildScrollView(
       padding: ResponsiveLayout.pagePaddingForWidth(constraints.maxWidth),
       child: ResponsiveContent(
         maxWidth: maxWidth,
-        alignment: AlignmentDirectional.topStart.resolve(
-          Directionality.of(context),
-        ),
+        alignment: centered
+            ? Alignment.topCenter
+            : AlignmentDirectional.topStart.resolve(Directionality.of(context)),
         child: title == null
             ? child
             : Column(

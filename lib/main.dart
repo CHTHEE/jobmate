@@ -338,6 +338,8 @@ GoRouter _createRouter() {
       workVerificationRoute(),
       workAttendanceRoute(evidence: true),
       workVerificationRoute(evidence: true),
+      workAttendanceRoute(report: true),
+      workVerificationRoute(report: true),
       _appRoute(
         AppRoutes.workEvidence,
         (_, _) => const Module2Gate(role: 'job_seeker', child: EvidencePage()),

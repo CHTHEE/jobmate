@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
@@ -9,6 +10,7 @@ import '../applications/resume_pdf_opener.dart';
 import 'work_attendance_models.dart';
 import 'work_attendance_repository.dart';
 import 'work_evidence_repository.dart';
+import 'work_completion_report_entry.dart';
 import 'work_evidence_draft_controller.dart';
 import 'work_evidence_draft_page.dart';
 import 'work_evidence_mock_review.dart';
@@ -366,6 +368,7 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
           ),
         ],
         child: WorkspaceContent(
+          centered: true,
           maxWidth: 900,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -501,6 +504,21 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                     ),
                   ),
                 const SizedBox(height: 16),
+                if (repo.assignment case final assignment?
+                    when showsWorkCompletionReport(assignment)) ...[
+                  WorkCompletionReportEntry(
+                    employer: repo.employer,
+                    onOpen: () => context.push<void>(
+                      AppRoutes.workReportLocation(
+                        repo.assignmentId,
+                        employer: repo.employer,
+                        fromHistory: widget.returnToHistory,
+                      ),
+                      extra: repo.companyId,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 if (showWorkflow)
                   WorkEvidenceWorkflowPanel(
                     key: ValueKey((repo, repo.attendance.source.userId)),

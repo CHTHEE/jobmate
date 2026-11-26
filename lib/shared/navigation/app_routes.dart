@@ -33,6 +33,23 @@ abstract final class AppRoutes {
       '$workAttendance/:assignmentId/evidence';
   static const workVerificationEvidence =
       '$workVerification/:assignmentId/evidence';
+  static const workAttendanceReport = '$workAttendance/:assignmentId/report';
+  static const workVerificationReport =
+      '$workVerification/:assignmentId/report';
+
+  static String workReportLocation(
+    String assignmentId, {
+    required bool employer,
+    bool fromHistory = false,
+  }) => Uri(
+    pathSegments: [
+      '',
+      (employer ? workVerification : workAttendance).substring(1),
+      assignmentId,
+      'report',
+    ],
+    queryParameters: !employer && fromHistory ? {'from': 'history'} : null,
+  ).toString();
   static const attendanceHistory = '/attendance/history';
   static const workEvidence = '/attendance/evidence';
   static const attendanceReview = '/attendance-review';

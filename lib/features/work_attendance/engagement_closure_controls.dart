@@ -439,9 +439,11 @@ class CompanyEngagementClosureRequests extends StatefulWidget {
     super.key,
     this.gateway,
     this.onClosed,
+    this.initialRequests,
   });
   final EngagementClosureGateway? gateway;
   final ValueChanged<String>? onClosed;
+  final AsyncSnapshot<List<Map<String, dynamic>>>? initialRequests;
   @override
   State<CompanyEngagementClosureRequests> createState() =>
       _CompanyEngagementClosureRequestsState();
@@ -452,19 +454,23 @@ class _CompanyEngagementClosureRequestsState
   late EngagementClosureGateway _gateway =
       widget.gateway ??
       SupabaseEngagementClosureGateway(Supabase.instance.client);
-  late Future<List<Map<String, dynamic>>> _future = _gateway.companyRequests();
+  late Future<List<Map<String, dynamic>>>? _future =
+      widget.initialRequests == null ? _gateway.companyRequests() : null;
   bool _responding = false;
   int _generation = 0;
 
   @override
   void didUpdateWidget(covariant CompanyEngagementClosureRequests oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.gateway != widget.gateway) {
+    if (oldWidget.gateway != widget.gateway ||
+        oldWidget.initialRequests != widget.initialRequests) {
       ++_generation;
       _gateway =
           widget.gateway ??
           SupabaseEngagementClosureGateway(Supabase.instance.client);
-      _future = _gateway.companyRequests();
+      _future = widget.initialRequests == null
+          ? _gateway.companyRequests()
+          : null;
     }
   }
 
@@ -518,80 +524,87 @@ class _CompanyEngagementClosureRequestsState
   }
 
   @override
-  Widget build(
+  Widget build(BuildContext context) {
+    final initial = widget.initialRequests;
+    if (_future == null && initial != null) return _content(context, initial);
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _future,
+      builder: _content,
+    );
+  }
+
+  Widget _content(
     BuildContext context,
-  ) => FutureBuilder<List<Map<String, dynamic>>>(
-    future: _future,
-    builder: (context, snapshot) {
-      if (snapshot.connectionState != ConnectionState.done) {
-        return const LinearProgressIndicator();
-      }
-      if (snapshot.hasError) {
-        return Card.outlined(
-          child: ListTile(
-            title: const Text('Closure requests unavailable'),
-            subtitle: const Text('Retry to load Company requests.'),
-            trailing: IconButton(
-              onPressed: () =>
-                  setState(() => _future = _gateway.companyRequests()),
-              icon: const Icon(Icons.refresh),
-            ),
+    AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
+  ) {
+    if (snapshot.connectionState != ConnectionState.done) {
+      return const LinearProgressIndicator();
+    }
+    if (snapshot.hasError) {
+      return Card.outlined(
+        child: ListTile(
+          title: const Text('Closure requests unavailable'),
+          subtitle: const Text('Retry to load Company requests.'),
+          trailing: IconButton(
+            onPressed: () =>
+                setState(() => _future = _gateway.companyRequests()),
+            icon: const Icon(Icons.refresh),
           ),
-        );
-      }
-      final rows = snapshot.data ?? const [];
-      if (rows.isEmpty) {
-        return const SizedBox.shrink();
-      }
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Engagement closure requests',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          for (final row in rows)
-            Card.outlined(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${row['job_title'] ?? 'Job'} · ${row['worker_name'] ?? 'Worker'}',
-                      style: Theme.of(context).textTheme.titleMedium,
+        ),
+      );
+    }
+    final rows = snapshot.data ?? const [];
+    if (rows.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Engagement closure requests',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        for (final row in rows)
+          Card.outlined(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${row['job_title'] ?? 'Job'} · ${row['worker_name'] ?? 'Worker'}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  Text('Status: ${row['status'] ?? 'unknown'}'),
+                  if ('${row['request_reason'] ?? ''}'.isNotEmpty)
+                    Text('Worker reason: ${row['request_reason']}'),
+                  if ('${row['response_reason'] ?? ''}'.isNotEmpty)
+                    Text('Response: ${row['response_reason']}'),
+                  if (row['status'] == 'pending')
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        OutlinedButton(
+                          onPressed: _responding
+                              ? null
+                              : () => _respond(row, 'decline'),
+                          child: const Text('Decline'),
+                        ),
+                        FilledButton(
+                          onPressed: _responding
+                              ? null
+                              : () => _respond(row, 'close'),
+                          child: const Text('Review and close'),
+                        ),
+                      ],
                     ),
-                    Text('Status: ${row['status'] ?? 'unknown'}'),
-                    if ('${row['request_reason'] ?? ''}'.isNotEmpty)
-                      Text('Worker reason: ${row['request_reason']}'),
-                    if ('${row['response_reason'] ?? ''}'.isNotEmpty)
-                      Text('Response: ${row['response_reason']}'),
-                    if (row['status'] == 'pending')
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          OutlinedButton(
-                            onPressed: _responding
-                                ? null
-                                : () => _respond(row, 'decline'),
-                            child: const Text('Decline'),
-                          ),
-                          FilledButton(
-                            onPressed: _responding
-                                ? null
-                                : () => _respond(row, 'close'),
-                            child: const Text('Review and close'),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
+                ],
               ),
             ),
-        ],
-      );
-    },
-  );
+          ),
+      ],
+    );
+  }
 }
 
 String _serverMessage(Object error) {

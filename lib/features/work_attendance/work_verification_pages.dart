@@ -12,6 +12,7 @@ import '../applications/module2_widgets.dart';
 import '../jobs/job_postings_repository.dart';
 import 'work_attendance_models.dart';
 import 'work_status_presentation.dart';
+import 'work_verification_loading.dart';
 import 'work_attendance_repository.dart';
 import 'work_attendance_gps.dart';
 import 'work_assignment_creation_dialog.dart';
@@ -34,6 +35,7 @@ class WorkVerificationPage extends StatefulWidget {
     required this.repository,
     required this.companyId,
     this.loadAccess,
+    this.initialAccess,
     this.createAssignmentRepository,
     this.loadWorkerName,
     this.gpsSource,
@@ -45,6 +47,7 @@ class WorkVerificationPage extends StatefulWidget {
   final WorkAttendanceRepository repository;
   final String companyId;
   final Future<JobAccess> Function()? loadAccess;
+  final JobAccess? initialAccess;
 
   /// Optional fake/alternate factory; this page owns and disposes its result.
   final WorkAssignmentCreationRepository Function()? createAssignmentRepository;
@@ -61,6 +64,7 @@ class WorkVerificationPage extends StatefulWidget {
 
 class _WorkVerificationPageState extends State<WorkVerificationPage> {
   String? _actor, _authorizedActor, _company;
+  late int _session;
   final _search = TextEditingController();
   final Set<String> _expandedShiftIds = {};
   final Set<String> _expandedApplicationIds = {};
@@ -126,6 +130,9 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
   int _closureRefreshToken = 0;
   final Map<String, EngagementClosureStatusSnapshot> _closureStates = {};
   EngagementClosureGateway? _defaultClosureGateway;
+  WorkAttendanceReadState<CompanyWorkAssignment>? _presented;
+  AsyncSnapshot<List<Map<String, dynamic>>>? _inbox;
+  JobAccess? _initialAccess;
 
   EngagementClosureGateway? get _closureGateway {
     if (widget.closureGateway != null) return widget.closureGateway;
@@ -259,59 +266,76 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
   void initState() {
     super.initState();
     _actor = widget.repository.source.userId;
+    _session = widget.repository.sessionGeneration;
+    _initialAccess = widget.initialAccess;
     widget.repository.addListener(_accountChanged);
     _load();
   }
 
   void _accountChanged() {
     final actor = widget.repository.source.userId;
-    if (actor == _actor) return;
+    final session = widget.repository.sessionGeneration;
+    if (actor == _actor && session == _session) return;
     _actor = actor;
+    _session = session;
     _expandedShiftIds.clear();
     _expandedApplicationIds.clear();
     _clearFilters();
     _workerNames.clear();
     _workerNameReads.clear();
     _people = null;
-    ++_request;
+    _clearPresentation();
+    final request = ++_request;
     _authorizedActor = null;
     _company = null;
     _checking = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.repository.source.userId == actor) _load();
+      if (mounted &&
+          request == _request &&
+          widget.repository.source.userId == actor &&
+          widget.repository.sessionGeneration == session) {
+        _load();
+      }
     });
+  }
+
+  void _clearPresentation() {
+    _presented = null;
+    _inbox = null;
+    _initialAccess = null;
+    _defaultClosureGateway = null;
   }
 
   Future<void> _load() async {
     final request = ++_request;
     final repository = widget.repository;
     final actor = repository.source.userId;
+    final session = repository.sessionGeneration;
+    final initialAccess = _initialAccess;
+    _initialAccess = null;
     bool current() =>
         mounted &&
         request == _request &&
         identical(repository, widget.repository) &&
+        session == repository.sessionGeneration &&
         actor == repository.source.userId;
     setState(() {
       _checking = true;
-      _authorizedActor = null;
-      _company = null;
       _error = null;
       _errorKind = null;
-      _closureStates.clear();
-      _workerNames.clear();
-      _workerNameReads.clear();
-      ++_closureRefreshToken;
     });
     try {
       final company = workUuid(widget.companyId);
       if (actor == null) throw const AuthException('Authentication required');
       final access =
+          initialAccess ??
           await (widget.loadAccess?.call() ??
               JobPostingsRepository(Supabase.instance.client).loadAccess());
       if (!current()) return;
       if (!access.allowed ||
           workUuid(access.company?['company_id']) != company) {
         setState(() {
+          _clearPresentation();
           _checking = false;
           _errorKind = WorkAttendanceError.permission;
           _error = access.allowed
@@ -320,16 +344,43 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
         });
         return;
       }
+      final gateway = widget.overview && widget.jobId == null
+          ? null
+          : _closureGateway;
+      final assignments = repository.loadCompanyAssignments(company);
+      final inbox = gateway == null
+          ? null
+          : Future.sync(gateway.companyRequests)
+                .then<AsyncSnapshot<List<Map<String, dynamic>>>>(
+                  (rows) => AsyncSnapshot.withData(ConnectionState.done, rows),
+                  onError: (Object error, StackTrace stack) =>
+                      AsyncSnapshot<List<Map<String, dynamic>>>.withError(
+                        ConnectionState.done,
+                        error,
+                        stack,
+                      ),
+                );
+      await assignments;
+      if (!current()) return;
+      final state = repository.company;
+      final requests = state.error == null ? await inbox : null;
+      if (!current()) return;
       setState(() {
+        _closureStates.clear();
+        _workerNames.clear();
+        _workerNameReads.clear();
+        ++_closureRefreshToken;
         _checking = false;
         _authorizedActor = actor;
         _company = company;
+        _presented = state;
+        _inbox = requests;
       });
-      await repository.loadCompanyAssignments(company);
     } catch (failure) {
       if (!current()) return;
       final kind = workAttendanceErrorKind(failure);
       setState(() {
+        _clearPresentation();
         _checking = false;
         _errorKind = kind;
         _error = switch (kind) {
@@ -351,12 +402,15 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
     if (!identical(oldWidget.repository, widget.repository)) {
       oldWidget.repository.removeListener(_accountChanged);
       _actor = widget.repository.source.userId;
+      _session = widget.repository.sessionGeneration;
       widget.repository.addListener(_accountChanged);
     }
     if (!identical(oldWidget.repository, widget.repository) ||
         oldWidget.companyId != widget.companyId ||
         oldWidget.loadAccess != widget.loadAccess ||
-        oldWidget.jobId != widget.jobId) {
+        oldWidget.jobId != widget.jobId ||
+        oldWidget.overview != widget.overview ||
+        oldWidget.closureGateway != widget.closureGateway) {
       if (!identical(oldWidget.repository, widget.repository) ||
           oldWidget.companyId != widget.companyId) {
         _expandedShiftIds.clear();
@@ -364,6 +418,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
       }
       _clearFilters();
       _people = null;
+      _clearPresentation();
       _load();
     }
   }
@@ -381,20 +436,30 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.repository,
     builder: (context, _) {
-      final state = widget.repository.company;
+      final state =
+          _presented ?? const WorkAttendanceReadState<CompanyWorkAssignment>();
       final authorized =
           _authorizedActor != null &&
           _authorizedActor == widget.repository.source.userId &&
           _company == state.scopeId;
-      final loading = _checking || (authorized && state.loading);
+      final loading = _checking && (!authorized || state.error != null);
+      final refreshing = _checking && !loading;
       final error = _error ?? (authorized ? state.error : null);
       final kind = _errorKind ?? (authorized ? state.errorKind : null);
+      if (loading) {
+        return const AppWorkspace(
+          title: 'Work Management',
+          path: AppRoutes.workVerification,
+          role: 'employer',
+          child: WorkVerificationLoading(),
+        );
+      }
       if (widget.overview && widget.jobId == null) {
         return _buildJobOverview(
           context,
           state,
           authorized: authorized,
-          loading: loading,
+          refreshing: refreshing,
           error: error,
           kind: kind,
         );
@@ -413,7 +478,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
         title: 'Work Management',
         path: AppRoutes.workVerification,
         role: 'employer',
-        navigationActionCounts: authorized && !loading && error == null
+        navigationActionCounts: authorized && error == null
             ? {
                 AppRoutes.workVerification: state.rows
                     .where(employerShiftNeedsAction)
@@ -423,12 +488,12 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
         actions: [
           IconButton(
             tooltip: 'Refresh company assignments',
-            onPressed: loading ? null : _load,
+            onPressed: refreshing ? null : _load,
             icon: const Icon(Icons.refresh),
           ),
         ],
-        child: WorkspaceContent(
-          maxWidth: 1440,
+        child: _VerificationContent(
+          refreshing: refreshing,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -436,7 +501,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                 title: selectedTitle,
                 description: 'Manage this job’s workers, shifts, attendance and verification.',
                 actions: [
-                  if (authorized && !loading && error == null)
+                  if (authorized && error == null)
                     FilledButton.icon(
                       onPressed: _dialogOpen ? null : () => _createAssignment(),
                       icon: const Icon(Icons.add, size: 18),
@@ -459,18 +524,16 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
               const Text('All times are Malaysia time (MYT, UTC+08:00).'),
               const SizedBox(height: 12),
               const _ShiftEligibilityBanner(),
-              if (_closureGateway != null)
+              if (_inbox != null)
                 CompanyEngagementClosureRequests(
                   key: ValueKey(widget.repository.source.userId),
                   gateway: _closureGateway,
+                  initialRequests: _inbox,
                   onClosed: (applicationId) => context.go(
                     '${AppRoutes.employerSoftSkillEvaluations}/$applicationId/rate',
                   ),
                 ),
-              if (authorized &&
-                  !loading &&
-                  error == null &&
-                  state.rows.isNotEmpty) ...[
+              if (authorized && error == null && state.rows.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 _AssignmentOverview(
                   rows: state.rows,
@@ -599,13 +662,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                   ),
               ],
               const SizedBox(height: 24),
-              if (loading)
-                const Center(
-                  child: CircularProgressIndicator(
-                    semanticsLabel: 'Loading company assignments',
-                  ),
-                )
-              else if (error != null)
+              if (error != null)
                 Semantics(
                   liveRegion: true,
                   child: ModuleState(
@@ -941,7 +998,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
     BuildContext context,
     WorkAttendanceReadState<CompanyWorkAssignment> state, {
     required bool authorized,
-    required bool loading,
+    required bool refreshing,
     required String? error,
     required WorkAttendanceError? kind,
   }) {
@@ -970,7 +1027,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
       title: 'Work Management',
       path: AppRoutes.workVerification,
       role: 'employer',
-      navigationActionCounts: authorized && !loading && error == null
+      navigationActionCounts: authorized && error == null
           ? {
               AppRoutes.workVerification: state.rows
                   .where(employerShiftNeedsAction)
@@ -980,12 +1037,12 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
       actions: [
         IconButton(
           tooltip: 'Refresh company assignments',
-          onPressed: loading ? null : _load,
+          onPressed: refreshing ? null : _load,
           icon: const Icon(Icons.refresh),
         ),
       ],
-      child: WorkspaceContent(
-        maxWidth: 1440,
+      child: _VerificationContent(
+        refreshing: refreshing,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -993,7 +1050,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
               title: 'Work Management',
               description: 'Choose a job to manage its workers, shifts, attendance and verification.',
               actions: [
-                if (authorized && !loading && error == null)
+                if (authorized && error == null)
                   FilledButton.icon(
                     onPressed: _dialogOpen ? null : () => _createAssignment(),
                     icon: const Icon(Icons.add, size: 18),
@@ -1005,10 +1062,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
             const Text('All times are Malaysia time (MYT, UTC+08:00).'),
             const SizedBox(height: 12),
             const _ShiftEligibilityBanner(),
-            if (authorized &&
-                !loading &&
-                error == null &&
-                state.rows.isNotEmpty) ...[
+            if (authorized && error == null && state.rows.isNotEmpty) ...[
               const SizedBox(height: 20),
               ExpandableFilterBar(
                 search: TextField(
@@ -1058,13 +1112,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
               ),
             ],
             const SizedBox(height: 20),
-            if (loading)
-              const Center(
-                child: CircularProgressIndicator(
-                  semanticsLabel: 'Loading company work management',
-                ),
-              )
-            else if (error != null)
+            if (error != null)
               ModuleState(
                 title: switch (kind) {
                   WorkAttendanceError.authentication => 'Sign in required',
@@ -1188,6 +1236,32 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
       ),
     );
   }
+}
+
+class _VerificationContent extends StatelessWidget {
+  const _VerificationContent({required this.refreshing, required this.child});
+
+  final bool refreshing;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => WorkspaceContent(
+    centered: true,
+    maxWidth: 1440,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (refreshing)
+          const LinearProgressIndicator(
+            semanticsLabel: 'Refreshing work verification',
+          ),
+        ExcludeFocus(
+          excluding: refreshing,
+          child: IgnorePointer(ignoring: refreshing, child: child),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ShiftEligibilityBanner extends StatelessWidget {

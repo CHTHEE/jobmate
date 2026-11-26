@@ -454,6 +454,47 @@ uses `verified`, independently of assignment/attendance status. Counts describe
 the loaded authorized projection, not a guaranteed complete company total.
 Worker-name search reuses the existing authorized name lookup and omits unavailable
 names. Compact shift cards preserve GPS, evidence, Add shift and closure actions.
+
+Completed and verified shifts with valid effective attendance and a confirmed
+evidence round can open the Attendance & Work Completion Report from Work
+Evidence. Access is limited to the assigned active Job Seeker and active
+Employers authorized for the selected company. Other shifts, engagement closure,
+evaluations and payment settlement are independent of report eligibility.
+
+**Web** opens the A4 PDF in a new browser tab or downloads
+`JobMate_Work_Report_YYYY-MM-DD.pdf` directly. Allow popups for **Open PDF**, or
+use **Download PDF** if the browser blocks the tab. The browser's PDF handling
+dictates viewing and printing. **Android** offers **Share PDF** and **Print PDF**
+through installed apps and the system print service. The available share or print
+destinations determine whether the device can save a copy locally.
+
+The preview shows a centered loading panel while the report is retrieved.
+During export the selected button shows its own progress, and **Open PDF**
+displays a JobMate preparation screen in the reserved tab until the PDF is ready.
+
+Every PDF action reloads the same authorized assignment, replaces the preview
+with the fresh result, and generates selectable PDF text locally. It excludes
+precise attendance coordinates, storage links, internal IDs and attachment
+content. A delivered copy can be retained or forwarded independently of JobMate.
+The report describes assignment facts as read and does not establish pay or
+whether a separate dispute exists. This feature requires no report table,
+storage bucket or new backend API.
+
+Both renderers display MYT (UTC+08:00). Previously, displayed timestamps dropped
+fractional seconds while offsets truncated durations computed from exact instants.
+The report now uses the displayed whole seconds for its durations and offsets,
+with **Less than 1 s** when a difference exists within the same displayed second.
+Exact instants and business calculations remain intact. PDF fonts are bundled.
+The export shows a clear error for unsupported text instead of replacing glyphs.
+
+For manual acceptance, run `flutter run -d chrome --no-pub` with an approved
+completed and verified assignment. As Job Seeker, open **My Work Shifts** or
+**Attendance History** → **View Verification Details** → **View Report**. As
+Employer, use **Work Verification** → **View Verification Details** →
+**View Report** in the assignment's company. Compare both renderers, open a new
+tab, download the file, use the PDF viewer's print preview, and check the
+popup-blocked fallback. On Android, verify Share PDF and Print PDF using a
+supported system destination.
 Application cards start collapsed, show their summary and Add shift action,
 preview the nearest matching upcoming shift when available, and retain their
 individual expansion state across refreshes on the same page.

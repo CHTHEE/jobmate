@@ -317,6 +317,7 @@ class _WorkAttendancePageState extends State<WorkAttendancePage> {
           ),
         ],
         child: WorkspaceContent(
+          centered: true,
           maxWidth: 900,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

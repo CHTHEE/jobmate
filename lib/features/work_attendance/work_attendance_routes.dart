@@ -9,6 +9,8 @@ import '../../shared/navigation/app_routes.dart';
 import '../applications/module2_widgets.dart';
 import 'work_attendance_pages.dart';
 import 'work_attendance_repository.dart';
+import 'work_completion_report_page.dart';
+import 'work_completion_report_repository.dart';
 import 'work_evidence_pages.dart';
 import 'work_evidence_repository.dart';
 
@@ -19,8 +21,12 @@ GoRoute workAttendanceRoute({
   Future<bool> Function()? checkAccess,
   bool evidence = false,
   bool history = false,
+  bool report = false,
+  WorkCompletionReportRepository Function()? createReport,
 }) => GoRoute(
-  path: evidence
+  path: report
+      ? AppRoutes.workAttendanceReport
+      : evidence
       ? AppRoutes.workAttendanceEvidence
       : history
       ? AppRoutes.attendanceHistory
@@ -30,10 +36,15 @@ GoRoute workAttendanceRoute({
     _WorkAttendanceAccess(
       source: source,
       checkAccess: checkAccess,
-      assignmentId: evidence ? state.pathParameters['assignmentId'] : null,
+      assignmentId: evidence || report
+          ? state.pathParameters['assignmentId']
+          : null,
+      report: report,
+      createReport: createReport,
       history: history,
       returnToHistory:
-          evidence && state.uri.queryParameters['from'] == 'history',
+          (evidence || report) &&
+          state.uri.queryParameters['from'] == 'history',
     ),
   ),
 );
@@ -45,10 +56,14 @@ class _WorkAttendanceAccess extends StatefulWidget {
     this.assignmentId,
     this.history = false,
     this.returnToHistory = false,
+    this.report = false,
+    this.createReport,
   });
   final String? assignmentId;
   final bool history;
   final bool returnToHistory;
+  final bool report;
+  final WorkCompletionReportRepository Function()? createReport;
   final WorkAttendanceSource? source;
   final Future<bool> Function()? checkAccess;
   @override
@@ -59,6 +74,15 @@ class _WorkAttendanceAccessState extends State<_WorkAttendanceAccess> {
   late final source =
       widget.source ?? SupabaseWorkAttendanceSource(Supabase.instance.client);
   late final StreamSubscription<String?> subscription;
+  late final reportRepository =
+      widget.createReport?.call() ??
+      WorkCompletionReportRepository(
+        SupabaseWorkCompletionReportSource(
+          Supabase.instance.client,
+          selectedCompanyId: () => null,
+          companyChanges: const Stream.empty(),
+        ),
+      );
 
   @override
   void initState() {
@@ -81,13 +105,21 @@ class _WorkAttendanceAccessState extends State<_WorkAttendanceAccess> {
     key: ValueKey(source.userId),
     role: 'job_seeker',
     checkAccess: source.userId == null ? () async => false : widget.checkAccess,
-    child: _OwnedWorkerList(
-      key: ValueKey(widget.assignmentId),
-      source: source,
-      assignmentId: widget.assignmentId,
-      history: widget.history,
-      returnToHistory: widget.returnToHistory,
-    ),
+    child: widget.report
+        ? WorkCompletionReportPage(
+            assignmentId: widget.assignmentId!,
+            repository: reportRepository,
+            fallback: widget.returnToHistory
+                ? AppRoutes.attendanceHistory
+                : AppRoutes.workAttendance,
+          )
+        : _OwnedWorkerList(
+            key: ValueKey(widget.assignmentId),
+            source: source,
+            assignmentId: widget.assignmentId,
+            history: widget.history,
+            returnToHistory: widget.returnToHistory,
+          ),
   );
 }
 

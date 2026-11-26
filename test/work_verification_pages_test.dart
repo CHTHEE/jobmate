@@ -9,6 +9,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'work_attendance_repository_test.dart'
     show FakeSource, assignment, id, other;
+import 'work_verification_grouping_test.dart' show FakeEngagementClosureGateway;
+
+class _Inbox extends FakeEngagementClosureGateway {
+  final reads = <Completer<List<Map<String, dynamic>>>>[];
+
+  @override
+  Future<List<Map<String, dynamic>>> companyRequests() {
+    final read = Completer<List<Map<String, dynamic>>>();
+    reads.add(read);
+    return read.future;
+  }
+}
 
 void main() {
   late FakeSource source;
@@ -64,6 +76,106 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('No company work assignments'), findsOneWidget);
     expect(source.calls, 2);
+  });
+
+  testWidgets(
+    'initial assignments and inbox settle together; refresh keeps rows',
+    (tester) async {
+      final inbox = _Inbox();
+      final rows = Completer<List<Map<String, dynamic>>>();
+      final accessCheck = Completer<JobAccess>();
+      access = () => accessCheck.future;
+      source.companyRead = (_) => rows.future;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WorkVerificationPage(
+            repository: repository,
+            companyId: id,
+            closureGateway: inbox,
+            loadAccess: () => access(),
+          ),
+        ),
+      );
+      final spinner = find.byType(CircularProgressIndicator);
+      expect(find.text('Loading work verification...'), findsOneWidget);
+      expect(
+        tester.getCenter(spinner).dx,
+        tester.getCenter(find.byType(Scaffold)).dx,
+      );
+      expect(inbox.reads, isEmpty);
+      accessCheck.complete(const JobAccess({'company_id': id}, null));
+      await tester.pump();
+      expect(inbox.reads, hasLength(1));
+      expect(source.calls, 1);
+      rows.complete([assignment(company: true)]);
+      await tester.pump();
+      expect(find.text('Loading work verification...'), findsOneWidget);
+      expect(find.text('Show application shifts'), findsNothing);
+      expect(find.text('Create Assignment'), findsNothing);
+
+      inbox.reads.single.completeError(Exception('offline'));
+      await tester.pumpAndSettle();
+      expect(find.text('Show application shifts'), findsOneWidget);
+      expect(find.text('Create Assignment'), findsOneWidget);
+      expect(find.text('Closure requests unavailable'), findsOneWidget);
+      expect(inbox.reads, hasLength(1));
+
+      final refresh = Completer<List<Map<String, dynamic>>>();
+      source.companyRead = (_) => refresh.future;
+      await tester.tap(find.byTooltip('Refresh company assignments'));
+      await tester.pump();
+      expect(find.text('Show application shifts'), findsOneWidget);
+      expect(find.text('Loading work verification...'), findsNothing);
+      expect(inbox.reads, hasLength(2));
+      inbox.reads.last.complete([]);
+      refresh.complete([
+        assignment(company: true)..['job_title'] = 'Refreshed job',
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.text('Refreshed job'), findsOneWidget);
+      expect(find.text('Closure requests unavailable'), findsNothing);
+      expect(source.calls, 2);
+    },
+  );
+
+  testWidgets('a replaced company ignores stale inbox and assignment results', (
+    tester,
+  ) async {
+    final inbox = _Inbox();
+    final prior = Completer<List<Map<String, dynamic>>>();
+    source.companyRead = (company) => company == id
+        ? prior.future
+        : Future.value([
+            assignment(company: true)..['job_title'] = 'Current company job',
+          ]);
+    Future<void> show(String company) => tester.pumpWidget(
+      MaterialApp(
+        home: WorkVerificationPage(
+          repository: repository,
+          companyId: company,
+          closureGateway: inbox,
+          loadAccess: () async => JobAccess({'company_id': company}, null),
+        ),
+      ),
+    );
+    await show(id);
+    await tester.pump();
+    await show(other);
+    await tester.pump();
+    expect(inbox.reads, hasLength(2));
+    prior.complete([
+      assignment(company: true)..['job_title'] = 'Previous company job',
+    ]);
+    inbox.reads.first.complete([
+      {'job_title': 'Previous inbox', 'status': 'pending'},
+    ]);
+    await tester.pump();
+    expect(find.text('Loading work verification...'), findsOneWidget);
+    expect(find.textContaining('Previous'), findsNothing);
+    inbox.reads.last.complete([]);
+    await tester.pumpAndSettle();
+    expect(find.text('Current company job'), findsOneWidget);
+    expect(find.textContaining('Previous'), findsNothing);
   });
 
   testWidgets(

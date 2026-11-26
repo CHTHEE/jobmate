@@ -14,3 +14,13 @@ Each family's SIL Open Font License is included alongside its font files as
 `outfit-OFL.txt`, `dmserifdisplay-OFL.txt` and `dmmono-OFL.txt`. Font binaries are
 unmodified; Outfit's variable font is registered at multiple weights using the
 same asset. No font package or external runtime service is used.
+
+The work report PDF embeds DM Serif Display and static Outfit Regular and
+SemiBold from the [Outfit upstream repository](https://github.com/Outfitio/Outfit-Fonts/tree/main/fonts/ttf).
+The static faces keep the intended print weights when the PDF font engine
+reads the TrueType outlines. Its additional
+[Noto Sans SC](https://github.com/google/fonts/tree/main/ofl/notosanssc)
+TrueType fallback is the unmodified Google Fonts variable font distributed with
+`notosanssc-OFL.txt`. It loads only when the main font lacks a report glyph.
+The PDF tests cover Latin accents and Chinese text. Broader script shaping and
+emoji coverage are outside the verified PDF character set.

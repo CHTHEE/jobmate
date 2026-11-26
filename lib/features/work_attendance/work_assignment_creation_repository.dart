@@ -39,8 +39,8 @@ abstract class WorkAssignmentCreationSource {
 /// existing assignment. Creation is explicit and transport retries are disabled.
 class SupabaseWorkAssignmentCreationSource
     implements WorkAssignmentCreationSource {
-  SupabaseWorkAssignmentCreationSource(this.client)
-    : jobs = JobPostingsRepository(client);
+  SupabaseWorkAssignmentCreationSource(this.client, {String? companyContext})
+    : jobs = JobPostingsRepository(client, companyContext: companyContext);
   final SupabaseClient client;
   final JobPostingsRepository jobs;
   @override
