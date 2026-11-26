@@ -11,9 +11,13 @@ import 'job_postings_test.dart' show completeJob;
 class AuthorizedJobs extends JobPostingsRepository {
   AuthorizedJobs(super.client);
   JobAccess access = const JobAccess({'company_id': 'company-id'}, null);
+  bool? includedLogo;
 
   @override
-  Future<JobAccess> loadAccess() async => access;
+  Future<JobAccess> loadAccess({bool includeLogo = true}) async {
+    includedLogo = includeLogo;
+    return access;
+  }
 }
 
 void main() {
@@ -159,6 +163,25 @@ void main() {
     await expectLater(repository.close('existing'), throwsStateError);
     expect(requests, isEmpty);
   });
+
+  test(
+    'create form save rechecks its company without awaiting a logo',
+    () async {
+      await expectLater(
+        repository.save({}, expectedCompanyId: 'different-company'),
+        throwsStateError,
+      );
+      expect(requests, isEmpty);
+      expect(repository.includedLogo, isFalse);
+      response = posting('new-id', 'draft');
+      expect(
+        await repository.save({}, expectedCompanyId: 'company-id'),
+        response,
+      );
+      expect(requests.single.$2['p_company_id'], 'company-id');
+      expect(repository.includedLogo, isFalse);
+    },
+  );
 
   test(
     'Close uses the authorized company and accepts the returned UUID',

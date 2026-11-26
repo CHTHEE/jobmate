@@ -68,6 +68,7 @@ void main() {
     EngagementClosureGateway? closureGateway,
     WorkplacePicker? pickWorkplace,
     ThemeData? theme,
+    bool settle = true,
   }) async {
     if (width != null) {
       tester.view.physicalSize = Size(width, 850);
@@ -112,7 +113,12 @@ void main() {
       ),
     );
     await tester.tap(find.text('Open creation'));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+    }
   }
 
   Future<void> select(WidgetTester tester) async {
@@ -813,7 +819,97 @@ void main() {
     expect(source.creates, 0);
   });
 
-  testWidgets('loading, empty and failed reads never offer creation', (
+  testWidgets(
+    'Add shift retains its draft while checking eligibility and closure',
+    (tester) async {
+      final jobs = source.jobs;
+      final candidates = Completer<WorkAssignmentCandidateRead>();
+      final status = Completer<Map<String, dynamic>>();
+      source.jobs = (_) => candidates.future;
+      var statusReads = 0;
+      final gateway = FakeEngagementClosureGateway()
+        ..statusHandler = (_) {
+          statusReads++;
+          return status.future;
+        };
+      await show(
+        tester,
+        width: 360,
+        applicationId: uid(4),
+        closureGateway: gateway,
+        settle: false,
+      );
+      expect(statusReads, 1);
+      expect(find.text('Loading hired application...'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      final review = find.widgetWithText(FilledButton, 'Review Shift');
+      expect(tester.widget<FilledButton>(review).onPressed, isNull);
+      expect(find.text('Worker: Synthetic worker'), findsNothing);
+      final date = find.widgetWithText(TextFormField, 'Shift date (MYT)');
+      await tester.enterText(date, '2026-11-07');
+      final start = find.widgetWithText(TextFormField, 'Start time (MYT)');
+      await tester.ensureVisible(start);
+      await tester.tap(start);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(find.byType(TimePickerDialog), findsOneWidget);
+      await tester.tap(find.text('OK'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      final startText = tester.widget<TextFormField>(start).controller!.text;
+      expect(startText, isNotEmpty);
+      candidates.complete(await jobs(source.company));
+      await tester.pump();
+      expect(find.text('Worker: Synthetic worker'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Checking engagement status'),
+        findsOneWidget,
+      );
+      expect(tester.widget<FilledButton>(review).onPressed, isNull);
+      expect(find.text('2026-11-07'), findsOneWidget);
+      expect(tester.widget<TextFormField>(start).controller!.text, startText);
+      status.complete({'closure_status': 'closed', 'eligible': false});
+      await tester.pumpAndSettle();
+      expect(find.textContaining('engagement has been closed'), findsOneWidget);
+      expect(find.text('Review Shift'), findsNothing);
+      expect(statusReads, 1);
+      expect(source.creates, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('authorization failure keeps candidate data unavailable', (
+    tester,
+  ) async {
+    source.access = () async => throw const PostgrestException(
+      message: 'Permission denied',
+      code: '42501',
+    );
+    await show(tester);
+    expect(find.textContaining('access is denied'), findsOneWidget);
+    expect(find.text('Retry loading applications'), findsNothing);
+    expect(find.text('Company job'), findsNothing);
+    expect(find.text('Workplace location'), findsNothing);
+    expect(find.text('Review Shift'), findsNothing);
+  });
+
+  testWidgets('loading can be dismissed before candidate results arrive', (
+    tester,
+  ) async {
+    final candidates = Completer<WorkAssignmentCandidateRead>();
+    source.jobs = (_) => candidates.future;
+    await show(tester, settle: false);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(WorkAssignmentCreationDialog), findsNothing);
+    candidates.complete(complete([]));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(source.creates, 0);
+  });
+
+  testWidgets('loading and retry keep the schedule editable and gated', (
     tester,
   ) async {
     final pending = Completer<WorkAssignmentCandidateRead>();
@@ -829,16 +925,56 @@ void main() {
       ),
     );
     await tester.pump();
+    final date = find.widgetWithText(TextFormField, 'Shift date (MYT)');
+    expect(find.text('Loading eligible workers...'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(
+      find.widgetWithText(TextFormField, 'Start time (MYT)'),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(TextFormField, 'End time (MYT)'),
+      findsOneWidget,
+    );
+    expect(find.text('Company job'), findsOneWidget);
+    expect(find.text('Hired application'), findsOneWidget);
+    final dropdowns = tester.widgetList<DropdownButton<String>>(
+      find.byType(DropdownButton<String>),
+    );
+    expect(dropdowns, hasLength(2));
+    for (final dropdown in dropdowns) {
+      expect(dropdown.onChanged, isNull);
+      expect(dropdown.value, isNull);
+    }
+    expect(find.text('Workplace location'), findsNothing);
+    final review = find.widgetWithText(FilledButton, 'Review Shift');
+    expect(tester.widget<FilledButton>(review).onPressed, isNull);
+    await tester.enterText(date, '2026-11-07');
     pending.completeError(Exception('offline private details'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Check your connection'), findsOneWidget);
-    expect(find.text('Review Shift'), findsNothing);
-    source.jobs = (_) async => complete([]);
-    await tester.tap(find.text('Retry loading applications'));
+    expect(tester.widget<FilledButton>(review).onPressed, isNull);
+    final retry = Completer<WorkAssignmentCandidateRead>();
+    var reads = 0;
+    source.jobs = (_) {
+      reads++;
+      return retry.future;
+    };
+    final retryButton = find.widgetWithText(
+      TextButton,
+      'Retry loading applications',
+    );
+    await tester.tap(retryButton);
+    await tester.tap(retryButton);
+    await tester.pump();
+    expect(reads, 1);
+    expect(find.text('2026-11-07'), findsOneWidget);
+    retry.complete(complete([]));
     await tester.pumpAndSettle();
     expect(find.text('No eligible jobs available'), findsOneWidget);
     expect(find.textContaining('eligible hired worker'), findsOneWidget);
+    expect(find.text('2026-11-07'), findsOneWidget);
     expect(source.creates, 0);
   });
 
@@ -1123,8 +1259,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Create Assignment'));
+      final launch = find.widgetWithText(FilledButton, 'Create Assignment');
+      final open = tester.widget<FilledButton>(launch).onPressed!;
+      await tester.tap(launch);
+      open();
       await tester.pumpAndSettle();
+      expect(find.byType(WorkAssignmentCreationDialog), findsOneWidget);
       await fill(tester);
       await review(tester);
       await tester.tap(find.text('Confirm & Save'));

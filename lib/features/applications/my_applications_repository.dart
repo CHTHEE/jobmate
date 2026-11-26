@@ -105,6 +105,15 @@ abstract class MyApplicationsSource {
   );
 }
 
+typedef MyApplicationSnapshot = ({
+  List<Map<String, dynamic>> rows,
+  bool complete,
+});
+
+abstract interface class CompleteMyApplicationsSource {
+  Future<MyApplicationSnapshot> listSnapshot();
+}
+
 /// Marker for transports that send the exact versioned Offer identity.
 /// Wrappers with additional acceptance side effects must opt in explicitly.
 abstract interface class ExactVersionCompensationOfferSource {
@@ -116,7 +125,10 @@ abstract interface class ExactVersionCompensationOfferSource {
 }
 
 class SupabaseMyApplicationsSource
-    implements MyApplicationsSource, ExactVersionCompensationOfferSource {
+    implements
+        MyApplicationsSource,
+        ExactVersionCompensationOfferSource,
+        CompleteMyApplicationsSource {
   SupabaseMyApplicationsSource(this.client);
   final SupabaseClient client;
   @override
@@ -198,6 +210,48 @@ class SupabaseMyApplicationsSource
     return (rows as List)
         .map((row) => Map<String, dynamic>.from(row as Map))
         .toList();
+  }
+
+  @override
+  Future<MyApplicationSnapshot> listSnapshot() async {
+    final actor = userId;
+    final rows = <Map<String, dynamic>>[];
+    final ids = <String>{};
+    int? total;
+    while (total == null || rows.length < total) {
+      if (actor == null || actor != userId) {
+        throw StateError('Your session changed. Refresh your applications.');
+      }
+      try {
+        final page = await client
+            .rpc<List<dynamic>>('list_my_job_applications')
+            .order('application_id', ascending: true)
+            .range(rows.length, rows.length + 199)
+            .count(CountOption.exact);
+        if (total != null && total != page.count) break;
+        total = page.count;
+        if (page.data.isEmpty) break;
+        final batch = page.data
+            .cast<Map>()
+            .map(Map<String, dynamic>.from)
+            .toList();
+        if (batch.any((row) {
+              final id = row['application_id'];
+              return id is! String || id.isEmpty || !ids.add(id);
+            }) ||
+            rows.length + batch.length > total) {
+          return (rows: rows, complete: false);
+        }
+        rows.addAll(batch);
+      } on TypeError {
+        // A missing or unreadable Content-Range cannot prove completeness.
+        if (total == null && actor == userId) {
+          return (rows: await list(), complete: false);
+        }
+        break;
+      }
+    }
+    return (rows: rows, complete: total == rows.length);
   }
 
   @override
@@ -487,7 +541,8 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
 }
 
 class MyApplicationsRepository extends ChangeNotifier {
-  MyApplicationsRepository(this.source) : _actorId = source.userId {
+  MyApplicationsRepository(this.source, {this.verifyCompleteness = false})
+    : _actorId = source.userId {
     _subscription = source.accountChanges.listen((id) {
       if (id == _actorId) return;
       reset();
@@ -495,6 +550,9 @@ class MyApplicationsRepository extends ChangeNotifier {
     });
   }
   final MyApplicationsSource source;
+  final bool verifyCompleteness;
+  bool _complete = false;
+  bool get complete => loaded && source.userId == _actorId && _complete;
   late final StreamSubscription<String?> _subscription;
   String? _actorId;
   int _generation = 0;
@@ -539,18 +597,24 @@ class MyApplicationsRepository extends ChangeNotifier {
     final actor = source.userId;
     final generation = ++_generation;
     _applications.clear();
+    _complete = false;
     loading = true;
     loaded = false;
     error = null;
     notifyListeners();
     try {
       if (actor == null) throw StateError('Sign in to view your applications.');
-      final rows = await source.list();
+      final reader = source;
+      final snapshot =
+          verifyCompleteness && reader is CompleteMyApplicationsSource
+          ? await (reader as CompleteMyApplicationsSource).listSnapshot()
+          : (rows: await reader.list(), complete: false);
       if (_disposed || generation != _generation || source.userId != actor) {
         return;
       }
-      final applications = rows.map(MyJobApplication.new).toList();
+      final applications = snapshot.rows.map(MyJobApplication.new).toList();
       _applications.addAll(applications);
+      _complete = snapshot.complete;
       loaded = true;
     } catch (failure) {
       if (_disposed || generation != _generation || source.userId != actor) {
@@ -577,6 +641,7 @@ class MyApplicationsRepository extends ChangeNotifier {
     ++_generation;
     _actorId = source.userId;
     _applications.clear();
+    _complete = false;
     loading = false;
     loaded = false;
     error = 'Your session changed. Refresh your applications.';

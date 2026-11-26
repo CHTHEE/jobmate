@@ -64,9 +64,17 @@ class _WorkAssignmentCreationDialogState
     super.initState();
     widget.repository.addListener(_changed);
     widget.repository.load(companyId: widget.companyId);
-    if (widget.applicationId != null) {
-      _loadEngagementStatus(widget.applicationId!);
+  }
+
+  void _retryCandidates() {
+    if (_busy ||
+        _closing ||
+        _leaving ||
+        widget.repository.state.loading ||
+        widget.repository.source.userId != _actor) {
+      return;
     }
+    widget.repository.load(companyId: widget.companyId);
   }
 
   void _changed() {
@@ -106,7 +114,11 @@ class _WorkAssignmentCreationDialogState
         _setCandidate(selection.length == 1 ? selection.single : null);
       }
     }
-    _ensureEngagementStatus(_candidate?.applicationId);
+    _ensureEngagementStatus(
+      widget.repository.source.userId == _actor
+          ? widget.applicationId ?? _candidate?.applicationId
+          : null,
+    );
     setState(() {});
   }
 
@@ -552,7 +564,43 @@ class _WorkAssignmentCreationDialogState
     final accountChanged = repository.source.userId != _actor;
     final scoped = widget.applicationId != null;
     final unavailable = scoped && _candidate == null;
+    final candidatesReady =
+        !state.loading &&
+        state.errorKind == null &&
+        state.companyId == widget.companyId &&
+        !unavailable &&
+        state.candidates.isNotEmpty;
+    final retryableCandidateError =
+        state.errorKind == WorkAssignmentCreationError.connection ||
+        state.errorKind == WorkAssignmentCreationError.incompleteData;
     final locked = _requestLocked;
+    final waitingForReview =
+        !_confirm &&
+        !accountChanged &&
+        !locked &&
+        (state.loading ||
+            retryableCandidateError ||
+            (candidatesReady && _engagementLoading));
+    final candidateLoading = Row(
+      children: [
+        const SizedBox.square(
+          dimension: 16,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Semantics(
+            liveRegion: true,
+            child: Text(
+              scoped
+                  ? 'Loading hired application...'
+                  : 'Loading eligible workers...',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ),
+      ],
+    );
     final saving = _busy && !_reconciling && _confirm && !accountChanged;
     final previousPin = _previousWorkplacePin;
     final jobs = {for (final c in state.candidates) c.jobId: c.jobTitle};
@@ -561,6 +609,7 @@ class _WorkAssignmentCreationDialogState
       String label,
       String? Function(String?) validate,
     ) => Padding(
+      key: ObjectKey(controller),
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
         controller: controller,
@@ -682,22 +731,35 @@ class _WorkAssignmentCreationDialogState
                           const LinearProgressIndicator(
                             semanticsLabel: 'Creating or checking assignment',
                           ),
-                        if (_candidate != null && _engagementLoading)
+                        if (candidatesReady &&
+                            _candidate != null &&
+                            _engagementLoading)
                           const LinearProgressIndicator(
                             semanticsLabel: 'Checking engagement status',
                           ),
-                        if (_candidate != null && _engagementError != null) ...[
+                        if (candidatesReady &&
+                            _candidate != null &&
+                            _engagementError != null) ...[
                           Text(_engagementError!),
                           TextButton(
-                            onPressed: _busy
-                                ? null
-                                : () => _loadEngagementStatus(
-                                    _candidate!.applicationId,
-                                  ),
+                            onPressed: () {
+                              final candidate = _candidate;
+                              if (_busy ||
+                                  _closing ||
+                                  _leaving ||
+                                  _engagementLoading ||
+                                  candidate == null ||
+                                  widget.repository.source.userId != _actor) {
+                                return;
+                              }
+                              _loadEngagementStatus(candidate.applicationId);
+                            },
                             child: const Text('Retry engagement status'),
                           ),
                         ],
-                        if (_candidate != null && _engagementClosed)
+                        if (candidatesReady &&
+                            _candidate != null &&
+                            _engagementClosed)
                           const Text(
                             'This job engagement has been closed. New shifts cannot be scheduled.',
                           ),
@@ -758,35 +820,7 @@ class _WorkAssignmentCreationDialogState
                           const Text(
                             'Confirming creates a real assignment. Existing assignments are not edited. If the result is uncertain, check assignments before taking any further action.',
                           ),
-                        ] else if (state.loading)
-                          const Center(child: CircularProgressIndicator())
-                        else if (state.error != null) ...[
-                          Text(state.error!),
-                          TextButton(
-                            onPressed: () =>
-                                repository.load(companyId: widget.companyId),
-                            child: const Text('Retry loading applications'),
-                          ),
-                        ] else if (unavailable)
-                          const Text(
-                            'This hired application is no longer available for scheduling. Close and refresh the assignments.',
-                          )
-                        else if (state.candidates.isEmpty)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'No eligible jobs available',
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'New shifts require a Part-Time or Temporary job with an eligible hired worker. '
-                                'Hired workers can receive additional non-overlapping shifts.',
-                              ),
-                            ],
-                          )
-                        else
+                        ] else
                           Form(
                             key: _form,
                             autovalidateMode: _validationRequested
@@ -795,7 +829,35 @@ class _WorkAssignmentCreationDialogState
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                if (scoped && _candidate != null) ...[
+                                if (state.loading && scoped)
+                                  candidateLoading
+                                else if (state.error != null) ...[
+                                  Text(state.error!),
+                                  if (retryableCandidateError)
+                                    TextButton(
+                                      onPressed: _retryCandidates,
+                                      child: const Text(
+                                        'Retry loading applications',
+                                      ),
+                                    ),
+                                ] else if (!state.loading && unavailable)
+                                  const Text(
+                                    'This hired application is no longer available for scheduling. Close and refresh the assignments.',
+                                  )
+                                else if (!state.loading &&
+                                    state.candidates.isEmpty) ...[
+                                  Text(
+                                    'No eligible jobs available',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  const Text(
+                                    'New shifts require a Part-Time or Temporary job with an eligible hired worker. '
+                                    'Hired workers can receive additional non-overlapping shifts.',
+                                  ),
+                                ] else if (candidatesReady && scoped) ...[
                                   Text(
                                     'Job: ${_candidate!.jobTitle}',
                                     style: Theme.of(context)
@@ -805,12 +867,12 @@ class _WorkAssignmentCreationDialogState
                                   Text('Company: ${_candidate!.companyName}'),
                                   Text('Worker: ${_candidate!.applicantName}'),
                                   const SizedBox(height: 16),
-                                ],
-                                if (!scoped) ...[
+                                ] else if (candidatesReady ||
+                                    state.loading) ...[
                                   // The floating label paints above the first field.
                                   const SizedBox(height: 12),
                                   DropdownButtonFormField<String>(
-                                    initialValue: _job,
+                                    initialValue: candidatesReady ? _job : null,
                                     isExpanded: true,
                                     decoration: const InputDecoration(
                                       labelText: 'Company job',
@@ -828,26 +890,36 @@ class _WorkAssignmentCreationDialogState
                                           ),
                                         )
                                         .toList(),
-                                    onChanged: _busy
+                                    onChanged: _busy || !candidatesReady
                                         ? null
                                         : (value) => setState(() {
                                             _job = value;
                                             _setCandidate(null);
                                             _result = null;
+                                            _ensureEngagementStatus(null);
                                           }),
                                     validator: (v) =>
                                         v == null ? 'Select a job.' : null,
                                   ),
                                   const SizedBox(height: 4),
-                                  Text(
-                                    'Only Part-Time and Temporary jobs with eligible hired workers are available.',
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(color: JobMateTheme.body),
-                                  ),
+                                  if (state.loading)
+                                    candidateLoading
+                                  else
+                                    Text(
+                                      'Only Part-Time and Temporary jobs with eligible hired workers are available.',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(color: JobMateTheme.body),
+                                    ),
                                   const SizedBox(height: 12),
                                   DropdownButtonFormField<String>(
-                                    key: ValueKey(_job),
-                                    initialValue: _candidate?.applicationId,
+                                    key: ValueKey(
+                                      candidatesReady ? _job : null,
+                                    ),
+                                    initialValue: candidatesReady
+                                        ? _candidate?.applicationId
+                                        : null,
                                     isExpanded: true,
                                     decoration: const InputDecoration(
                                       labelText: 'Hired application',
@@ -866,7 +938,7 @@ class _WorkAssignmentCreationDialogState
                                           ),
                                         )
                                         .toList(),
-                                    onChanged: _busy
+                                    onChanged: _busy || !candidatesReady
                                         ? null
                                         : (value) {
                                             setState(() {
@@ -891,6 +963,7 @@ class _WorkAssignmentCreationDialogState
 
                                 input(_startDate, 'Shift date (MYT)', date),
                                 LayoutBuilder(
+                                  key: const ValueKey('shift times'),
                                   builder: (context, constraints) {
                                     final start = input(
                                       _startTime,
@@ -919,51 +992,53 @@ class _WorkAssignmentCreationDialogState
                                           );
                                   },
                                 ),
-                                input(
-                                  _location,
-                                  'Workplace location',
-                                  (v) => v == null || v.trim().isEmpty
-                                      ? 'Enter a workplace location.'
-                                      : v.runes.length > 500
-                                      ? 'Use no more than 500 characters.'
-                                      : null,
-                                ),
-                                Text(_pinStatus),
-                                if (previousPin != null)
-                                  _previousPinConfirmation(previousPin),
-                                if (_workplacePin != null)
-                                  const Text(
-                                    'Check that the pin matches the workplace address before creating the shift.',
+                                if (candidatesReady) ...[
+                                  input(
+                                    _location,
+                                    'Workplace location',
+                                    (v) => v == null || v.trim().isEmpty
+                                        ? 'Enter a workplace location.'
+                                        : v.runes.length > 500
+                                        ? 'Use no more than 500 characters.'
+                                        : null,
                                   ),
-                                Wrap(
-                                  spacing: 8,
-                                  children: [
-                                    OutlinedButton.icon(
-                                      onPressed:
-                                          _busy ||
-                                              _pickingWorkplace ||
-                                              _candidate == null ||
-                                              _draftAddress.isEmpty
-                                          ? null
-                                          : _chooseWorkplacePin,
-                                      icon: const Icon(Icons.map_outlined),
-                                      label: Text(
-                                        _workplacePin == null
-                                            ? 'Choose pin'
-                                            : 'Change pin',
-                                      ),
+                                  Text(_pinStatus),
+                                  if (previousPin != null)
+                                    _previousPinConfirmation(previousPin),
+                                  if (_workplacePin != null)
+                                    const Text(
+                                      'Check that the pin matches the workplace address before creating the shift.',
                                     ),
-                                    if (_workplacePin != null)
-                                      TextButton(
-                                        onPressed: _busy || _pickingWorkplace
+                                  Wrap(
+                                    spacing: 8,
+                                    children: [
+                                      OutlinedButton.icon(
+                                        onPressed:
+                                            _busy ||
+                                                _pickingWorkplace ||
+                                                _candidate == null ||
+                                                _draftAddress.isEmpty
                                             ? null
-                                            : () => setState(
-                                                () => _workplacePin = null,
-                                              ),
-                                        child: const Text('Clear pin'),
+                                            : _chooseWorkplacePin,
+                                        icon: const Icon(Icons.map_outlined),
+                                        label: Text(
+                                          _workplacePin == null
+                                              ? 'Choose pin'
+                                              : 'Change pin',
+                                        ),
                                       ),
-                                  ],
-                                ),
+                                      if (_workplacePin != null)
+                                        TextButton(
+                                          onPressed: _busy || _pickingWorkplace
+                                              ? null
+                                              : () => setState(
+                                                  () => _workplacePin = null,
+                                                ),
+                                          child: const Text('Clear pin'),
+                                        ),
+                                    ],
+                                  ),
+                                ],
                                 if (_start != null &&
                                     _end != null &&
                                     _end!.isAfter(_start!))
@@ -1007,17 +1082,19 @@ class _WorkAssignmentCreationDialogState
                   onPressed: _busy ? null : () => _submit(reconcile: true),
                   child: const Text('Check current assignment'),
                 ),
+              if (waitingForReview)
+                const FilledButton(
+                  onPressed: null,
+                  child: Text('Review Shift'),
+                ),
               if (saving ||
                   (!accountChanged &&
                       !locked &&
                       !_engagementClosed &&
                       _engagementError == null &&
                       !_engagementLoading &&
-                      state.error == null &&
-                      !state.loading &&
-                      !unavailable &&
-                      !(_confirm && _result?.scheduleConflict == true) &&
-                      (_confirm || state.candidates.isNotEmpty))) ...[
+                      candidatesReady &&
+                      !(_confirm && _result?.scheduleConflict == true))) ...[
                 if (_confirm && _result?.legacyTextOnlyAvailable == true)
                   OutlinedButton(
                     onPressed: _busy

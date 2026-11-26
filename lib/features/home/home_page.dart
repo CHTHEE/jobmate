@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/widgets/app_workspace.dart';
 import 'dashboard_content.dart';
-import '../jobs/job_postings_repository.dart';
 import '../company/company_membership_selection.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/navigation/workspace_destinations.dart';
@@ -31,8 +30,7 @@ class _HomePageState extends State<HomePage> {
   bool _loading = true;
   String? _loadError;
   String? _companyError;
-  List<Map<String, dynamic>>? _jobPostings;
-  String? _jobPostingsError;
+  int _accountLoad = 0;
 
   @override
   void initState() {
@@ -92,6 +90,12 @@ class _HomePageState extends State<HomePage> {
                       )
                     else if (_profile != null)
                       DashboardContent(
+                        seekerClient: _accountRole == 'job_seeker'
+                            ? Supabase.instance.client
+                            : null,
+                        employerClient: _accountRole == 'employer'
+                            ? Supabase.instance.client
+                            : null,
                         profile: _profile!,
                         email: widget.email,
                         company: _company,
@@ -102,8 +106,6 @@ class _HomePageState extends State<HomePage> {
                         onVerification: () =>
                             _openSection(AppRoutes.documentSubmission),
                         onRetry: _loadAccountRole,
-                        jobPostings: _jobPostings,
-                        jobPostingsError: _jobPostingsError,
                       ),
                     const SizedBox(height: 20),
                     if (_accountRole == 'administrator')
@@ -235,6 +237,11 @@ class _HomePageState extends State<HomePage> {
     final client = Supabase.instance.client;
     final userId = client.auth.currentUser?.id;
     if (userId == null) return;
+    final request = ++_accountLoad;
+    bool current() =>
+        mounted &&
+        request == _accountLoad &&
+        client.auth.currentUser?.id == userId;
     setState(() {
       _loading = true;
       _loadError = null;
@@ -248,7 +255,7 @@ class _HomePageState extends State<HomePage> {
           )
           .eq('user_id', userId)
           .single();
-      if (!mounted || client.auth.currentUser?.id != userId) return;
+      if (!current()) return;
       final role = profile['role'];
       if (role is! String) {
         throw const FormatException('Unexpected account role.');
@@ -277,46 +284,24 @@ class _HomePageState extends State<HomePage> {
           companyError = 'Unable to load company information. Retry or open Company profile from navigation.';
         }
       }
-      List<Map<String, dynamic>>? postingRecords;
-      String? postingError;
-      if (role == 'employer') {
-        try {
-          final repository = JobPostingsRepository(
-            client,
-            companyContext: company?['company_id'] as String?,
-          );
-          final access = await repository.loadAccess();
-          if (access.allowed) {
-            postingRecords = await repository.list(
-              access.company!['company_id'].toString(),
-            );
-          } else {
-            postingError = access.message;
-          }
-        } catch (_) {
-          postingError = 'Unable to load company job counts. Refresh or open My Job Postings to retry.';
-        }
-      }
-      if (!mounted || client.auth.currentUser?.id != userId) return;
+      if (!current()) return;
       setState(() {
         _profile = profile;
         _accountRole = role;
         _company = company;
         _memberRole = memberRole;
         _companyError = companyError;
-        _jobPostings = postingRecords;
-        _jobPostingsError = postingError;
       });
     } catch (error) {
       debugPrint('Dashboard load failed: $error');
-      if (mounted && client.auth.currentUser?.id == userId) {
+      if (current()) {
         setState(
           () => _loadError =
               'Your profile could not be loaded. Please try again.',
         );
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (current()) setState(() => _loading = false);
     }
   }
 

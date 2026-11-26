@@ -1,15 +1,30 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jobmate/features/home/dashboard_content.dart';
+import 'package:jobmate/features/home/employer_dashboard.dart';
+import 'package:jobmate/features/jobs/job_form_page.dart';
+import 'package:jobmate/features/jobs/job_form_result.dart';
+import 'package:jobmate/features/jobs/job_form_route.dart';
+import 'package:jobmate/features/jobs/job_postings_repository.dart';
+import 'package:jobmate/features/work_attendance/work_attendance_repository.dart';
 import 'package:jobmate/shared/navigation/app_routes.dart';
 import 'package:jobmate/shared/navigation/workspace_destinations.dart';
 import 'package:jobmate/shared/widgets/app_workspace.dart';
+import 'package:jobmate/shared/widgets/responsive_layout.dart';
 
 import 'support/workspace_navigation_test_helper.dart';
+import 'job_postings_test.dart' show TestJobs, field;
+import 'work_attendance_repository_test.dart'
+    show FakeSource, assignment, id, other;
 
 void main() {
+  _employerDashboardTests();
   test('Job Seekers have one primary browse destination', () {
     final paths = workspaceDestinations('job_seeker').values
         .expand((items) => items)
@@ -475,8 +490,8 @@ void main() {
         if (role == 'job_seeker') {
           expect(find.text('Complete your profile'), findsOneWidget);
           expect(find.text('50%'), findsOneWidget);
-          expect(find.text('Applied companies'), findsOneWidget);
-          expect(find.text('Evaluations from others'), findsOneWidget);
+          expect(find.text('Applied companies'), findsNothing);
+          expect(find.text('Evaluations from others'), findsNothing);
           expect(find.text('Personal profile'), findsNothing);
         } else {
           expect(find.text('Profile completion: 50%'), findsOneWidget);
@@ -574,4 +589,596 @@ void main() {
     expect(find.text('Company unavailable'), findsOneWidget);
     expect(find.text('Set up company'), findsNothing);
   });
+}
+
+class _DashboardFormRepository extends TestJobs {
+  final accessCheck = Completer<JobAccess>();
+
+  @override
+  Future<JobAccess> loadAccess({bool includeLogo = true}) => accessCheck.future;
+}
+
+void _employerDashboardTests() {
+  const profile = {
+    'role': 'employer',
+    'status': 'active',
+    'name': 'Real Employer',
+    'verification_status': 'rejected',
+  };
+  Map<String, dynamic> company(String key) => {
+    'company_id': key,
+    'company_name': key == id ? 'Current Company' : 'Other Company',
+    'verification_status': 'verified',
+    'industry': 'Retail',
+    'location': 'Selangor',
+  };
+
+  testWidgets(
+    'Dashboard Post Job uses one existing form and refreshes only created results',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1440, 1000);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repository = _DashboardFormRepository();
+      final work = FakeSource()..companyRead = (_) async => [];
+      addTearDown(work.changes.close);
+      var reads = 0;
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) => Scaffold(
+              body: WorkspaceContent(
+                maxWidth: double.infinity,
+                child: EmployerDashboard(
+                  profile: profile,
+                  email: 'employer@example.invalid',
+                  company: company(id),
+                  companyError: null,
+                  memberRole: 'owner',
+                  onProfile: () {},
+                  onCompany: () {},
+                  onVerification: () {},
+                  createData: () => EmployerDashboardData(
+                    loadAccess: () async => JobAccess(company(id), null),
+                    listPostings: (_) async {
+                      reads++;
+                      return [];
+                    },
+                    work: WorkAttendanceRepository(work),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          jobFormRoute(AppRoutes.createJob, repository: repository),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      final header = find.widgetWithText(FilledButton, 'Post Job');
+      final open = tester.widget<FilledButton>(header).onPressed!;
+      open();
+      open();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      final form = find.byType(JobFormPage);
+      expect(form, findsOneWidget);
+      expect(tester.widget<JobFormPage>(form).dialog, isTrue);
+      expect(find.text('Verifying company...'), findsOneWidget);
+      expect(find.text('Current Company'), findsWidgets);
+      expect(reads, 1);
+      repository.accessCheck.complete(JobAccess(company(id), null));
+      await tester.pumpAndSettle();
+      field(tester, 'Job title').text = 'Unsaved fixture title';
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Discard unsaved changes?'), findsOneWidget);
+      await tester.tap(find.text('Keep editing'));
+      await tester.pumpAndSettle();
+      expect(form, findsOneWidget);
+      await tester.tap(find.byTooltip('Close job form'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard changes'));
+      await tester.pumpAndSettle();
+      expect(form, findsNothing);
+      expect(header, findsOneWidget);
+      expect(reads, 1);
+
+      Future<void> openQuickAction() async {
+        final quick = find.text('Post New Job');
+        await tester.ensureVisible(quick);
+        await tester.tap(quick);
+        await tester.pumpAndSettle();
+        expect(tester.widget<JobFormPage>(form).dialog, isTrue);
+      }
+
+      await openQuickAction();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(reads, 1);
+      await openQuickAction();
+      field(tester, 'Job title').text = 'Draft fixture title';
+      await tester.tap(find.text('Save Draft'));
+      await tester.pumpAndSettle();
+      expect(repository.saved?['status'], 'draft');
+      expect(form, findsNothing);
+      expect(reads, 2);
+      await openQuickAction();
+      router.pop(
+        JobFormResult(JobFormChange.created, {
+          'job_id': 'published-fixture',
+          'status': 'published',
+        }),
+      );
+      await tester.pumpAndSettle();
+      expect(reads, 3);
+      expect(header, findsOneWidget);
+      router.go(AppRoutes.createJob);
+      await tester.pumpAndSettle();
+      expect(tester.widget<JobFormPage>(form).dialog, isFalse);
+    },
+  );
+  Map<String, dynamic> posting(
+    String key,
+    String title, {
+    String status = 'published',
+    String deadline = '2026-12-10',
+    String published = '2026-11-23T09:00:00Z',
+  }) => {
+    'company_id': id,
+    'job_id': key,
+    'title': title,
+    'status': status,
+    'application_deadline': deadline,
+    'published_at': published,
+    'employment_type': 'part_time',
+    'location': 'Kuala Lumpur',
+  };
+
+  testWidgets(
+    'Employer dashboard uses independently loaded postings and work, real routes and centered layout',
+    (tester) async {
+      const longTitle = 'Customer operations and community support coordinator';
+      const longLocation =
+          'Kuala Lumpur city centre and surrounding neighbourhoods';
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1700, 1000);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final pendingPosts = Completer<List<Map<String, dynamic>>>();
+      final work = FakeSource();
+      addTearDown(work.changes.close);
+      work.companyRead = (scope) async {
+        expect(scope, id);
+        return [
+          {
+            ...assignment(company: true),
+            'job_title': 'Verified upcoming fixture',
+            'attendance_as_of': '2026-11-04T09:00:00Z',
+          },
+          {
+            ...assignment(company: true),
+            'assignment_id': other,
+            'assignment_status': 'awaiting_verification',
+            'verification_status': 'pending_review',
+            'attendance_as_of': '2026-11-06T09:00:00Z',
+          },
+        ];
+      };
+      final dashboard = EmployerDashboard(
+        profile: profile,
+        email: 'employer@example.invalid',
+        company: company(id),
+        companyError: null,
+        memberRole: 'owner',
+        onProfile: () {},
+        onCompany: () {},
+        onVerification: () {},
+        now: () => DateTime(2026, 11, 26),
+        createData: () => EmployerDashboardData(
+          loadAccess: () async => JobAccess(company(id), null),
+          listPostings: (scope) {
+            expect(scope, id);
+            return pendingPosts.future;
+          },
+          work: WorkAttendanceRepository(work),
+        ),
+      );
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, _) => Scaffold(
+              body: Row(
+                children: [
+                  if (MediaQuery.sizeOf(context).width >= 768)
+                    const SizedBox(width: 240),
+                  Expanded(
+                    child: WorkspaceContent(
+                      maxWidth: double.infinity,
+                      child: dashboard,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          for (final route in [
+            AppRoutes.createJob,
+            AppRoutes.applicants,
+            AppRoutes.workers,
+            AppRoutes.workVerification,
+          ])
+            GoRoute(
+              path: route,
+              builder: (_, _) => Scaffold(body: Text(route)),
+            ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: router,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(
+                MediaQuery.sizeOf(context).width < 600 ? 1.6 : 1,
+              ),
+            ),
+            child: child!,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Loading company postings...'), findsOneWidget);
+      expect(find.text('Verified upcoming fixture'), findsOneWidget);
+      expect(find.text('Shifts needing action'), findsOneWidget);
+      expect(
+        find.text('Workers with upcoming or in-progress shifts'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Counts reflect available company postings.'),
+        findsNothing,
+      );
+      pendingPosts.complete([
+        posting('d', 'Fourth posting', published: '2026-11-21T09:00:00Z'),
+        posting('b', 'Second posting'),
+        posting('a', 'First posting'),
+        {
+          ...posting('c', longTitle, published: '2026-11-22T09:00:00Z'),
+          'location': longLocation,
+        },
+        posting('expired', 'Expired posting', deadline: '2026-11-01'),
+        posting('closed', 'Closed posting', status: 'closed'),
+        posting('draft', 'Draft posting', status: 'draft'),
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.text('7'), findsOneWidget);
+      expect(find.text('5'), findsOneWidget);
+      expect(find.text('First posting'), findsOneWidget);
+      expect(find.text('Second posting'), findsOneWidget);
+      expect(find.text(longTitle), findsOneWidget);
+      expect(find.text('Fourth posting'), findsNothing);
+      expect(find.text('Expired posting'), findsNothing);
+      expect(find.text('Closed posting'), findsNothing);
+      expect(find.text('Sample applicants'), findsNothing);
+      expect(find.text('Your hiring workspace, connected'), findsNothing);
+      expect(find.text('Rejected'), findsOneWidget);
+      expect(find.text('Verified'), findsOneWidget);
+      final rect = tester.getRect(find.byWidget(dashboard));
+      final section = tester.getRect(
+        find
+            .ancestor(
+              of: find.text('Total Jobs'),
+              matching: find.byType(ResponsiveGrid),
+            )
+            .first,
+      );
+      expect(section.width, closeTo(1200, 1));
+      expect(section.left - rect.left, closeTo(rect.right - section.right, 1));
+      expect(
+        tester.getTopLeft(find.text('First posting')).dx,
+        lessThan(tester.getTopLeft(find.text('Second posting')).dx),
+      );
+      Finder card(String heading) => find
+          .ancestor(of: find.text(heading), matching: find.byType(Card))
+          .first;
+      final first = tester.getRect(card('First posting'));
+      final second = tester.getRect(card('Second posting'));
+      final third = tester.getRect(card(longTitle));
+      expect(second.top, closeTo(first.top, 1));
+      expect(third.top, closeTo(first.top, 1));
+      expect(third.size, first.size);
+      final footers = find.text('View Job');
+      expect(
+        tester.getRect(footers.first).bottom,
+        closeTo(tester.getRect(footers.last).bottom, 1),
+      );
+      for (final (left, right) in [
+        ('Work Management', 'Worker Overview'),
+        ('Company Overview', 'Your Account'),
+      ]) {
+        expect(
+          tester.getRect(card(left)).top,
+          closeTo(tester.getRect(card(right)).top, 1),
+        );
+        expect(
+          tester.getRect(card(left)).bottom,
+          closeTo(tester.getRect(card(right)).bottom, 1),
+        );
+      }
+      expect(
+        find.descendant(
+          of: card('Company Overview'),
+          matching: find.byIcon(Icons.business_outlined),
+        ),
+        findsOneWidget,
+      );
+      for (final (label, route) in [
+        ('Review Applicants', AppRoutes.applicants),
+        ('Manage Workers', AppRoutes.workers),
+        ('Manage Work', AppRoutes.workVerification),
+      ]) {
+        await tester.ensureVisible(find.text(label));
+        await tester.tap(find.text(label));
+        await tester.pumpAndSettle();
+        final destination = find.text(route);
+        expect(destination, findsOneWidget);
+        tester.element(destination).pop();
+        await tester.pumpAndSettle();
+      }
+      tester.view.physicalSize = const Size(1120, 900);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(card('Second posting')).top,
+        closeTo(tester.getRect(card('First posting')).top, 1),
+      );
+      expect(
+        tester.getRect(card(longTitle)).top,
+        greaterThan(tester.getRect(card('First posting')).bottom),
+      );
+      tester.view.physicalSize = const Size(320, 900);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(card('Second posting')).top,
+        greaterThan(tester.getRect(card('First posting')).bottom),
+      );
+      expect(find.text(longLocation), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Work Management')).dy,
+        lessThan(tester.getTopLeft(find.text('Worker Overview')).dy),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Company Overview presents available authorized logo bytes and keeps the fallback',
+    (tester) async {
+      final work = FakeSource()..companyRead = (_) async => [];
+      addTearDown(work.changes.close);
+      final bytes = base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jBz0AAAAASUVORK5CYII=',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: WorkspaceContent(
+              maxWidth: double.infinity,
+              child: EmployerDashboard(
+                profile: profile,
+                email: 'employer@example.invalid',
+                company: company(id),
+                companyError: null,
+                memberRole: 'owner',
+                onProfile: () {},
+                onCompany: () {},
+                onVerification: () {},
+                createData: () => EmployerDashboardData(
+                  loadAccess: () async =>
+                      JobAccess(company(id), null, logo: bytes),
+                  listPostings: (_) async => [],
+                  work: WorkAttendanceRepository(work),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final logo = find.byWidgetPredicate(
+        (widget) =>
+            widget is Image && widget.semanticLabel == 'Current Company logo',
+      );
+      final image = tester.widget<Image>(logo);
+      expect(image.width, 44);
+      final fallback = image.errorBuilder!(
+        tester.element(logo),
+        StateError('Bad image'),
+        null,
+      );
+      await tester.pumpWidget(MaterialApp(home: fallback));
+      expect(find.byIcon(Icons.business_outlined), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Employer rejects wrong company access and stale results after switching',
+    (tester) async {
+      final work = FakeSource();
+      addTearDown(work.changes.close);
+      final first = Completer<List<Map<String, dynamic>>>();
+      var checks = 0;
+      final data = EmployerDashboardData(
+        loadAccess: () async =>
+            JobAccess(company(++checks == 1 ? id : other), null),
+        listPostings: (scope) => scope == id ? first.future : Future.value([]),
+        work: WorkAttendanceRepository(work..companyRead = (_) async => []),
+      );
+      Widget page(String scope) => MaterialApp(
+        home: Scaffold(
+          body: WorkspaceContent(
+            maxWidth: double.infinity,
+            child: EmployerDashboard(
+              profile: profile,
+              email: 'employer@example.invalid',
+              company: company(scope),
+              companyError: null,
+              memberRole: 'owner',
+              onProfile: () {},
+              onCompany: () {},
+              onVerification: () {},
+              createData: () => data,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(page(id));
+      await tester.pump();
+      expect(find.text('Post Job'), findsOneWidget);
+      await tester.pumpWidget(page(other));
+      await tester.pumpAndSettle();
+      first.complete([posting('late', 'Previous company posting')]);
+      await tester.pumpAndSettle();
+      expect(find.text('Previous company posting'), findsNothing);
+      expect(find.text('Current Company'), findsNothing);
+      work.switchAccount(null);
+      await tester.pumpAndSettle();
+      expect(find.text('Other Company'), findsNothing);
+      expect(find.text('Review Applicants'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Employer posting retry stays scoped and leaves the work section usable',
+    (tester) async {
+      final work = FakeSource()..companyRead = (_) async => [];
+      addTearDown(work.changes.close);
+      final retry = Completer<List<Map<String, dynamic>>>();
+      var requests = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: WorkspaceContent(
+              maxWidth: double.infinity,
+              child: EmployerDashboard(
+                profile: profile,
+                email: 'employer@example.invalid',
+                company: company(id),
+                companyError: null,
+                memberRole: 'owner',
+                onProfile: () {},
+                onCompany: () {},
+                onVerification: () {},
+                createData: () => EmployerDashboardData(
+                  loadAccess: () async => JobAccess(company(id), null),
+                  listPostings: (scope) async {
+                    expect(scope, id);
+                    if (++requests == 1) throw StateError('Offline');
+                    return retry.future;
+                  },
+                  work: WorkAttendanceRepository(work),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Company postings could not be loaded.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('No upcoming shifts in loaded assignments.'),
+        findsOneWidget,
+      );
+      final retryButton = tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Retry'))
+          .onPressed!;
+      retryButton();
+      retryButton();
+      await tester.pump();
+      expect(requests, 2);
+      expect(
+        find.text('Counts reflect available company postings.'),
+        findsNothing,
+      );
+      retry.complete([]);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('No loaded postings are open for applications.'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Counts reflect available company postings.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'Employer company mismatch gates requests and narrow large text remains usable',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(320, 900);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final work = FakeSource();
+      addTearDown(work.changes.close);
+      var postingCalls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(1.6)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: WorkspaceContent(
+              maxWidth: double.infinity,
+              child: EmployerDashboard(
+                profile: profile,
+                email: 'employer@example.invalid',
+                company: company(id),
+                companyError: null,
+                memberRole: 'owner',
+                onProfile: () {},
+                onCompany: () {},
+                onVerification: () {},
+                createData: () => EmployerDashboardData(
+                  loadAccess: () async => JobAccess(company(other), null),
+                  listPostings: (_) async {
+                    postingCalls++;
+                    return [];
+                  },
+                  work: WorkAttendanceRepository(work),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(postingCalls, 0);
+      expect(
+        find.text(
+          'The hiring company changed. Check for updates before continuing.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Post Job'), findsNothing);
+      expect(find.text('Manage Workers'), findsNothing);
+      expect(find.text('Company Overview'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Company Overview')).dy,
+        lessThan(tester.getTopLeft(find.text('Your Account')).dy),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

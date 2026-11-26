@@ -50,7 +50,7 @@ class JobPostingsRepository {
     return parseJobFormatting(response.data);
   }
 
-  Future<JobAccess> loadAccess() async {
+  Future<JobAccess> loadAccess({bool includeLogo = true}) async {
     final user = client.auth.currentUser;
     if (user == null) {
       return const JobAccess(null, 'Sign in to manage job postings.');
@@ -99,16 +99,23 @@ class JobPostingsRepository {
         'Company verification: ${company['verification_status'] ?? 'not submitted'}. Open Company profile to review your verification status. Job creation is available after approval.',
       );
     }
+    final access = JobAccess(company, null);
+    if (!includeLogo) return access;
     Uint8List? logo;
     try {
-      logo = await loadCompanyLogo(
-        client,
-        company['logo_storage_path'] as String?,
-      );
+      logo = await loadAccessLogo(access);
     } catch (_) {
       // A missing/inaccessible logo must not block job management.
     }
     return JobAccess(company, null, logo: logo);
+  }
+
+  Future<Uint8List?> loadAccessLogo(JobAccess access) async {
+    if (!access.allowed) return null;
+    return loadCompanyLogo(
+      client,
+      access.company!['logo_storage_path'] as String?,
+    );
   }
 
   Future<List<Map<String, dynamic>>> list(String companyId) async {
@@ -128,10 +135,17 @@ class JobPostingsRepository {
     Map<String, dynamic> values, {
     String? jobId,
     String expectedStatus = 'draft',
+    String? expectedCompanyId,
   }) async {
-    final access = await loadAccess();
+    final actor = client.auth.currentUser?.id;
+    final access = await loadAccess(includeLogo: expectedCompanyId == null);
     if (!access.allowed) throw StateError(access.message!);
     final companyId = access.company!['company_id'];
+    if (expectedCompanyId != null &&
+        (companyId != expectedCompanyId ||
+            client.auth.currentUser?.id != actor)) {
+      throw StateError('Account or company changed. Reopen the job form.');
+    }
     final data = Map<String, dynamic>.from(values)
       ..remove('company_id')
       ..remove('created_by')

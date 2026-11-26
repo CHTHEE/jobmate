@@ -67,18 +67,57 @@ class JobFormPageState extends State<JobFormPage> {
   static const options = {
     'employment_type': jobEmploymentTypes,
     'work_arrangement': ['on_site', 'hybrid', 'remote'],
-    'salary_period': jobSalaryPeriods,
   };
   final selected = {
     'employment_type': 'full_time',
     'work_arrangement': 'on_site',
-    'salary_period': 'monthly',
+    'salary_period': jobCompensationPolicy['full_time']!.defaultPeriod,
   };
   JobAccess? access;
+  bool get _creating => widget.jobId == null;
+  late final String? _createActor;
+  StreamSubscription<AuthState>? _authChanges;
+  bool _accountChanged = false;
+  bool get _sameCreateActor =>
+      !_accountChanged && repo.client.auth.currentUser?.id == _createActor;
+  bool get _accessReady =>
+      !loading && access?.allowed == true && (!_creating || _sameCreateActor);
+  String? _createAccessError;
+  String? _verifiedCompanyId;
   String? error;
   String? jobId;
   bool loading = true, busy = false, publishing = false, salaryVisible = true;
   bool validationActivated = false;
+  bool _salaryChangePending = false;
+  static const _salaryAmounts = ['salary_min', 'salary_max'];
+  static const _compensationFields = [
+    'employment_type',
+    'salary_period',
+    ..._salaryAmounts,
+  ];
+
+  String get _employmentType => selected['employment_type']!;
+  String get _salaryPeriod => selected['salary_period']!;
+  bool get _legacyPublishedTerms {
+    final original = savedJob;
+    return status == 'published' &&
+        original != null &&
+        jobSalaryPeriodError(
+              '${original['employment_type'] ?? ''}',
+              '${original['salary_period'] ?? ''}',
+            ) !=
+            null;
+  }
+
+  bool get _savedTermsUnchanged {
+    final original = savedJob;
+    if (original == null) return false;
+    return _compensationFields.every((key) {
+      final value = fields[key]?.text.trim() ?? selected[key];
+      return value == '${original[key] ?? ''}'.trim();
+    });
+  }
+
   bool aiFormatting = false, aiAssisted = false;
   bool aiConfirmationPending = false;
   String? aiError;
@@ -106,6 +145,7 @@ class JobFormPageState extends State<JobFormPage> {
   final _autoSearchedAddresses = <String>{};
 
   Future<void> _chooseWorkplace() async {
+    if (!_accessReady || busy) return;
     final address = _address;
     final previous = _pin;
     final result = await widget.pickWorkplace(
@@ -118,7 +158,13 @@ class JobFormPageState extends State<JobFormPage> {
           address.isNotEmpty &&
           _autoSearchedAddresses.add(address),
     );
-    if (!mounted || _remote || address != _address || result == null) return;
+    if (!mounted ||
+        !_accessReady ||
+        _remote ||
+        address != _address ||
+        result == null) {
+      return;
+    }
     final point = result.coordinates;
     final pin = workplaceCoordinates(point.latitude, point.longitude);
     if (pin == null) return;
@@ -203,15 +249,96 @@ class JobFormPageState extends State<JobFormPage> {
   void initState() {
     super.initState();
     jobId = widget.jobId;
-    load();
+    if (_creating) {
+      fields['vacancies']!.text = '1';
+      _savedSnapshot = _snapshot;
+      _createActor = repo.client.auth.currentUser?.id;
+      _authChanges = repo.client.auth.onAuthStateChange.listen((_) {
+        if (!mounted || _accountChanged || _sameCreateActor) return;
+        setState(() {
+          _accountChanged = true;
+          access = null;
+          loading = false;
+        });
+      });
+      _loadCreateAccess();
+    } else {
+      load();
+    }
   }
 
   @override
   void dispose() {
+    unawaited(_authChanges?.cancel());
     for (final c in fields.values) {
       c.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _retryCreateAccess() async {
+    if (loading ||
+        busy ||
+        !_sameCreateActor ||
+        (_createAccessError == null && error == null)) {
+      return;
+    }
+    setState(() {
+      loading = true;
+      access = null;
+      error = null;
+      _createAccessError = null;
+    });
+    await _loadCreateAccess();
+  }
+
+  Future<void> _loadCreateAccess() async {
+    final JobAccess result;
+    try {
+      result = await repo.loadAccess(includeLogo: false);
+    } catch (failure) {
+      if (!mounted || !_sameCreateActor) return;
+      setState(() {
+        loading = false;
+        if (failure is AuthException) {
+          access = const JobAccess(null, 'Sign in to manage job postings.');
+        } else if (failure is PostgrestException && failure.code == '42501') {
+          access = JobAccess(null, jobError(failure));
+        } else {
+          _createAccessError = jobError(failure);
+        }
+      });
+      return;
+    }
+    if (!mounted || !_sameCreateActor) return;
+    final companyId = result.company?['company_id']?.toString();
+    if (result.allowed &&
+        (companyId == null ||
+            (_verifiedCompanyId != null && companyId != _verifiedCompanyId))) {
+      setState(() {
+        access = const JobAccess(null, 'Company changed. Reopen the job form.');
+        loading = false;
+      });
+      return;
+    }
+    setState(() {
+      access = result;
+      loading = false;
+      if (result.allowed) _verifiedCompanyId = companyId;
+    });
+    if (!result.allowed || result.logo != null) return;
+    try {
+      final logo = await repo.loadAccessLogo(result);
+      if (logo == null ||
+          !mounted ||
+          !_sameCreateActor ||
+          !identical(access, result)) {
+        return;
+      }
+      setState(() => access = JobAccess(result.company, null, logo: logo));
+    } catch (_) {
+      // Keep the existing avatar when an optional logo cannot be loaded.
+    }
   }
 
   Future<void> load() async {
@@ -244,7 +371,9 @@ class JobFormPageState extends State<JobFormPage> {
               : '${value ?? ''}';
         }
         for (final key in selected.keys) {
-          selected[key] = job[key] as String? ?? selected[key]!;
+          selected[key] =
+              job[key] as String? ??
+              (key == 'salary_period' ? '' : selected[key]!);
         }
         salaryVisible = job['salary_visible'] as bool? ?? true;
         _setCanonicalJob(job);
@@ -270,6 +399,19 @@ class JobFormPageState extends State<JobFormPage> {
   };
 
   String? validate(String key, String value) {
+    if (key == 'salary_period') {
+      if (_legacyPublishedTerms && !_savedTermsUnchanged) {
+        return 'The saved compensation terms for this published job must remain unchanged.';
+      }
+      final compatibility = jobSalaryPeriodError(
+        _employmentType,
+        _salaryPeriod,
+      );
+      if (compatibility != null &&
+          !(_savedTermsUnchanged && (!publishing || _legacyPublishedTerms))) {
+        return compatibility;
+      }
+    }
     final error = jobFieldError(
       key,
       validationValues(),
@@ -315,18 +457,21 @@ class JobFormPageState extends State<JobFormPage> {
           ? null
           : entry.value.text.trim(),
     ...selected,
+    if (_salaryPeriod.isEmpty) 'salary_period': null,
     'salary_visible': salaryVisible,
     'ai_assisted': aiAssisted,
   };
   Future<void> save(bool publish) async {
-    if (busy || status == 'closed') return;
+    if (busy || _salaryChangePending || status == 'closed' || !_accessReady) {
+      return;
+    }
     final updatingPublished = status == 'published';
     setState(() {
       publishing = publish || updatingPublished;
       validationActivated = true;
     });
     if (!form.currentState!.validate()) {
-      for (final key in [...fields.keys, ...options.keys]) {
+      for (final key in [...fields.keys, ...options.keys, 'salary_period']) {
         final state = fieldKeys[key]?.currentState;
         if (state?.hasError == true) {
           final target = fieldKeys[key]!.currentContext;
@@ -372,8 +517,11 @@ class JobFormPageState extends State<JobFormPage> {
         },
         jobId: jobId,
         expectedStatus: status,
+        expectedCompanyId: _creating
+            ? access!.company!['company_id'].toString()
+            : null,
       );
-      if (!mounted) return;
+      if (!mounted || (_creating && !_sameCreateActor)) return;
       setState(() {
         jobId = saved['job_id'].toString();
         status = saved['status'] as String;
@@ -528,13 +676,13 @@ class JobFormPageState extends State<JobFormPage> {
         );
         if (confirmed != true || !mounted) return;
       }
-      if (!mounted) return;
+      if (!mounted || !_accessReady) return;
       FocusManager.instance.primaryFocus?.unfocus();
       setState(() => aiFormatting = true);
       final generated = await repo
           .formatDescription(description)
           .timeout(const Duration(seconds: 60));
-      if (!mounted) return;
+      if (!mounted || !_accessReady) return;
       for (final key in targets) {
         fields[key]!.text = generated[key]!;
       }
@@ -600,7 +748,11 @@ class JobFormPageState extends State<JobFormPage> {
     ),
   );
 
-  Widget _textInput(String key) {
+  bool _hasSalaryError(Map<String, dynamic> amounts) => _salaryAmounts.any(
+    (key) => jobFieldError(key, amounts, publishing: false) != null,
+  );
+
+  Widget _textInput(String key, {String? liveError}) {
     final multiline = [
       'original_description',
       'role_overview',
@@ -615,7 +767,11 @@ class JobFormPageState extends State<JobFormPage> {
       label: requiredLabel(label),
       action: key == 'original_description'
           ? OutlinedButton.icon(
-              onPressed: busy || status == 'closed' ? null : formatWithAi,
+              onPressed: busy || status == 'closed' || !_accessReady
+                  ? null
+                  : () {
+                      if (_accessReady) formatWithAi();
+                    },
               icon: const Icon(Icons.auto_awesome_outlined, size: 17),
               label: Text(aiFormatting ? 'Formatting…' : 'Format with AI ✨'),
             )
@@ -628,12 +784,16 @@ class JobFormPageState extends State<JobFormPage> {
             () => GlobalKey<FormFieldState<String>>(),
           ),
           controller: fields[key],
+          forceErrorText: liveError,
           onChanged: key == 'location'
               ? (_) => setState(() {
                   if (_address != _confirmedAddress) _confirmedAddress = null;
                 })
               : null,
-          enabled: !busy && status != 'closed',
+          enabled:
+              !busy &&
+              status != 'closed' &&
+              !(_legacyPublishedTerms && _salaryAmounts.contains(key)),
           minLines: multiline ? 3 : 1,
           maxLines: multiline ? 8 : 1,
           keyboardType: multiline
@@ -643,7 +803,9 @@ class JobFormPageState extends State<JobFormPage> {
               : TextInputType.text,
           textInputAction: multiline ? TextInputAction.newline : null,
           decoration: InputDecoration(
-            hintText: jobExamples[key],
+            hintText: _salaryAmounts.contains(key)
+                ? jobSalaryHint(_employmentType, _salaryPeriod, key)
+                : jobExamples[key],
             helperMaxLines: 5,
             errorMaxLines: 4,
             suffixIcon: key == 'application_deadline'
@@ -677,7 +839,9 @@ class JobFormPageState extends State<JobFormPage> {
     final pin = _pin;
     final enabled = !busy && status != 'closed';
     final mapButton = OutlinedButton.icon(
-      onPressed: enabled && _address.isNotEmpty ? _chooseWorkplace : null,
+      onPressed: enabled && _accessReady && _address.isNotEmpty
+          ? _chooseWorkplace
+          : null,
       icon: const Icon(Icons.map_outlined),
       label: Text(pin == null ? 'Choose on map' : 'Change pin'),
     );
@@ -788,37 +952,139 @@ class JobFormPageState extends State<JobFormPage> {
     );
   }
 
-  Widget _selection(String key) => JobLabeledField(
-    label: requiredLabel(jobLabel(key)),
-    child: Semantics(
-      label: '${jobLabel(key)}, required before publishing',
-      child: DropdownButtonFormField<String>(
-        key: fieldKeys.putIfAbsent(
-          key,
-          () => GlobalKey<FormFieldState<String>>(),
+  Future<void> _changeCompensation(String key, String value) async {
+    if (value == selected[key] ||
+        _salaryChangePending ||
+        busy ||
+        status == 'closed' ||
+        _legacyPublishedTerms) {
+      return;
+    }
+    final type = key == 'employment_type' ? value : _employmentType;
+    final policy = jobCompensationPolicy[type];
+    if (policy == null) return;
+    final oldPeriod = _salaryPeriod;
+    final period = key == 'salary_period'
+        ? value
+        : policy.periods.contains(oldPeriod)
+        ? oldPeriod
+        : policy.defaultPeriod;
+    if (!policy.periods.contains(period)) return;
+    final unitChanged = period != oldPeriod;
+    final hasAmounts = _salaryAmounts.any(
+      (amount) => fields[amount]!.text.trim().isNotEmpty,
+    );
+    if (unitChanged && hasAmounts) {
+      _salaryChangePending = true;
+      // The dropdown updates its internal value before invoking onChanged.
+      // Keep displaying the original choice until the employer confirms.
+      fieldKeys[key]?.currentState?.reset();
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Change salary period?'),
+          content: Text(
+            'Changing from ${oldPeriod.isEmpty ? 'an unspecified period' : jobLabel(oldPeriod)} to ${jobLabel(period)} will reset your entered salary amounts. Enter the new amounts using the selected salary period.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Change & reset salary'),
+            ),
+          ],
         ),
-        initialValue: selected[key],
-        isExpanded: true,
-        validator: (value) => validate(key, value ?? ''),
-        decoration: InputDecoration(
-          helperMaxLines: 4,
-          errorMaxLines: 4,
-          helperText: switch (key) {
-            'work_arrangement' => 'On-site: at the workplace. Hybrid: workplace and remote. Remote: off-site.',
-            'salary_period' => 'How often the salary amount is paid.',
-            _ => null,
-          },
+      );
+      _salaryChangePending = false;
+      if (!mounted ||
+          confirmed != true ||
+          busy ||
+          (_creating && !_sameCreateActor)) {
+        return;
+      }
+    }
+    setState(() {
+      selected['employment_type'] = type;
+      selected['salary_period'] = period;
+      if (unitChanged) {
+        for (final amount in _salaryAmounts) {
+          fields[amount]!.clear();
+        }
+      }
+    });
+  }
+
+  String get _salaryPeriodHelp {
+    final guidance = jobSalaryPeriodHelp(_employmentType);
+    if (jobSalaryPeriodError(_employmentType, _salaryPeriod) == null) {
+      return guidance;
+    }
+    if (_legacyPublishedTerms) {
+      return 'This published job uses a legacy salary period. Its saved employment and salary terms are kept as entered.';
+    }
+    return 'This saved salary period is incompatible with the current posting policy. $guidance';
+  }
+
+  Widget _selection(String key) {
+    final isPeriod = key == 'salary_period';
+    final isCompensation = isPeriod || key == 'employment_type';
+    final allowed = isPeriod
+        ? jobCompensationPolicy[_employmentType]?.periods ?? const <String>[]
+        : options[key]!;
+    final current = selected[key]!;
+    final enabled =
+        !busy &&
+        status != 'closed' &&
+        !(isCompensation && _legacyPublishedTerms) &&
+        (!isPeriod || allowed.length > 1 || !allowed.contains(current));
+    return JobLabeledField(
+      label: requiredLabel(jobLabel(key)),
+      child: Semantics(
+        label: '${jobLabel(key)}, required before publishing',
+        child: DropdownButtonFormField<String>(
+          key: fieldKeys.putIfAbsent(
+            key,
+            () => GlobalKey<FormFieldState<String>>(),
+          ),
+          initialValue: current.isEmpty ? null : current,
+          isExpanded: true,
+          validator: (value) => validate(key, value ?? ''),
+          decoration: InputDecoration(
+            helperMaxLines: 4,
+            errorMaxLines: 4,
+            helperText: switch (key) {
+              'work_arrangement' => 'On-site: at the workplace. Hybrid: workplace and remote. Remote: off-site.',
+              'salary_period' => _salaryPeriodHelp,
+              _ => null,
+            },
+          ),
+          items: [
+            for (final value in allowed)
+              DropdownMenuItem(value: value, child: Text(jobLabel(value))),
+            if (current.isNotEmpty && !allowed.contains(current))
+              DropdownMenuItem(
+                value: current,
+                enabled: false,
+                child: Text(jobLabel(current)),
+              ),
+          ],
+          onChanged: !enabled
+              ? null
+              : (value) {
+                  if (value == null) return;
+                  if (isCompensation) {
+                    unawaited(_changeCompensation(key, value));
+                  } else {
+                    setState(() => selected[key] = value);
+                  }
+                },
         ),
-        items: [
-          for (final value in {...options[key]!, selected[key]!})
-            DropdownMenuItem(value: value, child: Text(jobLabel(value))),
-        ],
-        onChanged: busy || status == 'closed'
-            ? null
-            : (value) => setState(() => selected[key] = value!),
       ),
-    ),
-  );
+    );
+  }
 
   String get _formTitle => jobId == null
       ? 'Create Job Posting'
@@ -851,7 +1117,7 @@ class JobFormPageState extends State<JobFormPage> {
         ),
         const Divider(height: 1),
         Expanded(
-          child: loading
+          child: loading && !_creating
               ? const Center(child: CircularProgressIndicator())
               : SingleChildScrollView(
                   padding: EdgeInsets.all(compact ? 16 : 20),
@@ -861,7 +1127,7 @@ class JobFormPageState extends State<JobFormPage> {
                   ),
                 ),
         ),
-        if (!loading && access?.allowed == true) ...[
+        if (_showActions) ...[
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -889,11 +1155,17 @@ class JobFormPageState extends State<JobFormPage> {
     );
   }
 
+  bool get _showCreateDraft =>
+      _creating && _sameCreateActor && (loading || _createAccessError != null);
+
+  bool get _showActions => _accessReady || _showCreateDraft;
+
   Widget _buildActions() => LayoutBuilder(
     builder: (context, box) {
+      final protected = !busy && _accessReady;
       final close = status == 'published'
           ? TextButton.icon(
-              onPressed: busy ? null : _closeJob,
+              onPressed: protected ? _closeJob : null,
               style: TextButton.styleFrom(
                 foregroundColor: Theme.of(context).colorScheme.error,
               ),
@@ -903,26 +1175,35 @@ class JobFormPageState extends State<JobFormPage> {
           : null;
       final draft = status == 'draft'
           ? OutlinedButton(
-              onPressed: busy ? null : () => save(false),
+              onPressed: protected ? () => save(false) : null,
               child: const Text('Save Draft'),
             )
           : null;
       final preview = TextButton.icon(
-        onPressed: busy
+        onPressed: !protected
             ? null
-            : () => showDialog<void>(
-                context: context,
-                builder: (_) => JobPreview(
-                  logo: access!.logo,
-                  job: {
-                    ...?savedJob,
-                    ...values(),
-                    'latitude': _pin?.latitude,
-                    'longitude': _pin?.longitude,
-                  },
-                  company: access!.company!['company_name'] as String,
-                ),
-              ),
+            : () {
+                if (!_accessReady || busy) return;
+                final previewAccess = access!;
+                final invalidSalary = _hasSalaryError(validationValues());
+                showDialog<void>(
+                  context: context,
+                  builder: (_) => JobPreview(
+                    logo: previewAccess.logo,
+                    job: {
+                      ...?savedJob,
+                      ...values(),
+                      if (invalidSalary) ...{
+                        'salary_min': null,
+                        'salary_max': null,
+                      },
+                      'latitude': _pin?.latitude,
+                      'longitude': _pin?.longitude,
+                    },
+                    company: previewAccess.company!['company_name'] as String,
+                  ),
+                );
+              },
         icon: const Icon(Icons.visibility_outlined, size: 18),
         label: Text(status == 'closed' ? 'Preview' : 'Preview unsaved changes'),
       );
@@ -933,7 +1214,7 @@ class JobFormPageState extends State<JobFormPage> {
       final primary = status == 'closed'
           ? null
           : FilledButton(
-              onPressed: busy ? null : () => save(true),
+              onPressed: protected ? () => save(true) : null,
               child: Text(
                 status == 'published' ? 'Save Changes' : 'Publish Job',
               ),
@@ -963,17 +1244,108 @@ class JobFormPageState extends State<JobFormPage> {
     },
   );
 
+  Widget _hiringCompanyContent() {
+    if (_showCreateDraft) {
+      final accessError = _createAccessError;
+      if (accessError != null) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              accessError,
+              style: const TextStyle(color: JobMateTheme.error),
+            ),
+            TextButton(
+              onPressed: _retryCreateAccess,
+              child: const Text('Retry'),
+            ),
+          ],
+        );
+      }
+      return Row(
+        children: [
+          const SizedBox.square(
+            dimension: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Semantics(
+              liveRegion: true,
+              child: Text(
+                'Verifying company...',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            if (access!.logo == null) ...[
+              const CircleAvatar(child: Icon(Icons.business_outlined)),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              child: CompanyIdentity(
+                name: access!.company!['company_name'] as String,
+                logo: access!.logo,
+              ),
+            ),
+          ],
+        ),
+        if (access!.company!['verification_status'] == 'verified')
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.verified_outlined,
+                  size: 17,
+                  color: JobMateTheme.darkTeal,
+                ),
+                SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    'Verified company',
+                    style: TextStyle(color: JobMateTheme.darkTeal),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 8),
+        const Text(
+          'Your hiring company is selected automatically from your membership and cannot be changed here.',
+          style: TextStyle(color: JobMateTheme.body),
+        ),
+      ],
+    );
+  }
+
   List<Widget> _formContent() => [
     if (error != null) ...[
       Text(error!, style: const TextStyle(color: JobMateTheme.error)),
-      TextButton(onPressed: busy ? null : load, child: const Text('Reload')),
+      TextButton(
+        onPressed: busy ? null : (_creating ? _retryCreateAccess : load),
+        child: const Text('Reload'),
+      ),
     ],
-    if (access != null && !access!.allowed)
+    if ((_creating && !_sameCreateActor) ||
+        (access != null && !access!.allowed))
       WorkspaceCard(
         title: 'Job creation unavailable',
         child: Column(
           children: [
-            Text(access!.message!),
+            Text(
+              _creating && !_sameCreateActor
+                  ? 'Your account changed. Reopen the job form.'
+                  : access!.message!,
+            ),
             TextButton(
               onPressed: () => context.push(AppRoutes.company),
               child: const Text('Company profile'),
@@ -982,7 +1354,7 @@ class JobFormPageState extends State<JobFormPage> {
           ],
         ),
       ),
-    if (access?.allowed == true)
+    if (_showActions)
       Form(
         key: form,
         autovalidateMode: validationActivated
@@ -995,52 +1367,7 @@ class JobFormPageState extends State<JobFormPage> {
               title: 'Hiring company',
               icon: Icons.business_outlined,
               compact: widget.dialog,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      if (access!.logo == null) ...[
-                        const CircleAvatar(
-                          child: Icon(Icons.business_outlined),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      Expanded(
-                        child: CompanyIdentity(
-                          name: access!.company!['company_name'] as String,
-                          logo: access!.logo,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (access!.company!['verification_status'] == 'verified')
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.verified_outlined,
-                            size: 17,
-                            color: JobMateTheme.darkTeal,
-                          ),
-                          SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              'Verified company',
-                              style: TextStyle(color: JobMateTheme.darkTeal),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Your hiring company is selected automatically from your membership and cannot be changed here.',
-                    style: TextStyle(color: JobMateTheme.body),
-                  ),
-                ],
-              ),
+              child: _hiringCompanyContent(),
             ),
             const Padding(
               padding: EdgeInsets.only(bottom: 12),
@@ -1073,14 +1400,26 @@ class JobFormPageState extends State<JobFormPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ResponsiveGrid(
-                    minItemWidth: 200,
-                    maxColumns: 3,
-                    children: [
-                      _textInput('salary_min'),
-                      _textInput('salary_max'),
-                      _selection('salary_period'),
-                    ],
+                  ListenableBuilder(
+                    listenable: Listenable.merge([
+                      fields['salary_min']!,
+                      fields['salary_max']!,
+                    ]),
+                    builder: (context, _) => ResponsiveGrid(
+                      minItemWidth: 200,
+                      maxColumns: 3,
+                      children: [
+                        _textInput('salary_min'),
+                        _textInput(
+                          'salary_max',
+                          liveError: jobSalaryRangeError({
+                            for (final key in _salaryAmounts)
+                              key: fields[key]!.text,
+                          }),
+                        ),
+                        _selection('salary_period'),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
                   SwitchListTile(
@@ -1099,24 +1438,48 @@ class JobFormPageState extends State<JobFormPage> {
                       fields['salary_min']!,
                       fields['salary_max']!,
                     ]),
-                    builder: (context, _) => Container(
-                      key: const ValueKey('salary-display-preview'),
-                      padding: const EdgeInsets.all(12),
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: JobMateTheme.teal50,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        salaryVisible
-                            ? 'Salary preview: ${marketplaceSalary(BrowseJob(values(), company: ''))}'
-                            : 'Salary preview: Hidden from job seekers',
-                        style: const TextStyle(
-                          color: JobMateTheme.darkTeal,
-                          fontWeight: FontWeight.w600,
+                    builder: (context, _) {
+                      final amounts = {
+                        for (final key in _salaryAmounts)
+                          key: fields[key]!.text,
+                      };
+                      final invalid = _hasSalaryError(amounts);
+                      final incomplete = amounts.values.any(
+                        (amount) => amount.trim().isEmpty,
+                      );
+                      final message = invalid
+                          ? 'Please enter a valid salary range.'
+                          : !salaryVisible
+                          ? salaryNotDisclosed
+                          : incomplete
+                          ? 'Enter both salary amounts.'
+                          : marketplaceSalary(BrowseJob(values(), company: ''));
+                      final color = invalid
+                          ? JobMateTheme.error
+                          : incomplete && salaryVisible
+                          ? JobMateTheme.body
+                          : JobMateTheme.darkTeal;
+                      return Container(
+                        key: const ValueKey('salary-display-preview'),
+                        padding: const EdgeInsets.all(12),
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: invalid
+                              ? JobMateTheme.error.withValues(alpha: .08)
+                              : incomplete && salaryVisible
+                              ? JobMateTheme.background
+                              : JobMateTheme.teal50,
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      ),
-                    ),
+                        child: Text(
+                          'Salary preview: $message',
+                          style: TextStyle(
+                            color: color,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -1222,7 +1585,7 @@ class JobFormPageState extends State<JobFormPage> {
     leading: kIsWeb
         ? null
         : BackButton(onPressed: busy ? null : _backToPostings),
-    child: loading
+    child: loading && !_creating
         ? const Center(child: CircularProgressIndicator())
         : WorkspaceContent(
             maxWidth: 880,
@@ -1250,7 +1613,7 @@ class JobFormPageState extends State<JobFormPage> {
                       : 'Build your posting, save a draft or publish when ready.',
                 ),
                 ..._formContent(),
-                if (access?.allowed == true)
+                if (_showActions)
                   JobFormSection(
                     title: status == 'published'
                         ? 'Update your posting'

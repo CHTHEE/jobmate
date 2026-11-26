@@ -658,6 +658,36 @@ flutter run -d <android-device-id>
 
 Replace the placeholder with the actual device ID. Current startup uses `.env`, not `--dart-define`.
 
+### Real-data Job Seeker dashboard
+
+The dashboard uses one owned applications snapshot for current status counts,
+recent applications, and recommendation exclusion. Recommendations use the
+existing deterministic matcher and appear only when the application RPC snapshot
+can be verified complete. A partial published catalogue is labeled, and For You
+remains available. The dashboard makes no recommendation insight requests.
+My Work and My Reputation load independently from their existing authorized
+sources. The worker reputation card uses released evaluations and verified
+completed shifts. Dashboard demo state remains available to the legacy demo routes.
+
+### Real-data Employer dashboard
+
+The Employer dashboard shows loaded posting counts and up to three published
+postings with open deadlines. Posting and work reads load independently after
+existing employer and company access checks. Work Management and Worker Overview
+reuse the scoped Work Verification assignment snapshot and its server timing.
+Review Applicants opens the existing posting selector. Company-wide applicant
+totals, recent applicant rankings, and worker ratings are omitted because the
+existing reads are scoped to individual postings or applications.
+
+### Employer posting compensation
+
+Create and Edit Job Posting use employment-specific pay units. Full-time and
+Contract allow Monthly or Yearly, Part-time and Temporary allow Hourly or Daily,
+and Internship uses Monthly. Changing units with salary amounts entered requires
+confirmation and clears the amounts for re-entry. Unrelated edits preserve
+legacy terms. Legacy drafts need compatible terms before first publication.
+Posting eligibility does not establish Payment Handling coverage.
+
 ## 3. Web vs Android UI/UX Requirements
 
 These are mandatory development conventions, not a claim that every existing screen already satisfies them.

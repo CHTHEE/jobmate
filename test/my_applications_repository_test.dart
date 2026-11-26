@@ -9,6 +9,53 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'fixtures/my_applications_source.dart';
 
 void main() {
+  for (final responseKind in ['complete', 'overlap', 'missing count']) {
+    test('Dashboard application snapshot handles $responseKind', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final queries = <Map<String, String>>[];
+      server.listen((request) async {
+        await request.drain<void>();
+        queries.add(request.uri.queryParameters);
+        final first = queries.length == 1;
+        if (responseKind != 'missing count') {
+          request.response.headers.set(
+            'content-range',
+            first ? '0-0/2' : '1-1/2',
+          );
+        }
+        final id = first || responseKind == 'overlap' ? 'a' : 'b';
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(jsonEncode([applicationRow(id)]));
+        await request.response.close();
+      });
+      final client = SupabaseClient(
+        'http://127.0.0.1:${server.port}',
+        'test-key',
+        authOptions: const AuthClientOptions(autoRefreshToken: false),
+      );
+      addTearDown(client.dispose);
+      await client.auth.setInitialSession(
+        jsonEncode({
+          'access_token':
+              'eyJhbGciOiJub25lIn0.eyJyb2xlIjoiYXV0aGVudGljYXRlZCJ9.',
+          'token_type': 'bearer',
+          'user': {'id': 'seeker-a', 'aud': 'authenticated'},
+        }),
+      );
+      final snapshot = await SupabaseMyApplicationsSource(client)
+          .listSnapshot();
+      expect(snapshot.complete, responseKind == 'complete');
+      expect(snapshot.rows, hasLength(responseKind == 'complete' ? 2 : 1));
+      expect(queries.first['order'], 'application_id.asc.nullslast');
+      expect(queries, hasLength(2));
+      expect(
+        queries.last['offset'],
+        responseKind == 'missing count' ? isNull : '1',
+      );
+    });
+  }
+
   test(
     'History RPC receives the real application UUID and maps returned rows',
     () async {

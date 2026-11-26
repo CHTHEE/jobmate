@@ -189,9 +189,12 @@ List<Map<String, dynamic>> _publishedRows(List<dynamic> rows) =>
 
 /// Real browsing stays separate from the application demo's fictional jobs.
 class PublishedJobsRepository extends ChangeNotifier {
-  PublishedJobsRepository(this.source, {DateTime Function()? now})
-    : _now = now ?? DateTime.now,
-      _actorId = source.userId {
+  PublishedJobsRepository(
+    this.source, {
+    DateTime Function()? now,
+    this.requirePublished = false,
+  }) : _now = now ?? DateTime.now,
+       _actorId = source.userId {
     _subscription = source.accountChanges.listen((id) {
       if (id == _actorId) return;
       reset();
@@ -199,6 +202,7 @@ class PublishedJobsRepository extends ChangeNotifier {
     });
   }
   final PublishedJobsSource source;
+  final bool requirePublished;
   final DateTime Function() _now;
   final _logoUrls = <String, (DateTime, Future<String?>)>{};
   final _failedLogos = <String>{};
@@ -307,7 +311,21 @@ class PublishedJobsRepository extends ChangeNotifier {
       if (_disposed || generation != _generation || source.userId != actor) {
         return;
       }
-      final jobs = result.rows.map(BrowseJob.published).toList();
+      final ids = <Object>{};
+      final jobs = result.rows
+          .where((row) {
+            if (!requirePublished) return true;
+            final status = row['status'];
+            final id = row['job_id'];
+            // The published RPC may omit status. Honor an explicit non-published
+            // value instead of allowing the projection to normalize it.
+            return (status == null || status == 'published') &&
+                id is String &&
+                id.isNotEmpty &&
+                ids.add(id);
+          })
+          .map(BrowseJob.published)
+          .toList();
       _catalogueComplete = result.total == jobs.length;
       _jobs.addAll(jobs);
       loaded = true;

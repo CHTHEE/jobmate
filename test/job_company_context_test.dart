@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jobmate/features/company/company_membership_selection.dart';
+import 'package:jobmate/features/home/employer_dashboard.dart';
 import 'package:jobmate/features/jobs/job_postings_repository.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -111,6 +113,26 @@ void main() {
       throwsA(isA<PostgrestException>()),
     );
     expect(reads.any((uri) => uri.path == '/rest/v1/companies'), isFalse);
+  });
+
+  test('dashboard reads summaries for the selected owned company', () async {
+    memberships.add({'company_id': 'company-b', 'member_role': 'member'});
+    final selected = selectCompanyProfileMembership(memberships)!;
+    final dashboard = EmployerDashboardData.forClient(
+      client,
+      companyContext: selected['company_id'] as String,
+    );
+    addTearDown(dashboard.work.dispose);
+
+    final access = await dashboard.loadAccess();
+    expect(access.allowed, isTrue);
+    expect(access.company!['company_id'], 'company-a');
+    expect(reads[1].queryParameters['company_id'], 'eq.company-a');
+    expect(await dashboard.listPostings('company-a'), isEmpty);
+    await expectLater(dashboard.listPostings('company-b'), throwsStateError);
+    expect(mutations, [
+      {'p_company_id': 'company-a'},
+    ]);
   });
 
   test(

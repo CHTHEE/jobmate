@@ -65,7 +65,7 @@ class TestJobs extends JobPostingsRepository {
   }
 
   @override
-  Future<JobAccess> loadAccess() async => access;
+  Future<JobAccess> loadAccess({bool includeLogo = true}) async => access;
   @override
   Future<List<Map<String, dynamic>>> list(String companyId) async => records;
   @override
@@ -73,6 +73,7 @@ class TestJobs extends JobPostingsRepository {
     Map<String, dynamic> values, {
     String? jobId,
     String expectedStatus = 'draft',
+    String? expectedCompanyId,
   }) async {
     saves++;
     if (pending != null) await pending!.future;
@@ -151,6 +152,18 @@ String? inputLabel(TextField field) =>
             _ => jobLabel(entry.key),
           },
         )
+        .firstOrNull ??
+    ['salary_min', 'salary_max']
+        .where(
+          (key) => jobCompensationPolicy.entries.any(
+            (entry) => entry.value.periods.any(
+              (period) =>
+                  jobSalaryHint(entry.key, period, key) ==
+                  field.decoration?.hintText,
+            ),
+          ),
+        )
+        .map((key) => '${jobLabel(key)} (RM)')
         .firstOrNull;
 
 Map<String, dynamic> completeJob() => {
@@ -895,13 +908,17 @@ void main() {
       field(tester, 'Minimum salary (RM)').text = '30';
       await tester.pumpAndSettle();
       expect(
-        find.text('Maximum salary must be at least the minimum.'),
+        find.text(
+          'Maximum salary must be equal to or greater than minimum salary.',
+        ),
         findsOneWidget,
       );
       field(tester, 'Minimum salary (RM)').text = '12';
       await tester.pumpAndSettle();
       expect(
-        find.text('Maximum salary must be at least the minimum.'),
+        find.text(
+          'Maximum salary must be equal to or greater than minimum salary.',
+        ),
         findsNothing,
       );
       field(tester, 'Responsibilities').text = ' \n  ';

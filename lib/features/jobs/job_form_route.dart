@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../shared/navigation/app_page.dart';
@@ -6,6 +7,11 @@ import 'job_form_page.dart';
 import 'job_form_result.dart';
 import 'job_postings_repository.dart';
 import 'workplace_map_picker.dart';
+
+const _dialogEntry = 'job-list';
+
+Future<JobFormResult?> openJobFormDialog(BuildContext context, String path) =>
+    context.push<JobFormResult>(path, extra: _dialogEntry);
 
 /// A pushed route instance owns its form key and exit guard. A second Create
 /// Job route must never reuse the key of a form still below it in the stack.
@@ -19,7 +25,7 @@ GoRoute jobFormRoute(
     path: path,
     onExit: (_, state) async => await guards[state.pageKey]?.call() ?? true,
     pageBuilder: (_, state) {
-      final dialog = state.extra == 'job-list';
+      final dialog = state.extra == _dialogEntry;
       final body = _JobFormRouteBody(
         key: ValueKey(
           '${state.pageKey.value}:${state.pathParameters['jobId'] ?? ''}',
@@ -101,11 +107,23 @@ class _JobFormRouteBodyState extends State<_JobFormRouteBody> {
   }
 
   @override
-  Widget build(BuildContext context) => JobFormPage(
-    key: _formKey,
-    repository: widget.repository,
-    pickWorkplace: widget.pickWorkplace,
-    jobId: widget.jobId,
-    dialog: widget.dialog,
-  );
+  Widget build(BuildContext context) {
+    final form = JobFormPage(
+      key: _formKey,
+      repository: widget.repository,
+      pickWorkplace: widget.pickWorkplace,
+      jobId: widget.jobId,
+      dialog: widget.dialog,
+    );
+    if (!widget.dialog) return form;
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          // The form's PopScope owns busy and unsaved-change handling.
+          Navigator.of(context).maybePop();
+        },
+      },
+      child: Focus(autofocus: true, child: form),
+    );
+  }
 }

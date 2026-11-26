@@ -10,6 +10,7 @@ import '../../shared/widgets/responsive_layout.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import 'job_postings_repository.dart';
 import 'job_form_result.dart';
+import 'job_form_route.dart';
 import 'employer_job_card.dart';
 import '../company/company_logo.dart';
 import '../applications/applicant_unseen_controller.dart';
@@ -108,7 +109,7 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
 
   Future<void> openJobForm(String path) async {
     final actor = repo.client.auth.currentUser?.id;
-    final result = await context.push<JobFormResult>(path, extra: 'job-list');
+    final result = await openJobFormDialog(context, path);
     if (!mounted || result == null || !_sameSession(actor)) return;
     _applySavedJob(result);
   }
