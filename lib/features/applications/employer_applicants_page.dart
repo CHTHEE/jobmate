@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../shared/widgets/responsive_layout.dart';
 
 import 'package:flutter/foundation.dart';
@@ -34,7 +36,8 @@ class EmployerApplicantsPage extends StatefulWidget {
   State<EmployerApplicantsPage> createState() => _EmployerApplicantsPageState();
 }
 
-class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
+class _EmployerApplicantsPageState extends State<EmployerApplicantsPage>
+    with WidgetsBindingObserver {
   late EmployerApplicantsRepository repo;
   final search = TextEditingController();
   String tab = 'All', status = '', sort = 'Newest';
@@ -42,6 +45,7 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
   final _attemptedIds = <String>{};
   bool _acknowledging = false;
   bool _acknowledgmentFailed = false;
+  Timer? _refreshTimer;
 
   void initialize() {
     final source = widget.source;
@@ -63,7 +67,23 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     initialize();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted &&
+          ModalRoute.isCurrentOf(context) != false &&
+          !repo.loading &&
+          !repo.updating) {
+        unawaited(repo.load(quietly: true));
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !repo.updating) {
+      unawaited(repo.load(quietly: true));
+    }
   }
 
   @override
@@ -83,6 +103,8 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
     repo.dispose();
     search.dispose();
     super.dispose();
@@ -181,13 +203,6 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage> {
         backFallback: AppRoutes.jobPostings,
         onNavigate: navigate,
         navigationLocked: repo.updating,
-        actions: [
-          IconButton(
-            tooltip: 'Refresh applicants',
-            onPressed: repo.loading || repo.updating ? null : repo.load,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
         child: WorkspaceContent(
           maxWidth: double.infinity,
           child: Column(

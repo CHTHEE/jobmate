@@ -6,7 +6,12 @@ import '../../shared/widgets/loading_overlay.dart';
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
+import '../../shared/widgets/mobile_back_action.dart';
 import '../../shared/widgets/responsive_layout.dart';
+import '../payments/payment_feature_gate.dart';
+import '../payments/payment_recipient_settings.dart';
+import '../payments/payment_simulation_gateway.dart';
+import '../phase4/phase4_store.dart';
 import '../phase4/reputation_page.dart';
 import '../trust/job_seeker_trust_score.dart';
 
@@ -16,8 +21,31 @@ import 'package:mime/mime.dart';
 import 'job_seeker_profile_sections.dart';
 import 'employer_profile_sections.dart';
 
+enum MyAccountSection { profile, payment, security, notifications }
+
+extension on MyAccountSection {
+  String get label => switch (this) {
+    MyAccountSection.profile => 'Personal profile',
+    MyAccountSection.payment => 'Payment details',
+    MyAccountSection.security => 'Account & security',
+    MyAccountSection.notifications => 'Notifications',
+  };
+
+  IconData get icon => switch (this) {
+    MyAccountSection.profile => Icons.person_outline,
+    MyAccountSection.payment => Icons.account_balance_wallet_outlined,
+    MyAccountSection.security => Icons.lock_outline,
+    MyAccountSection.notifications => Icons.notifications_outlined,
+  };
+}
+
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  const ProfilePage({
+    super.key,
+    this.initialSection = MyAccountSection.profile,
+  });
+
+  final MyAccountSection initialSection;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -25,6 +53,8 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final _supabase = Supabase.instance.client;
+  late final _paymentGateway = SupabasePaymentSimulationGateway(_supabase);
+  final _settingsStore = Phase4Store.session;
 
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -32,6 +62,9 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isEditing = false;
+  bool _isSigningOut = false;
+  bool _confirmingExit = false;
+  late MyAccountSection _selectedSection = widget.initialSection;
 
   String _savedName = '';
   String _savedPhone = '';
@@ -45,10 +78,23 @@ class _ProfilePageState extends State<ProfilePage> {
   DateTime? _createdAt;
   DateTime? _updatedAt;
 
-  bool get _isBusy => _isLoading || _isSaving || _isUploading;
+  bool get _isBusy => _isLoading || _isSaving || _isUploading || _isSigningOut;
   bool _isUploading = false;
 
   bool get _canEdit => !_isBusy && _accountStatus == 'active';
+
+  bool get _hasUnsavedPersonalChanges =>
+      _isEditing &&
+      (_nameController.text.trim() != _savedName ||
+          _phoneController.text.trim() != _savedPhone);
+
+  List<MyAccountSection> get _sections => [
+    MyAccountSection.profile,
+    if (_role == 'job_seeker' && paymentRecipientSimulationEnabled)
+      MyAccountSection.payment,
+    MyAccountSection.security,
+    MyAccountSection.notifications,
+  ];
 
   static const _profileColumns =
       'name, phone_num, status, role, verification_status,'
@@ -57,7 +103,13 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
+    _nameController.addListener(_onPersonalDraftChanged);
+    _phoneController.addListener(_onPersonalDraftChanged);
     _loadProfile();
+  }
+
+  void _onPersonalDraftChanged() {
+    if (mounted && _isEditing) setState(() {});
   }
 
   @override
@@ -706,12 +758,65 @@ class _ProfilePageState extends State<ProfilePage> {
     await _loadProfile();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final identity = WorkspaceCard(
-      title: 'Account overview',
-      child: _buildProfileHeader(),
+  Future<void> _signOut() async {
+    if (_isBusy) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: Text(
+          _hasUnsavedPersonalChanges
+              ? 'Your unsaved personal details will be discarded when you sign out.'
+              : 'You will need to sign in again to access JobMate.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
     );
+    if (confirmed != true || !mounted) return;
+    setState(() => _isSigningOut = true);
+    try {
+      await _supabase.auth.signOut(scope: SignOutScope.local);
+      if (mounted) context.go(AppRoutes.home);
+    } catch (_) {
+      _showMessage('Unable to sign out. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isSigningOut = false);
+    }
+  }
+
+  Future<void> _leaveAccount() async {
+    if (_isBusy || _confirmingExit) return;
+    _confirmingExit = true;
+    final leave = await confirmDiscardChanges(
+      context,
+      _hasUnsavedPersonalChanges,
+    );
+    _confirmingExit = false;
+    if (!leave || !mounted) return;
+    _nameController.text = _savedName;
+    _phoneController.text = _savedPhone;
+    setState(() => _isEditing = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) returnToPage(context, AppRoutes.home);
+    });
+  }
+
+  void _selectSection(MyAccountSection section) {
+    if (_sections.contains(section) && section != _selectedSection) {
+      setState(() => _selectedSection = section);
+    }
+  }
+
+  Widget _buildProfileSection() {
     final details = Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -719,24 +824,11 @@ class _ProfilePageState extends State<ProfilePage> {
         child: _buildPersonalDetails(),
       ),
     );
-    final securityPanel = WorkspaceCard(
-      title: 'Account security',
-      subtitle: 'Verify your email before setting a new password.',
-      child: OutlinedButton.icon(
-        onPressed: _canEdit ? _openPasswordVerification : null,
-        icon: const Icon(Icons.lock_outline),
-        label: const Text('Change password'),
-      ),
-    );
-    final rightSections = <Widget>[
-      details,
-      const SizedBox(height: 20),
-      securityPanel,
-    ];
+    final sections = <Widget>[details];
     if (_role == 'job_seeker') {
       final userId = _supabase.auth.currentUser?.id;
       if (userId != null) {
-        rightSections.addAll([
+        sections.addAll([
           const SizedBox(height: 20),
           JobSeekerProfileSections(userId: userId, canEdit: _canEdit),
         ]);
@@ -745,14 +837,14 @@ class _ProfilePageState extends State<ProfilePage> {
     if (_role == 'employer') {
       final userId = _supabase.auth.currentUser?.id;
       if (userId != null) {
-        rightSections.addAll([
+        sections.addAll([
           const SizedBox(height: 20),
           EmployerProfileSections(userId: userId, canEdit: _canEdit),
         ]);
       }
     }
     if (_role == 'job_seeker' || _role == 'employer') {
-      rightSections.addAll([
+      sections.addAll([
         const SizedBox(height: 20),
         WorkspaceCard(
           title: _role == 'job_seeker' ? 'My Resume' : 'Personal verification',
@@ -783,7 +875,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ]);
     }
     if (_role == 'employer') {
-      rightSections.addAll([
+      sections.addAll([
         const SizedBox(height: 20),
         WorkspaceCard(
           title: 'Company profile',
@@ -798,26 +890,13 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       ]);
     }
-    rightSections.addAll([
-      const SizedBox(height: 20),
-      WorkspaceCard(
-        title: 'Account details',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _infoRow('Created', _formatDate(_createdAt)),
-            _infoRow('Last updated', _formatDate(_updatedAt)),
-          ],
-        ),
-      ),
-    ]);
     if (_role == 'job_seeker') {
-      rightSections.addAll([
+      sections.addAll([
         const SizedBox(height: 20),
         ReputationContent(interactive: !_isEditing && !_isBusy),
       ]);
       if (jobSeekerTrustScoreEnabled) {
-        rightSections.addAll([
+        sections.addAll([
           const SizedBox(height: 20),
           JobSeekerTrustScoreSection(
             isActiveJobSeeker: _accountStatus == 'active',
@@ -825,52 +904,197 @@ class _ProfilePageState extends State<ProfilePage> {
         ]);
       }
     }
-    final profileDetails = Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: rightSections,
+      children: sections,
     );
-    final profileSections = LayoutBuilder(
-      builder: (context, constraints) => constraints.maxWidth >= 800
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(width: 300, child: identity),
-                const SizedBox(width: 20),
-                Expanded(child: profileDetails),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [identity, const SizedBox(height: 20), profileDetails],
+  }
+
+  Widget _buildSecuritySection() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      WorkspaceCard(
+        title: 'Account & security',
+        subtitle: 'Your sign-in details and account status.',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _infoRow('Email address', _email),
+            _infoRow('Account status', _displayLabel(_accountStatus)),
+            _infoRow('Created', _formatDate(_createdAt)),
+            _infoRow('Last updated', _formatDate(_updatedAt)),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: _canEdit ? _openPasswordVerification : null,
+              icon: const Icon(Icons.lock_outline),
+              label: const Text('Change password'),
             ),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              children: [
+                TextButton(
+                  onPressed: _isBusy
+                      ? null
+                      : () => context.push<void>(AppRoutes.privacy),
+                  child: const Text('Privacy policy'),
+                ),
+                TextButton(
+                  onPressed: _isBusy
+                      ? null
+                      : () => context.push<void>(AppRoutes.terms),
+                  child: const Text('Terms of service'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 20),
+      WorkspaceCard(
+        title: 'Account actions',
+        child: OutlinedButton.icon(
+          onPressed: _isBusy ? null : _signOut,
+          icon: const Icon(Icons.logout),
+          label: Text(_isSigningOut ? 'Signing out…' : 'Sign out'),
+        ),
+      ),
+    ],
+  );
+
+  Widget _buildNotificationsSection() => WorkspaceCard(
+    title: 'Notification preferences',
+    subtitle: 'These local preferences do not change server delivery settings.',
+    child: Column(
+      children: [
+        for (final item in [
+          'Application updates',
+          'Messages',
+          'Email notifications',
+          'SMS notifications',
+        ])
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(item),
+            value: _settingsStore.notifications['$_role:$item'] ?? false,
+            onChanged: _isBusy
+                ? null
+                : (value) => setState(
+                    () => _settingsStore.notifications['$_role:$item'] = value,
+                  ),
+          ),
+      ],
+    ),
+  );
+
+  Widget _buildSectionContent() {
+    final sections = _sections;
+    if (!sections.contains(_selectedSection)) {
+      _selectedSection = MyAccountSection.profile;
+    }
+    return IndexedStack(
+      index: sections.indexOf(_selectedSection),
+      children: [
+        for (final section in sections)
+          KeyedSubtree(
+            key: ValueKey('my-account-section-${section.name}'),
+            child: switch (section) {
+              MyAccountSection.profile => _buildProfileSection(),
+              MyAccountSection.payment => PaymentRecipientSettings(
+                gateway: _paymentGateway,
+              ),
+              MyAccountSection.security => _buildSecuritySection(),
+              MyAccountSection.notifications => _buildNotificationsSection(),
+            },
+          ),
+      ],
     );
-    return LoadingOverlay(
+  }
+
+  Widget _buildSectionNavigation(double width) {
+    final sections = _sections;
+    if (width < 760) {
+      return DropdownButtonFormField<MyAccountSection>(
+        key: const ValueKey('my-account-mobile-section-navigation'),
+        initialValue: sections.contains(_selectedSection)
+            ? _selectedSection
+            : MyAccountSection.profile,
+        decoration: const InputDecoration(labelText: 'Account section'),
+        items: [
+          for (final section in sections)
+            DropdownMenuItem(
+              value: section,
+              child: Row(
+                children: [
+                  Icon(section.icon, size: 20),
+                  const SizedBox(width: 10),
+                  Text(section.label),
+                ],
+              ),
+            ),
+        ],
+        onChanged: _isBusy
+            ? null
+            : (section) {
+                if (section != null) _selectSection(section);
+              },
+      );
+    }
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          children: [
+            for (final section in sections)
+              ListTile(
+                key: ValueKey('my-account-nav-${section.name}'),
+                selected: section == _selectedSection,
+                leading: Icon(section.icon),
+                title: Text(section.label),
+                onTap: _isBusy ? null : () => _selectSection(section),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope<void>(
+    canPop: !_isBusy && !_hasUnsavedPersonalChanges,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) _leaveAccount();
+    },
+    child: LoadingOverlay(
       isLoading: _isBusy,
       message: _isUploading
           ? 'Uploading photo...'
           : _isSaving
           ? 'Saving profile...'
-          : 'Loading profile...',
+          : _isSigningOut
+          ? 'Signing out...'
+          : 'Loading account...',
       child: AppWorkspace(
-        title: 'Personal profile',
+        title: 'My Account',
         path: AppRoutes.profile,
         role: _role,
         accountName: _savedName,
         accountAvatarUrl: _avatarUrl,
         navigationLocked: _isBusy || _isEditing,
         child: WorkspaceContent(
-          maxWidth: 1120,
+          maxWidth: 1180,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const ProfileHeading(
-                title: 'Your personal profile',
-                description: 'Your identity, contact details and verification, all in one place.',
-                icon: Icons.person_outline,
+                title: 'My Account',
+                description: 'Manage your profile, security and role-specific account details.',
+                icon: Icons.account_circle_outlined,
               ),
               if (_loadError != null)
                 WorkspaceCard(
-                  title: 'Profile unavailable',
+                  title: 'Account unavailable',
                   child: Column(
                     children: [
                       Text(_loadError!),
@@ -882,12 +1106,41 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
                   ),
                 )
-              else
-                profileSections,
+              else ...[
+                WorkspaceCard(
+                  title: 'Account overview',
+                  child: _buildProfileHeader(),
+                ),
+                const SizedBox(height: 20),
+                LayoutBuilder(
+                  builder: (context, constraints) => constraints.maxWidth >= 760
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: 220,
+                              child: _buildSectionNavigation(
+                                constraints.maxWidth,
+                              ),
+                            ),
+                            const SizedBox(width: 20),
+                            Expanded(child: _buildSectionContent()),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildSectionNavigation(constraints.maxWidth),
+                            const SizedBox(height: 20),
+                            _buildSectionContent(),
+                          ],
+                        ),
+                ),
+              ],
             ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }

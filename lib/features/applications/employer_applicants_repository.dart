@@ -233,16 +233,18 @@ class EmployerApplicantsRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> load() async {
+  Future<void> load({bool quietly = false}) async {
     if (_disposed || updating) return;
     if (_actor != source.userId) _reset();
     final generation = ++_generation, actor = _actor;
-    _context = null;
-    _rows = [];
-    _displayScope = null;
-    loading = true;
+    if (!quietly) {
+      _context = null;
+      _rows = [];
+      _displayScope = null;
+    }
+    loading = !quietly;
     error = null;
-    notifyListeners();
+    if (!quietly) notifyListeners();
     try {
       if (actor == null) {
         throw StateError('Sign in as an Employer to view applicants.');
@@ -263,13 +265,18 @@ class EmployerApplicantsRepository extends ChangeNotifier {
       }
     } catch (failure) {
       if (!_current(generation, actor)) return;
-      _context = null;
-      _rows = [];
-      error = failure is StateError
-          ? failure.message.toString()
-          : failure is PostgrestException && failure.code == '42501'
-          ? 'Permission denied. Check your Employer membership and company access.'
-          : 'Unable to load applicants. Please retry.';
+      final accessLost =
+          failure is StateError ||
+          failure is PostgrestException && failure.code == '42501';
+      if (!quietly || _rows.isEmpty || accessLost) {
+        _context = null;
+        _rows = [];
+        error = failure is StateError
+            ? failure.message.toString()
+            : failure is PostgrestException && failure.code == '42501'
+            ? 'Permission denied. Check your Employer membership and company access.'
+            : 'Unable to load applicants. Please retry.';
+      }
     } finally {
       if (_current(generation, actor)) {
         loading = false;

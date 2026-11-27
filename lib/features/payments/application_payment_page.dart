@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../shared/navigation/app_routes.dart';
+import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/expandable_filter_bar.dart';
@@ -30,7 +33,8 @@ class ApplicationPaymentPage extends StatefulWidget {
   State<ApplicationPaymentPage> createState() => _ApplicationPaymentPageState();
 }
 
-class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
+class _ApplicationPaymentPageState extends State<ApplicationPaymentPage>
+    with WidgetsBindingObserver {
   late final bool _ownsRepository = widget.repository == null;
   late final ApplicationPaymentRepository _repository =
       widget.repository ??
@@ -44,17 +48,36 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
   );
   final _search = TextEditingController();
   String _statusFilter = '';
+  Timer? _refreshTimer;
 
   bool get _isEmployer => widget.role == 'employer';
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _repository.load();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted &&
+          ModalRoute.isCurrentOf(context) != false &&
+          !_working &&
+          !_repository.loading) {
+        unawaited(_repository.load(quietly: true));
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_working) {
+      unawaited(_repository.load(quietly: true));
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
     _search.dispose();
     if (_ownsRepository) _repository.dispose();
     super.dispose();
@@ -256,12 +279,12 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
     if (bonus == null || !mounted || actor != _repository.source.userId) return;
     final approved = await _reviewDialog<bool>(
       builder: (context) => AlertDialog(
-        title: const Text('Demo Payment — Simulated'),
+        title: const Text('Record payment completion?'),
         content: Text(
           'Confirmed base: ${formatPaymentMinor(row.confirmedBaseSen!)}\n'
           'Voluntary bonus: ${formatPaymentMinor(bonus)}\n'
           'Total: ${formatPaymentMinor(row.confirmedBaseSen! + bonus)}\n\n'
-          'Save this simulated payment record? No Billplz request, wage transfer or payout will occur.',
+          'Save this payment record? JobMate will store the status and receipt, but it will not transfer money.',
         ),
         actions: [
           TextButton(
@@ -270,7 +293,7 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save simulated status'),
+            child: const Text('Record payment'),
           ),
         ],
       ),
@@ -281,7 +304,7 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
         () => _repository.source.recordDemoPayment(row, bonus),
         expectedActor: actor,
       ),
-      'Simulated payment status saved. No money was transferred.',
+      'Payment status saved. No money was transferred.',
       actor,
     );
   }
@@ -366,17 +389,7 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
           description: _isEmployer
               ? 'Review salary settlements for your hired workers.'
               : 'Review your accepted compensation and salary settlements.',
-          actions: [
-            OutlinedButton.icon(
-              onPressed: _working || _repository.loading
-                  ? null
-                  : _repository.load,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Refresh payments'),
-            ),
-          ],
         ),
-        const _SimulationNotice(),
         if (_repository.loading || _working) const LinearProgressIndicator(),
         if (_repository.error != null) _errorState(),
         if (!_repository.loading && _repository.error == null) ...[
@@ -402,7 +415,7 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
               ),
               _PaymentStat('Blocked', counts['blocked']!, Icons.block_outlined),
               _PaymentStat(
-                'Simulated record saved',
+                'Payment completed',
                 counts['recorded']!,
                 Icons.receipt_long_outlined,
               ),
@@ -454,7 +467,7 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
                     DropdownMenuItem(value: 'blocked', child: Text('Blocked')),
                     DropdownMenuItem(
                       value: 'recorded',
-                      child: Text('Simulated record saved'),
+                      child: Text('Payment completed'),
                     ),
                   ],
                   onChanged: (value) =>
@@ -512,17 +525,7 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
           title: row?.jobTitle ?? 'Settlement Details',
           description:
               'Review the engagement, salary progress and available actions.',
-          actions: [
-            OutlinedButton.icon(
-              onPressed: _working || _repository.loading
-                  ? null
-                  : _repository.load,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Refresh settlement'),
-            ),
-          ],
         ),
-        const _SimulationNotice(),
         if (_repository.loading || _working) const LinearProgressIndicator(),
         if (_repository.error != null)
           _errorState()
@@ -573,7 +576,7 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
                 if (row.payableHours != null)
                   _row(
                     'Verified payable work',
-                    '${_hours(row.payableHours!)} hours',
+                    _payableTime(row.payableHours!),
                   ),
                 if (row.calculatedMinSen != null &&
                     row.calculatedMaxSen != null)
@@ -618,7 +621,7 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
 
   (String, String) _settlementState(ApplicationPaymentSummary row) {
     if (row.paymentId != null) {
-      return ('recorded', 'Simulated payment recorded');
+      return ('recorded', 'Payment completed');
     }
     if (row.blockingReason != null) return ('blocked', 'Settlement blocked');
     if (row.proposalStatus == 'pending') {
@@ -681,10 +684,7 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
                 'Verified payable work',
                 row.payableHours == null
                     ? 'Unavailable'
-                    : '${_hours(row.payableHours!)} hours',
-              ),
-              const Text(
-                'Payable hours use scheduled/effective Attendance overlap. The current Attendance contract has no approved unpaid-break records to deduct.',
+                    : _payableTime(row.payableHours!),
               ),
               _row(
                 'Calculated salary range',
@@ -730,16 +730,15 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
                   ),
                 if (row.proposalStatus == 'confirmed')
                   const Text(
-                    'Salary confirmed. The Employer can add an optional bonus and save a simulated payment record.',
+                    'Salary confirmed. The Employer can add an optional bonus and complete the payment record.',
                   ),
               ],
               if (row.paymentId != null) ...[
                 _row('Optional bonus', formatPaymentMinor(row.bonusSen)),
                 _row('Total', formatPaymentMinor(row.totalSen!)),
-                _row('Payment status', 'Demo Payment — Simulated'),
+                _row('Payment status', 'Completed'),
                 if (row.recordedAt != null)
                   _row('Recorded at', _recordedTime(row.recordedAt!)),
-                const Text('No Billplz request or wage transfer occurred.'),
               ],
               const Divider(height: 32),
               Text(
@@ -787,14 +786,14 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
                         ? null
                         : () => _checkout(row),
                     icon: const Icon(Icons.payment_outlined),
-                    label: const Text('Open simulated checkout'),
+                    label: const Text('Continue to payment'),
                   )
                 else
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const Text(
-                        'The deployed settlement contract does not yet store a payment method or recipient account. This action records only a simulated payment status and optional bonus.',
+                        'Add an optional bonus, then record payment completion.',
                       ),
                       const SizedBox(height: 10),
                       FilledButton.icon(
@@ -802,7 +801,7 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
                             ? null
                             : () => _recordDemoPayment(row),
                         icon: const Icon(Icons.play_circle_outline),
-                        label: const Text('Save Demo Payment — Simulated'),
+                        label: const Text('Record payment'),
                       ),
                     ],
                   ),
@@ -812,25 +811,8 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
                       ? null
                       : () => _viewReceipt(row),
                   icon: const Icon(Icons.receipt_long_outlined),
-                  label: const Text('View simulated receipt'),
+                  label: const Text('View receipt'),
                 ),
-              const SizedBox(height: 12),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                childrenPadding: const EdgeInsets.only(bottom: 8),
-                title: const Text('Additional technical details'),
-                subtitle: const Text('Identifiers and proposal version'),
-                children: [
-                  _row('Application / Engagement', row.applicationId),
-                  _row('Offer ID', row.offerId),
-                  if (row.proposalId != null)
-                    _row('Proposal ID', row.proposalId!),
-                  if (row.proposalVersion != null)
-                    _row('Salary proposal version', '${row.proposalVersion}'),
-                  if (row.paymentId != null)
-                    _row('Saved payment record', row.paymentId!),
-                ],
-              ),
             ],
           ),
         ],
@@ -862,29 +844,22 @@ class _ApplicationPaymentPageState extends State<ApplicationPaymentPage> {
     ),
   );
 
-  String _hours(double value) =>
-      value.toStringAsFixed(6).replaceFirst(RegExp(r'\.?0+$'), '');
+  String _payableTime(double hours) {
+    final minutes = (hours * 60).round();
+    if (minutes < 60) return '$minutes ${minutes == 1 ? 'minute' : 'minutes'}';
+    final wholeHours = minutes ~/ 60;
+    final remainingMinutes = minutes % 60;
+    final hourLabel = '$wholeHours ${wholeHours == 1 ? 'hour' : 'hours'}';
+    return remainingMinutes == 0
+        ? hourLabel
+        : '$hourLabel $remainingMinutes minutes';
+  }
 
   String _recordedTime(String value) {
     final time = DateTime.parse(value).toLocal();
     final localizations = MaterialLocalizations.of(context);
     return '${localizations.formatMediumDate(time)} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(time))} (local time)';
   }
-}
-
-class _SimulationNotice extends StatelessWidget {
-  const _SimulationNotice();
-
-  @override
-  Widget build(BuildContext context) => const Card(
-    color: Color(0xFFFFF3CD),
-    child: Padding(
-      padding: EdgeInsets.all(14),
-      child: Text(
-        'FYP payment status is simulated. Saving a record does not contact Billplz, transfer wages or confirm a real payment.',
-      ),
-    ),
-  );
 }
 
 class _PaymentStat extends StatelessWidget {
@@ -914,37 +889,229 @@ class _PaymentProgress extends StatelessWidget {
   const _PaymentProgress({required this.row});
   final ApplicationPaymentSummary row;
 
+  static const _labels = [
+    'Offer Accepted',
+    'Work Verified',
+    'Engagement Closed',
+    'Salary Proposed',
+    'Worker Confirmed',
+    'Payment Completed',
+  ];
+
+  int get _currentIndex {
+    if (row.paymentId != null) return _labels.length;
+    if (row.proposalStatus == 'confirmed') return 5;
+    if (row.proposalStatus == 'pending') return 4;
+    if (row.proposalStatus == 'declined') return 3;
+    if (row.proposalId != null) return 4;
+    if (row.calculatedMinSen != null && row.calculatedMaxSen != null) return 3;
+    if (row.payableHours != null) return 2;
+    return 1;
+  }
+
+  _PaymentStepState _stateAt(int index) {
+    if (_currentIndex >= _labels.length || index < _currentIndex) {
+      return _PaymentStepState.completed;
+    }
+    return index == _currentIndex
+        ? _PaymentStepState.current
+        : _PaymentStepState.pending;
+  }
+
+  bool _connectorCompleted(int segment) => segment < _currentIndex;
+
   @override
   Widget build(BuildContext context) {
-    final steps = <(String, bool)>[
-      ('Offer accepted', true),
-      (
-        'Eligible work verified',
-        row.blockingReason == null && row.payableHours != null,
-      ),
-      (
-        'Engagement closed',
-        row.calculatedMinSen != null && row.calculatedMaxSen != null,
-      ),
-      ('Final Salary proposed', row.proposalId != null),
-      ('Worker confirmed', row.proposalStatus == 'confirmed'),
-      ('Simulated payment recorded', row.paymentId != null),
-    ];
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final step in steps)
-          Chip(
-            avatar: Icon(
-              step.$2 ? Icons.check_circle : Icons.radio_button_unchecked,
-              size: 18,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const minimumStepWidth = 112.0;
+        final horizontal =
+            constraints.maxWidth >= _labels.length * minimumStepWidth;
+        if (!horizontal) {
+          return Column(
+            children: [
+              for (var index = 0; index < _labels.length; index++)
+                _VerticalPaymentStep(
+                  index: index,
+                  label: _labels[index],
+                  state: _stateAt(index),
+                  connectorCompleted: _connectorCompleted(index),
+                  showConnector: index < _labels.length - 1,
+                ),
+            ],
+          );
+        }
+        return Column(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                for (var index = 0; index < _labels.length; index++)
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: index == 0
+                              ? const SizedBox.shrink()
+                              : _ProgressConnector(
+                                  segment: index - 1,
+                                  half: 'end',
+                                  completed: _connectorCompleted(index - 1),
+                                ),
+                        ),
+                        _PaymentStepMarker(
+                          index: index,
+                          label: _labels[index],
+                          state: _stateAt(index),
+                        ),
+                        Expanded(
+                          child: index == _labels.length - 1
+                              ? const SizedBox.shrink()
+                              : _ProgressConnector(
+                                  segment: index,
+                                  half: 'start',
+                                  completed: _connectorCompleted(index),
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
-            label: Text(step.$1),
-          ),
-      ],
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final label in _labels)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(label, textAlign: TextAlign.center),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
+}
+
+enum _PaymentStepState { completed, current, pending }
+
+class _PaymentStepMarker extends StatelessWidget {
+  const _PaymentStepMarker({
+    required this.index,
+    required this.label,
+    required this.state,
+  });
+
+  final int index;
+  final String label;
+  final _PaymentStepState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = state == _PaymentStepState.completed;
+    final current = state == _PaymentStepState.current;
+    return Semantics(
+      label: '$label: ${state.name}',
+      child: Container(
+        key: ValueKey('payment-step-$index-${state.name}'),
+        width: 30,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: completed
+              ? JobMateTheme.teal
+              : current
+              ? Colors.white
+              : JobMateTheme.divider,
+          border: current
+              ? Border.all(color: JobMateTheme.teal, width: 2)
+              : null,
+        ),
+        child: completed
+            ? const Icon(Icons.check, color: Colors.white, size: 18)
+            : Text(
+                '${index + 1}',
+                style: TextStyle(
+                  color: current ? JobMateTheme.teal : JobMateTheme.body,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class _ProgressConnector extends StatelessWidget {
+  const _ProgressConnector({
+    required this.segment,
+    required this.half,
+    required this.completed,
+  });
+
+  final int segment;
+  final String half;
+  final bool completed;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    key: ValueKey('payment-connector-$segment-$half'),
+    height: 3,
+    color: completed ? JobMateTheme.teal : JobMateTheme.divider,
+  );
+}
+
+class _VerticalPaymentStep extends StatelessWidget {
+  const _VerticalPaymentStep({
+    required this.index,
+    required this.label,
+    required this.state,
+    required this.connectorCompleted,
+    required this.showConnector,
+  });
+
+  final int index;
+  final String label;
+  final _PaymentStepState state;
+  final bool connectorCompleted;
+  final bool showConnector;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      SizedBox(
+        width: 32,
+        child: Column(
+          children: [
+            _PaymentStepMarker(index: index, label: label, state: state),
+            if (showConnector)
+              Container(
+                key: ValueKey('payment-vertical-connector-$index'),
+                width: 3,
+                height: 28,
+                color: connectorCompleted
+                    ? JobMateTheme.teal
+                    : JobMateTheme.divider,
+              ),
+          ],
+        ),
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 24),
+          child: Text(label),
+        ),
+      ),
+    ],
+  );
 }
 
 class _PaymentAmountDialog extends StatefulWidget {

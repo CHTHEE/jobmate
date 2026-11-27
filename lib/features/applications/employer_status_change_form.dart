@@ -200,14 +200,20 @@ class _EmployerStatusChangeFormState extends State<EmployerStatusChangeForm> {
           child: Text(success || invalid ? 'Done' : 'Cancel'),
         ),
         if (!success && !invalid)
-          FilledButton(
+          FilledButton.icon(
             style: widget.next == MyApplicationStatus.rejected
                 ? FilledButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.error,
                   )
                 : null,
             onPressed: busy || !transitionAvailable ? null : confirm,
-            child: Text(
+            icon: busy
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.check_circle_outline, size: 18),
+            label: Text(
               busy
                   ? 'Updating…'
                   : 'Confirm ${employerTransitionLabel(widget.next)}',

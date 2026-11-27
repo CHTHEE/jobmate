@@ -300,10 +300,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       );
       actions.add(
         _ToolCard(
-          icon: Icons.settings_outlined,
-          title: 'Account Settings',
-          description: 'Existing account/security links and clearly separated settings presentation.',
-          onTap: () => context.push<void>(AppRoutes.adminSettings),
+          icon: Icons.account_circle_outlined,
+          title: 'My Account',
+          description:
+              'Personal profile, security and notification preferences.',
+          onTap: () => context.push<void>(AppRoutes.profile),
         ),
       );
     }

@@ -364,26 +364,28 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> load() async {
+  Future<void> load({bool quietly = false}) async {
     if (responding) return;
-    await _load();
+    await _load(quietly: quietly);
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool quietly = false}) async {
     if (_disposed) return;
     if (source.userId != _actor) _clear();
     final generation = ++_generation;
     final actor = _actor;
-    _application = null;
-    _history = [];
-    _compensationOffer = null;
-    offerLoading = false;
-    offerError = null;
-    loading = true;
+    if (!quietly) {
+      _application = null;
+      _history = [];
+      _compensationOffer = null;
+      offerLoading = false;
+      offerError = null;
+    }
+    loading = !quietly;
     historyLoading = false;
     error = null;
     historyError = null;
-    notifyListeners();
+    if (!quietly) notifyListeners();
     try {
       if (actor == null) throw StateError('Sign in to view this application.');
       final rows = await source.list();
@@ -395,10 +397,20 @@ class MyApplicationDetailsRepository extends ChangeNotifier {
       loading = false;
       await loadCompensationOffer();
       if (_application != null) await loadHistory();
-    } catch (_) {
+    } catch (failure) {
       if (!_current(generation, actor)) return;
       loading = false;
-      error = 'Unable to load this application. Please retry.';
+      final accessLost =
+          failure is StateError ||
+          failure is PostgrestException && failure.code == '42501';
+      if (accessLost) {
+        _application = null;
+        _history = [];
+        _compensationOffer = null;
+      }
+      if (!quietly || _application == null || accessLost) {
+        error = 'Unable to load this application. Please retry.';
+      }
       notifyListeners();
     }
   }

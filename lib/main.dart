@@ -124,20 +124,22 @@ GoRouter _createRouter() {
         _appRoute(chatRuntimeAcceptancePath, (_, _) => const ChatRuntimePage()),
       _appRoute(
         AppRoutes.settings,
-        (_, _) =>
-            const Module2Gate(role: 'job_seeker', child: AccountSettingsPage()),
+        (_, _) => const Module2Gate(
+          role: 'job_seeker',
+          child: ProfilePage(initialSection: MyAccountSection.security),
+        ),
       ),
       _appRoute(
         AppRoutes.employerSettings,
         (_, _) => const Module2Gate(
           role: 'employer',
-          child: AccountSettingsPage(role: 'employer'),
+          child: ProfilePage(initialSection: MyAccountSection.security),
         ),
       ),
       _appRoute(
         AppRoutes.adminSettings,
         (_, _) => const AdminPreviewGate(
-          child: AccountSettingsPage(role: 'administrator'),
+          child: ProfilePage(initialSection: MyAccountSection.security),
         ),
       ),
       _appRoute(

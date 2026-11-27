@@ -152,7 +152,7 @@ class _PaymentUnavailable extends StatelessWidget {
               const SizedBox(height: 16),
               Text(
                 role != null && paymentHandlingEnabled
-                    ? 'This legacy sandbox checkout is unavailable. Open Payment Overview to manage salary proposals and simulated payment records.'
+                    ? 'This legacy checkout is unavailable. Open Payment Overview to manage salary proposals and payment records.'
                     : 'Payment Handling is unavailable here.',
                 textAlign: TextAlign.center,
               ),

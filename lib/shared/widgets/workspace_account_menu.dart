@@ -6,7 +6,7 @@ import '../navigation/app_routes.dart';
 import '../theme/jobmate_theme.dart';
 import 'responsive_layout.dart';
 
-enum _AccountAction { profile, reputation, settings, signOut }
+enum _AccountAction { account, reputation, signOut }
 
 /// Account entry point on workspace pages, including direct URLs.
 class WorkspaceAccountMenu extends StatefulWidget {
@@ -116,7 +116,7 @@ class _WorkspaceAccountMenuState extends State<WorkspaceAccountMenu> {
       enabled: !widget.locked,
       onSelected: (action) {
         switch (action) {
-          case _AccountAction.profile:
+          case _AccountAction.account:
             widget.onNavigate(AppRoutes.profile);
           case _AccountAction.reputation:
             widget.onNavigate(
@@ -124,27 +124,19 @@ class _WorkspaceAccountMenuState extends State<WorkspaceAccountMenu> {
                   ? AppRoutes.employerReputation
                   : AppRoutes.reputation,
             );
-          case _AccountAction.settings:
-            widget.onNavigate(
-              widget.role == 'employer'
-                  ? AppRoutes.employerSettings
-                  : widget.role == 'administrator' || widget.role == 'admin'
-                  ? AppRoutes.adminSettings
-                  : AppRoutes.settings,
-            );
           case _AccountAction.signOut:
             _signOut();
         }
       },
       itemBuilder: (context) => [
         const PopupMenuItem(
-          value: _AccountAction.profile,
+          value: _AccountAction.account,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.person_outline),
               SizedBox(width: 12),
-              Flexible(child: Text('My profile')),
+              Flexible(child: Text('My Account')),
             ],
           ),
         ),
@@ -161,17 +153,6 @@ class _WorkspaceAccountMenuState extends State<WorkspaceAccountMenu> {
             ),
           ),
         ],
-        const PopupMenuItem(
-          value: _AccountAction.settings,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.settings_outlined),
-              SizedBox(width: 12),
-              Flexible(child: Text('Account settings')),
-            ],
-          ),
-        ),
         const PopupMenuDivider(),
         const PopupMenuItem(
           value: _AccountAction.signOut,

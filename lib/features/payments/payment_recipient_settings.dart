@@ -71,7 +71,7 @@ class _PaymentRecipientSettingsState extends State<PaymentRecipientSettings> {
   @override
   Widget build(BuildContext context) => WorkspaceCard(
     title: 'Payment Details',
-    subtitle: 'Recipient details for simulated payments. Use fictional details for FYP testing.',
+    subtitle: 'Payment destination details shown only in authorized checkout and receipt views.',
     child: FutureBuilder<List<SimulationRecipient>>(
       key: ValueKey(_actor),
       future: _rows,

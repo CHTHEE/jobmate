@@ -361,14 +361,14 @@ class ApplicationPaymentRepository extends ChangeNotifier {
     if (actor != null) load();
   }
 
-  Future<void> load() async {
+  Future<void> load({bool quietly = false}) async {
     if (_disposed) return;
     final actor = source.userId;
     final generation = ++_generation;
-    summaries = const [];
-    loading = true;
+    if (!quietly) summaries = const [];
+    loading = !quietly;
     error = null;
-    notifyListeners();
+    if (!quietly) notifyListeners();
     try {
       if (actor == null) throw StateError('Sign in to view Payment Handling.');
       final result = await source.list();
@@ -376,11 +376,16 @@ class ApplicationPaymentRepository extends ChangeNotifier {
       summaries = result;
     } catch (failure) {
       if (generation != _generation || source.userId != actor) return;
-      error = failure is StateError
-          ? failure.message.toString()
-          : failure is PostgrestException && failure.code == '42501'
-          ? 'Payment access is not available for this account.'
-          : 'Unable to load Payment Handling. Please retry.';
+      final accessLost =
+          failure is PostgrestException && failure.code == '42501';
+      if (accessLost) summaries = const [];
+      if (!quietly || summaries.isEmpty || accessLost) {
+        error = failure is StateError
+            ? failure.message.toString()
+            : failure is PostgrestException && failure.code == '42501'
+            ? 'Payment access is not available for this account.'
+            : 'Unable to load Payment Handling. Please retry.';
+      }
     } finally {
       if (generation == _generation && source.userId == actor) {
         loading = false;

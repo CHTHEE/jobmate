@@ -67,7 +67,9 @@ class PaymentHandlingDemoState extends ChangeNotifier {
 
   void acceptExactOffer({required String offerId, required int version}) {
     if (offerId != _offerId || version != _offerVersion) {
-      throw StateError('That Offer version is stale. Review the current Offer.');
+      throw StateError(
+        'That Offer version is stale. Review the current Offer.',
+      );
     }
     if (offerAccepted) return;
     _acceptedOfferId = offerId;
@@ -77,7 +79,9 @@ class PaymentHandlingDemoState extends ChangeNotifier {
 
   void proposeFinalBase(int amountSen) {
     _requireAcceptedOffer();
-    if (_paymentRecorded || amountSen < minimumBaseSen! || amountSen > maximumBaseSen!) {
+    if (_paymentRecorded ||
+        amountSen < minimumBaseSen! ||
+        amountSen > maximumBaseSen!) {
       throw StateError(
         'Final Base Salary must be within ${formatPaymentMinor(minimumBaseSen!)}–${formatPaymentMinor(maximumBaseSen!)}.',
       );
@@ -90,7 +94,9 @@ class PaymentHandlingDemoState extends ChangeNotifier {
 
   void confirmExactFinalBase(int amountSen) {
     _requireAcceptedOffer();
-    if (_proposedBaseSen == null || _proposedBaseSen != amountSen || _paymentRecorded) {
+    if (_proposedBaseSen == null ||
+        _proposedBaseSen != amountSen ||
+        _paymentRecorded) {
       throw StateError('Confirm the exact Employer proposal.');
     }
     _confirmedBaseSen = amountSen;
@@ -99,7 +105,9 @@ class PaymentHandlingDemoState extends ChangeNotifier {
 
   void recordSimulatedPayment(int bonusSen) {
     if (_confirmedBaseSen == null || !offerAccepted || bonusSen < 0) {
-      throw StateError('Payment requires an accepted Offer and confirmed salary.');
+      throw StateError(
+        'Payment requires an accepted Offer and confirmed salary.',
+      );
     }
     if (_paymentRecorded) return;
     _bonusSen = bonusSen;
@@ -108,7 +116,9 @@ class PaymentHandlingDemoState extends ChangeNotifier {
   }
 
   void _requireAcceptedOffer() {
-    if (!offerAccepted) throw StateError('Accept the exact current Offer first.');
+    if (!offerAccepted) {
+      throw StateError('Accept the exact current Offer first.');
+    }
   }
 
   /// Resets the process-local synthetic scenario; no durable data exists.
@@ -135,7 +145,8 @@ class PaymentHandlingDemoPage extends StatefulWidget {
   final String initialRole;
 
   @override
-  State<PaymentHandlingDemoPage> createState() => _PaymentHandlingDemoPageState();
+  State<PaymentHandlingDemoPage> createState() =>
+      _PaymentHandlingDemoPageState();
 }
 
 class _PaymentHandlingDemoPageState extends State<PaymentHandlingDemoPage> {
@@ -144,7 +155,11 @@ class _PaymentHandlingDemoPageState extends State<PaymentHandlingDemoPage> {
 
   bool get _isEmployer => _role == 'employer';
 
-  Future<int?> _amount({required String title, required String label, String initial = '20.00'}) async {
+  Future<int?> _amount({
+    required String title,
+    required String label,
+    String initial = '20.00',
+  }) async {
     return showDialog<int>(
       context: context,
       builder: (_) => _PaymentAmountDialog(
@@ -156,9 +171,16 @@ class _PaymentHandlingDemoPageState extends State<PaymentHandlingDemoPage> {
   }
 
   Future<void> _issueOffer() async {
-    final minimum = await _amount(title: 'Issue salary Offer', label: 'Minimum hourly rate (MYR)');
+    final minimum = await _amount(
+      title: 'Issue salary Offer',
+      label: 'Minimum hourly rate (MYR)',
+    );
     if (minimum == null || !mounted) return;
-    final maximum = await _amount(title: 'Issue salary Offer', label: 'Maximum hourly rate (MYR)', initial: '25.00');
+    final maximum = await _amount(
+      title: 'Issue salary Offer',
+      label: 'Maximum hourly rate (MYR)',
+      initial: '25.00',
+    );
     if (maximum == null || !mounted) return;
     try {
       _state.issueOffer(minimumRateSen: minimum, maximumRateSen: maximum);
@@ -171,7 +193,8 @@ class _PaymentHandlingDemoPageState extends State<PaymentHandlingDemoPage> {
     final amount = await _amount(
       title: 'Propose Final Base Salary',
       label: 'Final Base Salary (MYR)',
-      initial: formatPaymentMinor(_state.minimumBaseSen!).replaceFirst('MYR ', ''),
+      initial: formatPaymentMinor(_state.minimumBaseSen!)
+          .replaceFirst('MYR ', ''),
     );
     if (amount == null || !mounted) return;
     try {
@@ -188,10 +211,18 @@ class _PaymentHandlingDemoPageState extends State<PaymentHandlingDemoPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirm exact Final Base Salary'),
-        content: Text('Confirm the exact Employer proposal of ${formatPaymentMinor(amount)}?'),
+        content: Text(
+          'Confirm the exact Employer proposal of ${formatPaymentMinor(amount)}?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Review')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirm exact amount')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Review'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm exact amount'),
+          ),
         ],
       ),
     );
@@ -199,7 +230,11 @@ class _PaymentHandlingDemoPageState extends State<PaymentHandlingDemoPage> {
   }
 
   Future<void> _recordPayment() async {
-    final bonus = await _amount(title: 'Optional voluntary bonus', label: 'Bonus (MYR)', initial: '0.00');
+    final bonus = await _amount(
+      title: 'Optional voluntary bonus',
+      label: 'Bonus (MYR)',
+      initial: '0.00',
+    );
     if (bonus == null || !mounted) return;
     final approved = await showDialog<bool>(
       context: context,
@@ -209,15 +244,23 @@ class _PaymentHandlingDemoPageState extends State<PaymentHandlingDemoPage> {
           'Record ${formatPaymentMinor(_state.confirmedBaseSen! + bonus)}? This only updates synthetic in-memory demo state. No Supabase or Billplz request, wage transfer or payout will occur.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Record simulated status')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Record simulated status'),
+          ),
         ],
       ),
     );
     if (approved == true && mounted) _state.recordSimulatedPayment(bonus);
   }
 
-  void _message(String value) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  void _message(String value) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(value)));
 
   @override
   Widget build(BuildContext context) => AppWorkspace(
@@ -239,16 +282,22 @@ class _PaymentHandlingDemoPageState extends State<PaymentHandlingDemoPage> {
               color: const Color(0xFFFFF3CD),
               child: const Padding(
                 padding: EdgeInsets.all(14),
-                child: Text('DEBUG DEMO ONLY · Synthetic Application, Offer, Shift and Attendance · Demo Payment — Simulated · No Supabase, Billplz or real wage transfer.'),
+                child: Text(
+                  'DEBUG DEMO ONLY · Synthetic Application, Offer, Shift and Attendance · Demo Payment — Simulated · No Supabase, Billplz or real wage transfer.',
+                ),
               ),
             ),
             SegmentedButton<String>(
               segments: const [
                 ButtonSegment(value: 'employer', label: Text('Employer view')),
-                ButtonSegment(value: 'job_seeker', label: Text('Job Seeker view')),
+                ButtonSegment(
+                  value: 'job_seeker',
+                  label: Text('Job Seeker view'),
+                ),
               ],
               selected: {_role},
-              onSelectionChanged: (roles) => setState(() => _role = roles.first),
+              onSelectionChanged: (roles) =>
+                  setState(() => _role = roles.first),
             ),
             const SizedBox(height: 12),
             Card(
@@ -257,27 +306,59 @@ class _PaymentHandlingDemoPageState extends State<PaymentHandlingDemoPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Part-time hourly · FYP Demo Barista', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      'Part-time hourly · FYP Demo Barista',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const Text('Synthetic Employer · Synthetic Job Seeker'),
                     const SizedBox(height: 10),
-                    _row('Application / Engagement', PaymentHandlingDemoState.applicationId),
-                    _row('Synthetic completed Shift', '09:00–13:00 · scheduled ${PaymentHandlingDemoState.shiftMinutes} minutes'),
-                    _row('Effective Attendance overlap', '09:15–12:45 · ${_state.workedMinutes} minutes'),
-                    _row('Approved break deduction', 'None recorded in this demo; no break is inferred.'),
+                    _row(
+                      'Synthetic completed Shift',
+                      '09:00–13:00 · scheduled ${PaymentHandlingDemoState.shiftMinutes} minutes',
+                    ),
+                    _row(
+                      'Effective Attendance overlap',
+                      '09:15–12:45 · ${_state.workedMinutes} minutes',
+                    ),
+                    _row(
+                      'Approved break deduction',
+                      'None recorded in this demo; no break is inferred.',
+                    ),
                     if (_state.hasOffer) ...[
                       _row(
-                        _state.offerAccepted ? 'Accepted salary terms' : 'Offered salary terms',
+                        _state.offerAccepted
+                            ? 'Accepted salary terms'
+                            : 'Offered salary terms',
                         'Offer v${_state.offerVersion} · ${formatPaymentMinor(_state.minimumRateSen!)}–${formatPaymentMinor(_state.maximumRateSen!)} / hour',
                       ),
-                      _row('Exact Offer acceptance', _state.offerAccepted ? 'Accepted by Job Seeker' : 'Awaiting exact version acceptance'),
+                      _row(
+                        'Exact Offer acceptance',
+                        _state.offerAccepted
+                            ? 'Accepted by Job Seeker'
+                            : 'Awaiting exact version acceptance',
+                      ),
                     ] else
                       _row('Offer', 'Not issued'),
                     if (_state.offerAccepted) ...[
-                      _row('Calculated salary range', '${formatPaymentMinor(_state.minimumBaseSen!)}–${formatPaymentMinor(_state.maximumBaseSen!)}'),
-                      if (_state.proposedBaseSen != null) _row('Employer Final Base proposal', formatPaymentMinor(_state.proposedBaseSen!)),
-                      if (_state.confirmedBaseSen != null) _row('Job Seeker confirmed base', formatPaymentMinor(_state.confirmedBaseSen!)),
+                      _row(
+                        'Calculated salary range',
+                        '${formatPaymentMinor(_state.minimumBaseSen!)}–${formatPaymentMinor(_state.maximumBaseSen!)}',
+                      ),
+                      if (_state.proposedBaseSen != null)
+                        _row(
+                          'Employer Final Base proposal',
+                          formatPaymentMinor(_state.proposedBaseSen!),
+                        ),
+                      if (_state.confirmedBaseSen != null)
+                        _row(
+                          'Job Seeker confirmed base',
+                          formatPaymentMinor(_state.confirmedBaseSen!),
+                        ),
                       if (_state.paymentRecorded) ...[
-                        _row('Optional bonus', formatPaymentMinor(_state.bonusSen)),
+                        _row(
+                          'Optional bonus',
+                          formatPaymentMinor(_state.bonusSen),
+                        ),
                         _row('Total', formatPaymentMinor(_state.totalSen)),
                         _row('Payment status', 'Demo Payment — Simulated'),
                         const Text('No payment request or transfer occurred.'),
@@ -285,20 +366,54 @@ class _PaymentHandlingDemoPageState extends State<PaymentHandlingDemoPage> {
                     ],
                     const SizedBox(height: 14),
                     if (_isEmployer && !_state.hasOffer)
-                      FilledButton(onPressed: _issueOffer, child: const Text('Issue salary Offer')),
-                    if (!_isEmployer && _state.hasOffer && !_state.offerAccepted)
                       FilledButton(
-                        onPressed: () => _state.acceptExactOffer(offerId: _state.offerId!, version: _state.offerVersion!),
-                        child: Text('Accept exact Offer v${_state.offerVersion}'),
+                        onPressed: _issueOffer,
+                        child: const Text('Issue salary Offer'),
                       ),
-                    if (_isEmployer && _state.offerAccepted && _state.confirmedBaseSen == null && !_state.paymentRecorded)
-                      FilledButton(onPressed: _propose, child: const Text('Propose Final Base Salary')),
-                    if (!_isEmployer && _state.proposedBaseSen != null && _state.confirmedBaseSen == null)
-                      FilledButton(onPressed: _confirm, child: Text('Confirm exact ${formatPaymentMinor(_state.proposedBaseSen!)}')),
-                    if (_isEmployer && _state.confirmedBaseSen != null && !_state.paymentRecorded)
-                      FilledButton.icon(onPressed: _recordPayment, icon: const Icon(Icons.play_circle_outline), label: const Text('Proceed to Demo Payment — Simulated')),
+                    if (!_isEmployer &&
+                        _state.hasOffer &&
+                        !_state.offerAccepted)
+                      FilledButton(
+                        onPressed: () => _state.acceptExactOffer(
+                          offerId: _state.offerId!,
+                          version: _state.offerVersion!,
+                        ),
+                        child: Text(
+                          'Accept exact Offer v${_state.offerVersion}',
+                        ),
+                      ),
+                    if (_isEmployer &&
+                        _state.offerAccepted &&
+                        _state.confirmedBaseSen == null &&
+                        !_state.paymentRecorded)
+                      FilledButton(
+                        onPressed: _propose,
+                        child: const Text('Propose Final Base Salary'),
+                      ),
+                    if (!_isEmployer &&
+                        _state.proposedBaseSen != null &&
+                        _state.confirmedBaseSen == null)
+                      FilledButton(
+                        onPressed: _confirm,
+                        child: Text(
+                          'Confirm exact ${formatPaymentMinor(_state.proposedBaseSen!)}',
+                        ),
+                      ),
+                    if (_isEmployer &&
+                        _state.confirmedBaseSen != null &&
+                        !_state.paymentRecorded)
+                      FilledButton.icon(
+                        onPressed: _recordPayment,
+                        icon: const Icon(Icons.play_circle_outline),
+                        label: const Text(
+                          'Proceed to Demo Payment — Simulated',
+                        ),
+                      ),
                     if (_state.paymentRecorded)
-                      OutlinedButton(onPressed: _state.reset, child: const Text('Reset synthetic demo')),
+                      OutlinedButton(
+                        onPressed: _state.reset,
+                        child: const Text('Reset synthetic demo'),
+                      ),
                   ],
                 ),
               ),
@@ -313,7 +428,10 @@ class _PaymentHandlingDemoPageState extends State<PaymentHandlingDemoPage> {
     padding: const EdgeInsets.symmetric(vertical: 3),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [Expanded(flex: 2, child: Text(label)), Expanded(flex: 3, child: Text(value))],
+      children: [
+        Expanded(flex: 2, child: Text(label)),
+        Expanded(flex: 3, child: Text(value)),
+      ],
     ),
   );
 }

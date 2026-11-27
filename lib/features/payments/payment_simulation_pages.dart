@@ -55,7 +55,7 @@ class _SimulationCheckoutState extends State<SimulationCheckout> {
           snapshot.connectionState == ConnectionState.done &&
           !snapshot.hasError;
       return AlertDialog(
-        title: const Text('Simulated payment checkout'),
+        title: const Text('Payment checkout'),
         scrollable: true,
         content: SizedBox(
           width: 420,
@@ -134,7 +134,9 @@ class _SimulationCheckoutState extends State<SimulationCheckout> {
                     : 'Total: ${formatPaymentMinor(widget.row.confirmedBaseSen! + _bonus!)}',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
-              const Text('Simulation only. No money will be transferred.'),
+              const Text(
+                'JobMate records this payment for the project. No money will be transferred.',
+              ),
             ],
           ),
         ),
@@ -159,7 +161,7 @@ class _SimulationCheckoutState extends State<SimulationCheckout> {
                     ),
                   )
                 : null,
-            child: const Text('Pay Now (Simulation)'),
+            child: const Text('Pay now'),
           ),
         ],
       );
@@ -340,10 +342,10 @@ class _SimulatedPaymentProcessingPageState
                 final status = _recording || fraction >= 5 / 6
                     ? 'Finalising payment record'
                     : fraction < 1 / 6
-                    ? 'Connecting to simulated gateway'
+                    ? 'Preparing payment'
                     : fraction < 1 / 2
                     ? 'Processing payment request'
-                    : 'Confirming simulated transaction';
+                    : 'Confirming payment record';
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -474,9 +476,7 @@ class _SimulatedPaymentReceiptPageState
               ),
             ),
             Text(
-              widget.justRecorded
-                  ? 'Payment Successful (Simulation)'
-                  : 'Simulated payment receipt',
+              widget.justRecorded ? 'Payment recorded' : 'Payment receipt',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge,
             ),
@@ -498,7 +498,7 @@ class _SimulatedPaymentReceiptPageState
               ('Confirmed salary', formatPaymentMinor(receipt.base)),
               ('Bonus', formatPaymentMinor(receipt.bonus)),
               ('Recorded', date),
-              ('Status', 'Simulated payment recorded'),
+              ('Status', 'Payment completed'),
             ])
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
@@ -543,7 +543,7 @@ class _SimulationFrame extends StatelessWidget {
                     child,
                     const SizedBox(height: 12),
                     const Text(
-                      'JobMate payment simulation. No money is transferred.',
+                      'JobMate records payment completion for this project. No money is transferred.',
                       textAlign: TextAlign.center,
                     ),
                   ],

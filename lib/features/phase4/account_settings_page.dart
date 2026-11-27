@@ -173,7 +173,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                 PaymentRecipientSettings(gateway: _paymentGateway),
                 const SizedBox(height: 20),
               ],
-              WorkspaceCard(
+              _SettingsExpansion(
                 title: 'Password & security',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -213,7 +213,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
               ),
               if (widget.role != 'administrator') ...[
                 const SizedBox(height: 20),
-                WorkspaceCard(
+                _SettingsExpansion(
                   title: 'Notification preferences • DEMO',
                   subtitle: 'These switches are local previews only. They do not enable notifications or change delivery settings.',
                   child: Column(
@@ -242,7 +242,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                WorkspaceCard(
+                _SettingsExpansion(
                   title: 'Additional profile presentation',
                   subtitle: 'Prototype-only bio/skills/categories/resume or company presentation fields are available in a separate fictional preview; no real profile is overwritten.',
                   child: OutlinedButton(
@@ -262,7 +262,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                 ),
               ],
               const SizedBox(height: 20),
-              WorkspaceCard(
+              _SettingsExpansion(
                 title: 'Account actions',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -313,6 +313,30 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
           );
         },
       ),
+    ),
+  );
+}
+
+class _SettingsExpansion extends StatelessWidget {
+  const _SettingsExpansion({
+    required this.title,
+    required this.child,
+    this.subtitle,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: EdgeInsets.zero,
+    clipBehavior: Clip.antiAlias,
+    child: ExpansionTile(
+      title: Text(title),
+      subtitle: subtitle == null ? null : Text(subtitle!),
+      childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      children: [child],
     ),
   );
 }

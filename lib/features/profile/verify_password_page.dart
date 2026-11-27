@@ -311,7 +311,7 @@ class _VerifyPasswordPageState extends State<VerifyPasswordPage> {
           fallback: widget.isForgorPassword
               ? AppRoutes.home
               : AppRoutes.profile,
-          returnLabel: widget.isForgorPassword ? 'Sign in' : 'My profile',
+          returnLabel: widget.isForgorPassword ? 'Sign in' : 'My Account',
           title: Text(
             widget.isForgorPassword ? 'Forgot Password' : 'Verify Your Email',
           ),

@@ -85,7 +85,7 @@ class DashboardContent extends StatelessWidget {
     ];
     final completed = fields.where((field) => field.isNotEmpty).length;
     final summary = WorkspaceCard(
-      title: 'Personal profile',
+      title: 'My Account',
       subtitle: 'Your account details, separate from company information.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

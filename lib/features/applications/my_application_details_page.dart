@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -28,9 +30,11 @@ class MyApplicationDetailsPage extends StatefulWidget {
       _MyApplicationDetailsPageState();
 }
 
-class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
+class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage>
+    with WidgetsBindingObserver {
   late MyApplicationDetailsRepository repo;
   bool confirming = false;
+  Timer? _refreshTimer;
 
   Future<void> respond(
     MyJobApplication application,
@@ -137,7 +141,24 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     initialize();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted &&
+          ModalRoute.isCurrentOf(context) != false &&
+          !confirming &&
+          !repo.loading &&
+          !repo.responding) {
+        unawaited(repo.load(quietly: true));
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !confirming && !repo.responding) {
+      unawaited(repo.load(quietly: true));
+    }
   }
 
   @override
@@ -152,6 +173,8 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
     repo.dispose();
     super.dispose();
   }
@@ -185,15 +208,6 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage> {
                     ? null
                     : () => moduleBack(context, AppRoutes.applications),
               ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh application',
-            onPressed: repo.loading || repo.historyLoading || repo.responding
-                ? null
-                : repo.load,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
         child: WorkspaceContent(
           maxWidth: 1040,
           centered: true,

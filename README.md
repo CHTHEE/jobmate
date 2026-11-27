@@ -251,40 +251,110 @@ an isolated test project after Phase 2B, 2D and 2F; it has not been applied or
 database-tested. Removing Superadmin status clears only the automatic module
 grants. Module-specific conflict-of-interest checks remain in force.
 
-### Payment Handling update — November 4, 2026
+### Payment Handling and Compensation Offers
 
-The main Payments routes now use `lib/features/payments/` for the Billplz Sandbox
-integration foundation, superseding the older Phase 4 external-payment demo below.
-Employer may add a voluntary nonnegative Bonus to the agreed assignment minimum
-without worker acceptance. Only Part-time/Temporary accepted, completed and
-work-verified assignments without unresolved work-completion disputes are eligible.
-Worker and Admin views are read-only; browser redirects never establish success
-or worker payout.
+Run `flutter run` with the normal JobMate Supabase configuration. Payment
+Handling, P03 Compensation Offers, and Bank Transfer and TNG payment simulation
+are enabled by default in Debug, Profile, and Release. The owner supplied the
+Stage 4 catalog postflight (43 PASS, 0 FAIL, 1 REVIEW) and reported all 11
+functional acceptance checks passed. The runtime REVIEW remains open and JWT
+authorization and concurrency have not been exhaustively verified.
 
-See [Payment Handling integration and setup](docs/payment_handling.md) for the
-confirmed rules, new API/adapter contract, database invariants and account setup.
-Flutter pages and Billplz/domain code are implemented; real AssignmentSource and
-durable PaymentStore/FK/RLS/notification integration remain dependent on the
-teammate-owned schema. Edge entry points fail closed until wired. No payment
-migrations or remote setup were applied. The old demo classes remain for existing
-tests; `/employer-payments/record` now redirects to the Sandbox workspace. App pages
-show integration pending instead of fictional payment data while disconnected.
-The server-only settings loader is now in `supabase/functions/_shared/payments/config.ts`.
-Its four new setting names and Dashboard setup steps are documented in the
-integration guide. The user reports having the Sandbox Collection and both keys;
-values have not been read or verified by the agent. Saving configuration does not
-enable the missing Assignment/PaymentStore adapters.
-For fixed-port local Payment testing on this Windows machine, use
-`flutter run -d chrome --web-hostname localhost --web-port 8765` and set the server
-return URL to `http://localhost:8765/#/payments/return`. Port 8080 was denied with
-socket error 10013; loopback bind checks for 8765 passed. The ordinary random-port
-Web command below remains available for development without a fixed payment return URL.
-For manual UI testing before Assignment integration, stop any run on that port and
-use `flutter run -d chrome --target test/support/payment_preview.dart --web-hostname localhost --web-port 8765`.
-This separate entry point clearly labels fictional records, shares them between
-role previews and simulates checkout locally without Supabase/Billplz calls. It
-does not enable payment or validate real backend integration; see the guide's
-manual walkthrough. The normal lib/main.dart does not import preview fixtures.
+| Build flag | Default | Behavior |
+| --- | --- | --- |
+| `JOBMATE_PAYMENT_HANDLING` | `true` | Shows persisted settlement for active Employers and Job Seekers. Also enables P03. Set to `false` to make these Payment routes unavailable unless the Debug demo is explicitly enabled. |
+| `JOBMATE_P03_COMPENSATION_OFFERS` | `true` | Enables versioned Offers independently when Payment Handling is off. Set both flags to `false` to pause versioned issuance and acceptance. |
+| `JOBMATE_PAYMENT_RECIPIENT_SIMULATION` | `true` | Requires Payment Handling. Set to `false` to hide recipient settings and method-aware checkout and use the existing Stage 3 simulated recording flow. |
+| `JOBMATE_PAYMENT_HANDLING_DEMO` | `false` | Debug only. Set explicitly to `true` with Payment Handling off to open the synthetic walkthrough on the Employer and Job Seeker Payments routes. Data is process-local. |
+| `JOBMATE_HIRING_MEMBERSHIP` | `false` | Keep disabled for P03. The separate Hiring Membership adapter does not support exact-version acceptance. |
+
+For an emergency pause of both features, rebuild with
+`--dart-define=JOBMATE_PAYMENT_HANDLING=false --dart-define=JOBMATE_P03_COMPENSATION_OFFERS=false`.
+Users can still respond to historical offers without versioned terms after the
+server read confirms there is no current versioned Offer. Supported new Offers
+and already versioned Offers cannot fall back to legacy issuance or acceptance.
+Employer and Job Seeker payment routes do not fall back to legacy Sandbox checkout.
+
+Employers issue immutable terms from Applicants. Workers accept the exact Offer
+version from Application Details. Versioned Offers cover Part-time/Temporary
+Hourly/Daily jobs. Settlement currently covers Part-time Hourly engagements
+with both salary bounds, verified effective Attendance, Engagement Closure
+and no unresolved related Dispute. Confirmed absence adds zero payable time
+and does not block otherwise eligible work. Nonpositive verified overlap and
+all-zero payable work block settlement. Existing hired Applications without
+accepted versioned terms remain ineligible.
+
+Payments shows the latest salary proposal, decision and recorded payment.
+Workers can reject a pending proposal with blocked evidence. Confirmation
+requires valid current bounds. An Employer can record a simulated payment
+after eligible confirmation and can include a voluntary bonus.
+`demo_recorded` is a persisted simulation. It makes no Billplz request and
+transfers no wages or payout.
+
+The normal Payment UI presents a compact settlement summary, a responsive
+six-step progress timeline, human-readable payable time, and focused actions.
+Internal identifiers and developer-only payment explanations are not shown in
+the user interface. Payment, Employer Applicants, and Job Seeker Application
+Details refresh authoritative state silently every 15 seconds and when the app
+resumes; error states retain an explicit Retry action. My Account is the single
+role-aware destination for personal profile, account security, notification
+preferences, and supported role-specific settings. Existing settings URLs open
+the Account & security section so saved links remain compatible. Section state
+is retained while navigating within My Account, and unsaved personal details
+remain protected by the existing discard confirmation.
+
+The [existing-target deployment review](supabase/diagnostics/payment_existing_target_deployment_review.md)
+is the historical preparation record. The installed stages do not need to be
+rerun. The separate [Billplz Sandbox foundation](docs/payment_handling.md)
+describes the older checkout contract.
+
+### Responsive workspace
+
+The shared toolbar carries JobMate branding, search, notifications and account
+controls. Page titles live in the content. Workspace pages align to the start
+of the available pane and keep a readable width for long forms and detail text.
+Job discovery, postings, applicants and Payment summaries use responsive cards
+that expand into columns when their content pane can fit them.
+
+Employers open the create or edit form from My Job Postings. These links open a
+scrollable dialog with fixed form actions on larger screens and a full-screen
+dialog on narrow screens. The standalone form URLs and the workplace picker
+remain available. View Applicants opens the selected posting's applicant page.
+Unread application indicators are shown on My Job Postings and its job cards.
+
+Filter panels start collapsed and keep their selections when closed. Expand
+Filters to change the categories or clear them. Server-backed directories keep
+their existing search, filtering and pagination contracts.
+
+The dashboards and management lists use the available workspace width for
+paired panels and card grids. Cards in the same grid row match the tallest
+card without clipping longer content. Page actions sit at the end of the
+heading on desktop and wrap below it on narrow screens.
+
+My Job Postings keeps its search, filters and scroll position when the editor
+closes. Cancel leaves the list as it was. A successful save updates the list
+and counts using the confirmed job returned by the server. Use **View
+Applicants** for the selected job and **Edit** for the job's available
+management actions. Preview and Close Job live inside the editor; Preview uses
+the current unsaved form values, while closing never saves unrelated edits.
+Closed postings use the same direct action in read-only mode. Employment Type
+uses the same dropdown presentation as the other single-choice fields.
+
+Work Management opens with job-level cards grouped by authoritative job ID.
+Selecting a card keeps that job in the route and shows only its authorized
+workers, applications and shifts before the existing verification details and
+actions. Duplicate titles never merge unrelated jobs. Scheduled, recorded and
+effective attendance remain distinct, and a verified-work decision is not
+presented as settlement approval.
+
+Payments opens with role-scoped settlement totals, filters and compact cards.
+Each settlement has a contextual detail route for progress, salary breakdown,
+current actions and expandable technical identifiers. Existing server
+eligibility, proposal identity, request-id and account-switch protections remain
+authoritative. The Bank Transfer and TNG simulation provides recipient settings,
+focused checkout and persisted masked receipts. It does not initiate a real
+banking, TNG or Billplz transaction. See the
+[simulation workflow and verification status](docs/payment_recipient_details_v1.md).
 
 ### Planned features
 
@@ -2475,6 +2545,14 @@ and manual SQL sequence (`docs/reputation/cross_party_reputation.md`) are unavai
 in this checkout.
 No internal Trust Score or Payment/Attendance scoring is implemented by this
 change. Earlier demo descriptions elsewhere document historical UI stages.
+
+The Employer and Job Seeker Evaluation workspaces organize records into Pending,
+Given and Received. Published history shows the core rating first, with the
+criterion breakdown available on expansion. My Reputation separates the Job
+Seeker's Evaluation Rating from Verified Work. Company Reputation shows company
+ratings and their breakdowns. Use **How ratings work** for eligibility, weighting
+and dispute exclusions, or **View received evaluations** to open the published
+history.
 
 ### Internal Job Seeker Trust engine (prepared; not deployed)
 

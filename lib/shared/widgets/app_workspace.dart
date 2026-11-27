@@ -246,8 +246,8 @@ class AppWorkspace extends StatelessWidget {
                       ),
                     ),
                     ListTile(
-                      leading: const Icon(Icons.person_outline),
-                      title: const Text('My profile'),
+                      leading: const Icon(Icons.account_circle_outlined),
+                      title: const Text('My Account'),
                       onTap: () {
                         Navigator.of(sheetContext).pop();
                         navigate(AppRoutes.profile);
@@ -262,14 +262,6 @@ class AppWorkspace extends StatelessWidget {
                           navigate(AppRoutes.employerReputation);
                         },
                       ),
-                    ListTile(
-                      leading: const Icon(Icons.settings_outlined),
-                      title: const Text('Account settings'),
-                      onTap: () {
-                        Navigator.of(sheetContext).pop();
-                        navigate(settingsPath);
-                      },
-                    ),
                     const SizedBox(height: 12),
                   ],
                 ),
@@ -314,9 +306,9 @@ class AppWorkspace extends StatelessWidget {
 
         final primaryIndex = primary.indexWhere((item) => item.$1 == selected);
         final accountSelected =
-            selected == AppRoutes.profile ||
-            selected == settingsPath ||
-            (role == 'employer' && selected == AppRoutes.employerReputation);
+            path == AppRoutes.profile ||
+            path == settingsPath ||
+            (role == 'employer' && path == AppRoutes.employerReputation);
         final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
         return Scaffold(
           drawer: kIsWeb && !sidebar
