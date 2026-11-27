@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/responsive_layout.dart';
 
 import 'work_attendance_models.dart';
 import 'work_attendance_lifecycle.dart';
@@ -29,6 +31,7 @@ class EmployerWorkEvidenceSummary extends StatelessWidget {
       final theme = Theme.of(context);
       return WorkspaceCard(
         title: row.jobTitle,
+        leading: const WorkHeadingIcon(LucideIcons.briefcase),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -58,75 +61,95 @@ class EmployerWorkEvidenceSummary extends StatelessWidget {
       );
     }
     final state = AttendanceLifecycle.of(row);
+    final confirmedAbsent = row.resolution?.decision == 'confirmed_absent';
     final timing = attendanceTimingBadge(row);
     final verified = row.verificationStatus == WorkVerificationStatus.verified;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        WorkspaceCard(
-          title: row.jobTitle,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                workerName == null ? 'Assigned worker' : 'Worker: $workerName',
-              ),
-              const SizedBox(height: 8),
-              Text(shiftDateLabel(row.scheduledStart, full: true)),
-              Text(shiftTimeRange(row.scheduledStart, row.scheduledEnd)),
-              if (row.workplaceLocation.trim().isNotEmpty)
-                Text('Workplace: ${row.workplaceLocation}'),
-              WorkplaceMapAction(uri: row.workplaceMapLink),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
+        ResponsiveGrid(
+          minItemWidth: 370,
+          maxColumns: 2,
+          equalRowHeight: true,
+          children: [
+            WorkspaceCard(
+              title: row.jobTitle,
+              leading: const WorkHeadingIcon(LucideIcons.briefcase),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AttendanceStatusBadge(
-                    label: state.label,
-                    tone: attendanceTone(state),
+                  Text(
+                    workerName == null
+                        ? 'Assigned worker'
+                        : 'Worker: $workerName',
                   ),
-                  if (!verified && !hasWorkflow)
-                    AttendanceStatusBadge(
-                      label:
-                          'Verification: ${workVerificationStatusLabel(row.verificationStatus)}',
-                      tone: verificationTone(row.verificationStatus),
-                    ),
-                  ?timing,
+                  const SizedBox(height: 8),
+                  Text(shiftDateLabel(row.scheduledStart, full: true)),
+                  Text(shiftTimeRange(row.scheduledStart, row.scheduledEnd)),
+                  if (row.workplaceLocation.trim().isNotEmpty)
+                    Text('Workplace: ${row.workplaceLocation}'),
+                  WorkplaceMapAction(uri: row.workplaceMapLink),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      AttendanceStatusBadge(
+                        label: state.label,
+                        tone: attendanceTone(state),
+                      ),
+                      if (!verified && !hasWorkflow && !confirmedAbsent)
+                        AttendanceStatusBadge(
+                          label:
+                              'Verification: ${workVerificationStatusLabel(row.verificationStatus)}',
+                          tone: verificationTone(row.verificationStatus),
+                        ),
+                      ?timing,
+                    ],
+                  ),
                 ],
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Card.outlined(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ShiftAttendanceSummary(assignment: row, employer: true),
-                if (onGps != null &&
-                    (row.checkInAt != null || row.checkOutAt != null))
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
-                      onPressed: onGps,
-                      icon: const Icon(Icons.map_outlined),
-                      label: const Text('View attendance GPS'),
-                    ),
-                  ),
-                if (onGps != null &&
-                    (row.checkInAt != null || row.checkOutAt != null))
-                  const Text(
-                    'GPS refers to original device records. Opening a map shares coordinates with Google.',
-                    style: TextStyle(fontSize: 12),
-                  ),
-              ],
             ),
-          ),
+            Card.outlined(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ShiftAttendanceSummary(
+                      assignment: row,
+                      employer: true,
+                      showMissingTimes: true,
+                      showGuidance: !confirmedAbsent,
+                    ),
+                    if (confirmedAbsent)
+                      const Text(
+                        'Absence confirmed. No evidence submission is required. No work or payment has been approved for this shift.',
+                      ),
+                    if (onGps != null &&
+                        (row.checkInAt != null || row.checkOutAt != null))
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlinedButton.icon(
+                          onPressed: onGps,
+                          icon: const Icon(Icons.map_outlined),
+                          label: const Text('View attendance GPS'),
+                        ),
+                      ),
+                    if (onGps != null &&
+                        (row.checkInAt != null || row.checkOutAt != null))
+                      const Text(
+                        'GPS refers to original device records. Opening a map shares coordinates with Google.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
-        if (row.resolution?.decision != null) ...[
+        if (hasDistinctAttendanceAudit(row)) ...[
           const SizedBox(height: 12),
           Card.outlined(
             child: Padding(

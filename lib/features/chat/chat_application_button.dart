@@ -12,11 +12,16 @@ class ChatApplicationButton extends StatefulWidget {
     required this.applicationId,
     this.employer = false,
     this.enabled = true,
+    this.filled = false,
+    this.fullWidth = false,
+    this.icon = Icons.chat_bubble_outline,
     this.createRepository,
     this.navigate,
   });
   final String applicationId;
   final bool employer, enabled;
+  final bool filled, fullWidth;
+  final IconData icon;
   final ChatRepository Function()? createRepository;
 
   /// Allows a modal host to dismiss its overlay before opening the same route.
@@ -67,26 +72,36 @@ class _ChatApplicationButtonState extends State<ChatApplicationButton> {
   }
 
   @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      OutlinedButton.icon(
-        onPressed: widget.enabled && !_busy ? _open : null,
-        icon: const Icon(Icons.chat_bubble_outline),
-        label: Text(
-          _busy
-              ? 'Opening conversation…'
-              : widget.employer
-              ? 'Message Applicant'
-              : 'Message Employer',
-        ),
-      ),
-      if (_error != null)
-        Text(
-          _error!,
-          style: TextStyle(color: Theme.of(context).colorScheme.error),
-        ),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final onPressed = widget.enabled && !_busy ? _open : null;
+    final icon = Icon(widget.icon);
+    final label = Text(
+      _busy
+          ? 'Opening conversation…'
+          : widget.employer
+          ? 'Message Applicant'
+          : 'Message Employer',
+      textAlign: TextAlign.center,
+    );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: widget.fullWidth
+          ? CrossAxisAlignment.stretch
+          : CrossAxisAlignment.start,
+      children: [
+        widget.filled
+            ? FilledButton.icon(onPressed: onPressed, icon: icon, label: label)
+            : OutlinedButton.icon(
+                onPressed: onPressed,
+                icon: icon,
+                label: label,
+              ),
+        if (_error != null)
+          Text(
+            _error!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+      ],
+    );
+  }
 }

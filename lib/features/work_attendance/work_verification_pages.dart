@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -474,6 +475,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
           : selectedRows.isEmpty
           ? 'Selected Job'
           : selectedRows.first.jobTitle;
+      final matchingRows = selectedRows.where(_matches).toList(growable: false);
       return AppWorkspace(
         title: 'Work Management',
         path: AppRoutes.workVerification,
@@ -533,10 +535,11 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                     '${AppRoutes.employerSoftSkillEvaluations}/$applicationId/rate',
                   ),
                 ),
-              if (authorized && error == null && state.rows.isNotEmpty) ...[
+              if (authorized && error == null && selectedRows.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 _AssignmentOverview(
-                  rows: state.rows,
+                  rows: selectedRows,
+                  jobScoped: widget.jobId != null,
                   onIssues: () =>
                       setState(() => _shiftFilter = 'attendanceIssues'),
                 ),
@@ -569,7 +572,8 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final jobs = {
-                          for (final row in state.rows) row.jobId: row.jobTitle,
+                          for (final row in selectedRows)
+                            row.jobId: row.jobTitle,
                         };
                         final width = constraints.maxWidth < 600
                             ? constraints.maxWidth
@@ -643,17 +647,17 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                 Semantics(
                   liveRegion: true,
                   child: Text(
-                    'Showing ${state.rows.where(_matches).length} of ${state.rows.length} loaded shifts',
+                    'Showing ${matchingRows.length} of ${selectedRows.length} loaded shifts',
                   ),
                 ),
                 Text(
-                  '${_applicationGroups(state.rows.where(_matches).toList()).length} matching hired application groups',
+                  '${_applicationGroups(matchingRows).length} matching hired application groups',
                 ),
-                if (state.rows.any((row) => row.attendanceAsOf == null))
+                if (selectedRows.any((row) => row.attendanceAsOf == null))
                   const Text(
                     'Attendance issue totals unavailable until server attendance timing can be loaded. Refresh after the read contract is approved and installed.',
                   ),
-                if (!state.rows.any(_matches))
+                if (matchingRows.isEmpty)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 24),
                     child: Text(
@@ -750,9 +754,11 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                                   spacing: 8,
                                   runSpacing: 6,
                                   children: [
-                                    AttendanceStatusBadge(
-                                      label:
-                                          '${shifts.length} total ${shifts.length == 1 ? 'shift' : 'shifts'}',
+                                    Text(
+                                      '${shifts.length} total ${shifts.length == 1 ? 'shift' : 'shifts'}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium,
                                     ),
                                     AttendanceStatusBadge(
                                       label:
@@ -852,7 +858,11 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                                         label: const Text('Add shift'),
                                       ),
                                     );
-                                    return constraints.maxWidth >= 520
+                                    final scale =
+                                        MediaQuery.textScalerOf(context)
+                                            .scale(14) /
+                                        14;
+                                    return constraints.maxWidth >= 520 * scale
                                         ? Row(
                                             children: [
                                               Expanded(child: toggle),
@@ -1139,6 +1149,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                 minItemWidth: 360,
                 maxColumns: 3,
                 equalRowHeight: true,
+                reserveEmptyColumns: true,
                 children: [for (final rows in groups) _jobOverviewCard(rows)],
               ),
           ],
@@ -1156,6 +1167,11 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
               row.verificationStatus == WorkVerificationStatus.pendingReview,
         )
         .length;
+    final verified = rows
+        .where(
+          (row) => row.verificationStatus == WorkVerificationStatus.verified,
+        )
+        .length;
     final issuesAvailable = rows.every((row) => row.attendanceAsOf != null);
     final issues = rows
         .where((row) => AttendanceLifecycle.of(row).isIssue)
@@ -1167,7 +1183,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1175,29 +1191,56 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  first.jobTitle,
-                  style: Theme.of(context).textTheme.titleLarge,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const WorkHeadingIcon(LucideIcons.briefcase),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        first.jobTitle,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  locations.isEmpty
-                      ? 'Workplace not available'
-                      : locations.length == 1
-                      ? locations.single
-                      : '${locations.length} workplaces',
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(LucideIcons.mapPin, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        locations.isEmpty
+                            ? 'Workplace not available'
+                            : locations.length == 1
+                            ? locations.single
+                            : '${locations.length} workplaces',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
                 Wrap(
                   spacing: 8,
-                  runSpacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     AttendanceStatusBadge(
                       label: '$workers ${workers == 1 ? 'worker' : 'workers'}',
+                      tone: AttendanceTone.information,
                     ),
                     AttendanceStatusBadge(
                       label:
                           '${rows.length} ${rows.length == 1 ? 'shift' : 'shifts'}',
+                    ),
+                    AttendanceStatusBadge(
+                      label: '$verified verified',
+                      tone: verified > 0
+                          ? AttendanceTone.positive
+                          : AttendanceTone.neutral,
                     ),
                     AttendanceStatusBadge(
                       label: '$pending pending review',
@@ -1209,7 +1252,7 @@ class _WorkVerificationPageState extends State<WorkVerificationPage> {
                       label: issuesAvailable
                           ? '$issues attendance issues'
                           : 'Issues unavailable',
-                      tone: issues > 0
+                      tone: issuesAvailable && issues > 0
                           ? AttendanceTone.issue
                           : AttendanceTone.neutral,
                     ),
@@ -1246,8 +1289,7 @@ class _VerificationContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => WorkspaceContent(
-    centered: true,
-    maxWidth: 1440,
+    maxWidth: double.infinity,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1421,38 +1463,6 @@ class _CompanyAssignmentCard extends StatelessWidget {
             employer: true,
             recoveryEnforced: row.resolution?.recoveryEnforced == true,
           );
-    String time(DateTime? value) => value == null
-        ? 'Not recorded'
-        : '${shiftDateLabel(value)}\n${shiftTimeLabel(value)} MYT';
-    final details = <Widget>[
-      ShiftDetailPanel(
-        title: 'Scheduled shift',
-        icon: Icons.calendar_today_outlined,
-        children: [
-          Text(
-            '${shiftDateLabel(row.scheduledStart)}\n${shiftTimeRange(row.scheduledStart, row.scheduledEnd)}',
-          ),
-        ],
-      ),
-      ShiftDetailPanel(
-        title: 'Effective check-in',
-        icon: Icons.login,
-        children: [
-          Text(
-            '${corrected ? 'Corrected: ' : ''}${time(row.effectiveCheckInAt)}',
-          ),
-        ],
-      ),
-      ShiftDetailPanel(
-        title: 'Effective checkout',
-        icon: Icons.logout,
-        children: [
-          Text(
-            '${corrected ? 'Corrected: ' : ''}${time(row.effectiveCheckOutAt)}',
-          ),
-        ],
-      ),
-    ];
     return Card.outlined(
       key: ValueKey(row.assignmentId),
       color: Theme.of(context).colorScheme.surface,
@@ -1464,15 +1474,25 @@ class _CompanyAssignmentCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.calendar_month_outlined,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+                const WorkHeadingIcon(LucideIcons.calendar),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    '${shiftDateLabel(row.scheduledStart)}\n${shiftTimeRange(row.scheduledStart, row.scheduledEnd)}',
-                    style: Theme.of(context).textTheme.titleSmall,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (showDetails)
+                        Text(
+                          'Scheduled shift',
+                          style: Theme.of(context).textTheme.labelMedium,
+                        ),
+                      Text(
+                        shiftDateLabel(row.scheduledStart),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        shiftTimeRange(row.scheduledStart, row.scheduledEnd),
+                      ),
+                    ],
                   ),
                 ),
                 if (!futureWithoutRecords)
@@ -1568,10 +1588,16 @@ class _CompanyAssignmentCard extends StatelessWidget {
             if (!showDetails) WorkplaceMapAction(uri: row.workplaceMapLink),
             if (showDetails) ...[
               const SizedBox(height: 12),
-              _ShiftResponsiveGrid(columns: 3, children: details),
+              ShiftAttendanceSummary(
+                assignment: row,
+                employer: true,
+                showMissingTimes: true,
+                showGuidance: false,
+              ),
               const SizedBox(height: 12),
-              _ShiftResponsiveGrid(
-                columns: 3,
+              ResponsiveGrid(
+                minItemWidth: 330,
+                maxColumns: 2,
                 children: [
                   ShiftDetailPanel(
                     title: 'Workplace & GPS',
@@ -1609,50 +1635,40 @@ class _CompanyAssignmentCard extends StatelessWidget {
                     title: 'Work Evidence',
                     icon: Icons.folder_outlined,
                     children: [
-                      Text('Status: $evidenceLabel'),
-                      const SizedBox(height: 6),
                       Text(
-                        row.verificationStatus ==
-                                WorkVerificationStatus.notSubmitted
+                        state == AttendanceLifecycle.confirmedAbsent
+                            ? 'No evidence submission is required.'
+                            : row.verificationStatus ==
+                                  WorkVerificationStatus.notSubmitted
                             ? 'No evidence has been submitted for this shift.'
                             : 'Files, descriptions and review actions are available in the authorized evidence view.',
                       ),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: evidenceAction(primary: evidencePrimary),
-                      ),
-                      EvidenceDeadlineSummary(assignment: row),
-                    ],
-                  ),
-                  ShiftDetailPanel(
-                    title: 'Verification & settlement',
-                    icon: Icons.fact_check_outlined,
-                    children: [
-                      Text('Work verification: $evidenceLabel'),
-                      const SizedBox(height: 6),
+                      if (row.verifiedAt case final timestamp?)
+                        Text('Verified at: ${attendanceMyt(timestamp)}'),
+                      const SizedBox(height: 8),
                       const Text(
-                        'Work verification does not by itself approve payable work. Payment eligibility is calculated separately from accepted compensation, resolved attendance, verified shifts and Engagement Closure.',
+                        'Work verification does not approve payable time. Payment eligibility is assessed separately.',
                       ),
                       if (state.isIssue)
                         const Text(
                           'Settlement remains blocked while this attendance issue is unresolved.',
                         ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: evidenceAction(primary: evidencePrimary),
+                      ),
+                      if (state != AttendanceLifecycle.confirmedAbsent)
+                        EvidenceDeadlineSummary(assignment: row),
                     ],
                   ),
                 ],
               ),
-              if (row.effectiveCheckInAt != null &&
-                  row.effectiveCheckOutAt != null)
-                Text(
-                  '${corrected ? "Corrected" : "Recorded"} duration: ${row.effectiveCheckOutAt!.difference(row.effectiveCheckInAt!).inHours}h ${row.effectiveCheckOutAt!.difference(row.effectiveCheckInAt!).inMinutes.remainder(60)}m (not approved payable time)',
-                ),
-              if (corrected)
-                const Text(
-                  'Employer-corrected effective times; original device records are in the audit below. Work verification is separate.',
-                ),
-              AttendanceRecordDetails(assignment: row),
-              if (row.verifiedAt != null)
-                Text('Verified at: ${_malaysiaTime(row.verifiedAt!)}'),
+              if (hasDistinctAttendanceAudit(row)) ...[
+                const SizedBox(height: 12),
+                AttendanceRecordDetails(assignment: row),
+              ] else if (state == AttendanceLifecycle.missed)
+                const Text('Attendance resolution: Pending employer review'),
             ],
             const SizedBox(height: 8),
             Wrap(
@@ -1683,21 +1699,6 @@ class _CompanyAssignmentCard extends StatelessWidget {
   }
 }
 
-class _ShiftResponsiveGrid extends StatelessWidget {
-  const _ShiftResponsiveGrid({required this.columns, required this.children});
-  final int columns;
-  final List<Widget> children;
-  @override
-  Widget build(BuildContext context) =>
-      ShiftEqualHeightGrid(columns: columns, children: children);
-}
-
-String _malaysiaTime(DateTime timestamp) {
-  final time = timestamp.toUtc().add(const Duration(hours: 8));
-  String two(int value) => value.toString().padLeft(2, '0');
-  return '${two(time.day)}/${two(time.month)}/${time.year} ${two(time.hour)}:${two(time.minute)} MYT';
-}
-
 String _shiftStatusLabel(WorkAssignmentStatus status) => switch (status) {
   WorkAssignmentStatus.scheduled => 'Scheduled',
   WorkAssignmentStatus.active => 'Active',
@@ -1716,8 +1717,13 @@ String _verificationLabel(WorkVerificationStatus status) => switch (status) {
 };
 
 class _AssignmentOverview extends StatelessWidget {
-  const _AssignmentOverview({required this.rows, required this.onIssues});
+  const _AssignmentOverview({
+    required this.rows,
+    required this.jobScoped,
+    required this.onIssues,
+  });
   final List<CompanyWorkAssignment> rows;
+  final bool jobScoped;
   final VoidCallback onIssues;
 
   @override
@@ -1725,7 +1731,9 @@ class _AssignmentOverview extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        'Overview of loaded authorized records',
+        jobScoped
+            ? 'Overview of this job’s loaded records'
+            : 'Overview of loaded authorized records',
         style: Theme.of(context).textTheme.labelMedium,
       ),
       const SizedBox(height: 8),

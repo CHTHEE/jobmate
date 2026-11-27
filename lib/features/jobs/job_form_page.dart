@@ -21,6 +21,7 @@ import 'job_postings_repository.dart';
 import 'job_preview.dart';
 import 'job_display.dart';
 import 'job_validation.dart';
+import 'application_deadline.dart';
 import '../company/company_logo.dart';
 import 'job_ai_formatter.dart';
 import 'workplace_coordinates.dart';
@@ -714,8 +715,14 @@ class JobFormPageState extends State<JobFormPage> {
   }
 
   Future<void> pickDeadline() async {
-    final now = DateUtils.dateOnly(DateTime.now()).add(const Duration(days: 1));
-    final current = DateTime.tryParse(fields['application_deadline']!.text);
+    final today = malaysiaApplicationDate(DateTime.now());
+    final now = DateTime(today.year, today.month, today.day + 1);
+    final saved = parseApplicationDeadline(
+      fields['application_deadline']!.text,
+    );
+    final current = saved == null
+        ? null
+        : DateTime(saved.year, saved.month, saved.day);
     final last = DateTime(now.year + 20, 12, 31);
     final picked = await showDatePicker(
       context: context,
@@ -818,7 +825,7 @@ class JobFormPageState extends State<JobFormPage> {
             helperText: jobBulletFields.contains(key)
                 ? 'Press Enter to start a new bullet point. You can write full sentences or short phrases on each line.'
                 : key == 'application_deadline'
-                ? 'YYYY-MM-DD. Choose a future date before publishing.'
+                ? 'YYYY-MM-DD. Choose a date after today in Malaysia. Applicants can apply through the deadline date.'
                 : key == 'original_description'
                 ? 'Describe duties, requirements, working arrangements and benefits in normal sentences.'
                 : key == 'role_overview'
@@ -1612,6 +1619,18 @@ class JobFormPageState extends State<JobFormPage> {
                       ? 'Review your posting and use Save Changes to update it.'
                       : 'Build your posting, save a draft or publish when ready.',
                 ),
+                if (status == 'published' &&
+                    applicationDeadlineState(
+                          savedJob?['application_deadline'],
+                          DateTime.now(),
+                        ) ==
+                        ApplicationDeadlineState.expired)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      'Deadline Passed. This job is no longer accepting new applications. Choose a future deadline and save to extend it.',
+                    ),
+                  ),
                 ..._formContent(),
                 if (_showActions)
                   JobFormSection(

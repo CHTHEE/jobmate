@@ -197,7 +197,7 @@ void main() {
       }
 
       expect(dropdown(tester, 'Employment type').value, 'full_time');
-      expectPeriod('monthly', ['monthly', 'yearly']);
+      expectPeriod('monthly', ['monthly']);
       expect(
         tester
             .widget<TextField>(input('Minimum salary (RM)'))
@@ -224,7 +224,7 @@ void main() {
         'e.g. 100',
       );
       await choose(tester, 'Employment type', 'Contract');
-      expectPeriod('monthly', ['monthly', 'yearly']);
+      expectPeriod('monthly', ['monthly']);
       await choose(tester, 'Employment type', 'Internship');
       expectPeriod('monthly', ['monthly']);
       expect(dropdown(tester, 'Salary period').onChanged, isNull);
@@ -270,7 +270,7 @@ void main() {
       expect(dropdown(tester, 'Salary period').value, 'monthly');
       expect(field(tester, 'Minimum salary (RM)').text, '3000');
 
-      await choose(tester, 'Salary period', 'Yearly');
+      await choose(tester, 'Employment type', 'Temporary');
       await tester.tapAt(const Offset(2, 2));
       await tester.pumpAndSettle();
       expect(find.text('Change salary period?'), findsNothing);
@@ -318,6 +318,39 @@ void main() {
         findsOneWidget,
       );
       expect(repo.saves, 0);
+    },
+  );
+
+  testWidgets(
+    'expired published deadline can be extended through Save Changes',
+    (tester) async {
+      final repo = TestJobs()
+        ..records = [
+          {
+            ...completeJob(),
+            'job_id': 'expired',
+            'status': 'published',
+            'application_deadline': '2020-11-27',
+          },
+        ];
+      final router = testRouter(repo, initial: '/job-postings/expired/edit');
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Deadline Passed.'), findsOneWidget);
+      expect(field(tester, 'Application deadline').text, '2020-11-27');
+      await tap(tester, find.text('Save Changes'));
+      expect(
+        find.textContaining('after today (Malaysia time)'),
+        findsOneWidget,
+      );
+      expect(repo.saves, 0);
+      field(tester, 'Application deadline').text = '2099-12-31';
+      await tap(tester, find.text('Save Changes'));
+      expect(repo.saves, 1);
+      expect(repo.records.single['application_deadline'], '2099-12-31');
+      expect(repo.records.single['status'], 'published');
+      expect(repo.records.single['salary_min'], completeJob()['salary_min']);
     },
   );
 
@@ -634,19 +667,15 @@ void main() {
         find.text('Salary preview: RM 1,500–1,600 / month'),
         findsOneWidget,
       );
-      await tap(tester, selectField('Salary period'));
-      await tap(tester, find.text('Yearly').last);
+      await choose(tester, 'Employment type', 'Part-time');
       expect(find.text('Change salary period?'), findsOneWidget);
       await tap(tester, find.text('Change & reset salary'));
       expect(field(tester, 'Minimum salary (RM)').text, isEmpty);
       expect(field(tester, 'Maximum salary (RM)').text, isEmpty);
-      await tester.enterText(input('Minimum salary (RM)'), '36000');
-      await tester.enterText(input('Maximum salary (RM)'), '54000');
+      await tester.enterText(input('Minimum salary (RM)'), '12');
+      await tester.enterText(input('Maximum salary (RM)'), '18');
       await tester.pump();
-      expect(
-        find.text('Salary preview: RM 36,000–54,000 / year'),
-        findsOneWidget,
-      );
+      expect(find.text('Salary preview: RM 12–18 / hour'), findsOneWidget);
       await tap(tester, find.byType(SwitchListTile));
       expect(find.text('Salary preview: Salary not disclosed'), findsOneWidget);
       expect(repo.saves, 0);

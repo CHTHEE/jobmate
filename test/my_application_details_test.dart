@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import 'package:jobmate/features/applications/applications_page.dart';
 import 'package:jobmate/features/applications/module2_repository.dart';
 import 'package:jobmate/features/applications/my_application_details_page.dart';
 import 'package:jobmate/features/applications/my_applications_repository.dart';
+import 'package:jobmate/features/chat/chat_application_button.dart';
 import 'package:jobmate/shared/theme/jobmate_theme.dart';
 
 import 'fixtures/my_applications_source.dart';
@@ -20,6 +22,9 @@ void main() {
       ..historyRows = [historyRow('initial')];
   });
   tearDown(() => source.changes.close());
+  final back = kIsWeb
+      ? find.text('Back to Applications')
+      : find.byTooltip('Back to Applications');
 
   test('Maps all seven history fields and all statuses distinctly', () {
     final initial = ApplicationHistoryEvent(historyRow('initial'));
@@ -93,7 +98,20 @@ void main() {
           home: MyApplicationDetailsPage(applicationId: id, source: source),
         ),
       );
-  for (final width in [320.0, 1440.0]) {
+  for (final width in [
+    320.0,
+    360.0,
+    390.0,
+    430.0,
+    568.0,
+    600.0,
+    768.0,
+    840.0,
+    1024.0,
+    1280.0,
+    1440.0,
+    1920.0,
+  ]) {
     testWidgets('Real details show exactly the initial event at $width', (
       tester,
     ) async {
@@ -125,6 +143,12 @@ void main() {
       expect(find.text('Interview'), findsNothing);
       expect(find.text('Withdraw'), findsNothing);
       expect(find.text('DEMO / PREVIEW'), findsNothing);
+      expect(find.textContaining(id), findsNothing);
+      expect(
+        find.textContaining('application reference', findRichText: true),
+        findsNothing,
+      );
+      expect(find.textContaining('Application ID'), findsNothing);
       expect(source.historyCalls, [id]);
       expect(tester.takeException(), isNull);
     });
@@ -150,6 +174,141 @@ void main() {
     expect(find.text('No resume attached'), findsOneWidget);
     expect(find.text('Cover note'), findsNothing);
   });
+
+  for (final (min, max, period, amount, periodLabel) in [
+    ('1200', '1800', 'hourly', 'RM 12.00 – 18.00', 'Per hour'),
+    (
+      '9223372036854775807',
+      '9223372036854775807',
+      'daily',
+      'RM 92233720368547758.07',
+      'Per day',
+    ),
+    (null, '20000', 'daily', 'Up to RM 200.00', 'Per day'),
+    ('1200', null, 'hourly', 'From RM 12.00', 'Per hour'),
+  ]) {
+    testWidgets('Shows recorded offer $amount and prioritizes actions', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 760);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      source.rows = [applicationRow(id, status: 'offered')];
+      source.offer = {
+        'offer_id': '00000000-0000-4000-8000-000000000001',
+        'application_id': id,
+        'offer_version': 3,
+        'employment_type': 'part_time',
+        'salary_period': period,
+        'salary_min_sen': min,
+        'salary_max_sen': max,
+        'currency': 'MYR',
+        'issued_by': '00000000-0000-4000-8000-000000000003',
+        'issued_at': '2026-11-04T10:11:37.58546Z',
+        'payment_basis_supported': true,
+        'is_current': true,
+        'is_accepted': false,
+      };
+      const actor = 'Northern Regional Hospitality Recruitment Coordinator';
+      source.historyRows = [
+        historyRow('initial'),
+        historyRow('earlier', status: 'offered'),
+        {...historyRow('latest', status: 'offered'), 'changed_by_name': actor},
+      ];
+      await open(tester, scale: 2);
+      await tester.pumpAndSettle();
+      for (final label in [
+        amount,
+        periodLabel,
+        'Offer version',
+        'Version 3',
+        'Issued on',
+        actor,
+      ]) {
+        expect(find.text(label), findsOneWidget);
+      }
+      expect(find.textContaining('58546'), findsNothing);
+      final latest = find.byKey(const ValueKey('latest'));
+      expect(
+        find.descendant(of: latest, matching: find.text('Latest')),
+        findsOneWidget,
+      );
+      expect(find.text('Latest'), findsOneWidget);
+      final accept = find.widgetWithText(FilledButton, 'Accept Offer');
+      expect(tester.widget<FilledButton>(accept).onPressed, isNotNull);
+      expect(
+        find.widgetWithText(OutlinedButton, 'Decline Offer'),
+        findsOneWidget,
+      );
+      expect(
+        tester.getTopLeft(accept).dy,
+        lessThan(tester.getTopLeft(find.text('Application timeline')).dy),
+      );
+      expect(tester.takeException(), isNull);
+      if (period == 'hourly' && max != null) {
+        source.sendOfferAcceptance = (_, _, _) async {
+          source.rows = [applicationRow(id, status: 'hired')];
+        };
+        await tester.ensureVisible(accept);
+        await tester.tap(accept);
+        await tester.pumpAndSettle();
+        expect(source.offerAcceptances, isEmpty);
+        await tester.tap(find.text('Confirm Accept Offer'));
+        await tester.pumpAndSettle();
+        expect(source.offerAcceptances, [
+          (id, '00000000-0000-4000-8000-000000000001', 3),
+        ]);
+        expect(find.text("You've been hired!"), findsOneWidget);
+      }
+    });
+  }
+
+  testWidgets('Hired details prioritize messaging and explain restrictions', (
+    tester,
+  ) async {
+    source.rows = [applicationRow(id, status: 'hired')];
+    await open(tester);
+    await tester.pumpAndSettle();
+    expect(find.text("You've been hired!"), findsOneWidget);
+    expect(find.textContaining('any assigned shifts'), findsOneWidget);
+    expect(find.textContaining('Ending a hired arrangement'), findsOneWidget);
+    expect(find.textContaining('legacy offer'), findsOneWidget);
+    expect(find.text('Compensation offer'), findsNothing);
+    final message = find.widgetWithText(FilledButton, 'Message Employer');
+    final job = find.widgetWithText(OutlinedButton, 'View Job');
+    expect(tester.getSize(message).width, tester.getSize(job).width);
+    expect(tester.getTopLeft(message).dy, lessThan(tester.getTopLeft(job).dy));
+    expect(
+      tester
+          .widget<ChatApplicationButton>(find.byType(ChatApplicationButton))
+          .applicationId,
+      id,
+    );
+    for (final action in ApplicationResponseAction.values) {
+      expect(find.text(action.label), findsNothing);
+    }
+  });
+
+  testWidgets(
+    'Application details show loading, retry and unavailable states',
+    (tester) async {
+      final pending = Completer<List<Map<String, dynamic>>>();
+      source.fetch = () => pending.future;
+      await open(tester);
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('Application unavailable'), findsNothing);
+      pending.completeError(StateError('Unavailable'));
+      await tester.pumpAndSettle();
+      expect(find.text('Unable to load application'), findsOneWidget);
+      source.fetch = () async => [];
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+      expect(find.text('Application unavailable'), findsOneWidget);
+      expect(source.historyCalls, isEmpty);
+    },
+  );
   testWidgets(
     'List-to-details, View Job return refresh and Back work with real IDs',
     (tester) async {
@@ -215,8 +374,8 @@ void main() {
       expect(find.text('Review complete'), findsOneWidget);
       expect(find.text('Recruiter'), findsOneWidget);
       expect(source.historyCalls.length, 2);
-      await tester.ensureVisible(find.text('Back to Applications'));
-      await tester.tap(find.text('Back to Applications'));
+      await tester.ensureVisible(back);
+      await tester.tap(back);
       await tester.pumpAndSettle();
       expect(router.routeInformationProvider.value.uri.path, '/applications');
     },
@@ -249,7 +408,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Part-Time Cafe Crew'), findsNothing);
       expect(find.text('Applicant'), findsNothing);
-      await tester.tap(find.text('Back to Applications'));
+      await tester.tap(back);
       await tester.pumpAndSettle();
       expect(router.routeInformationProvider.value.uri.path, '/applications');
     },

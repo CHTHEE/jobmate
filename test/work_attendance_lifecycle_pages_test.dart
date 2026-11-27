@@ -8,6 +8,7 @@ import 'package:jobmate/features/work_attendance/work_attendance_routes.dart';
 import 'package:jobmate/features/work_attendance/work_verification_pages.dart';
 import 'package:jobmate/features/work_attendance/work_shift_ui.dart';
 import 'package:jobmate/shared/navigation/app_routes.dart';
+import 'package:jobmate/shared/widgets/responsive_layout.dart';
 
 import 'work_attendance_lifecycle_test.dart' show lifecycleRow;
 import 'work_attendance_repository_test.dart' show FakeSource, id, other;
@@ -48,12 +49,20 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tap(tester, find.text('Show attendance records'));
       expect(
         find.text('View workplace on map'),
         status == 'cancelled' ? findsOneWidget : findsNothing,
       );
-      expect(find.text('Check-in: Not recorded'), findsOneWidget);
-      expect(find.text('Checkout: Not recorded'), findsOneWidget);
+      for (final label in ['Check-in', 'Checkout']) {
+        expect(
+          find.descendant(
+            of: find.widgetWithText(ShiftDetailPanel, label),
+            matching: find.text('Not recorded'),
+          ),
+          findsOneWidget,
+        );
+      }
       expect(
         find.text('Attendance resolution: Pending employer review'),
         status == 'scheduled' ? findsOneWidget : findsNothing,
@@ -86,11 +95,19 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        await tap(tester, find.text('Show attendance records'));
         expect(
           find.text('Attendance resolution: Pending employer review'),
           findsNothing,
         );
         expect(find.text('Reviewed actual resolution'), findsOneWidget);
+        if (!corrected) {
+          expect(
+            find.textContaining('No evidence submission is required'),
+            findsOneWidget,
+          );
+          expect(find.text('Submit Evidence'), findsNothing);
+        }
         expect(
           find.text(corrected ? 'Corrected Attendance' : 'Confirmed Absent'),
           findsOneWidget,
@@ -268,6 +285,10 @@ void main() {
   testWidgets(
     'real history filters no-row missed shifts, recorded attendance and Details route',
     (tester) async {
+      tester.view.physicalSize = const Size(1600, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       source.workerRead = () async => rows();
       final router = GoRouter(
         initialLocation: AppRoutes.attendanceHistory,
@@ -290,12 +311,28 @@ void main() {
       addTearDown(router.dispose);
       await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await tester.pumpAndSettle();
+      expect(find.text('Recorded attendance'), findsNothing);
+      await tap(tester, find.text('Show attendance records'));
       expect(find.text('Missed Attendance'), findsOneWidget);
       expect(find.text('Attendance Recorded'), findsOneWidget);
+      expect(find.text('Recorded attendance'), findsNWidgets(2));
+      expect(find.textContaining('Scheduled: '), findsNWidgets(2));
+      expect(find.text('Effective duration: 7 hours'), findsOneWidget);
+      expect(
+        find.textContaining('does not establish approved payable time'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Recorded duration:'), findsNothing);
+      expect(find.text('Original attendance records'), findsNothing);
+      expect(find.textContaining('Original check-in:'), findsNothing);
+      expect(find.text('9:00 AM'), findsOneWidget);
+      expect(find.text('4:00 PM'), findsOneWidget);
       expect(find.text('Check in'), findsNothing);
       expect(find.text('Check out'), findsNothing);
       expect(find.text('Request engagement closure'), findsNothing);
       expect(find.text('Submit Evidence'), findsNothing);
+      final recordedCard = find.byKey(const ValueKey(other));
+      final width = tester.getSize(recordedCard).width;
       await tap(tester, find.byKey(const ValueKey('workspace-filters-toggle')));
       await tap(tester, find.widgetWithText(ChoiceChip, 'Issues'));
       expect(find.byKey(const ValueKey(id)), findsOneWidget);
@@ -303,12 +340,182 @@ void main() {
       await tap(tester, find.widgetWithText(ChoiceChip, 'Recorded'));
       expect(find.byKey(const ValueKey(id)), findsNothing);
       expect(find.byKey(const ValueKey(other)), findsOneWidget);
+      expect(tester.getSize(recordedCard).width, greaterThan(width));
       await tap(tester, find.text('Details'));
       expect(find.text('Authorized details $other'), findsOneWidget);
       expect(source.checkIns, 0);
       expect(source.checkOuts, 0);
     },
   );
+
+  testWidgets(
+    'history groups expand independently across filters and refresh',
+    (tester) async {
+      final records = rows();
+      records.last
+        ..['application_id'] = id
+        ..['company_name'] = 'Harbour Coffee';
+      source.workerRead = () async => records;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WorkAttendancePage(repository: repository, history: true),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final show = find.text('Show attendance records');
+      final hide = find.text('Hide attendance records');
+      final missed = find.byKey(const ValueKey(id));
+      final recorded = find.byKey(const ValueKey(other));
+      expect(show, findsNWidgets(2));
+      expect(find.text('Missed job'), findsOneWidget);
+      expect(find.text('Recorded job'), findsOneWidget);
+      expect(missed, findsNothing);
+      expect(recorded, findsNothing);
+      await tap(tester, show.first);
+      expect(missed, findsOneWidget);
+      expect(recorded, findsNothing);
+      await tap(tester, show);
+      expect(hide, findsNWidgets(2));
+      final reads = source.calls;
+      final search = find.widgetWithText(TextField, 'Search job or company');
+      Future<void> query(String value) async {
+        await tester.ensureVisible(search);
+        await tester.enterText(search, value);
+        await tester.pumpAndSettle();
+      }
+
+      final total = find.byKey(
+        const ValueKey('attendance-overview-Total past shifts'),
+      );
+      void expectTotal() => expect(
+        find.descendant(of: total, matching: find.text('2')),
+        findsOneWidget,
+      );
+      expectTotal();
+      await query('harbour');
+      expect(find.text('Showing 1 of 2 loaded past shifts'), findsOneWidget);
+      expect(recorded, findsOneWidget);
+      expect(missed, findsNothing);
+      await tap(tester, find.byKey(const ValueKey('workspace-filters-toggle')));
+      await tap(tester, find.widgetWithText(ChoiceChip, 'Recorded'));
+      expect(recorded, findsOneWidget);
+      expect(missed, findsNothing);
+      await query('missed job');
+      expect(find.text('No matching attendance records'), findsOneWidget);
+      expect(find.text('Showing 0 of 2 loaded past shifts'), findsOneWidget);
+      expectTotal();
+      await tap(tester, find.text('Clear search and filters'));
+      expect(hide, findsNWidgets(2));
+      await query('missed job');
+      expect(missed, findsOneWidget);
+      expect(recorded, findsNothing);
+      await tap(tester, find.byTooltip('Clear search'));
+      await tap(tester, find.widgetWithText(ChoiceChip, 'All'));
+      expect(hide, findsNWidgets(2));
+      expect(source.calls, reads);
+      await tap(tester, find.byTooltip('Refresh assignments'));
+      expect(hide, findsNWidgets(2));
+      await tap(tester, hide.first);
+      expect(missed, findsNothing);
+      expect(recorded, findsOneWidget);
+      expect(show, findsOneWidget);
+      expect(hide, findsOneWidget);
+    },
+  );
+
+  for (final width in [390.0, 768.0, 1440.0]) {
+    testWidgets(
+      'single overnight history record uses its group width at $width',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 960);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        source.workerRead = () async => [
+          lifecycleRow(
+              status: 'completed',
+              verification: 'verified',
+              now: '2026-11-07T00:00:00Z',
+              input: '2026-11-05T15:50:12Z',
+              output: '2026-11-05T16:10:45Z',
+            )
+            ..['scheduled_start'] = '2026-11-05T15:30:00Z'
+            ..['scheduled_end'] = '2026-11-05T16:10:00Z'
+            ..['verified_at'] = '2026-11-06T03:15:30Z',
+        ];
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(width == 390 ? 2 : 1)),
+              child: child!,
+            ),
+            home: WorkAttendancePage(repository: repository, history: true),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tap(tester, find.text('Show attendance records'));
+        final card = find.byKey(const ValueKey(id));
+        final grid = find.ancestor(
+          of: card,
+          matching: find.byType(ResponsiveGrid),
+        );
+        expect(tester.getSize(card).width, tester.getSize(grid).width);
+        final checkIn = find.widgetWithText(ShiftDetailPanel, 'Check-in');
+        final checkout = find.widgetWithText(ShiftDetailPanel, 'Checkout');
+        expect(
+          find.descendant(of: checkIn, matching: find.text('11:50:12 PM')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: checkout, matching: find.text('12:10:45 AM')),
+          findsOneWidget,
+        );
+        expect(find.text('Thu, 5 Nov 2026 · MYT'), findsOneWidget);
+        expect(find.text('Fri, 6 Nov 2026 · MYT'), findsOneWidget);
+        expect(find.text('Late'), findsOneWidget);
+        expect(find.text('Work verified by employer'), findsOneWidget);
+        expect(find.text('06/11/2026 11:15:30 MYT'), findsOneWidget);
+        expect(find.text('Effective duration: 20 minutes'), findsOneWidget);
+        final first = tester.getRect(checkIn);
+        final second = tester.getRect(checkout);
+        if (width == 390) {
+          expect(second.top, greaterThan(first.bottom));
+        } else {
+          expect(second.top, first.top);
+          expect(second.left, greaterThan(first.right));
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final (status, message) in [
+    ('pending_review', 'Evidence awaiting employer review'),
+    ('more_evidence_required', 'Revision requested · Review employer feedback'),
+  ]) {
+    testWidgets('history distinguishes $status', (tester) async {
+      source.workerRead = () async => [
+        lifecycleRow(
+          status: 'awaiting_verification',
+          verification: status,
+          input: '2026-11-05T01:00:00Z',
+          output: '2026-11-05T08:00:00Z',
+        ),
+      ];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WorkAttendancePage(repository: repository, history: true),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tap(tester, find.text('Show attendance records'));
+      expect(find.text(message), findsOneWidget);
+      expect(find.text('Work verified by employer'), findsNothing);
+      expect(find.text('Details'), findsOneWidget);
+    });
+  }
 
   for (final after in [false, true]) {
     testWidgets(
@@ -490,6 +697,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
+        if (history) await tap(tester, find.text('Show attendance records'));
         await tester.ensureVisible(
           find.text(history ? 'Details' : 'Submit Evidence').first,
         );
@@ -522,8 +730,8 @@ void main() {
       expect(find.text('View workplace on map'), findsOneWidget);
       for (final label in [
         'Scheduled shift',
-        'Effective check-in',
-        'Effective checkout',
+        'Check-in',
+        'Checkout',
         'Workplace & GPS',
         'Work Evidence',
       ]) {

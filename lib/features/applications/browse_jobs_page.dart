@@ -244,14 +244,14 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
               const SizedBox(height: 8),
               if (repo.loaded && jobs.isEmpty)
                 ModuleState(
-                  title: repo.jobs.isEmpty
-                      ? 'No published jobs yet'
+                  title: !hasFilters
+                      ? 'No jobs accepting applications'
                       : 'No matching jobs',
-                  message: repo.jobs.isEmpty
+                  message: !hasFilters
                       ? 'Check back later or refresh for new opportunities.'
                       : 'Try another keyword or clear your filters.',
-                  action: repo.jobs.isEmpty ? repo.load : clear,
-                  actionLabel: repo.jobs.isEmpty ? 'Refresh' : 'Clear filters',
+                  action: !hasFilters ? repo.load : clear,
+                  actionLabel: !hasFilters ? 'Refresh' : 'Clear filters',
                 ),
               ResponsiveGrid(
                 equalRowHeight: true,
@@ -260,6 +260,7 @@ class _BrowseJobsPageState extends State<BrowseJobsPage> {
                   for (final job in jobs)
                     BrowseJobCard(
                       job: job,
+                      availabilityAsOf: repo.availabilityAsOf,
                       logo: PublishedCompanyLogo(
                         job: job,
                         repository: repo,

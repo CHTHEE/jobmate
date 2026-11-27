@@ -318,6 +318,15 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('View original attendance & audit'), findsNothing);
+        expect(find.text('Actual reviewed resolution'), findsOneWidget);
+        expect(find.textContaining('Resolved by employer:'), findsOneWidget);
+        if (!corrected) {
+          expect(
+            find.textContaining('No evidence submission is required'),
+            findsOneWidget,
+          );
+          expect(find.text('Submit work evidence'), findsNothing);
+        }
         final history = find.text('Attendance & verification history');
         await tester.ensureVisible(history);
         await tester.tap(history);
@@ -343,6 +352,76 @@ void main() {
     );
   }
 
+  for (final width in [390.0, 768.0, 1440.0]) {
+    testWidgets(
+      'employer confirmed absence does not request evidence at $width',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        viewer.dispose();
+        viewer = WorkEvidenceRepository.employer(
+          attendance,
+          assignmentId: id,
+          companyId: other,
+          loadCompanyAccess: () async =>
+              const JobAccess({'company_id': other}, null),
+        );
+        source.companyRead = (_) async => [
+          assignment(company: true)
+            ..['attendance_as_of'] = '2026-11-07T12:00:00Z'
+            ..['attendance_resolution'] = resolutionContext(
+              resolution: auditFor({
+                'p_request_id': other,
+                'p_decision': 'confirmed_absent',
+                'p_reason': 'Employer confirmed the missed shift',
+                'p_check_in_at': null,
+                'p_check_out_at': null,
+              }),
+            ),
+        ];
+        final workflow = _ReadOnlyMissedWorkflow(source, employer: true);
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(width == 390 ? 2 : 1)),
+              child: child!,
+            ),
+            home: WorkEvidencePage(
+              repository: viewer,
+              workflowSource: workflow,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Confirmed Absent'), findsOneWidget);
+        expect(
+          find.text('Employer confirmed the missed shift'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('No evidence submission is required'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('No work or payment has been approved'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('Refresh after the worker submits evidence'),
+          findsNothing,
+        );
+        expect(find.text('Review submitted evidence'), findsNothing);
+        expect(find.text('View Report'), findsNothing);
+        expect(workflow.calls, ['work_evidence_workflow_context']);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'employer details use actual evidence metadata and preserve corrected attendance audit',
     (tester) async {
@@ -358,7 +437,7 @@ void main() {
         'p_request_id': other,
         'p_decision': 'corrected',
         'p_reason': 'Actual reviewed correction',
-        'p_check_in_at': '2026-11-05T01:10:00Z',
+        'p_check_in_at': '2026-11-05T01:10:24Z',
         'p_check_out_at': '2026-11-05T08:00:00Z',
       });
       source.companyRead = (_) async => [
@@ -395,7 +474,9 @@ void main() {
       expect(find.textContaining('Corrected duration:'), findsOneWidget);
       expect(find.text('Corrected check-in'), findsOneWidget);
       expect(find.text('Corrected checkout'), findsOneWidget);
-      expect(find.text('9:10 AM'), findsOneWidget);
+      expect(find.text('9:10:24 AM'), findsOneWidget);
+      expect(find.text('Employer-corrected'), findsNWidgets(2));
+      expect(find.text('Thu, 5 Nov 2026 · MYT'), findsNWidgets(2));
       expect(find.text('4:00 PM'), findsOneWidget);
       expect(find.text('Verify Work'), findsNothing);
       expect(tester.takeException(), isNull);

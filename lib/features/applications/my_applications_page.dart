@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/expandable_filter_bar.dart';
 import '../../shared/widgets/responsive_layout.dart';
-import '../jobs/job_display.dart';
+import 'my_application_presentation.dart';
 import '../chat/chat_application_button.dart';
 import 'module2_widgets.dart';
 import 'my_applications_repository.dart';
@@ -79,12 +80,14 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Track your applications',
+                'My Applications',
                 style: Theme.of(context).textTheme.headlineMedium
                     ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 8),
-              const Text('Review the status of your job applications.'),
+              const Text(
+                'Track and manage your job applications in one place.',
+              ),
               const SizedBox(height: 24),
               if (repo.loading || (!repo.loaded && repo.error == null))
                 const Center(child: CircularProgressIndicator())
@@ -173,7 +176,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                         : 'No applications found',
                     message: repo.applications.isEmpty
                         ? 'Applications you submit will appear here.'
-                        : 'Try changing the filters.',
+                        : 'Try another search or clear the filters.',
                     action: repo.applications.isEmpty
                         ? () => navigate(AppRoutes.browseJobs)
                         : clear,
@@ -182,9 +185,10 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                         : 'Clear filters',
                   ),
                 ResponsiveGrid(
-                  minItemWidth: 390,
+                  minItemWidth: 345,
                   maxColumns: 3,
                   equalRowHeight: true,
+                  reserveEmptyColumns: true,
                   children: [
                     for (final application in rows)
                       _ApplicationCard(
@@ -218,15 +222,15 @@ class _ApplicationCounts extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, box) {
       final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-      final wide = box.maxWidth >= 480 * scale;
+      final wide = box.maxWidth >= 565 * scale;
       return Wrap(
         spacing: 8,
         runSpacing: 8,
         children: [
           for (final (label, value, icon) in [
-            ('All', total, Icons.description_outlined),
-            ('Active', total - completed, Icons.schedule),
-            ('Completed', completed, Icons.task_alt),
+            ('All', total, LucideIcons.files),
+            ('Active', total - completed, LucideIcons.clock),
+            ('Completed', completed, LucideIcons.circleCheck),
           ])
             SizedBox(
               width: wide ? (box.maxWidth - 16) / 3 : box.maxWidth,
@@ -236,14 +240,18 @@ class _ApplicationCounts extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   child: Row(
                     children: [
-                      Icon(icon, color: JobMateTheme.darkTeal, size: 18),
+                      ApplicationIconTile(icon),
                       const SizedBox(width: 8),
-                      Expanded(child: Text(label)),
+                      Expanded(
+                        child: Text(
+                          label == 'All' ? 'All applications' : label,
+                        ),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         '$value',
                         key: ValueKey('application-count-$label'),
-                        style: Theme.of(context).textTheme.headlineSmall
+                        style: Theme.of(context).textTheme.headlineMedium
                             ?.copyWith(
                               color: JobMateTheme.darkTeal,
                               fontWeight: FontWeight.w700,
@@ -275,190 +283,108 @@ class _ApplicationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final (
-      statusIcon,
-      statusColor,
-      statusDescription,
-    ) = switch (application.status) {
-      MyApplicationStatus.submitted => (
-        Icons.send_outlined,
-        Colors.blue.shade800,
-        'Application submitted.',
-      ),
-      MyApplicationStatus.shortlisted => (
-        Icons.bookmark_outline,
-        Colors.amber.shade900,
-        'The employer shortlisted your application.',
-      ),
-      MyApplicationStatus.interview => (
-        Icons.event_available_outlined,
-        Colors.deepPurple.shade700,
-        'Your application reached the interview stage.',
-      ),
-      MyApplicationStatus.offered => (
-        Icons.mail_outline,
-        Colors.deepPurple.shade700,
-        'Open the application to review your offer.',
-      ),
-      MyApplicationStatus.hired => (
-        Icons.check_circle_outline,
-        Colors.green.shade800,
-        'The employer marked this application as hired.',
-      ),
-      MyApplicationStatus.rejected => (
-        Icons.info_outline,
-        Colors.blueGrey.shade700,
-        'The employer did not move this application forward.',
-      ),
-      MyApplicationStatus.declined => (
-        Icons.info_outline,
-        Colors.blueGrey.shade700,
-        'You declined the offer.',
-      ),
-      MyApplicationStatus.withdrawn => (
-        Icons.info_outline,
-        Colors.blueGrey.shade700,
-        'You withdrew this application.',
-      ),
-    };
-    final identity = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const CircleAvatar(
-          radius: 18,
-          backgroundColor: JobMateTheme.teal50,
-          foregroundColor: JobMateTheme.darkTeal,
-          child: Icon(Icons.work_outline, size: 18),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(application.jobTitle, style: theme.textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Text(
-                application.companyName,
-                style: const TextStyle(color: JobMateTheme.body),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(statusIcon, size: 15, color: statusColor),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      statusDescription,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: JobMateTheme.body,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-    final badge = MyApplicationStatusBadge(application.status);
-    const actionPadding = WidgetStatePropertyAll(
-      EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-    );
-    final footerTheme = theme.copyWith(
-      filledButtonTheme: FilledButtonThemeData(
-        style: (theme.filledButtonTheme.style ?? const ButtonStyle()).copyWith(
-          padding: actionPadding,
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: (theme.outlinedButtonTheme.style ?? const ButtonStyle())
-            .copyWith(padding: actionPadding),
-      ),
-    );
     return Card(
       margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                LayoutBuilder(
-                  builder: (context, box) {
-                    final scale =
-                        MediaQuery.textScalerOf(context).scale(14) / 14;
-                    if (box.maxWidth < 340 * scale) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [identity, const SizedBox(height: 8), badge],
-                      );
-                    }
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: identity),
-                        const SizedBox(width: 12),
-                        badge,
-                      ],
-                    );
-                  },
+                MyApplicationIdentity(
+                  application: application,
+                  titleStyle: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  applicationStatusDescription(application.status),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: JobMateTheme.body,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(
+                      LucideIcons.calendar,
+                      size: 16,
+                      color: JobMateTheme.body,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Applied ${applicationDate(application.appliedAt)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: JobMateTheme.body,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ),
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-            decoration: const BoxDecoration(
-              color: JobMateTheme.background,
-              border: Border(top: BorderSide(color: JobMateTheme.divider)),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Divider(height: 20),
+                FilledButton(
+                  onPressed: onApplication,
+                  child: const Text('View Application'),
+                ),
+                const SizedBox(height: 8),
+                _secondaryActions(context),
+              ],
             ),
-            child: Theme(
-              data: footerTheme,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.calendar_today_outlined,
-                        size: 14,
-                        color: JobMateTheme.body,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'Applied: ${jobDate(application.appliedAt)}',
-                          style: const TextStyle(color: JobMateTheme.body),
-                        ),
-                      ),
-                    ],
-                  ),
-                  FilledButton(
-                    onPressed: onApplication,
-                    child: const Text('View Application'),
-                  ),
-                  OutlinedButton(
-                    onPressed: onJob,
-                    child: const Text('View Job'),
-                  ),
-                  ChatApplicationButton(
-                    key: ValueKey('chat:${application.id}'),
-                    applicationId: application.id,
-                  ),
-                ],
-              ),
-            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _secondaryActions(BuildContext context) {
+    final theme = Theme.of(context).outlinedButtonTheme;
+    final job = OutlinedButton.icon(
+      onPressed: onJob,
+      icon: const Icon(LucideIcons.briefcase, size: 16),
+      label: const Text('View Job'),
+    );
+    final message = ChatApplicationButton(
+      key: ValueKey('chat:${application.id}'),
+      applicationId: application.id,
+      fullWidth: true,
+      icon: LucideIcons.messageCircle,
+    );
+    return OutlinedButtonTheme(
+      data: OutlinedButtonThemeData(
+        style: (theme.style ?? const ButtonStyle()).copyWith(
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           ),
-        ],
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+          if (constraints.maxWidth < 300 * scale) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [job, const SizedBox(height: 8), message],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 2, child: job),
+              const SizedBox(width: 8),
+              Expanded(flex: 3, child: message),
+            ],
+          );
+        },
       ),
     );
   }

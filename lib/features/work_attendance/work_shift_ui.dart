@@ -1,9 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../shared/theme/jobmate_theme.dart';
 import 'work_attendance_lifecycle.dart';
 import 'work_attendance_models.dart';
 import 'work_status_presentation.dart';
+
+class WorkHeadingIcon extends StatelessWidget {
+  const WorkHeadingIcon(this.icon, {super.key});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: JobMateTheme.teal50,
+      borderRadius: BorderRadius.circular(JobMateTheme.controlRadius),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(8),
+      child: Icon(icon, size: 18, color: JobMateTheme.darkTeal),
+    ),
+  );
+}
 
 bool isUpcomingShift(WorkAssignment row) {
   final asOf = row.attendanceAsOf;
@@ -203,10 +222,13 @@ String shiftDateLabel(DateTime value, {bool full = false}) {
       : '${day.substring(0, 3)}, ${date.day} ${month.substring(0, 3)} ${date.year}';
 }
 
-String shiftTimeLabel(DateTime value) {
+String shiftTimeLabel(DateTime value, {bool showSeconds = false}) {
   final time = _myt(value);
   final hour = time.hour % 12 == 0 ? 12 : time.hour % 12;
-  return '$hour:${time.minute.toString().padLeft(2, '0')} ${time.hour < 12 ? 'AM' : 'PM'}';
+  final seconds = showSeconds && time.second != 0
+      ? ':${time.second.toString().padLeft(2, '0')}'
+      : '';
+  return '$hour:${time.minute.toString().padLeft(2, '0')}$seconds ${time.hour < 12 ? 'AM' : 'PM'}';
 }
 
 String shiftTimeRange(DateTime start, DateTime end) {
@@ -224,11 +246,17 @@ class ShiftAttendanceSummary extends StatelessWidget {
     required this.assignment,
     this.employer = false,
     this.inShiftCard = false,
+    this.workerRecord = false,
+    this.showMissingTimes = false,
+    this.showGuidance = true,
   });
 
   final WorkAssignment assignment;
   final bool employer;
   final bool inShiftCard;
+  final bool workerRecord;
+  final bool showMissingTimes;
+  final bool showGuidance;
 
   @override
   Widget build(BuildContext context) {
@@ -248,7 +276,9 @@ class ShiftAttendanceSummary extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(
-              employer || inShiftCard
+              workerRecord
+                  ? 'Recorded attendance'
+                  : employer || inShiftCard
                   ? 'Attendance summary'
                   : 'Attendance status',
               style: theme.textTheme.titleSmall,
@@ -257,7 +287,10 @@ class ShiftAttendanceSummary extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        if (checkIn != null || checkout != null) ...[
+        if (workerRecord ||
+            showMissingTimes ||
+            checkIn != null ||
+            checkout != null) ...[
           ShiftEqualHeightGrid(
             columns: 2,
             children: [
@@ -272,7 +305,12 @@ class ShiftAttendanceSummary extends StatelessWidget {
                   icon: icon,
                   children: [
                     Text(
-                      value == null ? 'Not recorded' : shiftTimeLabel(value),
+                      value == null
+                          ? 'Not recorded'
+                          : shiftTimeLabel(
+                              value,
+                              showSeconds: workerRecord || employer,
+                            ),
                       style: theme.textTheme.titleLarge,
                     ),
                     if (value != null) ...[
@@ -327,7 +365,13 @@ class ShiftAttendanceSummary extends StatelessWidget {
                 ? 'Original device attendance was not recorded. These times were corrected by the employer.'
                 : 'The employer corrected these times. Original device records remain separate.',
           )
-        else if (!inShiftCard)
+        else if (workerRecord && state == AttendanceLifecycle.confirmedAbsent)
+          const Text(
+            'The employer confirmed your absence. No evidence submission is required.',
+          )
+        else if (workerRecord && state == AttendanceLifecycle.missed)
+          const Text('Attendance resolution: Pending employer review')
+        else if (!inShiftCard && showGuidance)
           Text(
             state.guidanceFor(
               employer: employer,
@@ -335,6 +379,81 @@ class ShiftAttendanceSummary extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// The recorded verification outcome. Attendance eligibility is rendered
+/// separately and actions still use the existing evidence workflow.
+class WorkerVerificationOutcome extends StatelessWidget {
+  const WorkerVerificationOutcome({super.key, required this.assignment});
+
+  final WorkAssignment assignment;
+
+  @override
+  Widget build(BuildContext context) {
+    final row = assignment;
+    final status = row.verificationStatus;
+    if (AttendanceLifecycle.of(row) == AttendanceLifecycle.confirmedAbsent) {
+      return const SizedBox.shrink();
+    }
+    final (label, icon) = switch (status) {
+      WorkVerificationStatus.verified => (
+        'Work verified by employer',
+        Icons.verified_outlined,
+      ),
+      WorkVerificationStatus.pendingReview => (
+        'Evidence awaiting employer review',
+        Icons.rate_review_outlined,
+      ),
+      WorkVerificationStatus.moreEvidenceRequired => (
+        'Revision requested · Review employer feedback',
+        Icons.feedback_outlined,
+      ),
+      _ => (
+        'Verification: ${workVerificationStatusLabel(status)}',
+        Icons.assignment_outlined,
+      ),
+    };
+    final (background, foreground) = attendanceToneColors(
+      context,
+      verificationTone(status),
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(JobMateTheme.controlRadius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 18, color: foreground),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: foreground,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (status == WorkVerificationStatus.verified)
+                    if (row.verifiedAt case final time?)
+                      Text(
+                        attendanceMyt(time),
+                        style: TextStyle(color: foreground),
+                      ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

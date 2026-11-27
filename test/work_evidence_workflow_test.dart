@@ -885,6 +885,12 @@ void main() {
           findsOneWidget,
         );
         expect(server.history.last['note'], 'Please add the closing PDF page.');
+        final event = server.history.last;
+        final timestamp = attendanceMyt(
+          DateTime.parse(event['created_at'] as String),
+        );
+        expect(find.text('Round 1 · $timestamp'), findsOneWidget);
+        expect(find.byType(VerticalDivider), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );

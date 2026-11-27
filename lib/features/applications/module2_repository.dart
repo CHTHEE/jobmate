@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'job_application_repository.dart';
+import '../jobs/application_deadline.dart';
 import 'my_applications_repository.dart';
 import '../jobs/workplace_coordinates.dart';
 import 'employer_applicants_repository.dart';
@@ -96,7 +97,7 @@ class BrowseJob {
   String? get logoStoragePath => fields['logo_storage_path'] as String?;
   factory BrowseJob.published(Map<String, dynamic> row) => BrowseJob({
     ...row,
-    'status': 'published',
+    'status': row['status'] ?? 'published',
   }, company: row['company_name'] as String? ?? '');
   String text(String key) => '${fields[key] ?? ''}';
   String get id => text('job_id');
@@ -107,13 +108,15 @@ class BrowseJob {
     if (text('status') != 'published') {
       return 'This job is ${text('status')}. Applications are unavailable.';
     }
-    final deadline = DateTime.tryParse(text('application_deadline'));
-    if (deadline == null) return 'Application deadline is unavailable.';
-    final today = now ?? DateTime.now();
-    if (deadline.isBefore(DateTime(today.year, today.month, today.day))) {
-      return 'Application deadline has passed.';
-    }
-    return null;
+    return switch (applicationDeadlineState(
+      fields['application_deadline'],
+      now ?? DateTime.now(),
+    )) {
+      ApplicationDeadlineState.expired => expiredApplicationMessage,
+      ApplicationDeadlineState.unavailable =>
+        'Application deadline is unavailable.',
+      ApplicationDeadlineState.open => null,
+    };
   }
 }
 
@@ -204,6 +207,7 @@ class PublishedJobsRepository extends ChangeNotifier {
   final PublishedJobsSource source;
   final bool requirePublished;
   final DateTime Function() _now;
+  Timer? _deadlineRefresh;
   final _logoUrls = <String, (DateTime, Future<String?>)>{};
   final _failedLogos = <String>{};
   int _logoGeneration = 0;
@@ -282,6 +286,50 @@ class PublishedJobsRepository extends ChangeNotifier {
   List<BrowseJob> get jobs =>
       source.userId == _actorId ? List.unmodifiable(_jobs) : const [];
   BrowseJob? job(String id) => jobs.where((j) => j.id == id).firstOrNull;
+  DateTime get availabilityAsOf => _now();
+  String? applicationUnavailable(BrowseJob job) => job.unavailable(_now());
+
+  @override
+  void addListener(VoidCallback listener) {
+    final start = !hasListeners;
+    super.addListener(listener);
+    if (start) _scheduleDeadlineRefresh();
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    super.removeListener(listener);
+    if (!hasListeners) _deadlineRefresh?.cancel();
+  }
+
+  void _scheduleDeadlineRefresh() {
+    _deadlineRefresh?.cancel();
+    if (_disposed || !hasListeners || !loaded || source.userId != _actorId) {
+      return;
+    }
+    final now = _now();
+    DateTime? next;
+    for (final job in _jobs) {
+      if (job.text('status') != 'published') continue;
+      final deadline = parseApplicationDeadline(
+        job.fields['application_deadline'],
+      );
+      if (deadline == null) continue;
+      final endsAt = applicationDeadlineClosesAt(deadline);
+      if (endsAt.isAfter(now) && (next == null || endsAt.isBefore(next))) {
+        next = endsAt;
+      }
+    }
+    if (next == null) return;
+    final delay = next.difference(now);
+    // Stay within browser timer limits for postings with distant deadlines.
+    const maximumDelay = Duration(days: 20);
+    _deadlineRefresh = Timer(delay > maximumDelay ? maximumDelay : delay, () {
+      notifyListeners();
+      _scheduleDeadlineRefresh();
+    });
+  }
+
   bool saved(String id) => source.userId == _actorId && _saved.contains(id);
   void toggleSave(String id) {
     if (job(id) == null) return;
@@ -300,6 +348,7 @@ class PublishedJobsRepository extends ChangeNotifier {
     _failedLogos.clear();
     final actor = source.userId;
     final generation = ++_generation;
+    _deadlineRefresh?.cancel();
     _jobs.clear();
     error = null;
     loaded = false;
@@ -344,6 +393,7 @@ class PublishedJobsRepository extends ChangeNotifier {
           reset();
         } else {
           loading = false;
+          _scheduleDeadlineRefresh();
           notifyListeners();
         }
       }
@@ -358,20 +408,18 @@ class PublishedJobsRepository extends ChangeNotifier {
     String sort = 'Newest',
     bool savedOnly = false,
   }) {
+    final now = _now();
     final result = jobs
         .where(
           (j) =>
+              (savedOnly ? saved(j.id) : j.unavailable(now) == null) &&
               '${j.title} ${j.company} ${j.text('role_overview')} ${j.text('original_description')} ${j.text('department')} ${j.bullets('requirements').join(' ')}'
                   .toLowerCase()
                   .contains(query.trim().toLowerCase()) &&
               (type.isEmpty || j.text('employment_type') == type) &&
               (arrangement.isEmpty ||
                   j.text('work_arrangement') == arrangement) &&
-              j
-                  .text('location')
-                  .toLowerCase()
-                  .contains(location.toLowerCase()) &&
-              (!savedOnly || saved(j.id)),
+              j.text('location').toLowerCase().contains(location.toLowerCase()),
         )
         .toList();
     result.sort(
@@ -388,6 +436,7 @@ class PublishedJobsRepository extends ChangeNotifier {
   }
 
   void reset() {
+    _deadlineRefresh?.cancel();
     ++_logoGeneration;
     _logoUrls.clear();
     _failedLogos.clear();
@@ -404,6 +453,7 @@ class PublishedJobsRepository extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _deadlineRefresh?.cancel();
     ++_logoGeneration;
     _logoUrls.clear();
     _failedLogos.clear();
@@ -443,11 +493,13 @@ class Module2Repository extends ChangeNotifier {
     this.applicationGatewayFactory,
     this.myApplicationsSource,
     this.employerApplicantsSource,
+    this.publishedClock,
   }) {
     reset();
   }
   static final session = Module2Repository();
   final PublishedJobsSource? publishedSource;
+  final DateTime Function()? publishedClock;
   final MyApplicationsSource? myApplicationsSource;
   final EmployerApplicantsSource? employerApplicantsSource;
   EmployerApplicantsSource createEmployerApplicantsSource() =>
@@ -466,6 +518,7 @@ class Module2Repository extends ChangeNotifier {
   PublishedJobsRepository? _browse;
   PublishedJobsRepository get browse => _browse ??= PublishedJobsRepository(
     publishedSource ?? SupabasePublishedJobsSource(Supabase.instance.client),
+    now: publishedClock,
   );
 
   @override

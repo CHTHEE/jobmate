@@ -241,10 +241,18 @@ void main() {
           );
           await tester.pumpAndSettle();
           expect(find.text(status.label), findsWidgets);
-          expect(
-            find.text(status.lifecycleExplanation!),
-            employerView ? findsNothing : findsOneWidget,
-          );
+          final explanation = status == MyApplicationStatus.hired
+              ? find.textContaining(
+                  'Withdrawal and offer decline are no longer available.',
+                )
+              : find.text(status.lifecycleExplanation!);
+          expect(explanation, employerView ? findsNothing : findsOneWidget);
+          if (!employerView && status == MyApplicationStatus.hired) {
+            expect(
+              find.textContaining('Ending a hired arrangement'),
+              findsOneWidget,
+            );
+          }
           expect(find.text('Cancel hired arrangement'), findsNothing);
           if (status != MyApplicationStatus.offered || employerView) {
             for (final action in ApplicationResponseAction.values) {

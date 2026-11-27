@@ -15,11 +15,13 @@ class JobApplicationForm extends StatefulWidget {
     required this.repository,
     required this.gateway,
     this.onSubmitted,
+    this.checkAvailability,
   });
   final BrowseJob job;
   final Module2Repository repository;
   final JobApplicationGateway gateway;
   final ValueChanged<String>? onSubmitted;
+  final String? Function()? checkAvailability;
   @override
   State<JobApplicationForm> createState() => _JobApplicationFormState();
 }
@@ -35,6 +37,9 @@ class _JobApplicationFormState extends State<JobApplicationForm> {
   String? selectedResume, applicationId, error, resumeError;
   bool loading = true, busy = false, leaving = false, invalidSession = false;
   bool get dirty => note.text.trim().isNotEmpty || selectedResume != null;
+  String? get unavailable => widget.checkAvailability == null
+      ? widget.job.unavailable()
+      : widget.checkAvailability!();
 
   @override
   void initState() {
@@ -99,9 +104,9 @@ class _JobApplicationFormState extends State<JobApplicationForm> {
       setState(() => error = 'Choose an available resume.');
       return;
     }
-    final unavailable = widget.job.unavailable();
-    if (unavailable != null) {
-      setState(() => error = unavailable);
+    final reason = unavailable;
+    if (reason != null) {
+      setState(() => error = reason);
       return;
     }
     setState(() {
@@ -195,7 +200,10 @@ class _JobApplicationFormState extends State<JobApplicationForm> {
           )
         else if (!invalidSession)
           FilledButton(
-            onPressed: busy || loading || resumeError != null ? null : submit,
+            onPressed:
+                busy || loading || resumeError != null || unavailable != null
+                ? null
+                : submit,
             child: Text(busy ? 'Submitting…' : 'Submit application'),
           ),
       ],
@@ -207,6 +215,7 @@ class _JobApplicationFormState extends State<JobApplicationForm> {
             'Your application has been submitted successfully. You can follow its progress in My Applications.',
           ),
         ] else if (!invalidSession) ...[
+          if (unavailable case final reason? when reason != error) Text(reason),
           if (loading)
             const LinearProgressIndicator()
           else if (resumeError != null) ...[

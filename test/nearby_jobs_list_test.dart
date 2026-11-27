@@ -62,6 +62,33 @@ void main() {
     },
   );
 
+  test(
+    'nearby results exclude expired and invalid deadlines after MYT midnight',
+    () {
+      final jobs = [
+        for (final (id, deadline) in [
+          ('today', '2026-11-27'),
+          ('future', '2026-11-29'),
+          ('expired', '2026-11-26'),
+          ('invalid', '2026-02-30'),
+          ('missing', null),
+        ])
+          BrowseJob.published({
+            ...posting(id, 3.15),
+            'application_deadline': deadline,
+          }),
+      ];
+      Iterable<String> ids(DateTime now) => nearbyJobResults(
+        jobs,
+        origin: origin,
+        radiusKm: 5,
+        now: now,
+      ).map((row) => row.job.id);
+      expect(ids(DateTime.utc(2026, 11, 27, 15, 59, 59)), ['future', 'today']);
+      expect(ids(DateTime.utc(2026, 11, 27, 16)), ['future']);
+    },
+  );
+
   for (final width in [320.0, 1440.0]) {
     testWidgets(
       'Nearby list keeps place and filters on details return at $width',
@@ -73,6 +100,10 @@ void main() {
         final source = TestPublishedJobsSource()
           ..rows = [
             posting('Mid Valley Developer', 3.15),
+            {
+              ...posting('Expired listing', 3.15),
+              'application_deadline': '2026-11-26',
+            },
             posting('Hybrid Engineer', 3.22, arrangement: 'hybrid'),
             posting(
               'Hybrid Designer',
@@ -83,6 +114,7 @@ void main() {
           ];
         final module = Module2Repository(
           publishedSource: source,
+          publishedClock: () => DateTime.utc(2026, 11, 27, 16),
           myApplicationsSource: TestMyApplicationsSource(),
         );
         addTearDown(source.changes.close);

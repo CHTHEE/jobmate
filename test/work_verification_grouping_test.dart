@@ -8,7 +8,8 @@ import 'package:jobmate/features/work_attendance/work_assignment_creation_dialog
 import 'package:jobmate/features/work_attendance/work_verification_pages.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_repository.dart';
 import 'package:jobmate/features/work_attendance/engagement_closure_controls.dart';
-import 'package:jobmate/features/work_attendance/work_shift_ui.dart';
+import 'package:jobmate/shared/navigation/app_routes.dart';
+import 'package:jobmate/shared/widgets/app_workspace.dart';
 
 import 'work_assignment_creation_repository_test.dart'
     show CandidateSource, uid, complete;
@@ -96,9 +97,10 @@ void main() {
     await gps.changes.close();
   });
 
-  Widget page({bool eligible = true}) => WorkVerificationPage(
+  Widget page({bool eligible = true, String? jobId}) => WorkVerificationPage(
     repository: repository,
     companyId: candidates.company,
+    jobId: jobId,
     loadAccess: () => candidates.access(),
     loadWorkerName: (_, _) async => 'Synthetic worker',
     gpsSource: gps,
@@ -168,7 +170,7 @@ void main() {
     await show(tester);
     await tap(tester, find.byTooltip('Show shift details'));
     expect(find.text('Work Evidence'), findsOneWidget);
-    expect(find.text('Status: Verified'), findsOneWidget);
+    expect(find.text('Work Verified'), findsOneWidget);
     expect(find.text('View Verification Details'), findsOneWidget);
     expect(find.text('Evidence'), findsNothing);
     expect(find.text('Technical details'), findsNothing);
@@ -279,6 +281,80 @@ void main() {
       await tester.pump();
     }
   }
+
+  testWidgets(
+    'job statistics use all loaded shifts for that job before filters',
+    (tester) async {
+      rows = [
+        shift(10)..['attendance_as_of'] = '2026-11-05T12:00:00Z',
+        shift(11)
+          ..['attendance_as_of'] = '2026-11-05T12:00:00Z'
+          ..['check_in_at'] = '2026-11-05T01:00:00Z'
+          ..['check_out_at'] = '2026-11-05T08:00:00Z'
+          ..['assignment_status'] = 'awaiting_verification'
+          ..['verification_status'] = 'pending_review',
+        shift(12, application: 6)
+          ..['job_id'] = uid(8)
+          ..['job_title'] = 'Other job'
+          ..['assignment_status'] = 'completed'
+          ..['verification_status'] = 'verified',
+        shift(13, application: 6)
+          ..['job_id'] = uid(8)
+          ..['job_title'] = 'Other job'
+          ..['assignment_status'] = 'awaiting_verification'
+          ..['verification_status'] = 'pending_review',
+      ];
+      await tester.pumpWidget(MaterialApp(home: page(jobId: uid(3))));
+      await tester.pumpAndSettle();
+      final reads = source.calls;
+      void expectMetrics() {
+        for (final (label, count) in [
+          ('Total shifts', '2'),
+          ('Awaiting verification', '1'),
+          ('Verified', '0'),
+          ('Attendance issues', '1'),
+        ]) {
+          expect(
+            find.descendant(
+              of: find.byKey(ValueKey('overview-$label')),
+              matching: find.text(count),
+            ),
+            findsOneWidget,
+          );
+        }
+      }
+
+      expect(
+        find.text('Overview of this job’s loaded records'),
+        findsOneWidget,
+      );
+      expectMetrics();
+      expect(find.text('Showing 2 of 2 loaded shifts'), findsOneWidget);
+      expect(
+        tester
+            .widget<AppWorkspace>(find.byType(AppWorkspace))
+            .navigationActionCounts,
+        {AppRoutes.workVerification: 2},
+      );
+      final search = find.byType(TextField);
+      await tester.ensureVisible(search);
+      await tester.enterText(search, 'Other job');
+      await tester.pumpAndSettle();
+      expect(find.text('Showing 0 of 2 loaded shifts'), findsOneWidget);
+      expectMetrics();
+      await tester.enterText(search, 'QA Assistant');
+      await tester.pumpAndSettle();
+      await tap(tester, find.byKey(const ValueKey('workspace-filters-toggle')));
+      expect(find.byKey(const ValueKey('Job:')), findsNothing);
+      await tap(tester, find.byKey(const ValueKey('Verification status:')));
+      await tap(tester, find.text('Pending review').last);
+      expect(find.text('Showing 1 of 2 loaded shifts'), findsOneWidget);
+      expectMetrics();
+      await tap(tester, find.text('Clear filters'));
+      expect(find.text('Showing 2 of 2 loaded shifts'), findsOneWidget);
+      expect(source.calls, reads);
+    },
+  );
 
   testWidgets(
     'overview uses verification state and filters locally without losing actions',
@@ -442,9 +518,13 @@ void main() {
       expect(toggle(10, 'Hide shift details'), findsOneWidget);
       expect(toggle(11, 'Show shift details'), findsOneWidget);
       expect(
+        find.descendant(of: card(10), matching: find.text('Scheduled shift')),
+        findsOneWidget,
+      );
+      expect(
         find.descendant(
           of: card(10),
-          matching: find.widgetWithText(ShiftDetailPanel, 'Scheduled shift'),
+          matching: find.text('9:00 AM – 5:00 PM MYT'),
         ),
         findsOneWidget,
       );
@@ -713,6 +793,25 @@ void main() {
           matching: find.textContaining('Verified at:'),
         ),
         findsNothing,
+      );
+      await tap(
+        tester,
+        find.descendant(
+          of: completed,
+          matching: find.byTooltip('Show shift details'),
+        ),
+      );
+      expect(find.text('Effective duration: 8 hours'), findsOneWidget);
+      expect(find.textContaining('Original check-in:'), findsNothing);
+      expect(find.text('Original attendance records'), findsNothing);
+      expect(find.text('9:00 AM'), findsOneWidget);
+      expect(find.text('5:00 PM'), findsOneWidget);
+      await tap(
+        tester,
+        find.descendant(
+          of: completed,
+          matching: find.byTooltip('Hide shift details'),
+        ),
       );
       for (final number in [10, 11]) {
         final card = find.byKey(ValueKey(uid(number)));

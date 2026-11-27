@@ -452,8 +452,15 @@ with loaded-record summary counts, local job/worker search, and job, shift and
 verification filters. Awaiting-verification counts use `pending_review`; Verified
 uses `verified`, independently of assignment/attendance status. Counts describe
 the loaded authorized projection, not a guaranteed complete company total.
+The job-specific overview and filter result count use loaded shifts for the
+selected job. The sidebar action count covers the loaded company records.
 Worker-name search reuses the existing authorized name lookup and omits unavailable
 names. Compact shift cards preserve GPS, evidence, Add shift and closure actions.
+Employer overview cards use compact count badges and emphasize pending review
+and unresolved attendance.
+Expanded shifts and employer evidence details share the attendance time cards,
+with original records shown for corrections, discrepancies and absence decisions.
+A confirmed absence requires no evidence submission.
 
 Completed and verified shifts with valid effective attendance and a confirmed
 evidence round can open the Attendance & Work Completion Report from Work
@@ -523,11 +530,22 @@ Worker attendance groups shifts by hired application ID, with the job title,
 company name and shift count shown once per group. My Work Shifts starts with
 groups collapsed and previews the next upcoming shift. Shifts that need worker
 action stay accessible while collapsed. The Show application shifts control
-appears below the preview or summary. Employer and worker shift lists show
+appears below the preview or summary. Attendance History also starts with
+groups collapsed. Show attendance records expands each group independently.
+Employer and worker shift lists show
 actionable shifts first, followed by upcoming shifts nearest first and past
 shifts newest first.
 Collapsed worker groups highlight the next shift’s date, MYT time and saved
 workplace. Upcoming shift details lead with the schedule and check-in guidance.
+My Work Shifts and Attendance History use the available workspace width.
+Expanded shift groups and employer job overviews retain their responsive
+column widths when filters leave a partial row. Attendance History offers
+local job/company search and overview counts for loaded past shifts. A group
+with one matching record uses the group width, with schedule and attendance
+side by side when space permits. Effective times and verification outcomes
+are shown up front. Original records appear when they add audit information,
+and correction and absence decisions remain visible. Worker evidence details use the same
+attendance presentation and retain private previews and report access.
 Employer upcoming details also lead with the shift schedule and workplace.
 Authorized detail and history views show original attendance, correction reasons,
 resolution times, and verification events in readable form. Internal identifiers
@@ -728,9 +746,10 @@ existing reads are scoped to individual postings or applications.
 
 ### Employer posting compensation
 
-Create and Edit Job Posting use employment-specific pay units. Full-time and
-Contract allow Monthly or Yearly, Part-time and Temporary allow Hourly or Daily,
-and Internship uses Monthly. Changing units with salary amounts entered requires
+Create and Edit Job Posting use employment-specific pay units. Full-time,
+Contract and Internship use Monthly. Part-time and Temporary allow Hourly or
+Daily. These options match the inspected posting constraint. Legacy Yearly
+values remain readable. Changing units with salary amounts entered requires
 confirmation and clears the amounts for re-entry. Unrelated edits preserve
 legacy terms. Legacy drafts need compatible terms before first publication.
 Posting eligibility does not establish Payment Handling coverage.
@@ -933,8 +952,38 @@ existing responsive modal and `ResumeFile`/`SupabaseResumeGateway` contract.
 Resumes load through `list_personal_resumes`; selecting a PDF is optional and
 the cover note retains its 1,000-character UI limit. `submit_job_application`
 receives the real job ID, optional resume ID and optional trimmed cover note.
+Application deadlines are date-only in Malaysia time (UTC+08:00). A published
+job can accept applications through the end of its deadline date, subject to
+existing eligibility. Missing or invalid dates make the job unavailable.
+Browse, Nearby and recommendations exclude unavailable jobs. A saved or direct
+posting that still appears in the authorized catalogue can be viewed, and Apply
+rechecks availability before sending the request. Existing applications and
+recruitment actions follow their own rules.
+
+An expired published posting remains Published. Employers can review existing
+applicants and use the existing Edit workflow to save a future deadline
+(after today in Malaysia), subject to server validation. Closed postings stay
+read-only. The dashboard’s Published count describes the saved posting status,
+while its open-postings area checks application availability.
+
+The project owner manually applied and verified the Shared
+`public.submit_job_application(uuid,uuid,text)` deadline correction. The RPC
+now rejects a null deadline and compares a non-null deadline with
+`(clock_timestamp() AT TIME ZONE 'Asia/Kuala_Lumpur')::date`.
+Anonymous EXECUTE remains false and authenticated EXECUTE remains true. The
+[guarded correction record](supabase/candidates/submit_job_application_deadline_applied_patch.sql)
+is outside the migration directory. Do not run it again on Shared.
+
+The same inspection confirmed RLS on `job_applications`, no direct table or
+column INSERT privileges for `anon` or `authenticated`, and a unique index on
+`job_id` and `applicant_id`. `save_employer_job_posting` permits deadline
+updates while preserving Published status. Closed postings cannot be edited
+or reopened through that workflow. The inspected constraints and triggers
+contain no explicit restriction on extending a deadline. `list_published_jobs`
+remains unchanged. Live submission and extension runtime acceptance are pending.
+
 Success is shown only after the server returns an application ID. Server errors
-are retained, and account changes invalidate selections and pending responses.
+use user-facing messages, and account changes invalidate selections and pending responses.
 Visiting My Resume preserves the note and reopens Apply on return. Cancel/Back
 confirms before discarding input; unexpected disposal retains the account-scoped
 note until session reset. Browser refresh/tab closing do not retain drafts.
@@ -2561,6 +2610,13 @@ integration and required backend/notification-owner review. No notification UI,
 RPC, trigger, RLS or migration was changed; no SQL was executed.
 
 ### Real Job Seeker application actions (Module 2 Step 27A)
+
+My Applications uses responsive job cards with a primary View Application action,
+plus View Job and Message Employer. The All applications, Active and Completed
+counts reflect recruitment status. Application Details shows the current status,
+submitted information, recorded status history and available actions. Recorded
+compensation terms appear beside the timeline on wide layouts. On narrow
+layouts, offer decisions appear above the timeline.
 
 Phase 3 clarifies the existing application/offer lifecycle for both roles, with
 job/company-specific confirmation and an explicit post-hire boundary. Hired is a

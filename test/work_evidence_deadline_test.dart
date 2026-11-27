@@ -412,9 +412,10 @@ void main() {
         } else {
           final button = find.descendant(
             of: late,
-            matching: find.widgetWithText(OutlinedButton, 'Submit Evidence'),
+            matching: find.widgetWithText(FilledButton, 'Submit Evidence'),
           );
-          expect(tester.widget<OutlinedButton>(button).onPressed, isNotNull);
+          expect(button, findsOneWidget);
+          expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
         }
         expect(source.checkIns, 0);
         expect(source.checkOuts, 0);

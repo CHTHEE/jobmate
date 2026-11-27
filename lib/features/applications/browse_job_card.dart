@@ -15,18 +15,20 @@ class BrowseJobCard extends StatelessWidget {
     required this.onSave,
     required this.onDetails,
     this.distanceKm,
+    this.availabilityAsOf,
   });
   final BrowseJob job;
   final Widget logo;
   final bool saved;
   final double? distanceKm;
+  final DateTime? availabilityAsOf;
   final VoidCallback onSave, onDetails;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final salary = marketplaceSalary(job);
-    final reason = job.unavailable();
+    final reason = job.unavailable(availabilityAsOf);
     final metadata = Wrap(
       spacing: 14,
       runSpacing: 8,

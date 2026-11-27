@@ -39,6 +39,37 @@ Map<String, dynamic> publishedRow(String id, {bool visible = false}) => {
 
 void main() {
   test(
+    'discovery hides expired rows but saved and direct projections retain them',
+    () async {
+      final source = TestPublishedJobsSource()
+        ..rows = [
+          {...publishedRow('today'), 'application_deadline': '2026-11-27'},
+          {...publishedRow('future'), 'application_deadline': '2026-11-29'},
+          {...publishedRow('invalid'), 'application_deadline': '2026-02-30'},
+          {...publishedRow('draft'), 'status': 'draft'},
+          {...publishedRow('closed'), 'status': 'closed'},
+        ];
+      var now = DateTime.utc(2026, 11, 27, 15, 59, 59);
+      final repo = PublishedJobsRepository(source, now: () => now);
+      addTearDown(repo.dispose);
+      addTearDown(source.changes.close);
+      await repo.load();
+      expect(repo.searchJobs(sort: 'Deadline').map((job) => job.id), [
+        'today',
+        'future',
+      ]);
+      repo.toggleSave('today');
+      now = DateTime.utc(2026, 11, 27, 16);
+      expect(repo.searchJobs().single.id, 'future');
+      expect(repo.job('today'), isNotNull);
+      expect(repo.searchJobs(savedOnly: true).single.id, 'today');
+      repo.toggleSave('today');
+      expect(repo.searchJobs(savedOnly: true), isEmpty);
+      expect(source.calls, 1);
+    },
+  );
+
+  test(
     'Real catalogue filters, sorts, saves and never mixes demo jobs',
     () async {
       final source = TestPublishedJobsSource()
@@ -151,7 +182,7 @@ void main() {
     await tester.ensureVisible(find.text('Retry'));
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
-    expect(find.text('No published jobs yet'), findsOneWidget);
+    expect(find.text('No jobs accepting applications'), findsOneWidget);
     source.fetch = () async => [publishedRow('real-id')];
     await tester.tap(find.byTooltip('Refresh jobs'));
     await tester.pumpAndSettle();
@@ -209,6 +240,64 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('open details and its stale Apply dialog enforce MYT rollover', (
+    tester,
+  ) async {
+    var now = DateTime.utc(2026, 11, 27, 15, 59, 58);
+    final jobs = TestPublishedJobsSource()
+      ..rows = [
+        {...publishedRow('midnight'), 'application_deadline': '2026-11-27'},
+      ];
+    final applications = TestMyApplicationsSource();
+    final gateway = TestApplicationGateway();
+    final module = Module2Repository(
+      publishedSource: jobs,
+      publishedClock: () => now,
+      myApplicationsSource: applications,
+      applicationGatewayFactory: () => gateway,
+    );
+    addTearDown(module.dispose);
+    addTearDown(jobs.changes.close);
+    addTearDown(applications.changes.close);
+    addTearDown(gateway.changes.close);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: JobDetailsPage(jobId: 'midnight', repository: module),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final apply = find.widgetWithText(FilledButton, 'Apply Now');
+    await tester.ensureVisible(apply);
+    await tester.tap(apply);
+    await tester.pumpAndSettle();
+    final submit = find.widgetWithText(FilledButton, 'Submit application');
+    await tester.ensureVisible(submit);
+    expect(tester.widget<FilledButton>(submit).onPressed, isNotNull);
+
+    now = DateTime.utc(2026, 11, 27, 16);
+    await tester.tap(submit);
+    await tester.pumpAndSettle();
+    expect(gateway.submissions, 0);
+    expect(
+      find.descendant(
+        of: find.byType(JobApplicationForm),
+        matching: find.text('Application deadline has passed.'),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.widget<FilledButton>(submit).onPressed, isNull);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
+    expect(tester.widget<FilledButton>(apply).onPressed, isNull);
+    expect(
+      find.text('This job is no longer accepting new applications.'),
+      findsOneWidget,
+    );
+    expect(jobs.calls, 1);
+  });
 
   testWidgets('Visible null salary is safe and hidden values are discarded', (
     tester,

@@ -9,12 +9,14 @@ List<NearbyJobResult> nearbyJobResults(
   required WorkplaceCoordinates origin,
   required num radiusKm,
   String employmentType = '',
+  DateTime? now,
 }) {
   final results = <NearbyJobResult>[];
+  final asOf = now ?? DateTime.now();
   for (final job in publishedJobs) {
     final workplace = job.workplace;
     final arrangement = job.text('work_arrangement');
-    if (job.text('status') != 'published' ||
+    if (job.unavailable(asOf) != null ||
         (arrangement != 'on_site' && arrangement != 'hybrid') ||
         workplace == null ||
         (employmentType.isNotEmpty &&

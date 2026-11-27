@@ -1,9 +1,10 @@
 import 'job_display.dart';
+import 'application_deadline.dart';
 
 const jobCompensationPolicy = {
-  'full_time': (periods: ['monthly', 'yearly'], defaultPeriod: 'monthly'),
+  'full_time': (periods: ['monthly'], defaultPeriod: 'monthly'),
   'part_time': (periods: ['hourly', 'daily'], defaultPeriod: 'hourly'),
-  'contract': (periods: ['monthly', 'yearly'], defaultPeriod: 'monthly'),
+  'contract': (periods: ['monthly'], defaultPeriod: 'monthly'),
   'internship': (periods: ['monthly'], defaultPeriod: 'monthly'),
   'temporary': (periods: ['hourly', 'daily'], defaultPeriod: 'daily'),
 };
@@ -74,6 +75,7 @@ String? jobFieldError(
   String key,
   Map<String, dynamic> job, {
   required bool publishing,
+  DateTime? now,
 }) {
   final text = '${job[key] ?? ''}'.trim();
   if (publishing && jobBulletFields.contains(key)) {
@@ -101,13 +103,13 @@ String? jobFieldError(
     if (key == 'salary_max') return jobSalaryRangeError(job);
   }
   if (key == 'application_deadline') {
-    final date = DateTime.tryParse(text);
-    if (date == null || jobDate(date) != text) {
+    final date = parseApplicationDeadline(text);
+    if (date == null) {
       return 'Use a valid date in YYYY-MM-DD format.';
     }
-    final now = DateTime.now();
-    if (publishing && !date.isAfter(DateTime(now.year, now.month, now.day))) {
-      return 'Choose a future application deadline.';
+    if (publishing &&
+        !date.isAfter(malaysiaApplicationDate(now ?? DateTime.now()))) {
+      return 'Choose an application deadline after today (Malaysia time).';
     }
   }
   return null;

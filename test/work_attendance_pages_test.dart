@@ -15,6 +15,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'work_attendance_repository_test.dart'
     show FakeSource, assignment, id, other;
+import 'work_assignment_creation_repository_test.dart' show uid;
 import 'work_attendance_resolution_test.dart' show auditFor, resolutionContext;
 import 'work_verification_grouping_test.dart' show FakeEngagementClosureGateway;
 
@@ -73,6 +74,48 @@ void main() {
     await tester.tap(scoped);
     await tester.pumpAndSettle();
   }
+
+  testWidgets('shift grid keeps normal column widths after filtering', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    source.workerRead = () async => [
+      for (var i = 1; i <= 4; i++)
+        assignment()
+          ..['assignment_id'] = uid(i)
+          ..['attendance_as_of'] = i == 1
+              ? '2026-11-04T00:00:00Z'
+              : '2026-11-07T12:00:00Z',
+    ];
+    await showPage(tester);
+    await tester.pumpAndSettle();
+    await expand(tester);
+    Rect bounds(int i) => tester.getRect(find.byKey(ValueKey(uid(i))));
+    final first = bounds(1);
+    final fourth = bounds(4);
+    expect(bounds(3).top, first.top);
+    expect(fourth.top, greaterThan(first.top));
+    expect(fourth.left, first.left);
+    expect(fourth.width, first.width);
+
+    await tester.tap(find.byKey(const ValueKey('workspace-filters-toggle')));
+    await tester.pumpAndSettle();
+    final upcoming = find.widgetWithText(ChoiceChip, 'Upcoming');
+    await tester.ensureVisible(upcoming);
+    await tester.tap(upcoming);
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey(uid(2))), findsNothing);
+    expect(bounds(1).left, first.left);
+    expect(bounds(1).width, first.width);
+    expect(
+      find.text('Thu, 5 Nov 2026 · 9:00 AM – 5:00 PM MYT'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('upcoming shift stays compact and opens the full audit', (
     tester,
@@ -175,11 +218,10 @@ void main() {
     expect(find.text('Check in'), findsNothing);
     expect(find.text('Check out'), findsNothing);
     await tap(tester, 'View Evidence');
-    await tap(tester, 'Attendance & verification history');
-    expect(
-      find.text('Original check-in: 05/11/2026 09:05:00 MYT'),
-      findsOneWidget,
-    );
+    expect(find.text('Attendance & verification history'), findsNothing);
+    expect(find.textContaining('Original check-in:'), findsNothing);
+    expect(find.text('9:05 AM'), findsOneWidget);
+    expect(find.text('Device-recorded'), findsOneWidget);
   });
 
   for (final (timestamp, expected) in <(String?, String?)>[
@@ -343,6 +385,14 @@ void main() {
       }
       await tap(tester, 'View Verification Details');
       expect(find.byType(WorkEvidencePage), findsOneWidget);
+      final schedule = tester.getTopLeft(find.text('Shift information'));
+      final attendance = tester.getTopLeft(find.text('Recorded attendance'));
+      if (width == 320) {
+        expect(attendance.dy, greaterThan(schedule.dy));
+      } else {
+        expect(attendance.dx, greaterThan(schedule.dx));
+        expect(attendance.dy, schedule.dy);
+      }
       router.pop();
       await tester.pumpAndSettle();
       expect(find.text('Hide application shifts'), findsOneWidget);
@@ -472,8 +522,9 @@ void main() {
       await tap(tester, 'Attendance & verification history');
       expect(find.text('View original attendance & audit'), findsNothing);
       expect(find.text('Workplace: Server location'), findsOneWidget);
-      expect(find.text('Original check-in: Not recorded'), findsOneWidget);
-      expect(find.text('Original checkout: Not recorded'), findsOneWidget);
+      expect(find.text('Not recorded'), findsNWidgets(2));
+      expect(find.text('No attendance events recorded yet.'), findsOneWidget);
+      expect(find.textContaining('Original check-in:'), findsNothing);
       expect(find.text('View attendance GPS'), findsNothing);
       expect(find.textContaining('Simulated'), findsNothing);
       expect(source.checkIns, 0);
@@ -557,7 +608,9 @@ void main() {
       expect(find.text('1:01 PM'), findsOneWidget);
       expect(find.text('View original attendance & audit'), findsNothing);
       await tap(tester, 'View Verification Details');
-      await tap(tester, 'Attendance & verification history');
+      expect(find.text('Attendance & verification history'), findsNothing);
+      expect(find.text('4:31 AM'), findsOneWidget);
+      expect(find.text('1:01 PM'), findsOneWidget);
       expect(find.text('Date: Friday, 6 November 2026'), findsOneWidget);
       expect(find.text('Time: 4:30 AM – 1:00 PM MYT'), findsOneWidget);
       expect(find.textContaining(id), findsNothing);
@@ -689,8 +742,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: const TextScaler.linear(1.6)),
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(width == 320 ? 2 : 1.6)),
             child: child!,
           ),
           home: WorkAttendancePage(repository: repository),

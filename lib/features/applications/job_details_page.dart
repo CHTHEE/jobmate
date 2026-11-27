@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../jobs/application_deadline.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
@@ -92,8 +95,10 @@ class _JobDetailsPageState extends State<JobDetailsPage>
   }
 
   Future<void> apply(BrowseJob job) async {
-    if (_applying ||
-        job.unavailable() != null ||
+    final currentJob = repo.job(job.id);
+    if (currentJob == null ||
+        _applying ||
+        repo.applicationUnavailable(currentJob) != null ||
         applications.loading ||
         !applications.loaded ||
         applications.error != null ||
@@ -108,9 +113,15 @@ class _JobDetailsPageState extends State<JobDetailsPage>
     final route = await moduleModal<String>(
       context,
       JobApplicationForm(
-        job: job,
+        job: currentJob,
         repository: module,
         gateway: module.createApplicationGateway(),
+        checkAvailability: () {
+          final current = repo.job(job.id);
+          return current == null
+              ? 'This job is unavailable. Refresh the job details before applying.'
+              : repo.applicationUnavailable(current);
+        },
         onSubmitted: (id) {
           if (!mounted ||
               widget.jobId != job.id ||
@@ -178,6 +189,9 @@ class _JobDetailsPageState extends State<JobDetailsPage>
       listenable: Listenable.merge([repo, applications]),
       builder: (context, _) {
         final job = repo.job(widget.jobId);
+        final unavailable = job == null
+            ? null
+            : repo.applicationUnavailable(job);
         final existing = applications
             .search()
             .where((a) => a.jobId == widget.jobId)
@@ -197,9 +211,7 @@ class _JobDetailsPageState extends State<JobDetailsPage>
             applications.loaded &&
             requestedActor == applications.source.userId) {
           _applyRequestActor = null;
-          if (job != null &&
-              applicationId == null &&
-              job.unavailable() == null) {
+          if (job != null && applicationId == null && unavailable == null) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted &&
                   requestedActor == repo.source.userId &&
@@ -300,13 +312,15 @@ class _JobDetailsPageState extends State<JobDetailsPage>
                         const SizedBox(height: 18),
                         JobInformationGrid(job),
                         const SizedBox(height: 16),
-                        if (job.unavailable() case final String reason)
+                        if (unavailable case final String reason)
                           Text(
                             reason,
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.error,
                             ),
                           ),
+                        if (unavailable == expiredApplicationMessage)
+                          const Text(noNewApplicationsMessage),
                         const SizedBox(height: 12),
                         if (applicationId != null) ...[
                           JobApplicationBanner(existing?.status),
@@ -343,7 +357,7 @@ class _JobDetailsPageState extends State<JobDetailsPage>
                                   checking ||
                                       _applying ||
                                       applications.source.userId == null ||
-                                      job.unavailable() != null
+                                      unavailable != null
                                   ? null
                                   : () => apply(job),
                               child: Text(

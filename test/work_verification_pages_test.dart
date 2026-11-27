@@ -5,10 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jobmate/features/jobs/job_postings_repository.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_repository.dart';
 import 'package:jobmate/features/work_attendance/work_verification_pages.dart';
+import 'package:jobmate/features/work_attendance/work_attendance_lifecycle.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'work_attendance_repository_test.dart'
     show FakeSource, assignment, id, other;
+import 'work_assignment_creation_repository_test.dart' show uid;
 import 'work_verification_grouping_test.dart' show FakeEngagementClosureGateway;
 
 class _Inbox extends FakeEngagementClosureGateway {
@@ -53,6 +55,85 @@ void main() {
           ),
         ),
       );
+
+  testWidgets('job search retains one normal overview column', (tester) async {
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    source.companyRead = (_) async => [
+      for (var i = 1; i <= 4; i++)
+        assignment(company: true)
+          ..['assignment_id'] = uid(i)
+          ..['application_id'] = uid(i + 4)
+          ..['job_id'] = uid(i)
+          ..['job_title'] = 'Warehouse role $i'
+          ..['attendance_as_of'] = i == 3
+              ? '2026-11-05T12:00:00Z'
+              : '2026-11-04T12:00:00Z'
+          ..['verification_status'] = i == 4
+              ? 'pending_review'
+              : i == 2
+              ? 'verified'
+              : 'not_submitted',
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: WorkVerificationPage(
+          repository: repository,
+          companyId: id,
+          overview: true,
+          loadAccess: () => access(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Rect action(int i) =>
+        tester.getRect(find.byKey(ValueKey('manage-work-${uid(i)}')));
+    final first = action(1);
+    expect(action(3).top, first.top);
+    expect(action(4).top, greaterThan(first.top));
+    expect(action(4).width, first.width);
+    for (final (label, tone) in [
+      ('1 attendance issues', AttendanceTone.issue),
+      ('1 verified', AttendanceTone.positive),
+    ]) {
+      final badge = find.widgetWithText(AttendanceStatusBadge, label);
+      expect(badge, findsOneWidget);
+      expect(tester.widget<AttendanceStatusBadge>(badge).tone, tone);
+    }
+    await tester.enterText(find.byType(TextField), 'Warehouse role 4');
+    await tester.pumpAndSettle();
+    expect(find.text('Manage Work Assignments'), findsOneWidget);
+    expect(action(4).left, first.left);
+    expect(action(4).width, first.width);
+    expect(find.text('0 verified'), findsOneWidget);
+    expect(find.text('1 worker'), findsOneWidget);
+    expect(find.text('1 shift'), findsOneWidget);
+    expect(find.text('0 attendance issues'), findsOneWidget);
+    for (final (label, tone) in [
+      ('1 worker', AttendanceTone.information),
+      ('1 shift', AttendanceTone.neutral),
+      ('0 verified', AttendanceTone.neutral),
+      ('0 attendance issues', AttendanceTone.neutral),
+      ('1 pending review', AttendanceTone.pending),
+    ]) {
+      final badge = find.widgetWithText(AttendanceStatusBadge, label);
+      expect(badge, findsOneWidget);
+      expect(tester.widget<AttendanceStatusBadge>(badge).tone, tone);
+    }
+    expect(
+      find.widgetWithText(AttendanceStatusBadge, '1 pending review'),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(ValueKey('manage-work-${uid(4)}')))
+          .onPressed,
+      isNotNull,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('access check, list loading, connection error, retry and empty', (
     tester,
@@ -405,8 +486,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: const TextScaler.linear(1.6)),
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(width == 320 ? 2 : 1.6)),
             child: child!,
           ),
           home: WorkVerificationPage(

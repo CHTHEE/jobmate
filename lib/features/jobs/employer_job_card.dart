@@ -6,6 +6,7 @@ import '../applications/browse_job_card.dart';
 import '../applications/job_marketplace_format.dart';
 import '../applications/module2_repository.dart';
 import 'job_display.dart';
+import 'application_deadline.dart';
 
 String postingStatusLabel(String status) => switch (status) {
   'all' => 'All',
@@ -37,11 +38,27 @@ class EmployerJobCard extends StatelessWidget {
     final title = job['title'] as String? ?? 'Untitled job';
     final titleStyle = Theme.of(context).textTheme.titleMedium
         ?.copyWith(fontWeight: FontWeight.w700, height: 1.25);
-    final statusColor = status == 'draft'
+    final deadline = applicationDeadlineState(
+      job['application_deadline'],
+      DateTime.now(),
+    );
+    final expired =
+        status == 'published' && deadline == ApplicationDeadlineState.expired;
+    final statusColor = status == 'draft' || expired
         ? const Color(0xFF92400E)
         : JobMateTheme.body;
-    final deadlineMessage = status == 'published'
-        ? display.unavailable()
+    final statusLabel = status != 'published'
+        ? postingStatusLabel(status)
+        : switch (deadline) {
+            ApplicationDeadlineState.open => 'Accepting applications',
+            ApplicationDeadlineState.expired => 'Deadline Passed',
+            ApplicationDeadlineState.unavailable => 'Applications unavailable',
+          };
+    final deadlineMessage = expired
+        ? 'This job is no longer accepting new applications. You can still review existing applicants.'
+        : status == 'published' &&
+              deadline == ApplicationDeadlineState.unavailable
+        ? 'Application deadline is unavailable.'
         : null;
     final employmentType = display.text('employment_type');
     return Container(
@@ -95,27 +112,26 @@ class EmployerJobCard extends StatelessWidget {
                       EmploymentTypeBadge(employmentType)
                     else
                       const Text('Employment type not set'),
-                    if (status != 'published')
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: .08),
-                          borderRadius: BorderRadius.circular(6),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: .08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 4,
-                          ),
-                          child: Text(
-                            postingStatusLabel(status),
-                            style: TextStyle(
-                              color: statusColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        child: Text(
+                          statusLabel,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
+                    ),
                     if (unseenApplicantCount > 0)
                       DecoratedBox(
                         decoration: BoxDecoration(
@@ -181,8 +197,8 @@ class EmployerJobCard extends StatelessWidget {
                     ),
                     JobListingMetadata(
                       Icons.event_outlined,
-                      job['application_deadline'] == null
-                          ? 'Deadline not set'
+                      deadline == ApplicationDeadlineState.unavailable
+                          ? 'Deadline unavailable'
                           : 'Deadline: ${marketplaceDate(job['application_deadline'])}',
                     ),
                     JobListingMetadata(
@@ -200,10 +216,7 @@ class EmployerJobCard extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
                       deadlineMessage,
-                      style: const TextStyle(
-                        color: JobMateTheme.error,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: statusColor, fontSize: 12),
                     ),
                   ),
               ],

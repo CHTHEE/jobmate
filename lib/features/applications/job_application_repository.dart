@@ -69,13 +69,22 @@ class SupabaseJobApplicationGateway implements JobApplicationGateway {
 String jobApplicationError(Object failure) {
   if (failure is StateError) return failure.message.toString();
   if (failure is PostgrestException) {
+    final message = failure.message.toLowerCase();
+    if (message.contains('deadline') &&
+        (message.contains('passed') ||
+            message.contains('expired') ||
+            message.contains('closed'))) {
+      return 'Application deadline has passed';
+    }
     if (failure.code == '23505') {
       return 'You have already applied for this job.';
     }
     if (failure.code == '42501') {
       return 'Permission denied. An active Job Seeker account and your own resume are required.';
     }
-    return failure.message;
+    if (message.contains('deadline')) {
+      return 'This job is no longer accepting new applications.';
+    }
   }
   return 'Unable to confirm submission. Your note is preserved. A retry may report an existing application if the first request succeeded.';
 }

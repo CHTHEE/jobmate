@@ -642,6 +642,24 @@ void main() {
         jobRow('invalid')..['application_deadline'] = null,
       ].map(BrowseJob.published);
       final matches = matchJobs(jobs, {}, appliedJobIds: {'applied'}, now: now);
+      expect(
+        matchJobs(
+          jobs,
+          {},
+          appliedJobIds: {'applied'},
+          now: DateTime.utc(2026, 11, 23, 15, 59, 59),
+        ),
+        hasLength(4),
+      );
+      expect(
+        matchJobs(
+          jobs,
+          {},
+          appliedJobIds: {'applied'},
+          now: DateTime.utc(2026, 11, 23, 16),
+        ),
+        isEmpty,
+      );
       List<String> ids(List<JobMatch> items) =>
           items.map((m) => m.job.id).toList();
       expect(ids(filterMatches(matches)), ['hidden', 'a', 'b', 'yearly']);

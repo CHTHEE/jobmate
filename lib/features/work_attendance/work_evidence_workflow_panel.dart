@@ -262,6 +262,9 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
     builder: (context, _) {
       final state = controller.snapshot;
       final upcoming = widget.upcoming;
+      final employerConfirmedAbsence =
+          widget.viewer.employer &&
+          widget.viewer.assignment?.resolution?.decision == 'confirmed_absent';
       final request = widget.viewer.employer
           ? state?.review
           : state?.pendingAttempt;
@@ -282,7 +285,9 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                 'Evidence and verification',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
-              if (state != null && widget.viewer.assignment != null)
+              if (state != null &&
+                  widget.viewer.assignment != null &&
+                  !employerConfirmedAbsence)
                 if (state.verificationStatus == WorkVerificationStatus.verified)
                   const Text(
                     'No submission required. Evidence has been verified. Work verification does not confirm payment approval.',
@@ -350,7 +355,7 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                 const SizedBox(height: 12),
                 if (state.verificationStatus !=
                         WorkVerificationStatus.verified &&
-                    !(upcoming &&
+                    !((upcoming || employerConfirmedAbsence) &&
                         state.verificationStatus ==
                             WorkVerificationStatus.notSubmitted))
                   AttendanceStatusBadge(
@@ -366,7 +371,8 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
                         : 'Verification: ${state.verificationStatus == WorkVerificationStatus.verified ? 'Verified' : 'Not submitted'}',
                     tone: verificationTone(state.verificationStatus),
                   ),
-                if ((!upcoming || state.round > 0) &&
+                if ((!(upcoming || employerConfirmedAbsence) ||
+                        state.round > 0) &&
                     state.verificationStatus != WorkVerificationStatus.verified)
                   Text('Latest submission round: ${state.round}'),
                 if (state.verificationStatus.name == 'verified') ...[
@@ -521,6 +527,7 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
     for (final event in state.history.reversed.take(3))
       _HistoryTile(
         event: event,
+        hasEarlierEvent: event != state.history.first,
         showNote:
             !(state.verificationStatus ==
                     WorkVerificationStatus.moreEvidenceRequired &&
@@ -534,6 +541,7 @@ class _WorkEvidenceWorkflowPanelState extends State<WorkEvidenceWorkflowPanel> {
           for (final event in state.history.reversed.skip(3))
             _HistoryTile(
               event: event,
+              hasEarlierEvent: event != state.history.first,
               showNote:
                   !(state.verificationStatus ==
                           WorkVerificationStatus.moreEvidenceRequired &&
@@ -797,23 +805,40 @@ String _time(DateTime value) {
 }
 
 class _HistoryTile extends StatelessWidget {
-  const _HistoryTile({required this.event, this.showNote = true});
+  const _HistoryTile({
+    required this.event,
+    required this.hasEarlierEvent,
+    this.showNote = true,
+  });
   final bool showNote;
+  final bool hasEarlierEvent;
   final WorkEvidenceHistoryEvent event;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
+  Widget build(BuildContext context) {
+    final icon = Icon(
+      event.action == 'verified'
+          ? Icons.verified_outlined
+          : event.action == 'more_evidence_requested'
+          ? Icons.feedback_outlined
+          : Icons.upload_file_outlined,
+      color: (attendanceToneColors(context, switch (event.action) {
+        'verified' => AttendanceTone.positive,
+        'more_evidence_requested' => AttendanceTone.pending,
+        _ => AttendanceTone.information,
+      })).$2,
+    );
+    final item = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          event.action == 'verified'
-              ? Icons.verified_outlined
-              : event.action == 'more_evidence_requested'
-              ? Icons.feedback_outlined
-              : Icons.upload_file_outlined,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+        if (hasEarlierEvent)
+          Column(
+            children: [
+              icon,
+              const Expanded(child: VerticalDivider(width: 24)),
+            ],
+          )
+        else
+          icon,
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -824,7 +849,7 @@ class _HistoryTile extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleSmall,
               ),
               Text(
-                '${event.round == null ? 'Earlier event' : 'Round ${event.round}'} - ${_time(event.at)}',
+                '${event.round == null ? 'Earlier event' : 'Round ${event.round}'} · ${attendanceMyt(event.at)}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
               if (showNote && event.note != null)
@@ -836,6 +861,10 @@ class _HistoryTile extends StatelessWidget {
           ),
         ),
       ],
-    ),
-  );
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: hasEarlierEvent ? IntrinsicHeight(child: item) : item,
+    );
+  }
 }

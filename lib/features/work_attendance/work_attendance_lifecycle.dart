@@ -373,22 +373,37 @@ class WorkerAttendanceHistory extends StatelessWidget {
   final List<Widget> verification;
 
   @override
-  Widget build(BuildContext context) => ExpansionTile(
-    key: PageStorageKey('worker-record-history-${assignment.assignmentId}'),
-    title: const Text('Attendance & verification history'),
-    tilePadding: EdgeInsets.zero,
-    expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      if (assignment.checkInAt == null &&
-          assignment.checkOutAt == null &&
-          assignment.resolution?.decision == null)
-        const Text('No attendance events recorded yet.'),
-      if (AttendanceLifecycle.of(assignment) != AttendanceLifecycle.scheduled)
-        AttendanceRecordDetails(assignment: assignment),
-      ...verification,
-    ],
-  );
+  Widget build(BuildContext context) {
+    final noAttendance =
+        assignment.checkInAt == null &&
+        assignment.checkOutAt == null &&
+        assignment.resolution?.decision == null;
+    final hasAudit = hasDistinctAttendanceAudit(assignment);
+    if (verification.isEmpty && !noAttendance && !hasAudit) {
+      return const SizedBox.shrink();
+    }
+    return ExpansionTile(
+      key: PageStorageKey('worker-record-history-${assignment.assignmentId}'),
+      title: const Text('Attendance & verification history'),
+      tilePadding: EdgeInsets.zero,
+      expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (noAttendance) const Text('No attendance events recorded yet.'),
+        if (assignment.resolution?.decision == null && hasAudit)
+          AttendanceRecordDetails(assignment: assignment),
+        ...verification,
+      ],
+    );
+  }
 }
+
+/// An audit adds information when a decision exists or effective times differ.
+bool hasDistinctAttendanceAudit(WorkAssignment row) =>
+    row.resolution?.decision != null ||
+    row.checkInAt?.microsecondsSinceEpoch !=
+        row.effectiveCheckInAt?.microsecondsSinceEpoch ||
+    row.checkOutAt?.microsecondsSinceEpoch !=
+        row.effectiveCheckOutAt?.microsecondsSinceEpoch;
 
 /// Readable history from the existing authorized attendance projection.
 class AttendanceRecordDetails extends StatelessWidget {

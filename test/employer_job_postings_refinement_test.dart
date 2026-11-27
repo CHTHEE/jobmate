@@ -267,7 +267,11 @@ void main() {
         expect(find.text('RM 1,500–1,600 / month'), findsOneWidget);
         expect(find.text('Deadline: 15 Nov 2020'), findsOneWidget);
         expect(
-          find.text('Application deadline has passed.'),
+          find.text('Deadline Passed'),
+          status == 'published' ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.textContaining('You can still review existing applicants.'),
           status == 'published' ? findsOneWidget : findsNothing,
         );
         for (final label in [

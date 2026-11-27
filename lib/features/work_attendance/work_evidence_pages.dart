@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/mobile_back_action.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import '../applications/module2_widgets.dart';
 import '../applications/resume_pdf_opener.dart';
 import 'work_attendance_models.dart';
@@ -27,7 +29,6 @@ import 'work_evidence_upload_repository.dart';
 import 'employer_work_evidence_summary.dart';
 import 'work_attendance_gps.dart';
 import 'work_shift_ui.dart';
-import 'work_status_presentation.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -308,6 +309,9 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
     listenable: widget.repository,
     builder: (context, _) {
       final repo = widget.repository;
+      final employerConfirmedAbsence =
+          repo.employer &&
+          repo.assignment?.resolution?.decision == 'confirmed_absent';
       final workflow =
           widget.workflowSource ??
           (repo.attendance.source is SupabaseWorkAttendanceSource
@@ -369,7 +373,7 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
         ],
         child: WorkspaceContent(
           centered: true,
-          maxWidth: 900,
+          maxWidth: 1080,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -441,6 +445,7 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                 else if (worker != null)
                   WorkspaceCard(
                     title: worker.jobTitle,
+                    leading: const WorkHeadingIcon(LucideIcons.briefcase),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -456,37 +461,56 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Text(
-                          'Shift information',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        Text(
-                          'Date: ${shiftDateLabel(worker.scheduledStart, full: true)}',
-                        ),
-                        Text(
-                          'Time: ${shiftTimeRange(worker.scheduledStart, worker.scheduledEnd)}',
-                        ),
-                        if (worker.workplaceLocation.trim().isNotEmpty)
-                          Text('Workplace: ${worker.workplaceLocation}'),
-                        WorkplaceMapAction(uri: worker.workplaceMapLink),
-                        const SizedBox(height: 12),
-                        if (upcoming) ...[
-                          Text(
-                            'Attendance status',
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                          const Text('Check-in is not available yet.'),
-                          Text(AttendanceLifecycle.scheduled.guidance),
-                        ] else
-                          ShiftAttendanceSummary(assignment: worker),
-                        if (!upcoming && !showWorkflow)
-                          AttendanceStatusBadge(
-                            label:
-                                'Verification: ${workVerificationStatusLabel(repo.assignment!.verificationStatus)}',
-                            tone: verificationTone(
-                              repo.assignment!.verificationStatus,
+                        ResponsiveGrid(
+                          minItemWidth: 370,
+                          maxColumns: 2,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Shift information',
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                                Text(
+                                  'Date: ${shiftDateLabel(worker.scheduledStart, full: true)}',
+                                ),
+                                Text(
+                                  'Time: ${shiftTimeRange(worker.scheduledStart, worker.scheduledEnd)}',
+                                ),
+                                if (worker.workplaceLocation.trim().isNotEmpty)
+                                  Text(
+                                    'Workplace: ${worker.workplaceLocation}',
+                                  ),
+                                WorkplaceMapAction(
+                                  uri: worker.workplaceMapLink,
+                                ),
+                              ],
                             ),
-                          ),
+                            if (upcoming)
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Attendance status',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall,
+                                  ),
+                                  const Text('Check-in is not available yet.'),
+                                  Text(AttendanceLifecycle.scheduled.guidance),
+                                ],
+                              )
+                            else
+                              ShiftAttendanceSummary(
+                                assignment: worker,
+                                workerRecord: true,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (!upcoming && !showWorkflow)
+                          WorkerVerificationOutcome(assignment: worker),
                         if (repo.assignment!.verificationStatus ==
                                 WorkVerificationStatus.verified &&
                             workflow == null)
@@ -498,6 +522,10 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                                     supervisedWorkEvidenceQaAssignment) &&
                             repo.assignment!.effectiveCheckOutAt != null)
                           EvidenceDeadlineSummary(assignment: repo.assignment!),
+                        if (worker.resolution?.decision != null) ...[
+                          const Divider(height: 24),
+                          AttendanceRecordDetails(assignment: worker),
+                        ],
                         if (!showWorkflow)
                           WorkerAttendanceHistory(assignment: worker),
                       ],
@@ -572,17 +600,18 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                         'Evidence submission follows completed attendance. No submission is due yet.',
                       ),
                     ),
-                ] else if (repo.awaitingFirstSubmission)
+                ] else if (repo.awaitingFirstSubmission &&
+                    !employerConfirmedAbsence)
                   const ModuleState(
                     title: 'No evidence submitted yet',
                     message: 'The worker has not formally submitted evidence for this assignment. Refresh after the worker submits evidence.',
                   )
-                else if (repo.evidence.isEmpty)
+                else if (repo.evidence.isEmpty && !employerConfirmedAbsence)
                   const ModuleState(
                     title: 'No work evidence',
                     message: 'No submitted evidence was returned for this assignment.',
                   )
-                else ...[
+                else if (repo.evidence.isNotEmpty) ...[
                   _EvidenceRound(
                     round: rounds.first,
                     files: repo.evidence
@@ -645,48 +674,55 @@ class _EvidenceCard extends StatelessWidget {
   final bool employer;
 
   @override
-  Widget build(BuildContext context) => Card.outlined(
-    key: ValueKey(file.evidenceId),
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(
-                file.mimeType == 'application/pdf'
-                    ? Icons.picture_as_pdf_outlined
-                    : Icons.image_outlined,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-            ],
+  Widget build(BuildContext context) {
+    final pdf = file.mimeType == 'application/pdf';
+    final identity = Row(
+      children: [
+        Icon(pdf ? Icons.picture_as_pdf_outlined : Icons.image_outlined),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: employer
+                ? Theme.of(context).textTheme.titleMedium
+                : Theme.of(context).textTheme.titleSmall,
           ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SizedBox(
-              child: OutlinedButton.icon(
-                onPressed: onPreview,
-                icon: const Icon(Icons.visibility_outlined),
-                label: Text(
-                  file.mimeType == 'application/pdf'
-                      ? 'View PDF'
-                      : 'View image',
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
+      ],
+    );
+    final preview = OutlinedButton.icon(
+      onPressed: onPreview,
+      icon: const Icon(Icons.visibility_outlined, size: 18),
+      label: Text(pdf ? 'View PDF' : 'View image'),
+    );
+    final stacked = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        identity,
+        const SizedBox(height: 8),
+        Align(alignment: AlignmentDirectional.centerStart, child: preview),
+      ],
+    );
+    return Card.outlined(
+      key: ValueKey(file.evidenceId),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+            if (constraints.maxWidth < 420 * scale) return stacked;
+            return Row(
+              children: [
+                Expanded(child: identity),
+                const SizedBox(width: 12),
+                preview,
+              ],
+            );
+          },
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _EvidenceRound extends StatelessWidget {
@@ -727,7 +763,7 @@ class _EvidenceRound extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             Text(
-              'Submitted: ${shiftDateLabel(files.first.submittedAt)} · ${shiftTimeLabel(files.first.submittedAt)} MYT',
+              'Submitted: ${shiftDateLabel(files.first.submittedAt)} · ${shiftTimeLabel(files.first.submittedAt, showSeconds: true)} MYT',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             if (files.first.description.trim().isNotEmpty) ...[

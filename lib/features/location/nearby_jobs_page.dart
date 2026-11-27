@@ -334,6 +334,7 @@ class _NearbyJobsListState extends State<_NearbyJobsList> {
               origin: place.coordinates,
               radiusKm: _radius,
               employmentType: _employmentType,
+              now: _repo.availabilityAsOf,
             )
           : const <NearbyJobResult>[];
       final selected = results
