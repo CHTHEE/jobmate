@@ -960,7 +960,8 @@ posting that still appears in the authorized catalogue can be viewed, and Apply
 rechecks availability before sending the request. Existing applications and
 recruitment actions follow their own rules.
 
-An expired published posting remains Published. Employers can review existing
+An expired published posting remains Published and appears under the Deadline
+Passed filter in My Job Postings. Employers can review existing
 applicants and use the existing Edit workflow to save a future deadline
 (after today in Malaysia), subject to server validation. Closed postings stay
 read-only. The dashboard’s Published count describes the saved posting status,

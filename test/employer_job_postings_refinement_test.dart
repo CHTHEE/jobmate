@@ -10,7 +10,8 @@ import 'package:jobmate/features/jobs/job_postings_page.dart';
 import 'package:jobmate/features/jobs/job_preview.dart';
 import 'package:jobmate/shared/theme/jobmate_theme.dart';
 
-import 'job_postings_test.dart' show TestJobs, completeJob, openPostingFilters;
+import 'job_postings_test.dart'
+    show TestJobs, completeJob, field, openPostingFilters;
 
 Map<String, dynamic> posting(String id, String status) => {
   ...completeJob(),
@@ -104,6 +105,103 @@ void main() {
       expect(find.text('published role'), findsOneWidget);
       await select(tester, 'All (3)');
       expect(find.byType(EmployerJobCard), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Deadline Passed counts only expired published jobs and updates after edit',
+    (tester) async {
+      final repo = LoadingJobs()
+        ..records = [
+          for (final (id, status, deadline) in [
+            ('expired', 'published', '2026-11-26'),
+            ('today', 'published', '2026-11-27'),
+            ('missing', 'published', null),
+            ('invalid', 'published', '2026-02-30'),
+            ('draft', 'draft', '2026-11-26'),
+            ('closed', 'closed', '2026-11-26'),
+          ])
+            {
+              ...posting(id, status),
+              'title': '$id role',
+              'application_deadline': deadline,
+            },
+        ];
+      final router = GoRouter(
+        initialLocation: '/job-postings',
+        routes: [
+          GoRoute(
+            path: '/job-postings',
+            builder: (_, _) => JobPostingsPage(
+              repository: repo,
+              now: () => DateTime.utc(2026, 11, 26, 16),
+            ),
+          ),
+          jobFormRoute('/job-postings/:jobId/edit', repository: repo),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      await openPostingFilters(tester);
+      await select(tester, 'Deadline Passed (1)');
+      expect(find.byType(EmployerJobCard), findsOneWidget);
+      expect(find.text('expired role'), findsOneWidget);
+      expect(find.text('View Applicants'), findsOneWidget);
+      expect(find.text('Edit'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('posting-stat-published')),
+          matching: find.text('4'),
+        ),
+        findsOneWidget,
+      );
+
+      final search = find.byType(TextField);
+      await tester.enterText(search, 'today');
+      await tester.pumpAndSettle();
+      expect(find.text('No matching jobs'), findsOneWidget);
+      expect(
+        find.widgetWithText(ChoiceChip, 'Deadline Passed (1)'),
+        findsOneWidget,
+      );
+      final clear = find.text('Clear filters');
+      await tester.ensureVisible(clear);
+      await tester.tap(clear);
+      await tester.pumpAndSettle();
+      expect(find.text('today role'), findsOneWidget);
+      await tester.enterText(search, '');
+      await tester.pumpAndSettle();
+      await select(tester, 'Published (4)');
+      expect(find.byType(EmployerJobCard), findsNWidgets(4));
+      await select(tester, 'Deadline Passed (1)');
+      expect(repo.reads, 1);
+
+      await tester.ensureVisible(find.text('Edit'));
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      field(tester, 'Application deadline').text = '2099-12-31';
+      final save = find.text('Save Changes');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(repo.saves, 1);
+      expect(
+        repo.records.singleWhere((job) => job['job_id'] == 'expired')['status'],
+        'published',
+      );
+      final refresh = find.text('Check for updates');
+      await tester.ensureVisible(refresh);
+      await tester.tap(refresh);
+      await tester.pumpAndSettle();
+      expect(find.text('No postings with a passed deadline'), findsOneWidget);
+      expect(
+        find.widgetWithText(ChoiceChip, 'Deadline Passed (0)'),
+        findsOneWidget,
+      );
+      await select(tester, 'Published (4)');
+      expect(find.text('expired role'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

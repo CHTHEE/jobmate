@@ -12,6 +12,7 @@ import 'job_postings_repository.dart';
 import 'job_form_result.dart';
 import 'job_form_route.dart';
 import 'employer_job_card.dart';
+import 'application_deadline.dart';
 import '../company/company_logo.dart';
 import '../applications/applicant_unseen_controller.dart';
 
@@ -21,15 +22,18 @@ class JobPostingsPage extends StatefulWidget {
     this.repository,
     this.applicantUnseen,
     this.initialStatus = 'all',
+    this.now,
   });
   final JobPostingsRepository? repository;
   final ApplicantUnseenController? applicantUnseen;
   final String initialStatus;
+  final DateTime Function()? now;
   @override
   State<JobPostingsPage> createState() => _JobPostingsPageState();
 }
 
 class _JobPostingsPageState extends State<JobPostingsPage> {
+  static const _deadlinePassed = 'deadline_passed';
   late final repo =
       widget.repository ?? JobPostingsRepository(Supabase.instance.client);
   ApplicantUnseenController? get _applicantUnseen =>
@@ -140,15 +144,24 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
     BuildContext context,
     ApplicantUnseenController? unseen,
   ) {
+    final now = widget.now?.call() ?? DateTime.now();
+    bool deadlinePassed(Map<String, dynamic> job) =>
+        job['status'] == 'published' &&
+        applicationDeadlineState(job['application_deadline'], now) ==
+            ApplicationDeadlineState.expired;
+
     final counts = {
       'all': jobs.length,
       for (final status in ['published', 'draft', 'closed'])
         status: jobs.where((job) => job['status'] == status).length,
     };
+    final expiredCount = jobs.where(deadlinePassed).length;
     final visible = jobs
         .where(
           (job) =>
-              (filter == 'all' || job['status'] == filter) &&
+              (filter == _deadlinePassed
+                  ? deadlinePassed(job)
+                  : filter == 'all' || job['status'] == filter) &&
               '${job['title'] ?? ''} ${job['department'] ?? ''} ${job['location'] ?? ''}'
                   .toLowerCase()
                   .contains(query.trim().toLowerCase()),
@@ -270,10 +283,13 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                           'published',
                           'draft',
                           'closed',
+                          _deadlinePassed,
                         ])
                           ChoiceChip(
                             label: Text(
-                              '${postingStatusLabel(value)} (${counts[value]})',
+                              value == _deadlinePassed
+                                  ? 'Deadline Passed ($expiredCount)'
+                                  : '${postingStatusLabel(value)} (${counts[value]})',
                             ),
                             selected: filter == value,
                             onSelected: busy
@@ -289,6 +305,8 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                             ? 'No job postings yet'
                             : query.trim().isNotEmpty
                             ? 'No matching jobs'
+                            : filter == _deadlinePassed
+                            ? 'No postings with a passed deadline'
                             : 'No ${filter == 'all' ? '' : '$filter '}jobs',
                         leading: const Icon(
                           Icons.work_outline,
@@ -302,6 +320,8 @@ class _JobPostingsPageState extends State<JobPostingsPage> {
                                   ? 'Post a job to start your first draft.'
                                   : query.trim().isNotEmpty
                                   ? 'Try a different search or status.'
+                                  : filter == _deadlinePassed
+                                  ? 'Published postings will appear here after their application deadline passes.'
                                   : 'Your $filter jobs will appear here.',
                             ),
                             if (jobs.isEmpty)
