@@ -6,25 +6,206 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+// Supabase's injectable HTTP client lets this fixture run on Web and native.
+// ignore: depend_on_referenced_packages
+import 'package:http/http.dart' as http;
+// ignore: depend_on_referenced_packages
+import 'package:http/testing.dart';
 import 'package:jobmate/features/home/dashboard_content.dart';
 import 'package:jobmate/features/home/employer_dashboard.dart';
 import 'package:jobmate/features/jobs/job_form_page.dart';
 import 'package:jobmate/features/jobs/job_form_result.dart';
 import 'package:jobmate/features/jobs/job_form_route.dart';
 import 'package:jobmate/features/jobs/job_postings_repository.dart';
+import 'package:jobmate/features/payments/payment_feature_gate.dart';
+import 'package:jobmate/features/profile/profile_page.dart';
 import 'package:jobmate/features/work_attendance/work_attendance_repository.dart';
 import 'package:jobmate/shared/navigation/app_routes.dart';
 import 'package:jobmate/shared/navigation/workspace_destinations.dart';
+import 'package:jobmate/shared/theme/jobmate_theme.dart';
 import 'package:jobmate/shared/widgets/app_workspace.dart';
 import 'package:jobmate/shared/widgets/responsive_layout.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'support/workspace_navigation_test_helper.dart';
 import 'job_postings_test.dart' show TestJobs, field;
 import 'work_attendance_repository_test.dart'
     show FakeSource, assignment, id, other;
 
+void _myAccountSectionTests() {
+  group('My Account settings', () {
+    var role = 'job_seeker';
+    setUpAll(() async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('plugins.flutter.io/shared_preferences'),
+            (call) async => call.method == 'getAll' ? <String, Object>{} : true,
+          );
+      await Supabase.initialize(
+        url: 'https://example.supabase.co',
+        publishableKey: 'fixture-key',
+        authOptions: const FlutterAuthClientOptions(
+          autoRefreshToken: false,
+          persistSession: false,
+          detectSessionInUri: false,
+          localStorage: EmptyLocalStorage(),
+        ),
+        httpClient: MockClient((request) async {
+          if (request.url.path ==
+              '/rest/v1/rpc/list_my_payment_recipient_methods_v1') {
+            expect(role, 'job_seeker');
+            return http.Response(
+              '[]',
+              200,
+              headers: {'content-type': 'application/json'},
+              request: request,
+            );
+          }
+          expect(request.url.path, '/rest/v1/users');
+          expect(request.url.queryParameters['user_id'], 'eq.account-id');
+          return http.Response(
+            jsonEncode({'name': 'Alex Tan', 'role': role, 'status': 'active'}),
+            200,
+            headers: {'content-type': 'application/json'},
+            request: request,
+          );
+        }),
+      );
+      await Supabase.instance.client.auth.setInitialSession(
+        jsonEncode({
+          'access_token':
+              'eyJhbGciOiJub25lIn0.eyJyb2xlIjoiYXV0aGVudGljYXRlZCJ9.',
+          'token_type': 'bearer',
+          'user': {'id': 'account-id', 'email': 'fixture@example.com'},
+        }),
+      );
+    });
+    tearDownAll(() async {
+      await Supabase.instance.dispose();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            const MethodChannel('plugins.flutter.io/shared_preferences'),
+            null,
+          );
+    });
+
+    for (final accountRole in ['job_seeker', 'employer']) {
+      // The section selector uses the compact layout below 760 logical pixels.
+      for (final width in [320.0, 600.0, 1440.0]) {
+        testWidgets('$accountRole can reach settings at $width', (
+          tester,
+        ) async {
+          role = accountRole;
+          tester.view.physicalSize = Size(width, 1000);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final router = GoRouter(
+            initialLocation: AppRoutes.profile,
+            routes: [
+              GoRoute(
+                path: AppRoutes.profile,
+                builder: (_, _) => const ProfilePage(),
+              ),
+              GoRoute(
+                path: AppRoutes.verifyPassword,
+                builder: (_, _) =>
+                    const Scaffold(body: Text('Verify password')),
+              ),
+            ],
+          );
+          addTearDown(router.dispose);
+          await tester.pumpWidget(
+            MaterialApp.router(
+              routerConfig: router,
+              theme: JobMateTheme.light(),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          final dropdown = find.byKey(
+            const ValueKey('my-account-mobile-section-navigation'),
+          );
+          final hasPayment =
+              accountRole == 'job_seeker' && paymentRecipientSimulationEnabled;
+          if (width < 760) {
+            expect(
+              tester
+                  .widget<DropdownButtonFormField<MyAccountSection>>(dropdown)
+                  .initialValue,
+              MyAccountSection.profile,
+            );
+            await tester.ensureVisible(dropdown);
+            await tester.tap(dropdown);
+            await tester.pumpAndSettle();
+            expect(
+              find.text('Payment details'),
+              hasPayment ? findsOneWidget : findsNothing,
+            );
+            await tester.tap(find.text('Account & security').last);
+          } else {
+            expect(
+              find.byKey(const ValueKey('my-account-nav-profile')),
+              findsOneWidget,
+            );
+            expect(
+              find.byKey(const ValueKey('my-account-nav-payment')),
+              hasPayment ? findsOneWidget : findsNothing,
+            );
+            await tester.tap(
+              find.byKey(const ValueKey('my-account-nav-security')),
+            );
+          }
+          await tester.pumpAndSettle();
+          final changePassword = find.text('Change password');
+          await tester.ensureVisible(changePassword);
+          await tester.tap(changePassword);
+          await tester.pumpAndSettle();
+          expect(find.text('Verify password'), findsOneWidget);
+          router.pop();
+          await tester.pumpAndSettle();
+
+          if (width < 760) {
+            await tester.ensureVisible(dropdown);
+            await tester.tap(dropdown);
+            await tester.pumpAndSettle();
+            await tester.tap(find.text('Notifications').last);
+          } else {
+            await tester.tap(
+              find.byKey(const ValueKey('my-account-nav-notifications')),
+            );
+          }
+          await tester.pumpAndSettle();
+          expect(find.text('Notification preferences'), findsOneWidget);
+          expect(
+            find.widgetWithText(SwitchListTile, 'Application updates'),
+            findsOneWidget,
+          );
+          if (hasPayment) {
+            if (width < 760) {
+              await tester.ensureVisible(dropdown);
+              await tester.tap(dropdown);
+              await tester.pumpAndSettle();
+              await tester.tap(find.text('Payment details').last);
+            } else {
+              await tester.tap(
+                find.byKey(const ValueKey('my-account-nav-payment')),
+              );
+            }
+            await tester.pumpAndSettle();
+            expect(find.text('Payment Details'), findsOneWidget);
+            expect(find.text('Could not load payment details.'), findsNothing);
+          }
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
+  });
+}
+
 void main() {
   _employerDashboardTests();
+  _myAccountSectionTests();
   test('Job Seekers have one primary browse destination', () {
     final paths = workspaceDestinations('job_seeker').values
         .expand((items) => items)
@@ -167,7 +348,7 @@ void main() {
       expect(selectedPath, AppRoutes.browseJobs);
       await tester.tap(find.text('Account'));
       await tester.pumpAndSettle();
-      expect(find.text('My profile'), findsOneWidget);
+      expect(find.text('My Account'), findsOneWidget);
       expect(find.text('Sign out'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.binding.handlePopRoute();
@@ -270,7 +451,8 @@ void main() {
         );
         await tester.pumpAndSettle();
         if (!kIsWeb) expect(find.text('Sign out'), findsNothing);
-        await tester.tap(find.text('My profile'));
+        expect(find.text('Account settings'), findsNothing);
+        await tester.tap(find.text('My Account'));
         await tester.pumpAndSettle();
         expect(destination, AppRoutes.profile);
 
@@ -285,19 +467,6 @@ void main() {
           await tester.pumpAndSettle();
           expect(destination, AppRoutes.employerReputation);
         }
-
-        await tester.tap(
-          kIsWeb
-              ? find.byKey(const ValueKey('workspace-account-menu'))
-              : find.text('Account'),
-        );
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Account settings'));
-        await tester.pumpAndSettle();
-        expect(
-          destination,
-          role == 'employer' ? AppRoutes.employerSettings : AppRoutes.settings,
-        );
 
         await tester.tap(
           kIsWeb
@@ -522,7 +691,7 @@ void main() {
               : find.text('Account'),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('My profile'));
+        await tester.tap(find.text('My Account'));
         await tester.pumpAndSettle();
         expect(destination, AppRoutes.profile);
         expect(tester.takeException(), isNull);

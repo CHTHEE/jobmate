@@ -177,6 +177,13 @@ void main() {
       await tester.ensureVisible(find.text('Accept Offer'));
       await tester.tap(find.text('Accept Offer'));
       await tester.pumpAndSettle();
+      final readsWhileConfirming = source.calls;
+      await tester.pump(const Duration(seconds: 15));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(source.calls, readsWhileConfirming);
+      expect(source.responses, isEmpty);
       await tester.tap(find.text('Confirm Accept Offer'));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Membership: Active'));
@@ -189,9 +196,19 @@ void main() {
       expect(find.text('Membership: Revoked'), findsOneWidget);
       expect(source.responses, hasLength(1));
       // Parent refresh re-reads application AND membership without new acceptance.
-      await tester.tap(find.byTooltip('Refresh application'));
+      final applicationReads = source.calls;
+      await tester.pump(const Duration(seconds: 15));
       await tester.pumpAndSettle();
+      expect(source.calls, applicationReads + 1);
       expect(source.reads, 3);
+      expect(find.text('Membership: Revoked'), findsOneWidget);
+      expect(source.responses, [('offer', 'accept_offer')]);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(source.calls, applicationReads + 2);
+      expect(source.reads, 4);
+      expect(source.responses, [('offer', 'accept_offer')]);
       source.rows = [];
       source.switchAccount(null);
       await tester.pumpAndSettle();

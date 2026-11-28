@@ -253,7 +253,10 @@ class EmployerApplicantsRepository extends ChangeNotifier {
       if (!_current(generation, actor)) return;
       // Revalidate job/company context before every applicant request.
       _context = context;
-      if (jobId != null && job != null) {
+      if (!context.access.allowed || job == null) {
+        _rows = [];
+        _displayScope = null;
+      } else {
         final companyId = context.access.company?['company_id'];
         final scope = context.access.allowed && companyId is String
             ? applicantUnseen?.beginApplicantLoad(jobId, companyId: companyId)
@@ -271,6 +274,7 @@ class EmployerApplicantsRepository extends ChangeNotifier {
       if (!quietly || _rows.isEmpty || accessLost) {
         _context = null;
         _rows = [];
+        _displayScope = null;
         error = failure is StateError
             ? failure.message.toString()
             : failure is PostgrestException && failure.code == '42501'

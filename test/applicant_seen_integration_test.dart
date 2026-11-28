@@ -71,6 +71,34 @@ class _Harness {
 }
 
 void main() {
+  testWidgets('quiet refresh stops batching when the selected job disappears', (
+    tester,
+  ) async {
+    final h = _Harness(tester);
+    final firstBatch = Completer<int>();
+    h.source.rows = [for (var i = 100; i < 201; i++) row(i)];
+    h.send = (ids) =>
+        h.writes.length == 1 ? firstBatch.future : Future.value(ids.length);
+    await h.show(tester, firstJob);
+    await tester.pumpAndSettle();
+    expect(h.writes.single.$1, firstJob);
+    expect(h.writes.single.$2, hasLength(100));
+
+    h.source.data = EmployerPostingContext(
+      const JobAccess({'company_id': 'company-id'}, null),
+      const [],
+    );
+    await tester.pump(const Duration(seconds: 15));
+    await tester.pumpAndSettle();
+    expect(find.text('Job unavailable'), findsOneWidget);
+
+    firstBatch.complete(100);
+    await tester.pumpAndSettle();
+    expect(h.writes.map((batch) => batch.$2.length), [100]);
+    expect(find.text('Job unavailable'), findsOneWidget);
+    expect(find.text('Alex Thee'), findsNothing);
+  });
+
   testWidgets('a covered applicant page waits until it is visible', (
     tester,
   ) async {
@@ -127,8 +155,9 @@ void main() {
     await h.show(tester, firstJob);
     await tester.pumpAndSettle();
     expect(find.text('No applicants yet'), findsOneWidget);
-    h.source.fetchApplicants = (_) async => throw StateError('List failed');
-    await tester.tap(find.byTooltip('Refresh applicants'));
+    h.source.fetchApplicants = (_) async =>
+        throw const PostgrestException(message: 'List failed', code: '503');
+    await tester.pump(const Duration(seconds: 15));
     await tester.pumpAndSettle();
     expect(find.text('Unable to load applicants'), findsOneWidget);
     expect(h.writes, isEmpty);
@@ -183,7 +212,7 @@ void main() {
 
     final secondGate = Completer<int>();
     h.send = (_) => secondGate.future;
-    await tester.tap(find.byTooltip('Refresh applicants'));
+    await tester.pump(const Duration(seconds: 15));
     await tester.pumpAndSettle();
     expect(h.writes, hasLength(3));
     h.controller.enterWorkspace(
@@ -217,8 +246,16 @@ void main() {
       await tester.pumpAndSettle();
       expect(h.writes, hasLength(1));
       h.send = (ids) async => ids.length;
-      await tester.tap(find.byTooltip('Refresh applicants'));
+      await tester.pump(const Duration(seconds: 15));
       await tester.pumpAndSettle();
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is Text && widget.data == 'Blake',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Alex Thee'), findsNothing);
+      expect(h.writes, hasLength(2));
       expect(h.writes.last.$2, [id(101)]);
       expect(h.reads, 2);
       final shortlist = find.text('Shortlist');
@@ -227,7 +264,22 @@ void main() {
       await tester.pumpAndSettle();
       final confirm = find.text('Confirm Shortlist');
       await tester.ensureVisible(confirm);
+      final update = Completer<void>();
+      h.source.sendUpdate = () => update.future;
       await tester.tap(confirm);
+      await tester.pump();
+      expect(h.source.updates.single.$1, id(101));
+      final requestsDuringUpdate = h.source.requests.length;
+      await tester.pump(const Duration(seconds: 15));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(h.source.requests, hasLength(requestsDuringUpdate));
+      h.source.rows = [
+        row(100),
+        {...row(101, name: 'Blake'), 'status': 'shortlisted'},
+      ];
+      update.complete();
       await tester.pumpAndSettle();
       expect(find.text('Application shortlisted'), findsOneWidget);
       expect(h.source.updates.single.$1, id(101));

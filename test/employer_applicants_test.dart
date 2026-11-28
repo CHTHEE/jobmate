@@ -182,10 +182,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('No applicants yet'), findsOneWidget);
     source.fetchApplicants = (_) async => [applicantRow('real')];
-    await tester.tap(find.byTooltip('Refresh applicants'));
+    final requestsBeforeRefresh = source.requests.length;
+    await tester.pump(const Duration(seconds: 14));
+    expect(source.requests, hasLength(requestsBeforeRefresh));
+    await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
+    expect(source.requests, hasLength(requestsBeforeRefresh + 1));
     expect(find.text('Alex Thee'), findsOneWidget);
     expect(find.text('No resume attached'), findsOneWidget);
+
+    source.fetchApplicants = (_) async =>
+        throw const PostgrestException(message: 'Unavailable', code: '503');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    expect(source.requests, hasLength(requestsBeforeRefresh + 1));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(source.requests, hasLength(requestsBeforeRefresh + 2));
+    expect(find.text('Alex Thee'), findsOneWidget);
+    expect(find.text('Unable to load applicants'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(seconds: 15));
+    expect(source.requests, hasLength(requestsBeforeRefresh + 2));
+    expect(tester.takeException(), isNull);
   });
   testWidgets('Search and exact status filters retain distinct records', (
     tester,

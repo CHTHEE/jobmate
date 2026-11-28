@@ -1053,6 +1053,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (width < 760) {
       return DropdownButtonFormField<MyAccountSection>(
         key: const ValueKey('my-account-mobile-section-navigation'),
+        isExpanded: true,
         initialValue: sections.contains(_selectedSection)
             ? _selectedSection
             : MyAccountSection.profile,
@@ -1065,7 +1066,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 children: [
                   Icon(section.icon, size: 20),
                   const SizedBox(width: 10),
-                  Text(section.label),
+                  Flexible(
+                    child: Text(section.label, overflow: TextOverflow.ellipsis),
+                  ),
                 ],
               ),
             ),
