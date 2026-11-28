@@ -10,6 +10,8 @@ import '../../shared/theme/jobmate_theme.dart';
 import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../chat/chat_application_button.dart';
+import '../disputes/dispute_context_action.dart';
+import '../disputes/dispute_submission_context.dart';
 import 'compensation_offer.dart';
 import 'module2_widgets.dart';
 import 'my_application_presentation.dart';
@@ -326,6 +328,22 @@ class _MyApplicationDetailsPageState extends State<MyApplicationDetailsPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: DisputeContextAction(
+                role: 'job_seeker',
+                enabled: !repo.responding && !confirming,
+                contextData: DisputeSubmissionContext(
+                  category: 'recruitment',
+                  relatedId: application.id,
+                  jobTitle: application.jobTitle,
+                  companyName: application.companyName,
+                  recordLabel:
+                      'Application status: ${application.status.label}',
+                ),
+                onSubmitted: () => repo.load(quietly: true),
+              ),
+            ),
             MyApplicationIdentity(
               application: application,
               titleStyle: theme.textTheme.headlineSmall?.copyWith(

@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+
+import '../disputes/dispute_context_action.dart';
+import '../disputes/dispute_submission_context.dart';
+import '../disputes/dispute_presentation.dart';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -390,13 +395,33 @@ class _WorkEvidencePageState extends State<WorkEvidencePage> {
                   ),
                 ),
               ),
-              Text(
-                shiftDetails
-                    ? 'Shift details'
-                    : repo.employer
-                    ? employerTitle
-                    : 'Work evidence',
-                style: Theme.of(context).textTheme.headlineMedium,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      shiftDetails
+                          ? 'Shift details'
+                          : repo.employer
+                          ? employerTitle
+                          : 'Work evidence',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                  ),
+                  if (!repo.loading && repo.error == null)
+                    if (repo.assignment case final assignment?)
+                      DisputeContextAction(
+                        role: repo.employer ? 'employer' : 'job_seeker',
+                        contextData: DisputeSubmissionContext(
+                          category: 'work',
+                          relatedId: assignment.assignmentId,
+                          jobTitle: assignment.jobTitle,
+                          companyName: worker?.companyName,
+                          workerName: repo.employer ? _workerName : null,
+                          recordLabel:
+                              'Shift starts ${disputeDateTime(assignment.scheduledStart)}',
+                        ),
+                      ),
+                ],
               ),
               const SizedBox(height: 8),
               if (!upcoming)

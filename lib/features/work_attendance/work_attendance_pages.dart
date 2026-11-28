@@ -9,6 +9,8 @@ import '../../shared/widgets/app_workspace.dart';
 import '../../shared/widgets/expandable_filter_bar.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../applications/module2_widgets.dart';
+import '../disputes/dispute_context_action.dart';
+import '../disputes/dispute_submission_context.dart';
 import 'work_attendance_models.dart';
 import 'work_attendance_repository.dart';
 import 'work_attendance_location_dialog.dart';
@@ -887,9 +889,28 @@ class _AssignmentCard extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  '${shiftDateLabel(row.scheduledStart)} · ${shiftTimeRange(row.scheduledStart, row.scheduledEnd)}',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${shiftDateLabel(row.scheduledStart)} · ${shiftTimeRange(row.scheduledStart, row.scheduledEnd)}',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    DisputeContextAction(
+                      role: 'job_seeker',
+                      enabled: enabled,
+                      contextData: DisputeSubmissionContext(
+                        category: 'work',
+                        relatedId: row.assignmentId,
+                        jobTitle: row.jobTitle,
+                        companyName: row.companyName,
+                        recordLabel:
+                            '${shiftDateLabel(row.scheduledStart)} · ${shiftTimeRange(row.scheduledStart, row.scheduledEnd)}',
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Wrap(
@@ -1125,6 +1146,17 @@ class _HistoryAssignmentCard extends StatelessWidget {
                                 'Scheduled: ${shiftTimeRange(row.scheduledStart, row.scheduledEnd)}',
                               ),
                             ],
+                          ),
+                        ),
+                        DisputeContextAction(
+                          role: 'job_seeker',
+                          contextData: DisputeSubmissionContext(
+                            category: 'work',
+                            relatedId: row.assignmentId,
+                            jobTitle: row.jobTitle,
+                            companyName: row.companyName,
+                            recordLabel:
+                                '${shiftDateLabel(row.scheduledStart)} · ${shiftTimeRange(row.scheduledStart, row.scheduledEnd)}',
                           ),
                         ),
                       ],

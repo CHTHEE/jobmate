@@ -12,6 +12,8 @@ import '../../shared/widgets/expandable_filter_bar.dart';
 import '../../shared/widgets/design_primitives.dart';
 import '../../shared/theme/jobmate_theme.dart';
 import 'employer_applicant_card.dart';
+import '../disputes/dispute_context_action.dart';
+import '../disputes/dispute_submission_context.dart';
 import '../jobs/job_preview.dart';
 import '../chat/chat_application_button.dart';
 import 'employer_applicants_repository.dart';
@@ -402,6 +404,19 @@ class _EmployerApplicantsPageState extends State<EmployerApplicantsPage>
                           applicant: applicant,
                           jobTitle: job['title'] as String,
                           updating: repo.updating,
+                          moreAction: DisputeContextAction(
+                            role: 'employer',
+                            enabled: !repo.updating,
+                            contextData: DisputeSubmissionContext(
+                              category: 'recruitment',
+                              relatedId: applicant.id,
+                              jobTitle: job['title'] as String,
+                              workerName: applicant.name,
+                              recordLabel:
+                                  'Application status: ${applicant.status.label}',
+                            ),
+                            onSubmitted: () => repo.load(quietly: true),
+                          ),
                           offerAvailable: canOfferForJob(
                             job,
                             versionedOffersEnabled:

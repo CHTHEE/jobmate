@@ -39,11 +39,13 @@ class RatingBreakdownRow extends StatelessWidget {
     required this.label,
     required this.rating,
     this.notObserved = false,
+    this.unratedLabel = 'No ratings',
   });
 
   final String label;
   final num? rating;
   final bool notObserved;
+  final String unratedLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -62,7 +64,7 @@ class RatingBreakdownRow extends StatelessWidget {
                 notObserved
                     ? 'Not Observed'
                     : score == null
-                    ? 'No ratings'
+                    ? unratedLabel
                     : formatRating(score),
               ),
             ],

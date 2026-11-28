@@ -9,6 +9,8 @@ abstract final class AppRoutes {
   static const terms = '/terms';
   static const privacy = '/privacy';
   static const profile = '/profile';
+  static const profileSectionParameter = 'section';
+  static const profileReputation = '$profile?section=reputation';
   static const company = '/company';
   static const jobPostings = '/job-postings';
   static const search = '/search';

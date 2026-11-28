@@ -10,6 +10,8 @@ import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/expandable_filter_bar.dart';
 import '../../shared/widgets/responsive_layout.dart';
 import '../applications/module2_widgets.dart';
+import '../disputes/dispute_context_action.dart';
+import '../disputes/dispute_submission_context.dart';
 import '../jobs/job_postings_repository.dart';
 import 'work_attendance_models.dart';
 import 'work_status_presentation.dart';
@@ -1493,6 +1495,16 @@ class _CompanyAssignmentCard extends StatelessWidget {
                         shiftTimeRange(row.scheduledStart, row.scheduledEnd),
                       ),
                     ],
+                  ),
+                ),
+                DisputeContextAction(
+                  role: 'employer',
+                  contextData: DisputeSubmissionContext(
+                    category: 'work',
+                    relatedId: row.assignmentId,
+                    jobTitle: row.jobTitle,
+                    recordLabel:
+                        '${shiftDateLabel(row.scheduledStart)} · ${shiftTimeRange(row.scheduledStart, row.scheduledEnd)}',
                   ),
                 ),
                 if (!futureWithoutRecords)

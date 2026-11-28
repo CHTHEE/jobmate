@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -7,9 +9,41 @@ import 'package:uuid/uuid.dart';
 
 import '../../shared/navigation/app_routes.dart';
 import '../../shared/widgets/app_workspace.dart';
+import '../../shared/widgets/design_primitives.dart';
 import '../../shared/widgets/expandable_filter_bar.dart';
+import '../../shared/widgets/responsive_layout.dart';
 import 'dispute_gateway.dart';
+import 'dispute_presentation.dart';
 import 'dispute_submit_dialog.dart';
+
+Future<void> showDisputeDetailsModal(
+  BuildContext context, {
+  required String disputeId,
+  required DisputeGateway gateway,
+  required String role,
+}) => showDialog<void>(
+  context: context,
+  builder: (dialogContext) {
+    final compact = MediaQuery.sizeOf(dialogContext).width < 600;
+    final page = DisputePage(
+      admin: false,
+      disputeId: disputeId,
+      gateway: gateway,
+      role: role,
+      embedded: true,
+    );
+    if (compact) return Dialog.fullscreen(child: page);
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
+        width: 920,
+        height: MediaQuery.sizeOf(dialogContext).height * .9,
+        child: page,
+      ),
+    );
+  },
+);
 
 class DisputePage extends StatefulWidget {
   const DisputePage({
@@ -22,6 +56,7 @@ class DisputePage extends StatefulWidget {
     this.relatedCases = relatedCasesEnabled,
     this.historicalClassification = historicalClassificationEnabled,
     this.groupedList = groupedDisputeListEnabled,
+    this.embedded = false,
   });
   final bool admin;
   final String? disputeId;
@@ -31,15 +66,15 @@ class DisputePage extends StatefulWidget {
   final bool relatedCases;
   final bool historicalClassification;
   final bool groupedList;
+  final bool embedded;
   @override
   State<DisputePage> createState() => _DisputePageState();
 }
 
-class _DisputePageState extends State<DisputePage> {
+class _DisputePageState extends State<DisputePage> with WidgetsBindingObserver {
   static const pageSize = 20;
   final TextEditingController _searchController = TextEditingController();
-  late final DisputeGateway gateway =
-      widget.gateway ?? SupabaseDisputeGateway(Supabase.instance.client);
+  late DisputeGateway gateway;
   String role = 'job_seeker';
   String accountStatus = 'active';
   bool loading = true,
@@ -65,11 +100,20 @@ class _DisputePageState extends State<DisputePage> {
   Map<String, dynamic>? historicalClassificationResult;
   String? incidentCaseError;
   String? relatedCasesError;
+  Timer? _refreshTimer;
+  StreamSubscription<AuthState>? _authSubscription;
+  String? _actor;
+  bool _loadInFlight = false;
+  bool _reloadAfterLoad = false;
+  bool _modalSessionEnded = false;
   String get root =>
       widget.admin ? AppRoutes.adminDisputes : AppRoutes.disputes;
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
+    _authSubscription?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -77,7 +121,68 @@ class _DisputePageState extends State<DisputePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    gateway =
+        widget.gateway ?? SupabaseDisputeGateway(Supabase.instance.client);
+    if (gateway case final SupabaseDisputeGateway source) {
+      final client = source.client;
+      _actor = client.auth.currentUser?.id;
+      _authSubscription = client.auth.onAuthStateChange.listen((event) {
+        final nextActor = event.session?.user.id;
+        if (nextActor == _actor) return;
+        _actor = nextActor;
+        _modalSessionEnded = widget.embedded;
+        gateway = SupabaseDisputeGateway(client);
+        if (!mounted) return;
+        setState(() {
+          rows = [];
+          detail = null;
+          history = [];
+          evidence = [];
+          evidenceEvents = [];
+          relatedCaseRows = [];
+          incidentCase = null;
+          historicalClassificationResult = null;
+          offset = 0;
+          loading = nextActor != null && !_modalSessionEnded;
+          error = _modalSessionEnded
+              ? 'Your account changed. Close and reopen Dispute Details.'
+              : nextActor == null
+              ? 'Sign in to view disputes.'
+              : null;
+        });
+        if (nextActor != null && !_modalSessionEnded) {
+          if (_loadInFlight) {
+            _reloadAfterLoad = true;
+          } else {
+            unawaited(_load());
+          }
+        }
+      });
+    }
     _load();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted &&
+          ModalRoute.isCurrentOf(context) != false &&
+          !_loadInFlight &&
+          !evidenceBusy &&
+          !incidentBusy &&
+          !relatedCasesBusy &&
+          !historicalClassificationBusy &&
+          !terminalBusy) {
+        unawaited(_load(quietly: true));
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        ModalRoute.isCurrentOf(context) != false &&
+        !_loadInFlight &&
+        !evidenceBusy) {
+      unawaited(_load(quietly: true));
+    }
   }
 
   @override
@@ -88,23 +193,40 @@ class _DisputePageState extends State<DisputePage> {
         oldWidget.structuredFinalization != widget.structuredFinalization ||
         oldWidget.relatedCases != widget.relatedCases ||
         oldWidget.historicalClassification != widget.historicalClassification ||
-        oldWidget.groupedList != widget.groupedList) {
+        oldWidget.groupedList != widget.groupedList ||
+        oldWidget.embedded != widget.embedded) {
       if (oldWidget.disputeId != widget.disputeId) {
         historicalClassificationResult = null;
       }
-      _load();
+      if (_loadInFlight) {
+        _reloadAfterLoad = true;
+      } else {
+        _load();
+      }
     }
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool quietly = false}) async {
+    if (_loadInFlight || _modalSessionEnded) return;
+    _loadInFlight = true;
+    final gateway = this.gateway;
+    final requestedId = widget.disputeId;
+    final requestedAdmin = widget.admin;
+    bool current() =>
+        mounted &&
+        identical(gateway, this.gateway) &&
+        requestedId == widget.disputeId &&
+        requestedAdmin == widget.admin;
     setState(() {
-      loading = true;
-      error = null;
+      if (!quietly) {
+        loading = true;
+        error = null;
+      }
     });
     try {
       var nextRole = widget.role;
       var nextStatus = 'active';
-      if (nextRole == null) {
+      if (nextRole == null || gateway is SupabaseDisputeGateway) {
         final client = Supabase.instance.client;
         final id = client.auth.currentUser?.id;
         if (id == null) throw StateError('Sign in to view disputes.');
@@ -119,7 +241,7 @@ class _DisputePageState extends State<DisputePage> {
         nextRole = profile['role'] as String;
         nextStatus = profile['status'] as String;
       }
-      final id = widget.disputeId;
+      final id = requestedId;
       final useGroupedList = id == null && widget.admin && widget.groupedList;
       final search = _searchController.text.trim();
       Future<List<Map<String, dynamic>>> loadGroupedPage(int pageOffset) =>
@@ -173,6 +295,7 @@ class _DisputePageState extends State<DisputePage> {
       Map<String, dynamic>? nextIncidentCase;
       String? nextIncidentCaseError;
       if (id != null &&
+          widget.admin &&
           (widget.groupedList ||
               widget.structuredFinalization ||
               widget.historicalClassification)) {
@@ -191,8 +314,9 @@ class _DisputePageState extends State<DisputePage> {
           nextRelatedCasesError = _relatedCaseReadError(error);
         }
       }
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
+        error = null;
         role = nextRole!;
         accountStatus = nextStatus;
         offset = resolvedOffset;
@@ -222,26 +346,52 @@ class _DisputePageState extends State<DisputePage> {
         relatedCasesError = nextRelatedCasesError;
       });
     } catch (_) {
-      if (mounted) {
-        setState(
-          () => error = 'Unable to load disputes. The dispute service may not be available yet.',
-        );
+      if (current()) {
+        setState(() {
+          rows = [];
+          detail = null;
+          history = [];
+          evidence = [];
+          evidenceEvents = [];
+          incidentCase = null;
+          relatedCaseRows = [];
+          historicalClassificationResult = null;
+          error = 'Unable to load disputes. Check your access and try again.';
+        });
       }
     } finally {
-      if (mounted) setState(() => loading = false);
+      _loadInFlight = false;
+      if (current()) setState(() => loading = false);
+      if (_reloadAfterLoad && mounted) {
+        _reloadAfterLoad = false;
+        unawaited(_load());
+      }
     }
   }
 
   Future<void> _edit({String? action}) async {
     if (action == null) {
-      final saved = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => DisputeSubmitDialog(gateway: gateway),
+      final disputeId = await showDisputeSubmitDialog(
+        context,
+        gateway: gateway,
       );
-      if (saved == true && mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Dispute submitted.')));
+      if (disputeId != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Dispute submitted successfully.'),
+            action: widget.admin
+                ? null
+                : SnackBarAction(
+                    label: 'View dispute',
+                    onPressed: () => showDisputeDetailsModal(
+                      context,
+                      disputeId: disputeId,
+                      gateway: gateway,
+                      role: role,
+                    ),
+                  ),
+          ),
+        );
         offset = 0;
         await _load();
       }
@@ -1161,9 +1311,111 @@ class _DisputePageState extends State<DisputePage> {
     );
   }
 
+  Future<void> _openDispute(Map<String, dynamic> row) async {
+    final id = row['dispute_id'] as String;
+    if (widget.admin) {
+      context.go('$root/$id');
+      return;
+    }
+    await showDisputeDetailsModal(
+      context,
+      disputeId: id,
+      gateway: gateway,
+      role: role,
+    );
+    if (mounted) await _load(quietly: true);
+  }
+
+  Widget _disputeCard(Map<String, dynamic> row) => Card.outlined(
+    margin: EdgeInsets.zero,
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: () => _openDispute(row),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final identity = Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.gavel_outlined),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        disputeCategoryLabel(row['category']),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                );
+                final badge = DisputeStatusBadge(row['status'] as String?);
+                if (constraints.maxWidth < 430) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [identity, const SizedBox(height: 8), badge],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: identity),
+                    const SizedBox(width: 12),
+                    badge,
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Icon(Icons.schedule_outlined, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Submitted ${disputeDateTime(row['created_at'])}',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton.icon(
+                onPressed: () => _openDispute(row),
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: const Text('View dispute'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final status = detail?['status'] as String?;
+    final terminal = status == 'resolved' || status == 'rejected';
+    final decision = terminal
+        ? history
+              .where(
+                (event) =>
+                    event['new_status'] == status &&
+                    const {'resolve', 'reject'}.contains(event['action']),
+              )
+              .firstOrNull
+        : null;
     final currentIncidentId = incidentCase?['incident_id'] as String?;
     final incidentLinked =
         currentIncidentId != null && currentIncidentId.isNotEmpty;
@@ -1177,245 +1429,369 @@ class _DisputePageState extends State<DisputePage> {
           'pending_information',
         }.contains(status) &&
         (accountStatus == 'active' || status == 'pending_information');
+    final pageBody = Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: widget.disputeId == null ? 1360 : 1000,
+        ),
+        child: Padding(
+          padding: ResponsiveLayout.pagePadding(context),
+          child: loading
+              ? const Center(child: CircularProgressIndicator())
+              : error != null
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(error!),
+                    if (!_modalSessionEnded)
+                      TextButton(onPressed: _load, child: const Text('Retry')),
+                  ],
+                )
+              : ListView(
+                  children: [
+                    if (widget.disputeId == null) ...[
+                      if (!widget.admin)
+                        PageHeading(
+                          title: 'My Disputes',
+                          description: 'Track submitted cases, review updates and provide requested information.',
+                          actions: [
+                            if (accountStatus == 'active')
+                              FilledButton.icon(
+                                onPressed: () => _edit(),
+                                icon: const Icon(Icons.add),
+                                label: const Text('Submit dispute'),
+                              ),
+                          ],
+                        ),
+                      if (widget.admin && widget.groupedList) ...[
+                        _groupedListControls(),
+                        const SizedBox(height: 12),
+                      ],
+                      if (rows.isEmpty)
+                        const WorkspaceCard(
+                          title: 'No disputes yet',
+                          child: Text(
+                            'Submitted disputes and their progress will appear here.',
+                          ),
+                        ),
+                      if (widget.admin && widget.groupedList)
+                        for (final row in rows) _groupedListRow(row)
+                      else
+                        ResponsiveGrid(
+                          minItemWidth: 420,
+                          maxColumns: 2,
+                          equalRowHeight: true,
+                          children: [for (final row in rows) _disputeCard(row)],
+                        ),
+                      if (widget.admin && widget.groupedList && rows.isNotEmpty)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            'Showing rows ${offset + 1}–${offset + rows.length} of $totalCount · $totalDisputeCount disputes',
+                          ),
+                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: offset == 0
+                                ? null
+                                : () {
+                                    offset -= pageSize;
+                                    _load();
+                                  },
+                            child: const Text('Previous'),
+                          ),
+                          TextButton(
+                            onPressed: !hasMore
+                                ? null
+                                : () {
+                                    offset += pageSize;
+                                    _load();
+                                  },
+                            child: const Text('Next'),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  disputeCategoryLabel(detail?['category']),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall,
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Submitted ${disputeDateTime(detail?['created_at'])}',
+                                ),
+                              ],
+                            ),
+                          ),
+                          DisputeStatusBadge(status),
+                        ],
+                      ),
+                      if (!widget.embedded)
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: TextButton.icon(
+                            onPressed: () => context.go(root),
+                            icon: const Icon(Icons.arrow_back),
+                            label: const Text('All disputes'),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      _DisputeSection(
+                        title: 'Case progress',
+                        icon: Icons.route_outlined,
+                        child: DisputeProgress(
+                          status: status,
+                          history: history,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _DisputeSection(
+                        title: 'Submitted description',
+                        icon: Icons.description_outlined,
+                        child: Text('${detail?['description'] ?? ''}'),
+                      ),
+                      if (widget.admin &&
+                          (widget.groupedList ||
+                              widget.structuredFinalization)) ...[
+                        const SizedBox(height: 16),
+                        _incidentCaseSection(),
+                        const SizedBox(height: 12),
+                      ],
+                      if (widget.admin &&
+                          widget.historicalClassification &&
+                          const {'resolved', 'rejected'}.contains(status)) ...[
+                        const SizedBox(height: 4),
+                        _historicalFindingSection(),
+                        const SizedBox(height: 12),
+                      ],
+                      if (widget.admin && widget.relatedCases) ...[
+                        const SizedBox(height: 4),
+                        _relatedCasesSection(),
+                        const SizedBox(height: 12),
+                      ],
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          if (widget.admin && status == 'open')
+                            FilledButton(
+                              onPressed: () => _edit(action: 'investigate'),
+                              child: const Text('Start investigation'),
+                            ),
+                          if (widget.admin && status == 'investigating') ...[
+                            OutlinedButton(
+                              onPressed: () =>
+                                  _edit(action: 'request_information'),
+                              child: const Text('Request information'),
+                            ),
+                            if (widget.structuredFinalization) ...[
+                              FilledButton(
+                                onPressed:
+                                    terminalBusy || !structuredFinalizationReady
+                                    ? null
+                                    : () => _terminalAction('resolve'),
+                                child: const Text('Resolve'),
+                              ),
+                              OutlinedButton(
+                                onPressed:
+                                    terminalBusy || !structuredFinalizationReady
+                                    ? null
+                                    : () => _terminalAction('reject'),
+                                child: const Text('Reject'),
+                              ),
+                            ] else
+                              const Text(
+                                'Resolve and Reject require Structured Finalization to be enabled for this Debug build.',
+                              ),
+                            if (terminalBusy) const Text('Checking incident…'),
+                          ],
+                          if (!widget.admin && status == 'pending_information')
+                            FilledButton(
+                              onPressed: () =>
+                                  _edit(action: 'respond_information'),
+                              child: const Text('Submit information'),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _DisputeSection(
+                        title: 'Supporting evidence',
+                        icon: Icons.attach_file,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (evidence.isEmpty)
+                              const Text('No evidence submitted.'),
+                            for (final item in evidence)
+                              ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                leading: Icon(
+                                  item['mime_type'] == 'application/pdf'
+                                      ? Icons.picture_as_pdf_outlined
+                                      : Icons.image_outlined,
+                                  size: 20,
+                                ),
+                                title: Text('${item['original_name']}'),
+                                subtitle: Text(
+                                  '${_evidenceType(item['mime_type'])} · ${item['size_bytes']} bytes · ${disputeDateTime(item['submitted_at'])}',
+                                ),
+                                trailing: const Icon(
+                                  Icons.open_in_new,
+                                  size: 20,
+                                ),
+                                onTap: () => _openEvidence(
+                                  item['storage_path'] as String,
+                                ),
+                              ),
+                            if (canAddEvidence)
+                              Align(
+                                alignment: AlignmentDirectional.centerStart,
+                                child: TextButton.icon(
+                                  onPressed: evidenceBusy
+                                      ? null
+                                      : _uploadEvidence,
+                                  icon: const Icon(Icons.attach_file, size: 20),
+                                  label: Text(
+                                    evidenceBusy
+                                        ? 'Uploading…'
+                                        : 'Add evidence',
+                                  ),
+                                ),
+                              ),
+                            if (evidenceEvents.isNotEmpty) ...[
+                              const Divider(),
+                              Text(
+                                'Evidence submission history',
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                              const SizedBox(height: 8),
+                              DisputeActivityTimeline(
+                                events: evidenceEvents,
+                                evidence: true,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _DisputeSection(
+                        title: 'Dispute history',
+                        icon: Icons.history,
+                        child: DisputeActivityTimeline(events: history),
+                      ),
+                      if (terminal) ...[
+                        const SizedBox(height: 16),
+                        _DisputeSection(
+                          title: 'Resolution details',
+                          icon: Icons.gavel_outlined,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(disputeStatusLabel(status)),
+                              if (decision?['created_at'] != null)
+                                Text(disputeDateTime(decision!['created_at'])),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+        ),
+      ),
+    );
+    if (widget.embedded) {
+      return Material(
+        color: Theme.of(context).colorScheme.surface,
+        child: SafeArea(
+          child: Column(
+            children: [
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: IconButton(
+                  tooltip: 'Close dispute details',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ),
+              Expanded(child: pageBody),
+            ],
+          ),
+        ),
+      );
+    }
     return AppWorkspace(
       title: widget.admin ? 'Dispute management' : 'My disputes',
       path: root,
       role: widget.admin ? 'administrator' : role,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1000),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: loading
-                ? const Center(child: CircularProgressIndicator())
-                : error != null
-                ? Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(error!),
-                      TextButton(onPressed: _load, child: const Text('Retry')),
-                    ],
-                  )
-                : ListView(
-                    children: [
-                      if (widget.disputeId == null) ...[
-                        if (widget.admin && widget.groupedList) ...[
-                          _groupedListControls(),
-                          const SizedBox(height: 12),
-                        ],
-                        if (!widget.admin && accountStatus == 'active')
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: FilledButton.icon(
-                              onPressed: () => _edit(),
-                              icon: const Icon(Icons.add),
-                              label: const Text('Submit dispute'),
-                            ),
-                          ),
-                        if (rows.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Text('No disputes found.'),
-                          ),
-                        if (widget.admin && widget.groupedList)
-                          for (final row in rows) _groupedListRow(row)
-                        else
-                          for (final row in rows)
-                            Card(
-                              child: ListTile(
-                                title: Text('${row['category']} dispute'),
-                                subtitle: Text(
-                                  '${row['status']} · ${row['created_at']}',
-                                ),
-                                trailing: const Icon(Icons.chevron_right),
-                                onTap: () =>
-                                    context.go('$root/${row['dispute_id']}'),
-                              ),
-                            ),
-                        if (widget.admin &&
-                            widget.groupedList &&
-                            rows.isNotEmpty)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              'Showing rows ${offset + 1}–${offset + rows.length} of $totalCount · $totalDisputeCount disputes',
-                            ),
-                          ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
-                              onPressed: offset == 0
-                                  ? null
-                                  : () {
-                                      offset -= pageSize;
-                                      _load();
-                                    },
-                              child: const Text('Previous'),
-                            ),
-                            TextButton(
-                              onPressed: !hasMore
-                                  ? null
-                                  : () {
-                                      offset += pageSize;
-                                      _load();
-                                    },
-                              child: const Text('Next'),
-                            ),
-                          ],
-                        ),
-                      ] else ...[
-                        TextButton.icon(
-                          onPressed: () => context.go(root),
-                          icon: const Icon(Icons.arrow_back),
-                          label: const Text('All disputes'),
-                        ),
-                        Text(
-                          '${detail?['category']} dispute',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                        Text('Status: $status'),
-                        const SizedBox(height: 12),
-                        Text('${detail?['description'] ?? ''}'),
-                        if (widget.groupedList ||
-                            widget.structuredFinalization) ...[
-                          const SizedBox(height: 16),
-                          _incidentCaseSection(),
-                          const SizedBox(height: 12),
-                        ],
-                        if (widget.admin &&
-                            widget.historicalClassification &&
-                            const {
-                              'resolved',
-                              'rejected',
-                            }.contains(status)) ...[
-                          const SizedBox(height: 4),
-                          _historicalFindingSection(),
-                          const SizedBox(height: 12),
-                        ],
-                        if (widget.admin && widget.relatedCases) ...[
-                          const SizedBox(height: 4),
-                          _relatedCasesSection(),
-                          const SizedBox(height: 12),
-                        ],
-                        Wrap(
-                          spacing: 8,
-                          children: [
-                            if (widget.admin && status == 'open')
-                              FilledButton(
-                                onPressed: () => _edit(action: 'investigate'),
-                                child: const Text('Start investigation'),
-                              ),
-                            if (widget.admin && status == 'investigating') ...[
-                              OutlinedButton(
-                                onPressed: () =>
-                                    _edit(action: 'request_information'),
-                                child: const Text('Request information'),
-                              ),
-                              if (widget.structuredFinalization) ...[
-                                FilledButton(
-                                  onPressed:
-                                      terminalBusy ||
-                                          !structuredFinalizationReady
-                                      ? null
-                                      : () => _terminalAction('resolve'),
-                                  child: const Text('Resolve'),
-                                ),
-                                OutlinedButton(
-                                  onPressed:
-                                      terminalBusy ||
-                                          !structuredFinalizationReady
-                                      ? null
-                                      : () => _terminalAction('reject'),
-                                  child: const Text('Reject'),
-                                ),
-                              ] else
-                                const Text(
-                                  'Resolve and Reject require Structured Finalization to be enabled for this Debug build.',
-                                ),
-                              if (terminalBusy)
-                                const Text('Checking incident…'),
-                            ],
-                            if (!widget.admin &&
-                                status == 'pending_information')
-                              FilledButton(
-                                onPressed: () =>
-                                    _edit(action: 'respond_information'),
-                                child: const Text('Submit information'),
-                              ),
-                            if (canAddEvidence)
-                              OutlinedButton.icon(
-                                onPressed: evidenceBusy
-                                    ? null
-                                    : _uploadEvidence,
-                                icon: const Icon(Icons.attach_file),
-                                label: Text(
-                                  evidenceBusy ? 'Uploading…' : 'Add evidence',
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          'Evidence',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        if (evidence.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                            child: Text('No evidence has been submitted.'),
-                          ),
-                        for (final item in evidence)
-                          Card.outlined(
-                            child: ListTile(
-                              leading: Icon(
-                                item['mime_type'] == 'application/pdf'
-                                    ? Icons.picture_as_pdf_outlined
-                                    : Icons.image_outlined,
-                              ),
-                              title: Text('${item['original_name']}'),
-                              subtitle: Text(
-                                '${item['size_bytes']} bytes · ${item['submitted_at']}',
-                              ),
-                              trailing: const Icon(Icons.open_in_new),
-                              onTap: () =>
-                                  _openEvidence(item['storage_path'] as String),
-                            ),
-                          ),
-                        if (evidenceEvents.isNotEmpty) ...[
-                          Text(
-                            'Evidence submission history',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          for (final event in evidenceEvents)
-                            ListTile(
-                              dense: true,
-                              title: Text('${event['action']}'),
-                              subtitle: Text('${event['created_at']}'),
-                            ),
-                        ],
-                        const SizedBox(height: 20),
-                        Text(
-                          'History',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        for (final event in history)
-                          ListTile(
-                            title: Text(
-                              '${event['action']} · ${event['new_status']}',
-                            ),
-                            subtitle: Text(
-                              '${event['note'] ?? ''}\n${event['created_at']}',
-                            ),
-                          ),
-                      ],
-                    ],
-                  ),
-          ),
-        ),
-      ),
+      child: pageBody,
     );
   }
+}
+
+String _evidenceType(Object? mimeType) => switch (mimeType) {
+  'application/pdf' => 'PDF',
+  'image/jpeg' => 'JPEG',
+  'image/png' => 'PNG',
+  'image/webp' => 'WebP',
+  _ => 'Attachment',
+};
+
+class _DisputeSection extends StatelessWidget {
+  const _DisputeSection({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
+
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Card.outlined(
+    margin: EdgeInsets.zero,
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    ),
+  );
 }
 
 class _IncidentLinkDialog extends StatefulWidget {

@@ -2,6 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+Future<void> toggleWorkspaceFilters(WidgetTester tester) async {
+  final toggle = find.byKey(const ValueKey('workspace-filters-toggle'));
+  await tester.ensureVisible(toggle);
+  await tester.tap(toggle);
+  await tester.pumpAndSettle();
+}
+
 /// Exercise the actual platform menu, rather than assuming width is platform.
 Future<void> openWorkspaceMenu(WidgetTester tester) async {
   if (find.byKey(const ValueKey('workspace-sidebar')).evaluate().isNotEmpty) {

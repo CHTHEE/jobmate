@@ -52,6 +52,9 @@ class ReputationContent extends StatefulWidget {
     this.showPageHeading = false,
     this.gateway,
     this.sessionSource,
+    this.refreshToken = 0,
+    this.workerLayout,
+    this.onViewFull,
   });
 
   final bool employer;
@@ -60,6 +63,9 @@ class ReputationContent extends StatefulWidget {
   final bool showPageHeading;
   final ReputationGateway? gateway;
   final ReputationSessionSource? sessionSource;
+  final int refreshToken;
+  final Widget Function(Widget compact, Widget full)? workerLayout;
+  final VoidCallback? onViewFull;
 
   @override
   State<ReputationContent> createState() => _ReputationContentState();
@@ -120,9 +126,33 @@ class _ReputationContentState extends State<ReputationContent> {
     }
     final generation = ++_requestGeneration;
     final actorId = _actorId;
-    final result = widget.employer
-        ? await _gateway.companySummaries()
-        : await _gateway.workerSummary();
+    Object result;
+    if (widget.employer) {
+      result = await _gateway.companySummaries();
+    } else {
+      final summary = await _gateway.workerSummary();
+      var criteria = const <Map<String, dynamic>>[];
+      var recentEvaluations = const <Map<String, dynamic>>[];
+      var additionalSkills = const <Map<String, dynamic>>[];
+      if (_gateway is ReputationCriteriaGateway) {
+        try {
+          final data = await (_gateway as ReputationCriteriaGateway)
+              .workerPublishedData();
+          criteria = data.criteria;
+          recentEvaluations = data.recentEvaluations;
+          additionalSkills = data.additionalSkills;
+        } catch (_) {
+          // The verified score remains usable when the optional criterion
+          // projection is unavailable. Never manufacture chart values.
+        }
+      }
+      result = {
+        ...summary,
+        'criteria_averages': criteria,
+        'recent_evaluations': recentEvaluations,
+        'additional_skill_averages': additionalSkills,
+      };
+    }
     if (generation != _requestGeneration ||
         _sessionInvalid ||
         (_sessionSource != null &&
@@ -141,6 +171,10 @@ class _ReputationContentState extends State<ReputationContent> {
         oldWidget.sessionSource != widget.sessionSource) {
       _requestGeneration++;
       _configure();
+    } else if (oldWidget.refreshToken != widget.refreshToken &&
+        !_sessionInvalid) {
+      _requestGeneration++;
+      _summary = _load();
     }
   }
 
@@ -188,15 +222,7 @@ class _ReputationContentState extends State<ReputationContent> {
           row: snapshot.data! as Map<String, dynamic>,
         );
       }
-      final refresh = TextButton.icon(
-        onPressed:
-            !_sessionInvalid && snapshot.connectionState == ConnectionState.done
-            ? _retry
-            : null,
-        icon: const Icon(Icons.refresh),
-        label: const Text('Refresh reputation'),
-      );
-      return Column(
+      final full = Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -206,10 +232,7 @@ class _ReputationContentState extends State<ReputationContent> {
               description: widget.employer
                   ? 'Published worker feedback for the companies you manage.'
                   : 'Published company feedback and your verified work.',
-              actions: [if (widget.interactive) refresh],
-            )
-          else if (widget.interactive)
-            Align(alignment: Alignment.centerRight, child: refresh),
+            ),
           if (!_sessionInvalid && snapshot.hasError)
             Align(
               alignment: Alignment.centerLeft,
@@ -227,7 +250,7 @@ class _ReputationContentState extends State<ReputationContent> {
             Wrap(
               spacing: 12,
               children: [
-                if (widget.showPageHeading)
+                if (!widget.employer)
                   TextButton.icon(
                     onPressed: () {
                       final route = widget.employer
@@ -236,7 +259,7 @@ class _ReputationContentState extends State<ReputationContent> {
                       context.go('$route?view=received');
                     },
                     icon: const Icon(Icons.rate_review_outlined),
-                    label: const Text('View received evaluations'),
+                    label: const Text('View all received evaluations'),
                   ),
                 TextButton.icon(
                   onPressed: () => showDialog<void>(
@@ -266,6 +289,18 @@ class _ReputationContentState extends State<ReputationContent> {
             ),
         ],
       );
+      final layout = widget.workerLayout;
+      if (widget.employer || layout == null) return full;
+      final compact =
+          !_sessionInvalid &&
+              snapshot.connectionState == ConnectionState.done &&
+              !snapshot.hasError
+          ? CompactWorkerReputationSummary(
+              row: snapshot.data! as Map<String, dynamic>,
+              onViewFull: widget.interactive ? widget.onViewFull : null,
+            )
+          : full;
+      return layout(compact, full);
     },
   );
 

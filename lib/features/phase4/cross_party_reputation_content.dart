@@ -166,7 +166,7 @@ class _CrossPartyReputationContentState
           if (_company)
             CompanyReputationSummary(row: snapshot.data!)
           else
-            WorkerReputationSummary(row: snapshot.data!),
+            CompactWorkerReputationSummary(row: snapshot.data!),
         ],
       );
     },

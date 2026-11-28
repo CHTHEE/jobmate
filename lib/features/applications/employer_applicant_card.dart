@@ -20,10 +20,12 @@ class EmployerApplicantCard extends StatelessWidget {
     required this.updating,
     this.offerAvailable = true,
     required this.onTransition,
+    this.moreAction,
   });
   final JobApplicant applicant;
   final String jobTitle;
   final Widget profileAction, messageAction;
+  final Widget? moreAction;
   final Widget? resumeAction;
   final bool updating;
   final bool offerAvailable;
@@ -104,7 +106,16 @@ class EmployerApplicantCard extends StatelessWidget {
                         480 * MediaQuery.textScalerOf(context).scale(14) / 14) {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [identity, const SizedBox(height: 6), badge],
+                        children: [
+                          identity,
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Expanded(child: badge),
+                              ?moreAction,
+                            ],
+                          ),
+                        ],
                       );
                     }
                     return Row(
@@ -113,6 +124,10 @@ class EmployerApplicantCard extends StatelessWidget {
                         Expanded(child: identity),
                         const SizedBox(width: 12),
                         badge,
+                        if (moreAction != null) ...[
+                          const SizedBox(width: 4),
+                          moreAction!,
+                        ],
                       ],
                     );
                   },

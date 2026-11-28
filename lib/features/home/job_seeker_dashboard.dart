@@ -348,7 +348,10 @@ class _JobSeekerDashboardState extends State<JobSeekerDashboard> {
                 context,
                 'My Reputation',
                 'View details',
-                () => _open(AppRoutes.reputation, onReturn: _loadReputation),
+                () => _open(
+                  AppRoutes.profileReputation,
+                  onReturn: _loadReputation,
+                ),
               ),
               _reputationCard(context),
             ],

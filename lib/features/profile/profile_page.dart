@@ -21,11 +21,31 @@ import 'package:mime/mime.dart';
 import 'job_seeker_profile_sections.dart';
 import 'employer_profile_sections.dart';
 
-enum MyAccountSection { profile, payment, security, notifications }
+enum MyAccountSection { profile, reputation, payment, security, notifications }
+
+MyAccountSection myAccountSectionFromName(String? value) => switch (value) {
+  'reputation' => MyAccountSection.reputation,
+  'payment' => MyAccountSection.payment,
+  'security' => MyAccountSection.security,
+  'notifications' => MyAccountSection.notifications,
+  _ => MyAccountSection.profile,
+};
+
+List<MyAccountSection> myAccountSectionsForRole(
+  String role, {
+  bool paymentDetailsEnabled = paymentRecipientSimulationEnabled,
+}) => [
+  MyAccountSection.profile,
+  if (role == 'job_seeker') MyAccountSection.reputation,
+  if (role == 'job_seeker' && paymentDetailsEnabled) MyAccountSection.payment,
+  MyAccountSection.security,
+  MyAccountSection.notifications,
+];
 
 extension on MyAccountSection {
   String get label => switch (this) {
     MyAccountSection.profile => 'Personal profile',
+    MyAccountSection.reputation => 'Reputation',
     MyAccountSection.payment => 'Payment details',
     MyAccountSection.security => 'Account & security',
     MyAccountSection.notifications => 'Notifications',
@@ -33,6 +53,7 @@ extension on MyAccountSection {
 
   IconData get icon => switch (this) {
     MyAccountSection.profile => Icons.person_outline,
+    MyAccountSection.reputation => Icons.insights_outlined,
     MyAccountSection.payment => Icons.account_balance_wallet_outlined,
     MyAccountSection.security => Icons.lock_outline,
     MyAccountSection.notifications => Icons.notifications_outlined,
@@ -65,6 +86,9 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _isSigningOut = false;
   bool _confirmingExit = false;
   late MyAccountSection _selectedSection = widget.initialSection;
+  int _reputationRefreshToken = 0;
+  late bool _reputationHasBeenOpened =
+      widget.initialSection == MyAccountSection.reputation;
 
   String _savedName = '';
   String _savedPhone = '';
@@ -88,13 +112,7 @@ class _ProfilePageState extends State<ProfilePage> {
       (_nameController.text.trim() != _savedName ||
           _phoneController.text.trim() != _savedPhone);
 
-  List<MyAccountSection> get _sections => [
-    MyAccountSection.profile,
-    if (_role == 'job_seeker' && paymentRecipientSimulationEnabled)
-      MyAccountSection.payment,
-    MyAccountSection.security,
-    MyAccountSection.notifications,
-  ];
+  List<MyAccountSection> get _sections => myAccountSectionsForRole(_role);
 
   static const _profileColumns =
       'name, phone_num, status, role, verification_status,'
@@ -812,11 +830,20 @@ class _ProfilePageState extends State<ProfilePage> {
 
   void _selectSection(MyAccountSection section) {
     if (_sections.contains(section) && section != _selectedSection) {
-      setState(() => _selectedSection = section);
+      setState(() {
+        _selectedSection = section;
+        if (section == MyAccountSection.reputation) {
+          if (_reputationHasBeenOpened) {
+            _reputationRefreshToken++;
+          } else {
+            _reputationHasBeenOpened = true;
+          }
+        }
+      });
     }
   }
 
-  Widget _buildProfileSection() {
+  Widget _buildProfileSection([Widget? reputation]) {
     final details = Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -824,7 +851,10 @@ class _ProfilePageState extends State<ProfilePage> {
         child: _buildPersonalDetails(),
       ),
     );
-    final sections = <Widget>[details];
+    final sections = <Widget>[
+      if (reputation != null) ...[reputation, const SizedBox(height: 16)],
+      details,
+    ];
     if (_role == 'job_seeker') {
       final userId = _supabase.auth.currentUser?.id;
       if (userId != null) {
@@ -890,19 +920,13 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       ]);
     }
-    if (_role == 'job_seeker') {
+    if (_role == 'job_seeker' && jobSeekerTrustScoreEnabled) {
       sections.addAll([
         const SizedBox(height: 20),
-        ReputationContent(interactive: !_isEditing && !_isBusy),
+        JobSeekerTrustScoreSection(
+          isActiveJobSeeker: _accountStatus == 'active',
+        ),
       ]);
-      if (jobSeekerTrustScoreEnabled) {
-        sections.addAll([
-          const SizedBox(height: 20),
-          JobSeekerTrustScoreSection(
-            isActiveJobSeeker: _accountStatus == 'active',
-          ),
-        ]);
-      }
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -988,18 +1012,31 @@ class _ProfilePageState extends State<ProfilePage> {
   );
 
   Widget _buildSectionContent() {
-    final sections = _sections;
-    if (!sections.contains(_selectedSection)) {
-      _selectedSection = MyAccountSection.profile;
+    if (_role == 'job_seeker') {
+      return ReputationContent(
+        interactive: !_isEditing && !_isBusy,
+        refreshToken: _reputationRefreshToken,
+        onViewFull: () => _selectSection(MyAccountSection.reputation),
+        workerLayout: (compact, full) => _buildSectionStack(compact, full),
+      );
     }
+    return _buildSectionStack(null, null);
+  }
+
+  Widget _buildSectionStack(Widget? compact, Widget? full) {
+    final sections = _sections;
+    final selectedSection = sections.contains(_selectedSection)
+        ? _selectedSection
+        : MyAccountSection.profile;
     return IndexedStack(
-      index: sections.indexOf(_selectedSection),
+      index: sections.indexOf(selectedSection),
       children: [
         for (final section in sections)
           KeyedSubtree(
             key: ValueKey('my-account-section-${section.name}'),
             child: switch (section) {
-              MyAccountSection.profile => _buildProfileSection(),
+              MyAccountSection.profile => _buildProfileSection(compact),
+              MyAccountSection.reputation => full ?? const SizedBox.shrink(),
               MyAccountSection.payment => PaymentRecipientSettings(
                 gateway: _paymentGateway,
               ),

@@ -244,10 +244,9 @@ GoRouter _createRouter() {
           ),
         ),
       ),
-      _appRoute(
-        AppRoutes.reputation,
-        (_, _) =>
-            const Module2Gate(role: 'job_seeker', child: ReputationPage()),
+      GoRoute(
+        path: AppRoutes.reputation,
+        redirect: (_, _) => AppRoutes.profileReputation,
       ),
       _appRoute(
         AppRoutes.employerReputation,
@@ -522,7 +521,14 @@ GoRouter _createRouter() {
       ),
       jobFormRoute(AppRoutes.createJob),
       jobFormRoute('${AppRoutes.jobPostings}/:jobId/edit'),
-      _appRoute(AppRoutes.profile, (context, state) => const ProfilePage()),
+      _appRoute(
+        AppRoutes.profile,
+        (context, state) => ProfilePage(
+          initialSection: myAccountSectionFromName(
+            state.uri.queryParameters[AppRoutes.profileSectionParameter],
+          ),
+        ),
+      ),
       _appRoute(
         AppRoutes.company,
         (context, state) => const CreateCompanyPage(),

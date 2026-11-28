@@ -119,11 +119,7 @@ class _WorkspaceAccountMenuState extends State<WorkspaceAccountMenu> {
           case _AccountAction.account:
             widget.onNavigate(AppRoutes.profile);
           case _AccountAction.reputation:
-            widget.onNavigate(
-              widget.role == 'employer'
-                  ? AppRoutes.employerReputation
-                  : AppRoutes.reputation,
-            );
+            widget.onNavigate(AppRoutes.employerReputation);
           case _AccountAction.signOut:
             _signOut();
         }

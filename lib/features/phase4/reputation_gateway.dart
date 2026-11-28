@@ -5,6 +5,22 @@ abstract interface class ReputationGateway {
   Future<List<Map<String, dynamic>>> companySummaries();
 }
 
+abstract interface class ReputationCriteriaGateway {
+  Future<WorkerPublishedReputationData> workerPublishedData();
+}
+
+class WorkerPublishedReputationData {
+  const WorkerPublishedReputationData({
+    required this.criteria,
+    required this.recentEvaluations,
+    this.additionalSkills = const [],
+  });
+
+  final List<Map<String, dynamic>> criteria;
+  final List<Map<String, dynamic>> recentEvaluations;
+  final List<Map<String, dynamic>> additionalSkills;
+}
+
 abstract interface class ReputationSessionSource {
   String? get currentUserId;
   Stream<String?> get userIdChanges;
@@ -50,7 +66,8 @@ List<Map<String, dynamic>> companyReputationSummariesFromRpc(dynamic result) {
       .toList(growable: false);
 }
 
-class SupabaseReputationGateway implements ReputationGateway {
+class SupabaseReputationGateway
+    implements ReputationGateway, ReputationCriteriaGateway {
   SupabaseReputationGateway(this.client)
     : _actorId = client.auth.currentUser?.id;
 
@@ -79,6 +96,144 @@ class SupabaseReputationGateway implements ReputationGateway {
       companyReputationSummariesFromRpc(
         await _rpc('get_my_company_reputation'),
       );
+
+  @override
+  Future<WorkerPublishedReputationData> workerPublishedData() async {
+    final result = await _rpc('list_my_application_soft_skill_evaluations');
+    if (result is! List) {
+      throw const FormatException('Evaluation history is unavailable.');
+    }
+    final history = result
+        .map((value) {
+          if (value is! Map) {
+            throw const FormatException('Invalid evaluation history row.');
+          }
+          return Map<String, dynamic>.from(value);
+        })
+        .toList(growable: false);
+    return WorkerPublishedReputationData(
+      criteria: aggregatePublishedCoreCriteria(history),
+      recentEvaluations: recentPublishedReceivedEvaluations(history),
+      additionalSkills: aggregatePublishedComparableWorkerSkills(history),
+    );
+  }
+}
+
+List<Map<String, dynamic>> recentPublishedReceivedEvaluations(
+  Iterable<Map<String, dynamic>> history, {
+  int limit = 3,
+}) {
+  final rows = history.toList(growable: false);
+  final companyLabelsByApplication = <String, String>{};
+  for (final evaluation in rows) {
+    if (evaluation['given_by_me'] != true ||
+        evaluation['direction'] != 'worker_to_company') {
+      continue;
+    }
+    final applicationId = evaluation['application_id'];
+    final targetLabel = evaluation['target_label'];
+    if (applicationId is String &&
+        applicationId.isNotEmpty &&
+        targetLabel is String &&
+        targetLabel.trim().isNotEmpty) {
+      companyLabelsByApplication[applicationId] = targetLabel.trim();
+    }
+  }
+  final result = <Map<String, dynamic>>[];
+  for (final evaluation in rows) {
+    if (evaluation['given_by_me'] == true ||
+        evaluation['both_parties_submitted'] != true) {
+      continue;
+    }
+    final average = evaluation['core_average'];
+    final submittedAt = evaluation['submitted_at'];
+    final applicationId = evaluation['application_id'];
+    result.add({
+      'job_title': '${evaluation['job_title'] ?? 'Job'}',
+      'company_label': applicationId is String
+          ? companyLabelsByApplication[applicationId]
+          : null,
+      'submitted_at': submittedAt is String ? submittedAt : null,
+      'core_average': average is num && average.isFinite ? average : null,
+    });
+    if (result.length == limit) break;
+  }
+  return result;
+}
+
+List<Map<String, dynamic>> aggregatePublishedCoreCriteria(
+  Iterable<Map<String, dynamic>> history,
+) => _aggregatePublishedCriteria(
+  history,
+  group: 'core',
+  order: const ['communication', 'responsibility', 'professionalism'],
+);
+
+/// Only the two recommended worker skills have a shared, general-purpose
+/// definition here. They are visualization-only and remain additional skills.
+List<Map<String, dynamic>> aggregatePublishedComparableWorkerSkills(
+  Iterable<Map<String, dynamic>> history,
+) => _aggregatePublishedCriteria(
+  history.where((row) => row['direction'] == 'employer_to_worker'),
+  group: 'worker_additional',
+  order: const ['adaptability', 'teamwork'],
+);
+
+List<Map<String, dynamic>> _aggregatePublishedCriteria(
+  Iterable<Map<String, dynamic>> history, {
+  required String group,
+  required List<String> order,
+}) {
+  final totals = <String, ({String label, double sum, int count})>{};
+  for (final evaluation in history) {
+    if (evaluation['given_by_me'] == true ||
+        evaluation['both_parties_submitted'] != true) {
+      continue;
+    }
+    final ratings = evaluation['ratings'];
+    if (ratings is! List) continue;
+    final seenInApplication = <String>{};
+    for (final value in ratings) {
+      if (value is! Map ||
+          value['group'] != group ||
+          value['not_observed'] == true) {
+        continue;
+      }
+      // The reviewed evaluation-history RPC names this field `id`. Retain
+      // `skill_id` compatibility for injected/test projections that use the
+      // aggregate naming convention.
+      final id = value['id'] ?? value['skill_id'];
+      final label = value['label'];
+      final score = value['rating'];
+      if (id is! String ||
+          !order.contains(id) ||
+          !seenInApplication.add(id) ||
+          label is! String ||
+          label.trim().isEmpty ||
+          score is! num ||
+          !score.isFinite ||
+          score < 1 ||
+          score > 5) {
+        continue;
+      }
+      final current = totals[id];
+      totals[id] = (
+        label: label.trim(),
+        sum: (current?.sum ?? 0) + score.toDouble(),
+        count: (current?.count ?? 0) + 1,
+      );
+    }
+  }
+  return [
+    for (final id in order)
+      if (totals[id] case final value?)
+        {
+          'skill_id': id,
+          'label': value.label,
+          'average': value.sum / value.count,
+          'sample_count': value.count,
+        },
+  ];
 }
 
 /// Read-only aggregates for an authorized Application or visible Company.

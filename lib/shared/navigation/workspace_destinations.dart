@@ -68,11 +68,7 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
     if (role == 'job_seeker') ...{
       'Find Work': [
         (AppRoutes.browseJobs, 'Browse Jobs', Icons.search),
-        (
-          AppRoutes.recommendations,
-          'For You',
-          Icons.auto_awesome_outlined,
-        ),
+        (AppRoutes.recommendations, 'For You', Icons.auto_awesome_outlined),
         (AppRoutes.nearbyJobs, 'Nearby Jobs', Icons.map_outlined),
       ],
       'Applications': [
@@ -90,7 +86,6 @@ Map<String, List<WorkspaceDestination>> workspaceDestinations(
           'Evaluations',
           Icons.rate_review_outlined,
         ),
-        (AppRoutes.reputation, 'My Reputation', Icons.insights_outlined),
       ],
       'Communication': [
         (AppRoutes.disputes, 'My disputes', Icons.gavel_outlined),
