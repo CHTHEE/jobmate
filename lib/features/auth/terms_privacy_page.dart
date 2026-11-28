@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../shared/widgets/mobile_back_action.dart';
 import '../../shared/widgets/responsive_layout.dart';

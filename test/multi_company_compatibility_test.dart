@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:jobmate/features/company/company_membership_selection.dart';
 import 'package:jobmate/features/admin/user_membership_details.dart';
 import 'package:jobmate/features/admin/user_management_gateway.dart';

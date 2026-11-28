@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../shared/navigation/app_routes.dart';
@@ -73,9 +73,7 @@ class DashboardActivity extends StatelessWidget {
                           : AppRoutes.recommendations,
                     ),
                     child: Text(
-                      employer
-                          ? 'View Sample Applicants'
-                          : 'Explore For You',
+                      employer ? 'View Sample Applicants' : 'Explore For You',
                     ),
                   ),
                   OutlinedButton(

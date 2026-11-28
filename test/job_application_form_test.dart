@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jobmate/features/applications/job_application_form.dart';
 import 'package:jobmate/features/applications/module2_repository.dart';

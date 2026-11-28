@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jobmate/features/jobs/job_form_page.dart';
 import 'package:jobmate/features/jobs/job_form_widgets.dart';
@@ -508,11 +508,14 @@ void main() {
       expect(field(tester, 'Job title').text, 'Preserve my draft');
       await tester.tap(find.text('Back to Job Postings'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 350));
+      // The pending access check keeps scheduling spinner frames.
+      await tester.pump(const Duration(seconds: 1));
       expect(find.text('Discard unsaved changes?'), findsOneWidget);
-      await tester.tap(find.text('Discard changes'));
+      await tester.tap(find.text('Discard changes').hitTestable());
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
       expect(find.byType(JobFormPage), findsNothing);
       repo.check.complete(repo.access);
       repo.postings.complete([]);

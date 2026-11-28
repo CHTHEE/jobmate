@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Returns a trimmed comment, or null when the administrator cancels.
 class CompanyRejectionDialog extends StatefulWidget {

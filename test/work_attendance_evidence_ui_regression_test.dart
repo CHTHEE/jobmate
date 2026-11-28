@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:jobmate/features/work_attendance/employer_work_evidence_summary.dart';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jobmate/features/applications/resume_pdf_opener.dart';
 import 'package:jobmate/features/jobs/job_postings_repository.dart';

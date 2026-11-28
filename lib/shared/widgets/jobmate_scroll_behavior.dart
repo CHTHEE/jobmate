@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Keeps scrolling enabled while hiding Flutter's desktop/web scrollbar.
 class JobMateScrollBehavior extends MaterialScrollBehavior {

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shared visual tokens. Feature-specific status meanings stay in their widgets.
 abstract final class JobMateTheme {

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'chat_attachment_models.dart';
 import 'chat_attachments.dart';

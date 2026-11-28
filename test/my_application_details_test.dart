@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jobmate/features/applications/applications_page.dart';
@@ -14,6 +14,7 @@ import 'package:jobmate/shared/theme/jobmate_theme.dart';
 import 'fixtures/my_applications_source.dart';
 
 void main() {
+  _polishedDetailsTests();
   const id = 'bc697799-463f-4251-b6be-8888551c3712';
   late TestMyApplicationsSource source;
   setUp(() {
@@ -411,6 +412,139 @@ void main() {
       await tester.tap(back);
       await tester.pumpAndSettle();
       expect(router.routeInformationProvider.value.uri.path, '/applications');
+    },
+  );
+}
+
+const applicationId = '12345678-abcd-0123-abcd-123456789abc';
+
+void _polishedDetailsTests() {
+  for (final width in [320.0, 768.0, 1200.0]) {
+    testWidgets('offered summary and history fit at $width', (tester) async {
+      tester.view.physicalSize = Size(width, 1050);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final source = TestMyApplicationsSource()
+        ..rows = [
+          {
+            ...applicationRow(applicationId, status: 'offered'),
+            'job_title':
+                'Senior Customer Service and Front of House Coordinator',
+            'resume_id': 'resume',
+          },
+        ]
+        ..historyRows = [
+          historyRow('applied'),
+          historyRow('shortlisted', status: 'shortlisted'),
+          {
+            ...historyRow('offered', status: 'offered'),
+            'changed_by_name': 'Hiring Manager',
+            'note': 'Please review the offer.',
+          },
+        ];
+      addTearDown(source.changes.close);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MyApplicationDetailsPage(
+            applicationId: applicationId,
+            source: source,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(FilledButton, 'Accept Offer'), findsOneWidget);
+      expect(
+        find.widgetWithText(OutlinedButton, 'Decline Offer'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(TextButton, 'Withdraw Application'),
+        findsOneWidget,
+      );
+      expect(find.byType(ChatApplicationButton), findsOneWidget);
+      expect(find.text('Resume attached'), findsOneWidget);
+      expect(
+        find.text(MyApplicationStatus.offered.lifecycleExplanation!),
+        findsOneWidget,
+      );
+      final first = find.byKey(const ValueKey('applied'));
+      final last = find.byKey(const ValueKey('offered'));
+      expect(tester.getTopLeft(first).dy, lessThan(tester.getTopLeft(last).dy));
+      expect(find.text('Hiring Manager'), findsOneWidget);
+      expect(find.text('Please review the offer.'), findsOneWidget);
+      expect(find.textContaining(applicationId), findsNothing);
+      expect(find.text('Application reference'), findsNothing);
+      expect(find.textContaining('Application ID:'), findsNothing);
+      expect(find.text('Copy ID'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'View Job returns to application and acceptance uses existing transition',
+    (tester) async {
+      final source = TestMyApplicationsSource()
+        ..rows = [applicationRow(applicationId, status: 'offered')];
+      source.sendResponse = (_, _) async {
+        source.rows = [applicationRow(applicationId, status: 'hired')];
+        return 'hired';
+      };
+      addTearDown(source.changes.close);
+      final router = GoRouter(
+        initialLocation: '/applications/$applicationId',
+        routes: [
+          GoRoute(
+            path: '/applications',
+            builder: (_, _) => const Text('Applications destination'),
+          ),
+          GoRoute(
+            path: '/applications/:id',
+            builder: (_, _) => MyApplicationDetailsPage(
+              applicationId: applicationId,
+              source: source,
+            ),
+          ),
+          GoRoute(
+            path: '/jobs/:jobId',
+            builder: (_, state) =>
+                Scaffold(body: Text('Job ${state.pathParameters['jobId']}')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('View Job'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('View Job'));
+      await tester.pumpAndSettle();
+      expect(find.text('Job real-job-id'), findsOneWidget);
+      router.pop();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Accept Offer'));
+      await tester.pumpAndSettle();
+      expect(source.responses, isEmpty);
+      await tester.tap(find.text('Confirm Accept Offer'));
+      await tester.pumpAndSettle();
+      expect(source.responses.single, (applicationId, 'accept_offer'));
+      expect(find.text('Hired'), findsOneWidget);
+      for (final label in [
+        'Accept Offer',
+        'Decline Offer',
+        'Withdraw Application',
+      ]) {
+        expect(find.text(label), findsNothing);
+      }
+      await tester.tap(
+        (kIsWeb
+            ? find.text('Back to Applications')
+            : find.byTooltip('Back to Applications')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Applications destination'), findsOneWidget);
     },
   );
 }

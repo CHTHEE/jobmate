@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -118,11 +118,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       router.push(AppRoutes.adminDemoJobs);
-      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
       expect(find.byType(AdminPreviewPage), findsOneWidget);
       expect(tester.takeException(), isNull);
       router.pop();
-      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
       await openWorkspaceMenu(tester);
       if (find.byType(ExpansionTile).evaluate().isNotEmpty) {
         await tester.tap(find.text('Administration'));

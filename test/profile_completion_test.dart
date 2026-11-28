@@ -3,7 +3,7 @@ import 'dart:async';
 import 'fixtures/my_applications_source.dart';
 import 'fixtures/published_jobs_source.dart';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jobmate/shared/widgets/app_workspace.dart';

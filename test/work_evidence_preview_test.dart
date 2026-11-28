@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jobmate/features/applications/resume_pdf_opener.dart';
 import 'package:jobmate/features/jobs/job_postings_repository.dart';

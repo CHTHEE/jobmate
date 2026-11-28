@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../shared/widgets/responsive_layout.dart';
 import 'company_review_gateway.dart';

@@ -2,7 +2,7 @@
 // Run with: flutter run -d chrome --target test/support/payment_handling_demo.dart
 // This file is outside lib/ and is never imported by the production app.
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:jobmate/shared/theme/jobmate_theme.dart';
 
 void main() {
@@ -147,8 +147,7 @@ class PaymentHandlingDemoState extends ChangeNotifier {
 
   void confirmExactFinalBase(int amountSen) {
     _requireAcceptedCurrentOffer();
-    if (_proposedFinalBaseSen == null ||
-        amountSen != _proposedFinalBaseSen) {
+    if (_proposedFinalBaseSen == null || amountSen != _proposedFinalBaseSen) {
       throw StateError('Confirm the exact Final Base Salary proposed.');
     }
     _confirmedFinalBaseSen = amountSen;
@@ -157,7 +156,9 @@ class PaymentHandlingDemoState extends ChangeNotifier {
 
   void setBonus(int amountSen) {
     if (_confirmedFinalBaseSen == null || _simulatedPaymentConfirmed) {
-      throw StateError('Bonus is locked until salary confirmation and payment.');
+      throw StateError(
+        'Bonus is locked until salary confirmation and payment.',
+      );
     }
     if (amountSen < 0) throw ArgumentError('Bonus cannot be negative.');
     _bonusSen = amountSen;
@@ -203,7 +204,8 @@ int parseDemoMoney(String input) {
     throw const FormatException('Enter MYR with at most two decimal places.');
   }
   final parts = value.split('.');
-  final result = int.parse(parts[0]) * 100 +
+  final result =
+      int.parse(parts[0]) * 100 +
       (parts.length == 1 ? 0 : int.parse(parts[1].padRight(2, '0')));
   if (result > 999999999999) {
     throw const FormatException('Amount is too large.');
@@ -565,7 +567,9 @@ class _PaymentHandlingDemoPageState extends State<_PaymentHandlingDemoPage> {
   Widget _employerSalaryContent() => _DemoCard(
     title: '3. Employer proposes Final Base Salary',
     child: !store.offerAccepted
-        ? const Text('Available after the Job Seeker accepts the current Offer.')
+        ? const Text(
+            'Available after the Job Seeker accepts the current Offer.',
+          )
         : Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -618,7 +622,9 @@ class _PaymentHandlingDemoPageState extends State<_PaymentHandlingDemoPage> {
                   key: const Key('save-demo-bonus'),
                   onPressed: store.simulatedPaymentConfirmed
                       ? null
-                      : () => _run(() => store.setBonus(parseDemoMoney(_bonus.text))),
+                      : () => _run(
+                          () => store.setBonus(parseDemoMoney(_bonus.text)),
+                        ),
                   child: const Text('Save optional bonus'),
                 ),
                 FilledButton.icon(
@@ -639,7 +645,8 @@ class _PaymentHandlingDemoPageState extends State<_PaymentHandlingDemoPage> {
   );
 
   Widget _paymentSummary(BuildContext context) => _DemoCard(
-    title: 'Payment Summary · ${_role == PaymentDemoRole.employer ? 'Employer' : 'Job Seeker'} view',
+    title:
+        'Payment Summary · ${_role == PaymentDemoRole.employer ? 'Employer' : 'Job Seeker'} view',
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -738,9 +745,8 @@ class _DemoCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 10),
           child,
@@ -770,7 +776,9 @@ class _ReleaseUnavailableApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const MaterialApp(
     home: Scaffold(
-      body: Center(child: Text('This debug-only demo is unavailable in Release.')),
+      body: Center(
+        child: Text('This debug-only demo is unavailable in Release.'),
+      ),
     ),
   );
 }

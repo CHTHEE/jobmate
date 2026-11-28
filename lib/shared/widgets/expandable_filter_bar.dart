@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Keeps the toolbar visible while revealing the page's independent filters.
 /// Criteria live in the parent so closing the panel never clears a selection.
